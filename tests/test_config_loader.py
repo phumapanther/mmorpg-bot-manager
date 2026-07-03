@@ -1,4 +1,4 @@
-import json, importlib
+import json
 from bot import config_loader
 
 def _write(tmp_path, data):
@@ -27,5 +27,9 @@ def test_corrupt_config_falls_back(tmp_path, monkeypatch):
     p = tmp_path / "config.json"
     p.write_text("{ broken", encoding="utf-8")
     monkeypatch.setattr(config_loader, "CONFIG_PATH", str(p))
+    # Create temp example file for isolation (not the repo's real config.example.json)
+    example = tmp_path / "config.example.json"
+    example.write_text(json.dumps({"channels": {"bank": {"channel_id": 777}}}), encoding="utf-8")
+    monkeypatch.setattr(config_loader, "EXAMPLE_PATH", str(example))
     config_loader.reload_config()
-    assert config_loader.get_channel_id("bank") is None  # falls back, no crash
+    assert config_loader.get_channel_id("bank") == 777  # fell back to example, not repo file
