@@ -392,7 +392,7 @@ const SHOP_TYPES = [
 
 function refreshShopRoleOptions() {
   const selects = Array.from(document.querySelectorAll("#shopTable select.shop-role"));
-  const currentValues = selects.map((sel) => sel.value);
+  const currentValues = selects.map((sel) => (sel.disabled ? "" : sel.value));
   selects.forEach((sel, i) => {
     const used = new Set(currentValues.filter((v, j) => j !== i && v));
     Array.from(sel.options).forEach((opt) => {
