@@ -2,7 +2,10 @@ import os, sys, subprocess, threading, collections
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # default: run the packaged/launcher bot; overridable in tests
-BOT_CMD = [sys.executable, "-u", "-m", "bot.main"]
+if getattr(sys, "frozen", False):
+    BOT_CMD = [sys.executable, "--run-bot"]
+else:
+    BOT_CMD = [sys.executable, "-u", "-m", "bot.main"]
 
 _proc = None
 _log = collections.deque(maxlen=1000)
