@@ -11,16 +11,35 @@ def _load_file(path):
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 
+def _merge_missing(target, defaults):
+    for key, default_value in defaults.items():
+        if key not in target:
+            target[key] = default_value
+        elif isinstance(target[key], dict) and isinstance(default_value, dict):
+            _merge_missing(target[key], default_value)
+    return target
+
 def get_config():
     global _cache
     if _cache is not None:
         return _cache
-    for path in (CONFIG_PATH, EXAMPLE_PATH):
+    try:
+        data = _load_file(CONFIG_PATH)
+    except (FileNotFoundError, json.JSONDecodeError):
+        data = None
+    if data is not None:
         try:
-            _cache = _load_file(path)
-            return _cache
+            defaults = _load_file(EXAMPLE_PATH)
+            data = _merge_missing(data, defaults)
         except (FileNotFoundError, json.JSONDecodeError):
-            continue
+            pass
+        _cache = data
+        return _cache
+    try:
+        _cache = _load_file(EXAMPLE_PATH)
+        return _cache
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
     _cache = {}
     return _cache
 

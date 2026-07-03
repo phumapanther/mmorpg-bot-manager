@@ -1,10 +1,18 @@
 import json
+import pytest
 from bot import config_loader
 
 def _write(tmp_path, data):
     p = tmp_path / "config.json"
     p.write_text(json.dumps(data), encoding="utf-8")
     return p
+
+@pytest.fixture(autouse=True)
+def _isolate_example_path(tmp_path, monkeypatch):
+    empty_example = tmp_path / "_autouse_example.json"
+    empty_example.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(config_loader, "EXAMPLE_PATH", str(empty_example))
+    config_loader.reload_config()
 
 def test_get_channel_id_returns_int(tmp_path, monkeypatch):
     cfg = {"channels": {"bank": {"label": "x", "channel_id": 123}}}
@@ -83,3 +91,27 @@ def test_get_shop_items_empty_by_default(tmp_path, monkeypatch):
     monkeypatch.setattr(config_loader, "CONFIG_PATH", str(_write(tmp_path, {})))
     config_loader.reload_config()
     assert config_loader.get_shop_items() == []
+
+def test_get_config_merges_missing_top_level_key(tmp_path, monkeypatch):
+    cfg = {"channels": {"bank": {"channel_id": 999}}}
+    example = {"channels": {"bank": {"channel_id": 111}}, "shop_items": [{"name": "x"}]}
+    monkeypatch.setattr(config_loader, "CONFIG_PATH", str(_write(tmp_path, cfg)))
+    ex_path = tmp_path / "example.json"
+    ex_path.write_text(json.dumps(example), encoding="utf-8")
+    monkeypatch.setattr(config_loader, "EXAMPLE_PATH", str(ex_path))
+    config_loader.reload_config()
+    result = config_loader.get_config()
+    assert result["channels"]["bank"]["channel_id"] == 999  # existing value preserved, not overwritten
+    assert result["shop_items"] == [{"name": "x"}]  # missing top-level key filled in from example
+
+def test_get_config_merges_missing_nested_key(tmp_path, monkeypatch):
+    cfg = {"channels": {"bank": {"channel_id": 999}}}
+    example = {"channels": {"bank": {"channel_id": 111}, "levelup_announce": {"channel_id": None}}}
+    monkeypatch.setattr(config_loader, "CONFIG_PATH", str(_write(tmp_path, cfg)))
+    ex_path = tmp_path / "example.json"
+    ex_path.write_text(json.dumps(example), encoding="utf-8")
+    monkeypatch.setattr(config_loader, "EXAMPLE_PATH", str(ex_path))
+    config_loader.reload_config()
+    result = config_loader.get_config()
+    assert result["channels"]["bank"]["channel_id"] == 999  # preserved
+    assert result["channels"]["levelup_announce"]["channel_id"] is None  # missing nested key filled in
