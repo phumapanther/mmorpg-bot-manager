@@ -4,58 +4,12 @@ import random
 import bot.models.player_model as player_model
 from bot.views.profile_embed import ARMOR_STATS, GAME_CLASSES ,WEAPON_STATS,ITEM_CONFIG
 import traceback # เอาไว้ดูว่า Error บรรทัดไหน
-import json  
+import json
+from bot import config_loader
 
-# ==========================================================
-# 📊 [SKILL BALANCE CONFIG] คลังศูนย์กลางคุมบาลานซ์สกิลแบบละเอียด 100%
-# ==========================================================
-SKILL_CONFIG = {
-    "Warrior": {
-        "heavy_strike": {
-            "chance_base": 80,          # โอกาสติดพื้นฐาน (%)
-            "chance_lvl_scale": 1,      # โอกาสติดเพิ่มขึ้นต่อเลเวล (เช่น +1% ต่อ 1 เลเวล)
-            "damage_multiplier": 2      # ตัวคูณความเสียหายเมื่อสำเร็จ
-        },
-        "shield_bash": {
-            "duration": 3,              # ระยะเวลาติดสถานะ (เทิร์น)
-            "reduction_base": 0.50,     # อัตราลดดาเมจพื้นฐาน (50%)
-            "reduction_lvl_scale": 0.005 # อัตราลดดาเมจเพิ่มขึ้นต่อเลเวล (+0.5% ต่อ 1 เลเวล)
-        }
-    },
-    "Mage": {
-        "fireball": {
-            "duration": 2,              # ระยะเวลาติดไฟ (เทิร์น)
-            "burn_base": 0.05,          # พลังเผาไหม้พื้นฐานอิงตาม HP บอส (5%)
-            "burn_lvl_scale": 0.002     # พลังเผาเพิ่มขึ้นต่อเลเวล (+0.2% ต่อ 1 เลเวล)
-        },
-        "frostbolt": {
-            "duration_base": 1,         # ระยะเวลาแช่แข็งพื้นฐาน (เทิร์น)
-            "duration_lvl_scale": 0.05,  # ระยะเวลาแช่แข็งเพิ่มขึ้นต่อเลเวล (เช่น ทุก 20 เลเวลเพิ่ม 1 เทิร์น)
-            "damage_reduce": 0.75       # อัตราหักล้างดาเมจของบอส (75%)
-        }
-    },
-    "Rogue": {
-        "backstab": {
-            "chance_base": 50,          # โอกาสติดพื้นฐาน (%)
-            "chance_lvl_scale": 0.5,      # โอกาสติดเพิ่มขึ้นต่อเลเวล (+0.5% ต่อ 1 เลเวล)
-            "damage_reflect_mult": 1.5  # ตัวคูณดาเมจคริติคอลสะท้อนสวนกลับบอส
-        },
-        "evasion": {
-            "chance_base": 100,          # โอกาสวิ่งหนีสำเร็จพื้นฐาน (%)
-            "chance_lvl_scale": 0.0       # โอกาสวิ่งหนีสำเร็จเพิ่มขึ้นต่อเลเวล (+0.5% ต่อ 1 เลเวล)
-        }
-    },
-    "Cleric": {
-        "heal": {
-            "heal_percent_base": 0.40,  # อัตราฮีลพื้นฐานอิงจาก Max HP (40%)
-            "heal_lvl_scale": 0.01      # อัตราฮีลเพิ่มขึ้นต่อเลเวล (+1% ต่อ 1 เลเวล)
-        },
-        "holy_aura": {
-            "chance_base": 50,          # โอกาสบล็อกดาเมจเป็น 0 พืนฐาน (%)
-            "chance_lvl_scale": 1       # โอกาสบล็อกดาเมจเพิ่มขึ้นต่อเลเวล (+1% ต่อ 1 เลเวล)
-        }
-    }
-}
+def _holy_aura_chance(p_lvl):
+    cfg = config_loader.get_skill_config("Cleric", "holy_aura")
+    return cfg["chance_base"] + (p_lvl * cfg["chance_lvl_scale"])
 
 # ตารางสัดส่วนน้ำหนักเหตุการณ์ (อ้างอิงจาก last_event)
 EVENT_WEIGHTS = {
@@ -213,7 +167,7 @@ class MonsterEventView(View):
             # ─── ⚔️ ระบบคำนวณสกิลช่วงต้นเทิร์น ───
             try:
                 if skill_used == "skill_heavy_strike":
-                    w_cfg = SKILL_CONFIG["Warrior"]["heavy_strike"]
+                    w_cfg = config_loader.get_skill_config("Warrior", "heavy_strike")
                     chance = w_cfg["chance_base"] + (p_lvl * w_cfg["chance_lvl_scale"])
                     if random.randint(1, 100) <= chance:
                         damage_multiplier = w_cfg["damage_multiplier"]
@@ -222,7 +176,7 @@ class MonsterEventView(View):
                         skill_log += "💨 **Heavy Strike ล้มเหลว!** ทอยเต๋าพลาดสมาธิหลุด\n"
 
                 elif skill_used == "skill_evasion":
-                    r_cfg = SKILL_CONFIG["Rogue"]["evasion"]
+                    r_cfg = config_loader.get_skill_config("Rogue", "evasion")
                     chance = r_cfg["chance_base"] + (p_lvl * r_cfg["chance_lvl_scale"])
                     if random.randint(1, 100) <= chance:
                         player_model.update_player_field(self.user_id, "current_state", "idle")
@@ -232,7 +186,7 @@ class MonsterEventView(View):
                         skill_log += "⚠️ **Evasion ล้มเหลว!** มอนสเตอร์ดักทางเท้าไว้ได้\n"
 
                 elif skill_used == "skill_heal":
-                    c_cfg = SKILL_CONFIG["Cleric"]["heal"]
+                    c_cfg = config_loader.get_skill_config("Cleric", "heal")
                     heal_percent = c_cfg["heal_percent_base"] + (p_lvl * c_cfg["heal_lvl_scale"])
                     heal_amount = int(player.get("max_hp", 100) * heal_percent)
                     
@@ -246,18 +200,18 @@ class MonsterEventView(View):
                     player["hp"] = new_hp 
                     skill_log += f"✨ **Heal!** พลังชีวิตของคุณฟื้นฟู `+ {heal_amount}` หน่วย (❤️ HP: {new_hp})\n"
 
-                if skill_used == "skill_shield_bash": 
-                    self.active_buffs["shield_bash"] = SKILL_CONFIG["Warrior"]["shield_bash"]["duration"]
-                elif skill_used == "skill_fireball": 
-                    self.active_buffs["fireball"] = SKILL_CONFIG["Mage"]["fireball"]["duration"]
-                elif skill_used == "skill_frostbolt": 
-                    f_cfg = SKILL_CONFIG["Mage"]["frostbolt"]
+                if skill_used == "skill_shield_bash":
+                    self.active_buffs["shield_bash"] = config_loader.get_skill_config("Warrior", "shield_bash")["duration"]
+                elif skill_used == "skill_fireball":
+                    self.active_buffs["fireball"] = config_loader.get_skill_config("Mage", "fireball")["duration"]
+                elif skill_used == "skill_frostbolt":
+                    f_cfg = config_loader.get_skill_config("Mage", "frostbolt")
                     self.active_buffs["frostbolt"] = f_cfg["duration_base"] + int(p_lvl * f_cfg["duration_lvl_scale"])
-                elif skill_used == "skill_holy_aura": 
+                elif skill_used == "skill_holy_aura":
                     self.active_buffs["holy_aura"] = 3
                 elif skill_used == "skill_backstab":
-                    r_b_cfg = SKILL_CONFIG["Rogue"]["backstab"]
-                    if random.randint(1, 100) <= (r_b_cfg["chance_base"] + (p_lvl * r_b_cfg["chance_lvl_scale"])): 
+                    r_b_cfg = config_loader.get_skill_config("Rogue", "backstab")
+                    if random.randint(1, 100) <= (r_b_cfg["chance_base"] + (p_lvl * r_b_cfg["chance_lvl_scale"])):
                         self.active_buffs["backstab"] = 1
             except KeyError as e:
                 print(f"⚠️ [WARNING] ตั้งค่าสกิลขาดหาย: {e}")
@@ -265,7 +219,7 @@ class MonsterEventView(View):
             # 🔥 คิดเอฟเฟกต์เผาไหม้ของ Fireball
             if self.active_buffs.get("fireball", 0) > 0:
                 try:
-                    m_cfg = SKILL_CONFIG["Mage"]["fireball"]
+                    m_cfg = config_loader.get_skill_config("Mage", "fireball")
                     burn_percent = m_cfg["burn_base"] + (p_lvl * m_cfg["burn_lvl_scale"])
                     burn_damage = int(self.m_stats.get("hp_range", [0,100])[1] * burn_percent)
                     self.monster_hp = max(0, self.monster_hp - burn_damage)
@@ -291,22 +245,22 @@ class MonsterEventView(View):
                 
                 try:
                     if self.active_buffs.get("frostbolt", 0) > 0:
-                        f_reduce = SKILL_CONFIG["Mage"]["frostbolt"]["damage_reduce"]
+                        f_reduce = config_loader.get_skill_config("Mage", "frostbolt")["damage_reduce"]
                         damage_to_player = int(damage_to_player * (1 - f_reduce))
                         combat_log += f"❄️ *น้ำแข็งเกาะ:* บอสติดแช่แข็ง พลังโจมตีลดลง {int(f_reduce*100)}%! (โดนดาเมจเบา ๆ `- {damage_to_player}`)\n"
-                        
-                    elif self.active_buffs.get("holy_aura", 0) > 0 and random.randint(1, 100) <= (SKILL_CONFIG["Cleric"]["holy_aura"]["chance_base"] + (p_lvl * SKILL_CONFIG["Cleric"]["holy_aura"]["chance_lvl_scale"])):
+
+                    elif self.active_buffs.get("holy_aura", 0) > 0 and random.randint(1, 100) <= _holy_aura_chance(p_lvl):
                         damage_to_player = 0
                         combat_log += "✨ *Holy Aura ทำงาน:* ร่างกายส่องแสงบล็อคพลังโจมตีของบอสกลายเป็น 0!\n"
-                        
+
                     elif self.active_buffs.get("backstab", 0) > 0:
                         damage_to_player = int(damage_to_player * 0.2)
-                        rogue_reflect = int(player_roll * 5 * SKILL_CONFIG["Rogue"]["backstab"]["damage_reflect_mult"])
+                        rogue_reflect = int(player_roll * 5 * config_loader.get_skill_config("Rogue", "backstab")["damage_reflect_mult"])
                         self.monster_hp = max(0, self.monster_hp - rogue_reflect)
                         combat_log += f"🗡️ *Backstab คุมเชิง:* ดาเมจสวนกลับลดลง 80% (โดนแค่ `- {damage_to_player}`) พร้อมวาร์ปตลบหลังแทงบอสสวนกลับหงายหลังฟาด `- {rogue_reflect}` หน่วย! (บอสเหลือ HP: {self.monster_hp})\n"
-                        
+
                     elif self.active_buffs.get("shield_bash", 0) > 0:
-                        s_b_cfg = SKILL_CONFIG["Warrior"]["shield_bash"]
+                        s_b_cfg = config_loader.get_skill_config("Warrior", "shield_bash")
                         reduction = s_b_cfg["reduction_base"] + (p_lvl * s_b_cfg["reduction_lvl_scale"])
                         damage_to_player = int(damage_to_player * (1 - min(0.9, reduction)))
                         combat_log += f"🛡️ *Shield Bash บล็อก:* ดาเมจลดลงครอบคลุมเกราะ (โดนแค่ `- {damage_to_player}`)\n"
