@@ -52,6 +52,32 @@
     "gacha_pool_price": 20000000
   },
 
+  "skills": {
+    "Warrior": {
+      "heavy_strike": {"chance_base": 80, "chance_lvl_scale": 1, "damage_multiplier": 2},
+      "shield_bash":  {"duration": 3, "reduction_base": 0.50, "reduction_lvl_scale": 0.005}
+    },
+    "Mage": {
+      "fireball":  {"duration": 2, "burn_base": 0.05, "burn_lvl_scale": 0.002},
+      "frostbolt": {"duration_base": 1, "duration_lvl_scale": 0.05, "damage_reduce": 0.75}
+    },
+    "Rogue": {
+      "backstab": {"chance_base": 50, "chance_lvl_scale": 0.5, "damage_reflect_mult": 1.5},
+      "evasion":  {"chance_base": 100, "chance_lvl_scale": 0.0}
+    },
+    "Cleric": {
+      "heal":      {"heal_percent_base": 0.40, "heal_lvl_scale": 0.01},
+      "holy_aura": {"chance_base": 50, "chance_lvl_scale": 1}
+    }
+  },
+
+  "role_bonuses": [
+    {"label": "ทีมงาน (Staff) — โบนัส EXP ห้องเสียง", "role_id": null, "bonus_type": "voice_exp_multiplier", "value": 1.2},
+    {"label": "นักกวี (Poet) — โบนัส EXP ห้องเสียง", "role_id": null, "bonus_type": "voice_exp_multiplier", "value": 1.5},
+    {"label": "ทีมงาน (Staff) — โบนัสสถิติแชทกิจกรรม", "role_id": null, "bonus_type": "chat_event_multiplier", "value": 2.0},
+    {"label": "ผู้ส่งสาร (Messenger) — โบนัสเงินแชท", "role_id": null, "bonus_type": "chat_gold_multiplier", "value": 3.0}
+  ],
+
   "shop_items": [
     { "name": "✞ ทูตชั้นต้น ✞", "price": 10000, "type": "rank_role", "role_id": null },
     { "name": "✞ ทูตชั้นกลาง ༊·˚", "price": 100000, "type": "rank_role", "role_id": null },

@@ -74,6 +74,17 @@ def get_trade_roles(faction):
         result.append(r2)
     return result
 
+def get_skill_config(class_name, skill_name):
+    return dict(get_config().get("skills", {}).get(class_name, {}).get(skill_name, {}))
+
+def get_role_bonuses(bonus_type):
+    entries = get_config().get("role_bonuses", [])
+    result = []
+    for e in entries:
+        if e.get("bonus_type") == bonus_type and e.get("role_id") is not None:
+            result.append({"role_id": int(e["role_id"]), "value": float(e.get("value", 1.0))})
+    return result
+
 def get_shop_items():
     items = get_config().get("shop_items", [])
     result = []

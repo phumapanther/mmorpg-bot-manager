@@ -115,3 +115,32 @@ def test_get_config_merges_missing_nested_key(tmp_path, monkeypatch):
     result = config_loader.get_config()
     assert result["channels"]["bank"]["channel_id"] == 999  # preserved
     assert result["channels"]["levelup_announce"]["channel_id"] is None  # missing nested key filled in
+
+def test_get_skill_config_returns_fields(tmp_path, monkeypatch):
+    cfg = {"skills": {"Warrior": {"heavy_strike": {"chance_base": 80, "damage_multiplier": 2}}}}
+    monkeypatch.setattr(config_loader, "CONFIG_PATH", str(_write(tmp_path, cfg)))
+    config_loader.reload_config()
+    result = config_loader.get_skill_config("Warrior", "heavy_strike")
+    assert result == {"chance_base": 80, "damage_multiplier": 2}
+
+def test_get_skill_config_missing_returns_empty_dict(tmp_path, monkeypatch):
+    monkeypatch.setattr(config_loader, "CONFIG_PATH", str(_write(tmp_path, {"skills": {}})))
+    config_loader.reload_config()
+    assert config_loader.get_skill_config("Warrior", "nonexistent") == {}
+    assert config_loader.get_skill_config("NoSuchClass", "heavy_strike") == {}
+
+def test_get_role_bonuses_filters_by_type_and_coerces(tmp_path, monkeypatch):
+    cfg = {"role_bonuses": [
+        {"label": "a", "role_id": "111", "bonus_type": "voice_exp_multiplier", "value": 1.2},
+        {"label": "b", "role_id": "222", "bonus_type": "chat_gold_multiplier", "value": 3},
+        {"label": "c", "role_id": None, "bonus_type": "voice_exp_multiplier", "value": 1.5},
+    ]}
+    monkeypatch.setattr(config_loader, "CONFIG_PATH", str(_write(tmp_path, cfg)))
+    config_loader.reload_config()
+    result = config_loader.get_role_bonuses("voice_exp_multiplier")
+    assert result == [{"role_id": 111, "value": 1.2}]  # unset role_id (None) excluded
+
+def test_get_role_bonuses_no_match_returns_empty_list(tmp_path, monkeypatch):
+    monkeypatch.setattr(config_loader, "CONFIG_PATH", str(_write(tmp_path, {"role_bonuses": []})))
+    config_loader.reload_config()
+    assert config_loader.get_role_bonuses("voice_exp_multiplier") == []
