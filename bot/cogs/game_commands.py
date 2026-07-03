@@ -16,7 +16,7 @@ class GameCommands(commands.Cog):
     @commands.cooldown(1, 3.0, commands.BucketType.user) # ⏱️ คูลดาวน์ 3 วินาที ต่อผู้เล่น 1 คน
     async def shop(self, ctx, action: str = None, item_num: int = None):
         import random
-        from views.profile_embed import GAME_RACES, MONSTER_RACES, GAME_CLASSES
+        from bot.views.profile_embed import GAME_RACES, MONSTER_RACES, GAME_CLASSES
 
         user_id = ctx.author.id
         player = player_model.get_player(user_id)
@@ -291,7 +291,7 @@ class GameCommands(commands.Cog):
                 description=f"วิญญาณของคุณยังล่องลอยอยู่กลางสนามรบ\n❤️ HP ของคุณ: `0/{player['max_hp']}`\n\n📌 กรุณากดปุ่มด้านล่างเพื่อฟื้นตัวและยอมรับบทลงโทษกลับหมู่บ้าน",
                 color=0xe53e3e
             )
-            from views.game_views import RespawnView
+            from bot.views.game_views import RespawnView
             await ctx.send(embed=embed, view=RespawnView(user_id), ephemeral=True)
             return 
 
@@ -305,8 +305,8 @@ class GameCommands(commands.Cog):
             description=f"กระเป๋าเงินกลางของคุณ: `{player['cash']}` ทอง\nสถานะปัจจุบัน: `{player['current_state']}`",
             color=0x2b6cb0
         )
-        
-        from views.game_views import AdventureView
+
+        from bot.views.game_views import AdventureView
         await ctx.send(embed=embed, view=AdventureView(author_id=user_id), ephemeral=True)
 
     # ─── 🚨 ระบบตรวจจับและดักจับ Error คูลดาวน์ของ Cog นี้ ───
