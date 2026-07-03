@@ -75,7 +75,7 @@ function fillGuildSelect() {
 async function onGuildChange() {
   const sel = document.getElementById("guildSelect");
   const guildId = sel.value;
-  state.config.guild_id = guildId ? parseInt(guildId, 10) : null;
+  state.config.guild_id = guildId || null;
   if (!guildId) {
     state.channels = [];
     state.roles = [];
@@ -186,7 +186,7 @@ async function channelsSave() {
   tbody.querySelectorAll("select").forEach((sel) => {
     const key = sel.dataset.key;
     const v = sel.value;
-    state.config.channels[key].channel_id = v ? parseInt(v, 10) : null;
+    state.config.channels[key].channel_id = v || null;
   });
   await saveConfig();
 }
@@ -231,7 +231,7 @@ async function permissionsSave() {
     const key = wrap.dataset.key;
     const ids = [];
     wrap.querySelectorAll('input[type="checkbox"]:checked').forEach((cb) => {
-      ids.push(parseInt(cb.value, 10));
+      ids.push(cb.value);
     });
     state.config.permission_groups[key].role_ids = ids;
   });
@@ -325,7 +325,7 @@ function collectTradeTable(listKey, tableId) {
     item.label = tr.querySelector(".trade-label").value;
     item.price = parseInt(tr.querySelector(".trade-price").value, 10) || 0;
     const roleVal = tr.querySelector(".trade-role").value;
-    item.role_id = roleVal ? parseInt(roleVal, 10) : null;
+    item.role_id = roleVal || null;
   });
 }
 

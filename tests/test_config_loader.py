@@ -33,3 +33,25 @@ def test_corrupt_config_falls_back(tmp_path, monkeypatch):
     monkeypatch.setattr(config_loader, "EXAMPLE_PATH", str(example))
     config_loader.reload_config()
     assert config_loader.get_channel_id("bank") == 777  # fell back to example, not repo file
+
+def test_get_channel_id_preserves_large_snowflake_string(tmp_path, monkeypatch):
+    big_id = 1160575257892098109  # exceeds 2**53, would lose precision as a JS/JSON number
+    cfg = {"channels": {"bank": {"label": "x", "channel_id": str(big_id)}}}
+    monkeypatch.setattr(config_loader, "CONFIG_PATH", str(_write(tmp_path, cfg)))
+    config_loader.reload_config()
+    assert config_loader.get_channel_id("bank") == big_id
+
+def test_get_role_ids_preserves_large_snowflake_strings(tmp_path, monkeypatch):
+    big_ids = [1160575257892098109, 1510347144207401140]
+    cfg = {"permission_groups": {"admin": {"role_ids": [str(x) for x in big_ids]}}}
+    monkeypatch.setattr(config_loader, "CONFIG_PATH", str(_write(tmp_path, cfg)))
+    config_loader.reload_config()
+    assert config_loader.get_role_ids("admin") == big_ids
+
+def test_get_trade_roles_preserves_large_snowflake_string(tmp_path, monkeypatch):
+    big_id = 1160561278297837628
+    cfg = {"auto_trade_roles": {"dark": [{"label": "x", "value": "x", "price": 1, "role_id": str(big_id), "emoji": ""}]}}
+    monkeypatch.setattr(config_loader, "CONFIG_PATH", str(_write(tmp_path, cfg)))
+    config_loader.reload_config()
+    roles = config_loader.get_trade_roles("dark")
+    assert roles[0]["role_id"] == big_id

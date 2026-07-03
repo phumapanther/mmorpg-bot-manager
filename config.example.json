@@ -24,28 +24,28 @@
 
   "auto_trade_roles": {
     "dark": [
-      { "label": "♆ Maou-sama ⚓️", "value": "maou", "price": 300000000, "role_id": 1160575257892098109, "emoji": "👑" },
-      { "label": "💀 •  NECROMANCER", "value": "necro", "price": 100000000, "role_id": 1160579901515124776, "emoji": "💀" },
-      { "label": "•  Giant-King 👹", "value": "giant", "price": 50000000, "role_id": 1160577575937126543, "emoji": "👹" },
-      { "label": "• Asmodeus🕯️", "value": "asmo", "price": 20000000, "role_id": 1160576018508152912, "emoji": "🕯️" },
-      { "label": "• Beelzebub 🪰", "value": "beel", "price": 20000000, "role_id": 1160577870251425965, "emoji": "🪰" },
-      { "label": "• Mammon 🪙", "value": "mammon", "price": 20000000, "role_id": 1160576329079595079, "emoji": "🪙" },
-      { "label": "• Belphegor 🦥", "value": "belphe", "price": 20000000, "role_id": 1510346403044655124, "emoji": "🐌" },
-      { "label": "• Satan 𖤐", "value": "satan", "price": 20000000, "role_id": 1510346894558105680, "emoji": "🔯" },
-      { "label": "• Leviathan 🐍", "value": "levi", "price": 20000000, "role_id": 1510347065492901918, "emoji": "🐍" },
-      { "label": "• Lucifer ⸸", "value": "luci", "price": 20000000, "role_id": 1510347144207401140, "emoji": "✝️" }
+      { "label": "♆ Maou-sama ⚓️", "value": "maou", "price": 300000000, "role_id": "1160575257892098109", "emoji": "👑" },
+      { "label": "💀 •  NECROMANCER", "value": "necro", "price": 100000000, "role_id": "1160579901515124776", "emoji": "💀" },
+      { "label": "•  Giant-King 👹", "value": "giant", "price": 50000000, "role_id": "1160577575937126543", "emoji": "👹" },
+      { "label": "• Asmodeus🕯️", "value": "asmo", "price": 20000000, "role_id": "1160576018508152912", "emoji": "🕯️" },
+      { "label": "• Beelzebub 🪰", "value": "beel", "price": 20000000, "role_id": "1160577870251425965", "emoji": "🪰" },
+      { "label": "• Mammon 🪙", "value": "mammon", "price": 20000000, "role_id": "1160576329079595079", "emoji": "🪙" },
+      { "label": "• Belphegor 🦥", "value": "belphe", "price": 20000000, "role_id": "1510346403044655124", "emoji": "🐌" },
+      { "label": "• Satan 𖤐", "value": "satan", "price": 20000000, "role_id": "1510346894558105680", "emoji": "🔯" },
+      { "label": "• Leviathan 🐍", "value": "levi", "price": 20000000, "role_id": "1510347065492901918", "emoji": "🐍" },
+      { "label": "• Lucifer ⸸", "value": "luci", "price": 20000000, "role_id": "1510347144207401140", "emoji": "✝️" }
     ],
     "light": [
-      { "label": "ִֶָ. ..𓂃🪬 ࣪พระเจ้า ִֶָ🪽་༘࿐", "value": "god", "price": 300000000, "role_id": 1160561278297837628, "emoji": "✨" },
-      { "label": "🔥 ִֶָ อัครเทวทูต 🐦‍🔥་༘࿐", "value": "archangel", "price": 100000000, "role_id": 1160561319288766464, "emoji": "🔥" },
-      { "label": "જ⁀➴  ทูตสวรรค์ 🏹 ་༘", "value": "angel", "price": 50000000, "role_id": 1160561520095281274, "emoji": "🏹" },
-      { "label": "🪽• เทวทูต • Michael 🪽་༘࿐", "value": "michael", "price": 20000000, "role_id": 1160562306602762260, "emoji": "☁️" },
-      { "label": "🪽• เทวทูต • Raphael ‧₊˚ ☁️⋅", "value": "raphael", "price": 20000000, "role_id": 1160562310306340994, "emoji": "☁️" },
-      { "label": "🪽• เทวทูต • Gabriel 𐙚 🪽 ྀི", "value": "gabriel", "price": 20000000, "role_id": 1160563068695224432, "emoji": "☁️" },
-      { "label": "🪽• เทวทูต • Uriel⋆°🦢.⋆ᥫ᭡", "value": "uriel", "price": 20000000, "role_id": 1160563077763313806, "emoji": "☁️" },
-      { "label": "🪽• เทวทูต • Sariel ₊˚˖𓍢ִ໋🦢", "value": "sariel", "price": 20000000, "role_id": 1160563084956545064, "emoji": "🦢" },
-      { "label": "🪽• เทวทูต • Remiel 🕯️ ﾟ.", "value": "remiel", "price": 20000000, "role_id": 1160563101503066232, "emoji": "🕯️" },
-      { "label": "🪽• เทวทูต • Raguel ₊˚ʚ ᗢ₊˚", "value": "raguel", "price": 20000000, "role_id": 1160563110688596108, "emoji": "☁️" }
+      { "label": "ִֶָ. ..𓂃🪬 ࣪พระเจ้า ִֶָ🪽་༘࿐", "value": "god", "price": 300000000, "role_id": "1160561278297837628", "emoji": "✨" },
+      { "label": "🔥 ִֶָ อัครเทวทูต 🐦‍🔥་༘࿐", "value": "archangel", "price": 100000000, "role_id": "1160561319288766464", "emoji": "🔥" },
+      { "label": "જ⁀➴  ทูตสวรรค์ 🏹 ་༘", "value": "angel", "price": 50000000, "role_id": "1160561520095281274", "emoji": "🏹" },
+      { "label": "🪽• เทวทูต • Michael 🪽་༘࿐", "value": "michael", "price": 20000000, "role_id": "1160562306602762260", "emoji": "☁️" },
+      { "label": "🪽• เทวทูต • Raphael ‧₊˚ ☁️⋅", "value": "raphael", "price": 20000000, "role_id": "1160562310306340994", "emoji": "☁️" },
+      { "label": "🪽• เทวทูต • Gabriel 𐙚 🪽 ྀི", "value": "gabriel", "price": 20000000, "role_id": "1160563068695224432", "emoji": "☁️" },
+      { "label": "🪽• เทวทูต • Uriel⋆°🦢.⋆ᥫ᭡", "value": "uriel", "price": 20000000, "role_id": "1160563077763313806", "emoji": "☁️" },
+      { "label": "🪽• เทวทูต • Sariel ₊˚˖𓍢ִ໋🦢", "value": "sariel", "price": 20000000, "role_id": "1160563084956545064", "emoji": "🦢" },
+      { "label": "🪽• เทวทูต • Remiel 🕯️ ﾟ.", "value": "remiel", "price": 20000000, "role_id": "1160563101503066232", "emoji": "🕯️" },
+      { "label": "🪽• เทวทูต • Raguel ₊˚ʚ ᗢ₊˚", "value": "raguel", "price": 20000000, "role_id": "1160563110688596108", "emoji": "☁️" }
     ],
     "gacha_price": 10000000,
     "gacha_pool_price": 20000000

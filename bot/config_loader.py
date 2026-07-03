@@ -30,14 +30,26 @@ def reload_config():
 
 def get_channel_id(key):
     ch = get_config().get("channels", {}).get(key)
-    return ch.get("channel_id") if ch else None
+    if not ch:
+        return None
+    cid = ch.get("channel_id")
+    return int(cid) if cid is not None else None
 
 def get_role_ids(group):
     g = get_config().get("permission_groups", {}).get(group)
-    return list(g.get("role_ids", [])) if g else []
+    if not g:
+        return []
+    return [int(r) for r in g.get("role_ids", [])]
 
 def get_trade_roles(faction):
-    return list(get_config().get("auto_trade_roles", {}).get(faction, []))
+    roles = get_config().get("auto_trade_roles", {}).get(faction, [])
+    result = []
+    for r in roles:
+        r2 = dict(r)
+        if r2.get("role_id") is not None:
+            r2["role_id"] = int(r2["role_id"])
+        result.append(r2)
+    return result
 
 def get_gacha_price():
     return int(get_config().get("auto_trade_roles", {}).get("gacha_price", 10000000))
