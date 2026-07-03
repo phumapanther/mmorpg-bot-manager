@@ -7,6 +7,13 @@ import time
 
 # ค่าเริ่มต้นเป็น 1 (ปกติ)
 
+def _stacked_multiplier(role_ids_held, bonus_type):
+    multiplier = 1.0
+    for bonus in config_loader.get_role_bonuses(bonus_type):
+        if bonus["role_id"] in role_ids_held:
+            multiplier *= bonus["value"]
+    return multiplier
+
 class VoiceChatTracker(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -55,8 +62,8 @@ class VoiceChatTracker(commands.Cog):
                     base_exp = 100 
                     p_lvl = player["level"] 
 
-                    # 1. เช็กยศจาก member object
-                    roles = [role.name for role in member.roles]
+                    # 1. เช็กยศจาก member object (ตั้งค่าโบนัสได้ที่ Panel แท็บ Skills)
+                    role_ids_held = {role.id for role in member.roles}
 
                     # 2. ตั้งค่าตัวคูณพื้นฐานตามเลเวล
                     multiplier = 0.5
@@ -65,16 +72,11 @@ class VoiceChatTracker(commands.Cog):
                     elif p_lvl >= 20: multiplier = 1.0
                     else: multiplier = 1.5
 
-                    # 3. เพิ่มโบนัสให้นักกวี (ได้รับ EXP เพิ่ม x4 จากโบนัสห้องเสียง)
-                    # ถ้าเป็นนักกวี ให้คูณเพิ่มอีก 4 เท่าจากค่าเดิมที่คำนวณได้
-                    if "ทีมงาน" in roles:
-                        multiplier = multiplier * 1.2
-                        print(f"🛠️ [Voice Reward] คุณ {member.name} (ทีมงาน) ได้รับโบนัส EXP ห้องเสียง x2!")
-
-                    # 3. เพิ่มโบนัสให้นักกวี (คูณ 4)
-                    if "꒰ EN ꒱ นักกวี 𝄞⋆" in roles:
-                        multiplier = multiplier * 1.5
-                        print(f"✨ [Voice Reward] คุณ {member.name} (นักกวี) ได้รับโบนัส EXP ห้องเสียง x4!")
+                    # 3. โบนัสยศพิเศษ (ตั้งค่าได้ที่ Panel แท็บ Skills)
+                    role_bonus = _stacked_multiplier(role_ids_held, "voice_exp_multiplier")
+                    if role_bonus != 1.0:
+                        multiplier *= role_bonus
+                        print(f"✨ [Voice Reward] คุณ {member.name} ได้รับโบนัส EXP ห้องเสียง x{role_bonus}!")
 
                     # 4. 🎁 ตัวคูณพิเศษช่วงกิจกรรม (กำหนดเป็น 2 ถ้าเปิดกิจกรรม, เป็น 1 ถ้าปิด)
                     event_multiplier = getattr(self.bot, "CURRENT_EVENT_MULTIPLIER", 1.0)
@@ -188,27 +190,27 @@ class VoiceChatTracker(commands.Cog):
         if not player:
             return
 
-        # 1. จัดการยศเพื่อคำนวณโบนัส
-        roles = [role.name for role in message.author.roles]
-        
-        # 📈 เก็บสถิติ (ทีมงานได้ event_text * 2)
-        event_bonus = 2 if "ทีมงาน" in roles else 1
+        # 1. จัดการยศเพื่อคำนวณโบนัส (ตั้งค่าได้ที่ Panel แท็บ Skills)
+        role_ids_held = {role.id for role in message.author.roles}
+
+        # 📈 เก็บสถิติ (โบนัสตัวคูณสถิติแชทกิจกรรมตามยศ)
+        event_bonus = int(round(_stacked_multiplier(role_ids_held, "chat_event_multiplier")))
         current_total = player.get("total_text", 0)
         current_event = player.get("event_text", 0)
-        
+
         player_model.update_player_field(user_id, "total_text", current_total + 1)
         player_model.update_player_field(user_id, "event_text", current_event + event_bonus)
 
         current_time = time.time()
-        
+
         # ⏱️ ระบบ Cooldown 10 วิ
         if user_id in self.chat_cooldowns:
-            if current_time - self.chat_cooldowns[user_id] < 10: 
+            if current_time - self.chat_cooldowns[user_id] < 10:
                 return
-                
-        # 💰 คำนวณเงิน (ผู้ส่งสารได้เงิน * 3)
-        gold_multi = 3 if "꒰ PR ꒱ ผู้ส่งสาร" in roles else 1
-        gained_gold = random.randint(10, 300) * gold_multi
+
+        # 💰 คำนวณเงิน (โบนัสตัวคูณเงินตามยศ)
+        gold_multi = _stacked_multiplier(role_ids_held, "chat_gold_multiplier")
+        gained_gold = int(random.randint(10, 300) * gold_multi)
         new_cash = player.get("cash", 0) + gained_gold
         player_model.update_player_field(user_id, "cash", new_cash)
 
