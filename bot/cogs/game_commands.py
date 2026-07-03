@@ -3,7 +3,7 @@ from discord.ext import commands
 import models.player_model as player_model
 from views.profile_embed import create_profile_embed
 from views.profile_embed import GAME_RACES, GAME_CLASSES
-from utils import not_arrested, allowed_channels  # 👈 ใส่บรรทัดนี้ลงไป
+from utils import not_arrested, allowed_channel  # 👈 ใส่บรรทัดนี้ลงไป
 
 class GameCommands(commands.Cog):
     def __init__(self, bot):
@@ -12,7 +12,7 @@ class GameCommands(commands.Cog):
 
     # ─── 🛒 คำสั่งเปิดร้านค้าและซื้อขายยศ + ระบบกาชาคู่ (สุ่มเผ่า/สุ่มคลาส) (!shop) ───
     @commands.command(name="shop")
-    @allowed_channels(["💸ซื้อยศออโต้💸"])
+    @allowed_channel("role_shop")
     @commands.cooldown(1, 3.0, commands.BucketType.user) # ⏱️ คูลดาวน์ 3 วินาที ต่อผู้เล่น 1 คน
     async def shop(self, ctx, action: str = None, item_num: int = None):
         import random
@@ -212,7 +212,7 @@ class GameCommands(commands.Cog):
 
     # ─── 📊 คำสั่งพิมพ์ดูโปรไฟล์ ───
     @commands.command(name="profile", aliases=["info"])
-    @allowed_channels(["🪪เช็คโปรไฟล์🪪"])
+    @allowed_channel("profile")
     @commands.cooldown(1, 30.0, commands.BucketType.user) # ⏱️ คูลดาวน์ 
     async def profile(self, ctx, member: discord.Member = None):
         target_member = member if member else ctx.author

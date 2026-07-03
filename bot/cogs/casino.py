@@ -4,7 +4,7 @@ import random
 import asyncio
 
 import models.player_model as player_model
-from utils import not_arrested, allowed_channels
+from utils import not_arrested, allowed_channel
 
 # ==========================================
 # 🎲 UI View สำหรับเกม ไฮโล (Hi-Lo)
@@ -121,7 +121,7 @@ class Casino(commands.Cog):
         self.bot = bot
         print(f"[LOG] [SETUP] 🎰 โหลดโมดูล Casino เรียบร้อยแล้ว")
 
-    @allowed_channels(["🎲-hilo-🎲"]) 
+    @allowed_channel("casino_hilo") 
     @not_arrested() 
     @commands.command(name="hilo")
     async def hilo_game(self, ctx, bet: int):
@@ -148,7 +148,7 @@ class Casino(commands.Cog):
         except Exception as e:
             print(f"[ERROR] [CMD_HILO] คำสั่ง !hilo พัง: {e}")
 
-    @allowed_channels(["🎰-slots-🎰"]) 
+    @allowed_channel("casino_slots") 
     @not_arrested() 
     @commands.command(name="slots")
     async def slots_game(self, ctx, bet: int):

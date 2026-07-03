@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 import asyncio
-from utils import not_arrested, allowed_channels  # 👈 ใส่บรรทัดนี้ลงไป
+from utils import not_arrested, allowed_channel  # 👈 ใส่บรรทัดนี้ลงไป
 class AdventureZone(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -11,7 +11,7 @@ class AdventureZone(commands.Cog):
 
     @not_arrested() #ตรวจการถูกจับกุมก่อนอนุญาตให้ใช้คำสั่ง
     @commands.command(name="adv")
-    @allowed_channels(["⚔-เริ่มเกม-⚔"])
+    @allowed_channel("adventure")
     @commands.cooldown(1, 5.0, commands.BucketType.user)
     async def create_adventure_room(self, ctx):
         """คำสั่งสร้างห้องแชทผจญภัยออโต้ ถัดจากห้องเดิม ล็อกให้สร้างได้แค่คนละ 1 ห้องจนกว่าจะสลายไป"""

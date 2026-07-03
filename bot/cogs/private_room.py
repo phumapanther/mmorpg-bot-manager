@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands, tasks
 import models.player_model as player_model
-from utils import not_arrested, allowed_channels
+from utils import not_arrested, allowed_channel
 
 class PrivateRoom(commands.Cog):
     def __init__(self, bot):
@@ -12,7 +12,7 @@ class PrivateRoom(commands.Cog):
     def cog_unload(self):
         self.room_check_loop.cancel()
 
-    @allowed_channels(["📃สัญญาเช่า📃"])
+    @allowed_channel("rent")
     @not_arrested() # 🛠️ บล็อกคนติดคุก
     @commands.command(name="rent")
     async def rent_room(self, ctx, amount: int = 60):

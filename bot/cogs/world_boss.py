@@ -3,7 +3,7 @@ from discord.ext import commands
 import random
 import time
 from collections import defaultdict
-from utils import has_role_or_owner
+from utils import has_permission
 
 import models.player_model as player_model
 from views.game_views import SKILL_CONFIG
@@ -180,7 +180,7 @@ class WorldBoss(commands.Cog):
         self.bot = bot
         print(f"[LOG] [LOAD_COG] โหลดโมดูลระบบ WorldBoss เรียบร้อยแล้ว")
 
-    @has_role_or_owner("คนบ้า")
+    @has_permission("admin")
     @commands.command(name="spawn_boss")
     @commands.has_permissions(administrator=True)
     async def spawn_boss(self, ctx, name, hp: int, dice_count: int, dice_sides: int, exp: int, gold: int):

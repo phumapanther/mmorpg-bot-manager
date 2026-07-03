@@ -3,7 +3,7 @@ import discord
 from discord.ext import commands
 import random
 import json
-from utils import not_arrested, allowed_channels,has_role_or_owner
+from utils import not_arrested, allowed_channel,has_permission
 from controller.trainer import train_alpha_bot
 # นำเข้าระบบจัดการผู้เล่นของคุณอาเธอร์
 import models.player_model as player_model
@@ -209,7 +209,7 @@ class BJ24Game(commands.Cog):
         self.bot_brain = BlackjackBot()
 
     # --- คำสั่งเล่นเกม ---
-    @allowed_channels(["🃏blackjack🃏"])
+    @allowed_channel("casino_bj")
     @not_arrested()
     @commands.command(name="bj")
     async def play_bj(self, ctx, bet: int):
@@ -243,7 +243,7 @@ class BJ24Game(commands.Cog):
             await ctx.send("❌ เกิดข้อผิดพลาดในการเริ่มเกม!")
 
     # --- คำสั่งเทรนบอท (Admin Only) ---
-    @has_role_or_owner("คนบ้า")
+    @has_permission("admin")
     @commands.has_permissions(administrator=True)
     @commands.command(name="train")
     async def train_bot(self, ctx, iterations: int = 1000):

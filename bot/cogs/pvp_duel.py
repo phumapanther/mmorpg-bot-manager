@@ -3,7 +3,7 @@ from discord.ext import commands
 import models.player_model as player_model
 import random
 import asyncio
-from utils import not_arrested, allowed_channels
+from utils import not_arrested, allowed_channel
 from views.profile_embed import ARMOR_STATS ,WEAPON_STATS
 
 class DuelView(discord.ui.View):
@@ -141,7 +141,7 @@ class PvpDuel(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @allowed_channels(["⚒-แชทลานประลอง-⚒"])
+    @allowed_channel("arena")
     @not_arrested() # 🛠️ บล็อกคนติดคุก
     @commands.command(name="challenge")
     async def challenge(self, ctx, member: discord.Member):

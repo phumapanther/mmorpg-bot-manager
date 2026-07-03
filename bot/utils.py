@@ -34,34 +34,6 @@ def not_arrested():
         return True
     return commands.check(predicate)
 
-def allowed_channels(channel_names):
-    async def predicate(ctx):
-        if ctx.channel.name not in channel_names:
-            # 1. ส่งข้อความเตือน
-            msg = await ctx.send(f"❌ **ผิดห้อง!** คำสั่งนี้ใช้ได้เฉพาะในห้อง: `{'`, `'.join(channel_names)}` เท่านั้นครับ")
-            
-            # 2. รอ 5 วินาทีแล้วลบทั้งคำสั่งของผู้เล่น และข้อความเตือนของบอททิ้ง
-            try:
-                await asyncio.sleep(5) # รอ 5 วินาที
-                await msg.delete()     # ลบข้อความบอท
-                await ctx.message.delete() # ลบข้อความที่ผู้เล่นพิมพ์
-            except:
-                pass # กันกรณีบอทไม่มีสิทธิ์ลบ
-            
-            return False
-        return True
-    return commands.check(predicate)
-
-def has_role_or_owner(role_name: str):
-    async def predicate(ctx):
-        is_owner = ctx.author.id == ctx.guild.owner_id
-        has_role = any(role.name == role_name for role in ctx.author.roles)
-        if not (is_owner or has_role):
-            await ctx.send(f"❌ คำสั่งนี้ใช้ได้เฉพาะ ยศ `{role_name}` หรือ เจ้าของเซิร์ฟเวอร์เท่านั้น!")
-            return False
-        return True
-    return commands.check(predicate)
-
 def allowed_channel(feature_key):
     async def predicate(ctx):
         target = config_loader.get_channel_id(feature_key)

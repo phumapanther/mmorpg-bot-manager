@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 import random
 import models.player_model as player_model
-from utils import not_arrested, allowed_channels
+from utils import not_arrested, allowed_channel
 
 # ==========================================
 # 🛒 ฐานข้อมูลยศฝ่ายความมืด (Dark Faction)
@@ -177,7 +177,7 @@ class RoleShop(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @allowed_channels(["💸ซื้อยศออโต้💸"]) 
+    @allowed_channel("role_shop") 
     @commands.command(name="darkshop")
     @not_arrested()
     async def open_dark_shop(self, ctx):
@@ -194,7 +194,7 @@ class RoleShop(commands.Cog):
         except Exception as e:
             print(f"[ERROR] พังตรงนี้: {e}")
 
-    @allowed_channels(["💸ซื้อยศออโต้💸"]) 
+    @allowed_channel("role_shop") 
     @commands.command(name="lightshop")
     @not_arrested()
     async def open_light_shop(self, ctx):

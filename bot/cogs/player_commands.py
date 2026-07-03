@@ -6,7 +6,7 @@ import models.player_model as player_model
 import time
 import sqlite3
 from contextlib import contextmanager
-from utils import not_arrested, allowed_channels
+from utils import not_arrested, allowed_channel
 from views.profile_embed import ARMOR_STATS, GAME_CLASSES, WEAPON_STATS, ITEM_CONFIG, BAG_STATS, CRAFTING_RECIPES
 from views.game_views import DeathRespawnView
 import json
@@ -37,7 +37,7 @@ class PlayerCommands(commands.Cog):
     # 1. ฝากเงิน: ย้ายเงินจาก Cash -> Bank
     @not_arrested() 
     @commands.command(name="deposit")
-    @allowed_channels(["🏦ธนาคารกลาง🏦"])
+    @allowed_channel("bank")
     async def deposit(self, ctx, amount: int):
         player = player_model.get_player(ctx.author.id)
         if amount <= 0 or player["cash"] < amount:
@@ -49,7 +49,7 @@ class PlayerCommands(commands.Cog):
         
     @not_arrested() 
     @commands.command(name="withdraw")
-    @allowed_channels(["🏦ธนาคารกลาง🏦"])
+    @allowed_channel("bank")
     async def withdraw(self, ctx, amount: int):
         player = player_model.get_player(ctx.author.id)
         
@@ -67,7 +67,7 @@ class PlayerCommands(commands.Cog):
     # 2. โอนเงิน: โอนจาก Bank -> ผู้เล่นอื่น
     @not_arrested() 
     @commands.command(name="transfer")
-    @allowed_channels(["🏦ธนาคารกลาง🏦"])
+    @allowed_channel("bank")
     async def transfer(self, ctx, member: discord.Member, amount: int):
         sender = player_model.get_player(ctx.author.id)
         if sender.get("bank", 0) < amount:
@@ -83,7 +83,7 @@ class PlayerCommands(commands.Cog):
     # 3. ขอเงิน (Beg)
     @not_arrested() 
     @commands.command(name="beg")
-    @allowed_channels(["🏦ธนาคารกลาง🏦"])
+    @allowed_channel("bank")
     async def beg(self, ctx):
         if not any(role.name == "ขอทาน" for role in ctx.author.roles):
             return await ctx.send("❌ เฉพาะคนมียศ 'ขอทาน' เท่านั้นที่จะขอเงินคนอื่นได้!")
@@ -101,7 +101,7 @@ class PlayerCommands(commands.Cog):
     # 4. ปล้น (Rob)
     @not_arrested() 
     @commands.command(name="rob")
-    @allowed_channels(["🏦ธนาคารกลาง🏦"])
+    @allowed_channel("bank")
     async def rob(self, ctx, member: discord.Member):
         if member.id == ctx.author.id:
             return await ctx.send("❌ จะปล้นตัวเองทำไมล่ะ!")
@@ -127,7 +127,7 @@ class PlayerCommands(commands.Cog):
 
     # 5. rich
     @commands.command(name="rich")
-    @allowed_channels(["🏦ธนาคารกลาง🏦"])
+    @allowed_channel("bank")
     async def rich(self, ctx):
         # ดึง ID ของเจ้าของเซิร์ฟเวอร์
         owner_id = ctx.guild.owner_id 
@@ -151,7 +151,7 @@ class PlayerCommands(commands.Cog):
 
     # 6. toplvl
     @commands.command(name="toplvl")
-    @allowed_channels(["🏦ธนาคารกลาง🏦"])
+    @allowed_channel("bank")
     async def toplvl(self, ctx):
         # ดึง ID ของเจ้าของเซิร์ฟเวอร์
         owner_id = ctx.guild.owner_id 
@@ -177,7 +177,7 @@ class PlayerCommands(commands.Cog):
     # 💬 คำสั่งเช็กสถิติการพิมพ์ของตัวเอง (!mytext)
     # ==========================================
     @commands.command(name="mytext")
-    @allowed_channels(["🏦ธนาคารกลาง🏦"])
+    @allowed_channel("bank")
     async def check_my_text(self, ctx):
         player = player_model.get_player(ctx.author.id)
         if not player:
@@ -205,7 +205,7 @@ class PlayerCommands(commands.Cog):
     # 🏆 คำสั่งเช็ก 10 อันดับคนพิมพ์เยอะที่สุด (!toptext)
     # ==========================================
     @commands.command(name="toptext")
-    @allowed_channels(["🏦ธนาคารกลาง🏦"])
+    @allowed_channel("bank")
     async def top_text_leaderboard(self, ctx):
         # เรียกใช้ฟังก์ชันดึง Top 10 ที่เราเพิ่งสร้าง
         top_players = player_model.get_top_text_players(10)
@@ -241,7 +241,7 @@ class PlayerCommands(commands.Cog):
         await ctx.send(embed=embed)
     
     @commands.command(name="bank")
-    @allowed_channels(["🏦ธนาคารกลาง🏦"])
+    @allowed_channel("bank")
     async def check_bank(self, ctx):
         # ดึงข้อมูลผู้เล่น
         player = player_model.get_player(ctx.author.id)
@@ -324,7 +324,7 @@ class PlayerCommands(commands.Cog):
     
     # ⏱️ เช็กเวลาออนไลน์ของตัวเอง
     @commands.command(name="mytime")
-    @allowed_channels(["🏦ธนาคารกลาง🏦"])
+    @allowed_channel("bank")
     async def check_my_time(self, ctx):
         player = player_model.get_player(ctx.author.id)
         if not player:
@@ -338,7 +338,7 @@ class PlayerCommands(commands.Cog):
 
     # 🏆 เช็กอันดับ Top 10 เวลาออนไลน์
     @commands.command(name="toptime")
-    @allowed_channels(["🏦ธนาคารกลาง🏦"])
+    @allowed_channel("bank")
     async def top_online_time(self, ctx):
         all_players = player_model.get_all_players() 
         
@@ -669,7 +669,7 @@ class PlayerCommands(commands.Cog):
     # ==========================================
     # ⚔️ คำสั่ง PVP (!att @ผู้ใช้)
     # ==========================================
-    @allowed_channels(["⚒-แชทลานประลอง-⚒"]) # 🛠️ ใช้ Decorator บล็อกห้อง
+    @allowed_channel("arena") # 🛠️ ใช้ Decorator บล็อกห้อง
     @not_arrested() # 🛠️ บล็อกคนติดคุก
     @commands.command(name="att")
     async def pvp_attack(self, ctx, member: discord.Member):
@@ -948,7 +948,7 @@ class PlayerCommands(commands.Cog):
             await ctx.send(f"⚠️ ระบบคราฟมีปัญหาทางเทคนิค! (Error: {str(e)})")
             
     # สแกนผู้เล่นว่าตีได้หรือไม่
-    @allowed_channels(["⚒-แชทลานประลอง-⚒"]) # 🛠️ ใช้ Decorator บล็อกห้อง
+    @allowed_channel("arena") # 🛠️ ใช้ Decorator บล็อกห้อง
     @not_arrested() # 🛠️ บล็อกคนติดคุก
     @commands.command(name="scan")
     async def scan_target(self, ctx, member: discord.Member):
