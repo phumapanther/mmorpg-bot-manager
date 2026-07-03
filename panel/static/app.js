@@ -582,18 +582,6 @@ function renderSkillCards() {
   }
 }
 
-function refreshRoleBonusOptions() {
-  const selects = Array.from(document.querySelectorAll("#roleBonusTable select.bonus-role"));
-  const currentValues = selects.map((sel) => sel.value);
-  selects.forEach((sel, i) => {
-    const used = new Set(currentValues.filter((v, j) => j !== i && v));
-    Array.from(sel.options).forEach((opt) => {
-      if (!opt.value) return;
-      opt.hidden = used.has(opt.value) && opt.value !== sel.value;
-    });
-  });
-}
-
 function roleBonusRoleSelectHtml(selectedId) {
   const sel = document.createElement("select");
   sel.className = "bonus-role";
@@ -605,7 +593,6 @@ function roleBonusRoleSelectHtml(selectedId) {
     sel.appendChild(opt);
   }
   if (selectedId != null) sel.value = String(selectedId);
-  sel.addEventListener("change", refreshRoleBonusOptions);
   return sel;
 }
 
@@ -670,7 +657,6 @@ function renderRoleBonuses() {
 
     tbody.appendChild(tr);
   });
-  refreshRoleBonusOptions();
 }
 
 function renderSkillsTab() {
