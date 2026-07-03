@@ -1,1 +1,92 @@
-<!doctype html><title>Bot Manager</title><p>Panel loading… (UI built in Task 10)</p>
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MMORPG Bot Manager</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="toast"></div>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="setup">Setup</button>
+  <button class="tab-btn" data-tab="dashboard">Dashboard</button>
+  <button class="tab-btn" data-tab="channels">Channels</button>
+  <button class="tab-btn" data-tab="permissions">Permissions</button>
+  <button class="tab-btn" data-tab="trade">Auto-trade</button>
+</nav>
+
+<section id="tab-setup" class="tab-panel active">
+  <h2>Setup</h2>
+  <div class="field">
+    <label for="tokenInput">Bot Token</label>
+    <input type="password" id="tokenInput" placeholder="Discord bot token">
+    <button id="verifyBtn">ตรวจสอบ</button>
+  </div>
+  <div id="setupError" class="error"></div>
+  <div class="field">
+    <label for="guildSelect">Guild</label>
+    <select id="guildSelect"><option value="">-- เลือกกิลด์ --</option></select>
+  </div>
+  <button id="setupSaveBtn" class="save-btn">บันทึก</button>
+</section>
+
+<section id="tab-dashboard" class="tab-panel">
+  <h2>Dashboard</h2>
+  <div class="status-row">
+    <span id="statusDot" class="dot stopped"></span>
+    <span id="statusText">หยุดทำงาน</span>
+    <span id="statusPid" class="pid"></span>
+  </div>
+  <div class="btn-row">
+    <button id="startBtn">Start</button>
+    <button id="stopBtn">Stop</button>
+    <button id="restartBtn">Restart</button>
+  </div>
+  <pre id="log"></pre>
+</section>
+
+<section id="tab-channels" class="tab-panel">
+  <h2>Channels</h2>
+  <table id="channelsTable">
+    <thead><tr><th>ช่องทาง</th><th>Channel</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <button id="channelsSaveBtn" class="save-btn">บันทึก</button>
+</section>
+
+<section id="tab-permissions" class="tab-panel">
+  <h2>Permissions</h2>
+  <div id="permissionsGroups"></div>
+  <button id="permissionsSaveBtn" class="save-btn">บันทึก</button>
+</section>
+
+<section id="tab-trade" class="tab-panel">
+  <h2>Auto-trade</h2>
+  <h3>Dark</h3>
+  <table id="darkTable">
+    <thead><tr><th>Label</th><th>Price</th><th>Role</th><th></th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <button id="darkAddBtn" type="button">+ เพิ่มแถว</button>
+
+  <h3>Light</h3>
+  <table id="lightTable">
+    <thead><tr><th>Label</th><th>Price</th><th>Role</th><th></th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <button id="lightAddBtn" type="button">+ เพิ่มแถว</button>
+
+  <div class="field gacha-row">
+    <label for="gachaPrice">Gacha price</label>
+    <input type="number" id="gachaPrice">
+    <label for="gachaPoolPrice">Gacha pool price</label>
+    <input type="number" id="gachaPoolPrice">
+  </div>
+  <button id="tradeSaveBtn" class="save-btn">บันทึก</button>
+</section>
+
+<script src="app.js"></script>
+</body>
+</html>
