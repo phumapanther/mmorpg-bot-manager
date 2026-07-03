@@ -39,3 +39,16 @@ def test_get_random_skill_unknown_class_returns_none():
     view = _make_view()
     skill, data = view.get_random_skill("NoSuchClass", p_lvl=1)
     assert skill is None and data is None
+
+def test_get_random_skill_calls_config_loader_in_production_shape():
+    # SKILL_CONFIG is left un-patched here (real production shape: {class_name: [skill_name, ...]}),
+    # so this exercises the real config_loader.get_skill_config call path, not the test-only dict-patch branch.
+    view = _make_view()
+    fake_config = {"chance_base": 100, "chance_lvl_scale": 0, "damage_multiplier": 2}
+    with patch("bot.cogs.world_boss.config_loader.get_skill_config", return_value=fake_config) as mock_get_skill_config, \
+         patch("bot.cogs.world_boss.random.randint", return_value=1), \
+         patch("bot.cogs.world_boss.random.choice", return_value="heavy_strike"):
+        skill, data = view.get_random_skill("Warrior", p_lvl=1)
+    mock_get_skill_config.assert_called_once_with("Warrior", "heavy_strike")
+    assert skill == "heavy_strike"
+    assert data == fake_config
