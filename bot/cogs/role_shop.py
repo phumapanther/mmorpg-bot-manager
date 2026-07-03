@@ -3,38 +3,7 @@ from discord.ext import commands
 import random
 import models.player_model as player_model
 from utils import not_arrested, allowed_channel
-
-# ==========================================
-# 🛒 ฐานข้อมูลยศฝ่ายความมืด (Dark Faction)
-# ==========================================
-DARK_ROLES = [
-    {"label": "♆ Maou-sama ⚓️", "value": "maou", "price": 300000000, "role_id": 1160575257892098109, "emoji": "👑"},
-    {"label": "💀 •  NECROMANCER", "value": "necro", "price": 100000000, "role_id": 1160579901515124776, "emoji": "💀"},
-    {"label": "•  Giant-King 👹", "value": "giant", "price": 50000000, "role_id": 1160577575937126543, "emoji": "👹"},
-    {"label": "• Asmodeus🕯️", "value": "asmo", "price": 20000000, "role_id": 1160576018508152912, "emoji": "🕯️"},
-    {"label": "• Beelzebub 🪰", "value": "beel", "price": 20000000, "role_id": 1160577870251425965, "emoji": "🪰"},
-    {"label": "• Mammon 🪙", "value": "mammon", "price": 20000000, "role_id": 1160576329079595079, "emoji": "🪙"},
-    {"label": "• Belphegor 🦥", "value": "belphe", "price": 20000000, "role_id": 1510346403044655124, "emoji": "🐌"},
-    {"label": "• Satan 𖤐", "value": "satan", "price": 20000000, "role_id": 1510346894558105680, "emoji": "🔯"},
-    {"label": "• Leviathan 🐍", "value": "levi", "price": 20000000, "role_id": 1510347065492901918, "emoji": "🐍"},
-    {"label": "• Lucifer ⸸", "value": "luci", "price": 20000000, "role_id": 1510347144207401140, "emoji": "✝️"},
-]
-
-# ==========================================
-# 🕊️ ฐานข้อมูลยศฝ่ายแสงสว่าง (Light Faction)
-# ==========================================
-LIGHT_ROLES = [
-    {"label": "ִֶָ. ..𓂃🪬 ࣪พระเจ้า ִֶָ🪽་༘࿐", "value": "god", "price": 300000000, "role_id": 1160561278297837628, "emoji": "✨"},
-    {"label": "🔥 ִֶָ อัครเทวทูต 🐦‍🔥་༘࿐", "value": "archangel", "price": 100000000, "role_id": 1160561319288766464, "emoji": "🔥"},
-    {"label": "જ⁀➴  ทูตสวรรค์ 🏹 ་༘", "value": "angel", "price": 50000000, "role_id": 1160561520095281274, "emoji": "🏹"},
-    {"label": "🪽• เทวทูต • Michael 🪽་༘࿐", "value": "michael", "price": 20000000, "role_id": 1160562306602762260, "emoji": "☁️"},
-    {"label": "🪽• เทวทูต • Raphael ‧₊˚ ☁️⋅", "value": "raphael", "price": 20000000, "role_id": 1160562310306340994, "emoji": "☁️"},
-    {"label": "🪽• เทวทูต • Gabriel 𐙚 🪽 ྀི", "value": "gabriel", "price": 20000000, "role_id": 1160563068695224432, "emoji": "☁️"},
-    {"label": "🪽• เทวทูต • Uriel⋆°🦢.⋆ᥫ᭡", "value": "uriel", "price": 20000000, "role_id": 1160563077763313806, "emoji": "☁️"},
-    {"label": "🪽• เทวทูต • Sariel ₊˚˖𓍢ִ໋🦢", "value": "sariel", "price": 20000000, "role_id": 1160563084956545064, "emoji": "🦢"},
-    {"label": "🪽• เทวทูต • Remiel 🕯️ ﾟ.", "value": "remiel", "price": 20000000, "role_id": 1160563101503066232, "emoji": "🕯️"},
-    {"label": "🪽• เทวทูต • Raguel ₊˚ʚ ᗢ₊˚", "value": "raguel", "price": 20000000, "role_id": 1160563110688596108, "emoji": "☁️"},
-]
+from bot import config_loader
 
 # ==========================================
 # 🛠️ ฟังก์ชันซื้อแบบระบุตัว (จ่ายเต็ม)
@@ -74,8 +43,8 @@ async def process_role_purchase(interaction: discord.Interaction, selected_value
 # 🎲 ฟังก์ชันสุ่มยศ (กาชาปอง) - เวอร์ชันอัปเดตความแม่นยำ
 # ==========================================
 async def process_role_gacha(interaction: discord.Interaction, role_list: list, faction_name: str):
-    GACHA_PRICE = 10000000 # ราคา 10M
-    
+    GACHA_PRICE = config_loader.get_gacha_price()
+
     # ดึงข้อมูลผู้เล่นจากฐานข้อมูล
     player = player_model.get_player(interaction.user.id)
     current_cash = player.get("cash", 0) if player else 0
@@ -84,7 +53,7 @@ async def process_role_gacha(interaction: discord.Interaction, role_list: list, 
         return await interaction.response.send_message(f"❌ เงินของคุณไม่พอสุ่มกาชา! ต้องใช้ `{GACHA_PRICE:,}` ทอง (คุณมี `{current_cash:,}` ทอง)", ephemeral=True)
 
     # กรองเฉพาะยศที่มีราคา 20,000,000 มาใส่ตู้กาชา
-    gacha_pool = [r for r in role_list if r["price"] == 20000000]
+    gacha_pool = [r for r in role_list if r["price"] == config_loader.get_gacha_pool_price()]
     
     # หักเงินทันที
     player_model.increment_player_field(interaction.user.id, "cash", -GACHA_PRICE)
@@ -123,19 +92,21 @@ async def process_role_gacha(interaction: discord.Interaction, role_list: list, 
 class DarkRoleSelect(discord.ui.Select):
     print(f"[DEBUG] DarkRoleSelect ทำงานแล้ง")
     def __init__(self):
-        options = [discord.SelectOption(label=r["label"], value=r["value"], description=f"ราคา: {r['price']:,} ทอง", emoji=r.get("emoji")) for r in DARK_ROLES]
+        roles = config_loader.get_trade_roles("dark")
+        options = [discord.SelectOption(label=r["label"], value=r["value"], description=f"ราคา: {r['price']:,} ทอง", emoji=r.get("emoji")) for r in roles]
         super().__init__(placeholder="🩸 เลือกซื้อพลังแห่งความมืด (จ่ายเต็ม)...", min_values=1, max_values=1, options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        await process_role_purchase(interaction, self.values[0], DARK_ROLES)
+        await process_role_purchase(interaction, self.values[0], config_loader.get_trade_roles("dark"))
 
 class LightRoleSelect(discord.ui.Select):
     def __init__(self):
-        options = [discord.SelectOption(label=r["label"], value=r["value"], description=f"ราคา: {r['price']:,} ทอง", emoji=r.get("emoji")) for r in LIGHT_ROLES]
+        roles = config_loader.get_trade_roles("light")
+        options = [discord.SelectOption(label=r["label"], value=r["value"], description=f"ราคา: {r['price']:,} ทอง", emoji=r.get("emoji")) for r in roles]
         super().__init__(placeholder="🕊️ เลือกซื้อพลังแห่งแสงสว่าง (จ่ายเต็ม)...", min_values=1, max_values=1, options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        await process_role_purchase(interaction, self.values[0], LIGHT_ROLES)
+        await process_role_purchase(interaction, self.values[0], config_loader.get_trade_roles("light"))
 
 class DarkShopView(discord.ui.View):
     print(f"[DEBUG] DarkShopView ทำงานแล้ง")
@@ -146,7 +117,7 @@ class DarkShopView(discord.ui.View):
     print(f"[DEBUG] DarkShopView กำลีงทำงาน")
     @discord.ui.button(label="🎲 สุ่มยศ 7 บาป (10,000,000 ทอง)", style=discord.ButtonStyle.danger, emoji="🎰", row=1)
     async def btn_gacha_dark(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await process_role_gacha(interaction, DARK_ROLES, "ฝ่ายความมืด")
+        await process_role_gacha(interaction, config_loader.get_trade_roles("dark"), "ฝ่ายความมืด")
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.user.id:
@@ -162,7 +133,7 @@ class LightShopView(discord.ui.View):
 
     @discord.ui.button(label="🎲 สุ่มยศเทวทูต (10,000,000 ทอง)", style=discord.ButtonStyle.primary, emoji="🎰", row=1)
     async def btn_gacha_light(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await process_role_gacha(interaction, LIGHT_ROLES, "ฝ่ายแสงสว่าง")
+        await process_role_gacha(interaction, config_loader.get_trade_roles("light"), "ฝ่ายแสงสว่าง")
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.user.id:
