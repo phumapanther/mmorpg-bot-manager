@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+config.json
+game_data.db
+build/
+dist/
+*.spec.bak
