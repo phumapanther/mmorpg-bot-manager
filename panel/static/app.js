@@ -82,6 +82,7 @@ async function onGuildChange() {
     renderChannels();
     renderPermissions();
     renderTrade();
+    renderShop();
     return;
   }
   try {
@@ -99,6 +100,7 @@ async function onGuildChange() {
   renderChannels();
   renderPermissions();
   renderTrade();
+  renderShop();
 }
 
 async function setupSave() {
@@ -379,6 +381,135 @@ async function tradeSave() {
   await saveConfig();
 }
 
+// ---------- shop tab ----------
+
+const SHOP_TYPES = [
+  { value: "rank_role", label: "ซื้อยศตรง" },
+  { value: "gacha_human", label: "กาชาสุ่มเผ่ามนุษย์" },
+  { value: "gacha_monster", label: "กาชาสุ่มเผ่าปีศาจ" },
+  { value: "gacha_class", label: "กาชาสุ่มคลาสอาชีพ" },
+];
+
+function refreshShopRoleOptions() {
+  const selects = Array.from(document.querySelectorAll("#shopTable select.shop-role"));
+  const currentValues = selects.map((sel) => sel.value);
+  selects.forEach((sel, i) => {
+    const used = new Set(currentValues.filter((v, j) => j !== i && v));
+    Array.from(sel.options).forEach((opt) => {
+      if (!opt.value) return;
+      opt.hidden = used.has(opt.value) && opt.value !== sel.value;
+    });
+  });
+}
+
+function shopRoleSelectHtml(selectedId, enabled) {
+  const sel = document.createElement("select");
+  sel.className = "shop-role";
+  sel.innerHTML = '<option value="">-- ไม่ระบุ --</option>';
+  for (const r of state.roles) {
+    const opt = document.createElement("option");
+    opt.value = r.id;
+    opt.textContent = r.name;
+    sel.appendChild(opt);
+  }
+  if (selectedId != null) sel.value = String(selectedId);
+  sel.disabled = !enabled;
+  sel.addEventListener("change", refreshShopRoleOptions);
+  return sel;
+}
+
+function shopTypeSelectHtml(selectedType) {
+  const sel = document.createElement("select");
+  sel.className = "shop-type";
+  for (const t of SHOP_TYPES) {
+    const opt = document.createElement("option");
+    opt.value = t.value;
+    opt.textContent = t.label;
+    sel.appendChild(opt);
+  }
+  sel.value = selectedType || "rank_role";
+  return sel;
+}
+
+function renderShop() {
+  const tbody = document.querySelector("#shopTable tbody");
+  tbody.innerHTML = "";
+  const items = state.config.shop_items || [];
+  items.forEach((item, idx) => {
+    const tr = document.createElement("tr");
+    tr.dataset.idx = idx;
+
+    const tdNum = document.createElement("td");
+    tdNum.textContent = idx + 1;
+    tr.appendChild(tdNum);
+
+    const tdName = document.createElement("td");
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "shop-name";
+    nameInput.value = item.name || "";
+    tdName.appendChild(nameInput);
+    tr.appendChild(tdName);
+
+    const tdPrice = document.createElement("td");
+    const priceInput = document.createElement("input");
+    priceInput.type = "number";
+    priceInput.className = "shop-price";
+    priceInput.value = item.price != null ? item.price : 0;
+    tdPrice.appendChild(priceInput);
+    tr.appendChild(tdPrice);
+
+    const tdType = document.createElement("td");
+    const typeSel = shopTypeSelectHtml(item.type);
+    tdType.appendChild(typeSel);
+    tr.appendChild(tdType);
+
+    const tdRole = document.createElement("td");
+    const roleSel = shopRoleSelectHtml(item.role_id, typeSel.value === "rank_role");
+    tdRole.appendChild(roleSel);
+    tr.appendChild(tdRole);
+    typeSel.addEventListener("change", () => {
+      roleSel.disabled = typeSel.value !== "rank_role";
+      refreshShopRoleOptions();
+    });
+
+    const tdDel = document.createElement("td");
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.textContent = "ลบ";
+    delBtn.onclick = () => {
+      state.config.shop_items.splice(idx, 1);
+      renderShop();
+    };
+    tdDel.appendChild(delBtn);
+    tr.appendChild(tdDel);
+
+    tbody.appendChild(tr);
+  });
+  refreshShopRoleOptions();
+}
+
+function addShopRow() {
+  if (!state.config.shop_items) state.config.shop_items = [];
+  state.config.shop_items.push({ name: "ไอเทมใหม่", price: 0, type: "rank_role", role_id: null });
+  renderShop();
+}
+
+async function shopSave() {
+  const tbody = document.querySelector("#shopTable tbody");
+  const items = [];
+  tbody.querySelectorAll("tr").forEach((tr) => {
+    const name = tr.querySelector(".shop-name").value;
+    const price = parseInt(tr.querySelector(".shop-price").value, 10) || 0;
+    const type = tr.querySelector(".shop-type").value;
+    const roleSel = tr.querySelector(".shop-role");
+    const role_id = type === "rank_role" ? (roleSel.value || null) : null;
+    items.push({ name, price, type, role_id });
+  });
+  state.config.shop_items = items;
+  await saveConfig();
+}
+
 // ---------- tabs ----------
 
 function switchTab(name) {
@@ -408,6 +539,9 @@ async function init() {
   document.getElementById("lightAddBtn").addEventListener("click", () => addTradeRow("light"));
   document.getElementById("tradeSaveBtn").addEventListener("click", tradeSave);
 
+  document.getElementById("shopAddBtn").addEventListener("click", addShopRow);
+  document.getElementById("shopSaveBtn").addEventListener("click", shopSave);
+
   await loadConfig();
   document.getElementById("tokenInput").value = state.config.bot_token || "";
 
@@ -428,6 +562,7 @@ async function init() {
   renderChannels();
   renderPermissions();
   renderTrade();
+  renderShop();
 
   await refreshStatus();
   setInterval(refreshStatus, 1500);
