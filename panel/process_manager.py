@@ -33,14 +33,16 @@ def stop():
                 _proc.wait(timeout=8)
             except subprocess.TimeoutExpired:
                 _proc.kill()
+                _proc.wait()
         _proc = None
 
 def restart():
     stop(); start()
 
 def status():
-    running = _proc is not None and _proc.poll() is None
-    return {"running": running, "pid": _proc.pid if running else None}
+    p = _proc
+    running = p is not None and p.poll() is None
+    return {"running": running, "pid": p.pid if running else None}
 
 def get_log(max_lines=200):
     return list(_log)[-max_lines:]
