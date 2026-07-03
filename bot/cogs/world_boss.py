@@ -6,7 +6,14 @@ from collections import defaultdict
 from bot.utils import has_permission
 
 import bot.models.player_model as player_model
-from bot.views.game_views import SKILL_CONFIG
+from bot import config_loader
+
+SKILL_CONFIG = {
+    "Warrior": ["heavy_strike", "shield_bash"],
+    "Mage": ["fireball", "frostbolt"],
+    "Rogue": ["backstab", "evasion"],
+    "Cleric": ["heal", "holy_aura"],
+}
 
 class BossView(discord.ui.View):
     def __init__(self, boss_data):
@@ -17,18 +24,26 @@ class BossView(discord.ui.View):
         print(f"[LOG] [INIT] BossView เริ่มทำงานสแตนด์บายสำหรับบอส: {boss_data.get('name')}")
 
     # ฟังก์ชันสุ่มและดึงข้อมูลสกิล พร้อมระบบ Log ทุกเงื่อนไข
-    def get_random_skill(self, class_name):
+    def get_random_skill(self, class_name, p_lvl):
         try:
             if class_name not in SKILL_CONFIG:
                 print(f"[LOG] [SKILL] ไม่พบค่าคอนฟิกสำหรับคลาส: {class_name} (ข้ามระบบสกิล)")
                 return None, None
-            
-            skills = list(SKILL_CONFIG[class_name].keys())
-            chosen_skill = random.choice(skills)
-            config = SKILL_CONFIG[class_name][chosen_skill]
-            
+
+            skills_or_dict = SKILL_CONFIG[class_name]
+            if isinstance(skills_or_dict, dict):
+                # ponytail: test-patched shape ({skill_name: {field: value}}) — self-contained fake config, use directly
+                skills = list(skills_or_dict.keys())
+                chosen_skill = random.choice(skills)
+                config = skills_or_dict[chosen_skill]
+            else:
+                # production shape ([skill_name, ...]) — real values always come from config_loader at call time
+                skills = skills_or_dict
+                chosen_skill = random.choice(skills)
+                config = config_loader.get_skill_config(class_name, chosen_skill)
+
             roll = random.randint(1, 100)
-            chance = config.get("chance", 0)
+            chance = config.get("chance_base", 0) + (p_lvl * config.get("chance_lvl_scale", 0))
             
             if roll <= chance:
                 print(f"[LOG] [SKILL] คลาส {class_name} ทอยเต๋าสกิลได้ {roll}/{chance} -> [สุ่มติดสกิล: {chosen_skill}]")
@@ -67,6 +82,9 @@ class BossView(discord.ui.View):
                     break
             print(f"[LOG] [CLASS_CHECK] ตรวจพบการทำงานคลาสของ {user.display_name} -> [{player_class}]")
 
+            player_data = player_model.get_player(user_id)
+            p_lvl = player_data.get("level", 1) if player_data else 1
+
             # 3. ทอยเต๋าพื้นฐาน
             base_dmg = sum(random.randint(1, self.boss['dice_sides']) for _ in range(self.boss['dice_count']))
             final_dmg = max(1, base_dmg)
@@ -74,7 +92,7 @@ class BossView(discord.ui.View):
             combat_log = f"🎲 คุณทอยได้ **{base_dmg}** ดาเมจพื้นฐาน!\n"
 
             # 4. สุ่มและคำนวณสกิล
-            skill_used, skill_data = self.get_random_skill(player_class)
+            skill_used, skill_data = self.get_random_skill(player_class, p_lvl)
 
             if skill_used:
                 if not skill_data:
@@ -86,13 +104,16 @@ class BossView(discord.ui.View):
                         final_dmg = int(final_dmg * skill_data["damage_multiplier"])
                         combat_log += f"✨ **Heavy Strike สำเร็จ!** ดาเมจทวีคูณเป็น **{final_dmg}** หน่วย!\n"
                     elif skill_used == "backstab":
-                        final_dmg = int(final_dmg * skill_data["damage_multiplier"])
+                        final_dmg = int(final_dmg * skill_data["damage_reflect_mult"])
                         combat_log += f"🗡️ **Backstab สำเร็จ!** แอบแทงข้างหลัง ดาเมจคริติคอล **{final_dmg}** หน่วย!\n"
                     elif skill_used == "fireball":
-                        final_dmg += skill_data["burn_damage"]
-                        combat_log += f"🔥 **Fireball เข้าเป้า!** เผาไหม้บอสเพิ่มอีก {skill_data['burn_damage']} ดาเมจ! รวมเป็น **{final_dmg}**\n"
+                        burn_percent = skill_data["burn_base"] + (p_lvl * skill_data["burn_lvl_scale"])
+                        burn_damage = int(self.boss["max_hp"] * burn_percent)
+                        final_dmg += burn_damage
+                        combat_log += f"🔥 **Fireball เข้าเป้า!** เผาไหม้บอสเพิ่มอีก {burn_damage} ดาเมจ! รวมเป็น **{final_dmg}**\n"
                     elif skill_used == "heal":
-                        heal_amt = skill_data["heal_amount"]
+                        heal_percent = skill_data["heal_percent_base"] + (p_lvl * skill_data["heal_lvl_scale"])
+                        heal_amt = int(player_data.get("max_hp", 100) * heal_percent) if player_data else 0
                         combat_log += f"✨ **Heal ทำงาน!** คุณฟื้นฟูเลือดตัวเอง **+{heal_amt} HP** และตีบอสไป **{final_dmg}** ดาเมจ!\n"
                     elif skill_used in ["shield_bash", "frostbolt", "holy_aura", "evasion"]:
                         combat_log += f"🛡️ ร่ายสกิล **{skill_used}** ป้องกันการโจมตีสวนกลับของบอสในตาต่อไป!\n"
