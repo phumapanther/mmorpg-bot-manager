@@ -35,6 +35,10 @@ def get_channel_id(key):
     cid = ch.get("channel_id")
     return int(cid) if cid is not None else None
 
+def get_channel_mention(key):
+    ch = get_config().get("channels", {}).get(key)
+    return bool(ch.get("mention_player", False)) if ch else False
+
 def get_role_ids(group):
     g = get_config().get("permission_groups", {}).get(group)
     if not g:

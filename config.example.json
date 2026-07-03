@@ -14,7 +14,7 @@
     "casino_hilo":  { "label": "Hi-Lo", "channel_id": null },
     "casino_slots": { "label": "สล็อต", "channel_id": null },
     "casino_bj":    { "label": "Blackjack", "channel_id": null },
-    "levelup_announce": { "label": "ห้องประกาศเลเวลอัพ (Voice EXP)", "channel_id": null }
+    "levelup_announce": { "label": "ห้องประกาศเลเวลอัพ (Voice EXP)", "channel_id": null, "mention_player": false }
   },
 
   "permission_groups": {

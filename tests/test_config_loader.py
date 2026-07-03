@@ -55,3 +55,15 @@ def test_get_trade_roles_preserves_large_snowflake_string(tmp_path, monkeypatch)
     config_loader.reload_config()
     roles = config_loader.get_trade_roles("dark")
     assert roles[0]["role_id"] == big_id
+
+def test_get_channel_mention_default_false(tmp_path, monkeypatch):
+    cfg = {"channels": {"bank": {"channel_id": 1}}}
+    monkeypatch.setattr(config_loader, "CONFIG_PATH", str(_write(tmp_path, cfg)))
+    config_loader.reload_config()
+    assert config_loader.get_channel_mention("bank") is False
+
+def test_get_channel_mention_true(tmp_path, monkeypatch):
+    cfg = {"channels": {"levelup_announce": {"channel_id": 1, "mention_player": True}}}
+    monkeypatch.setattr(config_loader, "CONFIG_PATH", str(_write(tmp_path, cfg)))
+    config_loader.reload_config()
+    assert config_loader.get_channel_mention("levelup_announce") is True

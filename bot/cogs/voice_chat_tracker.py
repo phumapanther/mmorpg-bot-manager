@@ -91,11 +91,13 @@ class VoiceChatTracker(commands.Cog):
                         target_channel = member.guild.get_channel(channel_id) if channel_id else None
                         if target_channel:
                             try:
-                                # ส่งข้อความแท็กเรียกผู้เล่นประกาศความสำเร็จลงห้องที่กำหนด
-                                # await target_channel.send(
-                                #     f"✨🎉 **LEVEL UP!!** แต้มจากการร่วมผจญภัยและพูดคุย ส่งผลให้คุณ {member.mention} "
-                                #     f"เลเวลอัปเป็น **Lv.{new_lv}** แล้ว! มาร่วมยินดีกันเร็วทุกคน! ⚔️🔥"
-                                # )
+                                # ส่งข้อความแท็กเรียกผู้เล่นประกาศความสำเร็จลงห้องที่กำหนด (เปิด/ปิดได้ที่ Panel)
+                                mention_text = None
+                                if config_loader.get_channel_mention("levelup_announce"):
+                                    mention_text = (
+                                        f"✨🎉 **LEVEL UP!!** แต้มจากการร่วมผจญภัยและพูดคุย ส่งผลให้คุณ {member.mention} "
+                                        f"เลเวลอัปเป็น **Lv.{new_lv}** แล้ว! มาร่วมยินดีกันเร็วทุกคน! ⚔️🔥"
+                                    )
                                 # สร้าง Embed object
                                 embed = discord.Embed(
                                     title=f"{member.display_name} 💠 {new_lv}",
@@ -114,7 +116,7 @@ class VoiceChatTracker(commands.Cog):
                                 embed.set_thumbnail(url=member.display_avatar.url)
 
                                 # ส่ง Embed เข้าไปในช่องแชท
-                                await target_channel.send(embed=embed)
+                                await target_channel.send(content=mention_text, embed=embed)
                                 
                                 print(f"📢 [LEVEL UP LOG] ประกาศเลเวลอัปของ {member.name} ลงห้อง {target_channel.name} สำเร็จ")
                             except Exception as e:

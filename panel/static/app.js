@@ -151,6 +151,18 @@ async function restartBot() {
 
 // ---------- channels tab ----------
 
+function refreshChannelOptions() {
+  const selects = Array.from(document.querySelectorAll("#channelsTable select"));
+  const currentValues = selects.map((sel) => sel.value);
+  selects.forEach((sel, i) => {
+    const used = new Set(currentValues.filter((v, j) => j !== i && v));
+    Array.from(sel.options).forEach((opt) => {
+      if (!opt.value) return;
+      opt.hidden = used.has(opt.value) && opt.value !== sel.value;
+    });
+  });
+}
+
 function renderChannels() {
   const tbody = document.querySelector("#channelsTable tbody");
   tbody.innerHTML = "";
@@ -174,19 +186,35 @@ function renderChannels() {
       sel.appendChild(opt);
     }
     if (entry.channel_id != null) sel.value = String(entry.channel_id);
+    sel.addEventListener("change", refreshChannelOptions);
     tdSelect.appendChild(sel);
     tr.appendChild(tdSelect);
 
+    const tdMention = document.createElement("td");
+    if (Object.prototype.hasOwnProperty.call(entry, "mention_player")) {
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.className = "mention-toggle";
+      cb.checked = !!entry.mention_player;
+      tdMention.appendChild(cb);
+    }
+    tr.appendChild(tdMention);
+
     tbody.appendChild(tr);
   }
+  refreshChannelOptions();
 }
 
 async function channelsSave() {
   const tbody = document.querySelector("#channelsTable tbody");
-  tbody.querySelectorAll("select").forEach((sel) => {
+  tbody.querySelectorAll("tr").forEach((tr) => {
+    const sel = tr.querySelector("select");
     const key = sel.dataset.key;
-    const v = sel.value;
-    state.config.channels[key].channel_id = v || null;
+    state.config.channels[key].channel_id = sel.value || null;
+    const mentionCb = tr.querySelector(".mention-toggle");
+    if (mentionCb) {
+      state.config.channels[key].mention_player = mentionCb.checked;
+    }
   });
   await saveConfig();
 }
@@ -240,6 +268,18 @@ async function permissionsSave() {
 
 // ---------- auto-trade tab ----------
 
+function refreshTradeRoleOptions() {
+  const selects = Array.from(document.querySelectorAll("#darkTable select.trade-role, #lightTable select.trade-role"));
+  const currentValues = selects.map((sel) => sel.value);
+  selects.forEach((sel, i) => {
+    const used = new Set(currentValues.filter((v, j) => j !== i && v));
+    Array.from(sel.options).forEach((opt) => {
+      if (!opt.value) return;
+      opt.hidden = used.has(opt.value) && opt.value !== sel.value;
+    });
+  });
+}
+
 function roleSelectHtml(selectedId) {
   const sel = document.createElement("select");
   sel.className = "trade-role";
@@ -251,6 +291,7 @@ function roleSelectHtml(selectedId) {
     sel.appendChild(opt);
   }
   if (selectedId != null) sel.value = String(selectedId);
+  sel.addEventListener("change", refreshTradeRoleOptions);
   return sel;
 }
 
@@ -303,6 +344,7 @@ function renderTrade() {
   renderTradeTable("light", "lightTable");
   document.getElementById("gachaPrice").value = state.config.auto_trade_roles.gacha_price ?? 0;
   document.getElementById("gachaPoolPrice").value = state.config.auto_trade_roles.gacha_pool_price ?? 0;
+  refreshTradeRoleOptions();
 }
 
 function addTradeRow(listKey) {
