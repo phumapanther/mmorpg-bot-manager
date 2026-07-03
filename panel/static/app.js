@@ -691,7 +691,8 @@ async function skillsSave() {
     const skillKey = card.dataset.skill;
     const fields = {};
     card.querySelectorAll(".skill-field").forEach((input) => {
-      fields[input.dataset.field] = parseFloat(input.value);
+      const parsed = parseFloat(input.value);
+      fields[input.dataset.field] = isNaN(parsed) ? 0 : parsed;
     });
     if (!skills[className]) skills[className] = {};
     skills[className][skillKey] = fields;
@@ -704,7 +705,8 @@ async function skillsSave() {
     const label = tr.querySelector(".bonus-label").value;
     const role_id = tr.querySelector(".bonus-role").value || null;
     const bonus_type = tr.querySelector(".bonus-type").value;
-    const value = parseFloat(tr.querySelector(".bonus-value").value) || 1.0;
+    const parsedValue = parseFloat(tr.querySelector(".bonus-value").value);
+    const value = isNaN(parsedValue) ? 1.0 : parsedValue;
     bonuses.push({ label, role_id, bonus_type, value });
   });
   state.config.role_bonuses = bonuses;
