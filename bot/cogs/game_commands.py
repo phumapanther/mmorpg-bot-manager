@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 import bot.models.player_model as player_model
+from bot import config_loader
 from bot.views.profile_embed import create_profile_embed
 from bot.views.profile_embed import GAME_RACES, GAME_CLASSES
 from bot.utils import not_arrested, allowed_channel  # 👈 ใส่บรรทัดนี้ลงไป
@@ -28,32 +29,24 @@ class GameCommands(commands.Cog):
             await ctx.send("❌ 不พบข้อมูลตัวละครของคุณ กรุณาพิมพ์ `!play` เพื่อลงทะเบียนก่อนครับ")
             return
 
-        # 📋 จัดเรียงแผนผังไอเทมและราคาหน้าร้านให้ถูกต้อง ไร้จุดชน
-        shop_items = {
-            1: {"name": "✞ ทูตชั้นต้น ✞", "price": 10000, "type": "rank_role", "role_name": "✞ ทูตชั้นต้น ✞"},
-            2: {"name": "✞ ทูตชั้นกลาง ༊·˚", "price": 100000, "type": "rank_role", "role_name": "✞ ทูตชั้นกลาง ༊·˚"},
-            3: {"name": "✞ ทูตชั้นสูง ⁺˚ ཐི⋆♱⋆ཋྀ ˚₊", "price": 1000000, "type": "rank_role", "role_name": "✞ ทูตชั้นสูง ⁺˚ ཐི⋆♱⋆ཋྀ ˚₊"},
-            4: {"name": "🎲 คัมภีร์กาชาสุ่มเปลี่ยนเผ่ามนุษย์", "price": 10000, "type": "gacha_human"},
-            5: {"name": "🎲 คัมภีร์กาชาสุ่มเปลี่ยนเผ่าปีศาจ", "price": 10000, "type": "gacha_monster"},
-            6: {"name": "🔮 คัมภีร์กาชาสุ่มเปลี่ยนคลาสอาชีพ", "price": 10000, "type": "gacha_class"}
-        }
+        # 📋 อ่านรายการสินค้าจาก config (ตั้งค่าได้ในหน้า Panel) — ลำดับในลิสต์ = เลขไอเทม (เริ่มที่ 1)
+        shop_items = {i + 1: item for i, item in enumerate(config_loader.get_shop_items())}
 
         # 🛑 เคสที่ 1: พิมพ์ !shop เฉยๆ -> บอทเปิดใบรายการหน้าร้านให้ดู
         if action is None:
-            # print("📝 [SHOP DEBUG] เงื่อนไขที่ 1: เรียกดูหน้าร้านค้าหลักสำเร็จ")
+            lines = []
+            for num in sorted(shop_items.keys()):
+                it = shop_items[num]
+                note = " *(สุ่ม)*" if it["type"] in ("gacha_human", "gacha_monster", "gacha_class") else ""
+                lines.append(f"🔸 **[{num}]** {it['name']} — ราคา `{it['price']:,}` ทอง{note}")
             embed = discord.Embed(
                 title="🛒 สมาคมนักผจญภัย - ร้านค้าตราเกียรติยศ & ตู้กาชาเวทมนตร์",
                 description=(
                     f"ยินดีต้อนรับคุณ **{ctx.author.name}** เข้าสู่หอเกียรติยศ\n"
                     f"💰 เงินคงเหลือปัจจุบัน: `{player.get('cash', 0):,}` ทอง\n\n"
                     f"📌 **รายการสินค้าที่มีวางจำหน่าย:**\n"
-                    f"🔸 **[1]** 👼 ✞ ทูตชั้นต้น ✞ — ราคา `10,000` ทอง\n"
-                    f"🔸 **[2]** 👼 ✞ ทูตชั้นกลาง ༊·˚ — ราคา `100,000` ทอง\n"
-                    f"🔸 **[3]** 👼 ✞ ทูตชั้นสูง ⁺˚ ཐิ⋆♱⋆ཋྀ ˚₊ — ราคา `1,000,000` ทอง\n"
-                    f"🔸 **[4]** 🎲 คัมภีร์กาชาสุ่มเปลี่ยนเผ่ามนุษย์ — ราคา `10,000` ทอง *(ลบยศเก่า สุ่มเผ่ามนุษย์)*\n"
-                    f"🔸 **[5]** 🎲 คัมภีร์กาชาสุ่มเปลี่ยนเผ่าปีศาจ — ราคา `10,000` ทอง *(ลบยศเก่า สุ่มเผ่าปีศาจ)*\n"
-                    f"🔮 **[6]** 🔮 คัมภีร์กาชาสุ่มเปลี่ยนคลาสอาชีพ — ราคา `10,000` ทอง *(ลบกลุ่มคลาสเก่า สุ่มคลาสใหม่)*\n\n"
-                    f"⌨️ **วิธีสั่งซื้อ:** พิมพ์คำสั่ง `!shop ซื้อ [เลขไอเทม]` (เช่น `!shop ซื้อ 6` เพื่อสุ่มอาชีพ)"
+                    + "\n".join(lines) +
+                    f"\n\n⌨️ **วิธีสั่งซื้อ:** พิมพ์คำสั่ง `!shop ซื้อ [เลขไอเทม]` (เช่น `!shop ซื้อ 1`)"
                 ),
                 color=0xecc94b
             )
@@ -91,27 +84,22 @@ class GameCommands(commands.Cog):
         # 🏆 [ประเภทที่ 1]: ระบบซื้อยศตรง ๆ (รายการ 1 - 3)
         # ==========================================================
         if item["type"] == "rank_role":
-            target_role_name = item["role_name"]
-            role = discord.utils.get(guild.roles, name=target_role_name)
-            # print(f"🏆 [SHOP DEBUG] เริ่มตรวจสอบการสั่งซื้อยศแบบตรงตัว: {target_role_name}")
-            
+            role_id = item.get("role_id")
+            role = guild.get_role(role_id) if role_id else None
+
             if role:
                 if role in member.roles:
-                    # print(f"⚠️ [SHOP DEBUG] ผู้เล่นมียศ {target_role_name} อยู่แล้ว สั่งเบรกคำสั่งซื้อ")
-                    await ctx.send(f"⚠️ คุณมีชั้นยศ **{target_role_name}** อยู่กับตัวแล้วครับ!")
+                    await ctx.send(f"⚠️ คุณมีชั้นยศ **{role.name}** อยู่กับตัวแล้วครับ!")
                     return
-                
+
                 try:
                     player_model.update_player_field(user_id, "cash", new_cash)
                     await member.add_roles(role)
-                    # print(f"✅ [SHOP DEBUG] ดำเนินการแอดเพิ่มยศ {target_role_name} และบันทึกเงิน {new_cash} เรียบร้อย")
-                    await ctx.send(f"✨ 🎉 **ซื้อยศสำเร็จ!** สมาคมได้มอบยศ **{target_role_name}** ให้แก่คุณเรียบร้อยแล้ว!")
+                    await ctx.send(f"✨ 🎉 **ซื้อยศสำเร็จ!** สมาคมได้มอบยศ **{role.name}** ให้แก่คุณเรียบร้อยแล้ว!")
                 except discord.Forbidden:
-                    # print("🚨 [SHOP ERROR] Discord บล็อกสิทธิ์ (Forbidden) ลำดับเลเยอร์ยศบอทต่ำกว่ายศเป้าหมาย!")
                     await ctx.send("❌ บอทไม่มีสิทธิ์แจกยศนี้ให้คุณได้ (กรุณาแจ้งแอดมินให้ช่วยปรับยศบอทขึ้นสูงด้านบนสุดในเซิร์ฟเวอร์)")
             else:
-                # print(f"❌ [SHOP ERROR] ไม่พบคลังข้อมูลชื่อยศ {target_role_name} ในหน้าเซิร์ฟเวอร์ดิสคอร์ด")
-                await ctx.send(f"❌ **พบข้อผิดพลาด:** ไม่พบชื่อยศ `{target_role_name}` ในเซิร์ฟเวอร์ดิสคอร์ดนี้")
+                await ctx.send(f"❌ **พบข้อผิดพลาด:** แอดมินยังไม่ได้ตั้งค่า Role สำหรับไอเทม **{item['name']}** ในหน้า Panel (หรือ Role ID ไม่ถูกต้อง)")
 
         # ==========================================================
         # 👲🏻 [ประเภทที่ 2]: ตู้กาชาเผ่ามนุษย์ (รายการ 4)

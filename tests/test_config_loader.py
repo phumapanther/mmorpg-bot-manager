@@ -67,3 +67,19 @@ def test_get_channel_mention_true(tmp_path, monkeypatch):
     monkeypatch.setattr(config_loader, "CONFIG_PATH", str(_write(tmp_path, cfg)))
     config_loader.reload_config()
     assert config_loader.get_channel_mention("levelup_announce") is True
+
+def test_get_shop_items_coerces_role_id(tmp_path, monkeypatch):
+    cfg = {"shop_items": [
+        {"name": "A", "price": 100, "type": "rank_role", "role_id": "1160575257892098109"},
+        {"name": "B", "price": 200, "type": "gacha_human"},
+    ]}
+    monkeypatch.setattr(config_loader, "CONFIG_PATH", str(_write(tmp_path, cfg)))
+    config_loader.reload_config()
+    items = config_loader.get_shop_items()
+    assert items[0]["role_id"] == 1160575257892098109
+    assert items[1].get("role_id") is None
+
+def test_get_shop_items_empty_by_default(tmp_path, monkeypatch):
+    monkeypatch.setattr(config_loader, "CONFIG_PATH", str(_write(tmp_path, {})))
+    config_loader.reload_config()
+    assert config_loader.get_shop_items() == []

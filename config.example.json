@@ -50,5 +50,14 @@
     ],
     "gacha_price": 10000000,
     "gacha_pool_price": 20000000
-  }
+  },
+
+  "shop_items": [
+    { "name": "✞ ทูตชั้นต้น ✞", "price": 10000, "type": "rank_role", "role_id": null },
+    { "name": "✞ ทูตชั้นกลาง ༊·˚", "price": 100000, "type": "rank_role", "role_id": null },
+    { "name": "✞ ทูตชั้นสูง ⁺˚ ཐི⋆♱⋆ཋྀ ˚₊", "price": 1000000, "type": "rank_role", "role_id": null },
+    { "name": "🎲 คัมภีร์กาชาสุ่มเปลี่ยนเผ่ามนุษย์", "price": 10000, "type": "gacha_human" },
+    { "name": "🎲 คัมภีร์กาชาสุ่มเปลี่ยนเผ่าปีศาจ", "price": 10000, "type": "gacha_monster" },
+    { "name": "🔮 คัมภีร์กาชาสุ่มเปลี่ยนคลาสอาชีพ", "price": 10000, "type": "gacha_class" }
+  ]
 }

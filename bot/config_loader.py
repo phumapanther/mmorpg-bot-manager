@@ -55,6 +55,16 @@ def get_trade_roles(faction):
         result.append(r2)
     return result
 
+def get_shop_items():
+    items = get_config().get("shop_items", [])
+    result = []
+    for it in items:
+        it2 = dict(it)
+        if it2.get("role_id") is not None:
+            it2["role_id"] = int(it2["role_id"])
+        result.append(it2)
+    return result
+
 def get_gacha_price():
     return int(get_config().get("auto_trade_roles", {}).get("gacha_price", 10000000))
 
