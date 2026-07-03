@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands, tasks
-import models.player_model as player_model
+import bot.models.player_model as player_model
 import random
 import time
 

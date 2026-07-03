@@ -3,10 +3,10 @@ from discord.ext import commands
 import random
 import time
 from collections import defaultdict
-from utils import has_permission
+from bot.utils import has_permission
 
-import models.player_model as player_model
-from views.game_views import SKILL_CONFIG
+import bot.models.player_model as player_model
+from bot.views.game_views import SKILL_CONFIG
 
 class BossView(discord.ui.View):
     def __init__(self, boss_data):

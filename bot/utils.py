@@ -1,7 +1,7 @@
 # utils.py
 from discord.ext import commands
 import time
-import models.player_model as player_model
+import bot.models.player_model as player_model
 import asyncio
 from bot import config_loader
 

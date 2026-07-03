@@ -1,8 +1,8 @@
 import discord
 from discord.ext import commands
-from models import player_model  # ดึงโมเดลจัดการฐานข้อมูลมาใช้งาน
-from utils import has_permission, allowed_channel, not_arrested
-from views.profile_embed import ARMOR_STATS, GAME_CLASSES ,WEAPON_STATS,ITEM_CONFIG
+from bot.models import player_model  # ดึงโมเดลจัดการฐานข้อมูลมาใช้งาน
+from bot.utils import has_permission, allowed_channel, not_arrested
+from bot.views.profile_embed import ARMOR_STATS, GAME_CLASSES ,WEAPON_STATS,ITEM_CONFIG
 import sqlite3
 import json  
 import random

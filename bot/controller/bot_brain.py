@@ -1,13 +1,8 @@
 #controller/bot_brain
-import sys
-import os
 import random
 import json # ✅ ย้ายมาไว้ด้านบน
 
-# เพิ่มบรรทัดนี้เพื่อให้ Python มองเห็นโฟลเดอร์หลัก
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-from controller import db_manager  
+from bot.controller import db_manager
 
 class BlackjackBot:
     def __init__(self):

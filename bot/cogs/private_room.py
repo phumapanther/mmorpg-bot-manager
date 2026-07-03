@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands, tasks
-import models.player_model as player_model
-from utils import not_arrested, allowed_channel
+import bot.models.player_model as player_model
+from bot.utils import not_arrested, allowed_channel
 
 class PrivateRoom(commands.Cog):
     def __init__(self, bot):

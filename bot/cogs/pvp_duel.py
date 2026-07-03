@@ -1,10 +1,10 @@
 import discord
 from discord.ext import commands
-import models.player_model as player_model
+import bot.models.player_model as player_model
 import random
 import asyncio
-from utils import not_arrested, allowed_channel
-from views.profile_embed import ARMOR_STATS ,WEAPON_STATS
+from bot.utils import not_arrested, allowed_channel
+from bot.views.profile_embed import ARMOR_STATS ,WEAPON_STATS
 
 class DuelView(discord.ui.View):
     def __init__(self, challenger, target, timeout=60):

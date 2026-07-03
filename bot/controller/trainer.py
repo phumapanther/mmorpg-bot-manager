@@ -1,7 +1,7 @@
 #controller/bot_brain
 import random
-from controller.bot_brain import BlackjackBot
-from controller import db_manager
+from bot.controller.bot_brain import BlackjackBot
+from bot.controller import db_manager
 import json
 
 def train_alpha_bot(iterations=5000):

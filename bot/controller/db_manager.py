@@ -1,6 +1,4 @@
 #controller/db_manager
-import sys
-import os
 import sqlite3
 import json
 
@@ -8,8 +6,7 @@ import json
 DB_NAME = "game_data.db"
 
 # ดึง player_model เข้ามาใช้ เพื่อให้ใช้ระบบเงิน (Cash) แบบเดียวกับเกมส่วนอื่นๆ
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-import models.player_model as player_model 
+import bot.models.player_model as player_model
 
 # ==========================================
 # 👤 หมวดจัดการเงินของผู้เล่น (โอนงานให้ player_model)

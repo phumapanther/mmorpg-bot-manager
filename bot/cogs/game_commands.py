@@ -1,9 +1,9 @@
 import discord
 from discord.ext import commands
-import models.player_model as player_model
-from views.profile_embed import create_profile_embed
-from views.profile_embed import GAME_RACES, GAME_CLASSES
-from utils import not_arrested, allowed_channel  # 👈 ใส่บรรทัดนี้ลงไป
+import bot.models.player_model as player_model
+from bot.views.profile_embed import create_profile_embed
+from bot.views.profile_embed import GAME_RACES, GAME_CLASSES
+from bot.utils import not_arrested, allowed_channel  # 👈 ใส่บรรทัดนี้ลงไป
 
 class GameCommands(commands.Cog):
     def __init__(self, bot):

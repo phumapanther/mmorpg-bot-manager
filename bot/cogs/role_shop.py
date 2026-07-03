@@ -1,8 +1,8 @@
 import discord
 from discord.ext import commands
 import random
-import models.player_model as player_model
-from utils import not_arrested, allowed_channel
+import bot.models.player_model as player_model
+from bot.utils import not_arrested, allowed_channel
 from bot import config_loader
 
 # ==========================================

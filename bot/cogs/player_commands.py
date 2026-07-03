@@ -2,13 +2,13 @@ import discord
 from collections import Counter
 from discord.ext import commands
 import random
-import models.player_model as player_model
+import bot.models.player_model as player_model
 import time
 import sqlite3
 from contextlib import contextmanager
-from utils import not_arrested, allowed_channel
-from views.profile_embed import ARMOR_STATS, GAME_CLASSES, WEAPON_STATS, ITEM_CONFIG, BAG_STATS, CRAFTING_RECIPES
-from views.game_views import DeathRespawnView
+from bot.utils import not_arrested, allowed_channel
+from bot.views.profile_embed import ARMOR_STATS, GAME_CLASSES, WEAPON_STATS, ITEM_CONFIG, BAG_STATS, CRAFTING_RECIPES
+from bot.views.game_views import DeathRespawnView
 import json
 import traceback # อย่าลืม import อันนี้ที่ด้านบนสุดของไฟล์นะครับ
 

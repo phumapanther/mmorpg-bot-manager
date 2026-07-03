@@ -3,14 +3,14 @@ import discord
 from discord.ext import commands
 import random
 import json
-from utils import not_arrested, allowed_channel,has_permission
-from controller.trainer import train_alpha_bot
+from bot.utils import not_arrested, allowed_channel,has_permission
+from bot.controller.trainer import train_alpha_bot
 # นำเข้าระบบจัดการผู้เล่นของคุณอาเธอร์
-import models.player_model as player_model
+import bot.models.player_model as player_model
 
 # นำเข้าระบบ AI ของคุณ
-from controller.bot_brain import BlackjackBot
-from controller import db_manager
+from bot.controller.bot_brain import BlackjackBot
+from bot.controller import db_manager
 
 # ==========================================
 # 🃏 UI View สำหรับเกม Blackjack 24

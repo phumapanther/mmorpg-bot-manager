@@ -1,8 +1,8 @@
 import discord
 from discord.ui import View
 import random
-import models.player_model as player_model
-from views.profile_embed import ARMOR_STATS, GAME_CLASSES ,WEAPON_STATS,ITEM_CONFIG
+import bot.models.player_model as player_model
+from bot.views.profile_embed import ARMOR_STATS, GAME_CLASSES ,WEAPON_STATS,ITEM_CONFIG
 import traceback # เอาไว้ดูว่า Error บรรทัดไหน
 import json  
 

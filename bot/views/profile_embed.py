@@ -1,6 +1,6 @@
 # profile_embed.py
 import discord
-import models.player_model as player_model
+import bot.models.player_model as player_model
 
 # ─── 🧬 คลังข้อมูลเผ่าพันธุ์ (สลักชื่อตรงตามยศในเซิร์ฟเวอร์ดิสคอร์ด 100%) ───
 GAME_RACES = [

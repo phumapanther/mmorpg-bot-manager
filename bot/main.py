@@ -2,17 +2,11 @@ import discord
 from discord.ext import commands
 import asyncio
 import sys
-import os
-from dotenv import load_dotenv
-import models.player_model as player_model
+import bot.models.player_model as player_model
+from bot import config_loader
 
-# 🟢 1. โหลดไฟล์ .env เป็นสิ่งแรกสุด เพื่อให้ระบบรู้จัก Token
-load_dotenv()
-
-# 🔒 2. ดึงค่า Token ทั้ง 3 ตัวผ่าน Environment Variables
-TOKEN_GAME       = os.getenv("ARTHUR_TOKEN")
-TOKEN_CHAT_VOICE = os.getenv("PANDA_TOKEN")
-TOKEN_ADMIN      = os.getenv("BOT_1984_TOKEN")
+# 🔒 ดึงค่า Token จาก config.json ผ่าน Panel
+TOKEN_GAME = config_loader.get_token()
 
 def create_bot(bot_type: str):
     """ฟังก์ชันเสกอินสแตนซ์บอทตามประเภทหน้าที่"""
@@ -86,44 +80,44 @@ def create_bot(bot_type: str):
         try:
             # 🔄 [โหมดบายพาส] ถ้าเป็นบอทเกม (Arthur) ให้โหลดทั้งระบบเกม, ระบบแอดมิน และระบบเสียงควบรวมกันเลย!
             if bot_type == "game":
-                await bot.load_extension("cogs.game_commands")
+                await bot.load_extension("bot.cogs.game_commands")
                 print("⚔️ [Game Bot] โหลดระบบคำสั่งคอมแบทและร้านค้าสำเร็จ!")
                 
-                await bot.load_extension("cogs.admin_commands")
+                await bot.load_extension("bot.cogs.admin_commands")
                 print("👑 [Admin Commands] โหลดระบบคำสั่งผู้ดูแลระบบสำเร็จ!")
 
-                await bot.load_extension("cogs.player_commands")
+                await bot.load_extension("bot.cogs.player_commands")
                 print("🕺[Player Commands] โหลดระบบคำสั่งผู้เล่นสำเร็จ!")
 
-                await bot.load_extension("cogs.voice_chat_tracker")
+                await bot.load_extension("bot.cogs.voice_chat_tracker")
                 print("🎙️ [Bypass Mode] โน้ตระบบลูปห้องเสียงและฟาร์มแชทมาให้ Arthur รันแทนชั่วคราวสำเร็จ!")
                 
-                await bot.load_extension('cogs.owner_announce')
+                await bot.load_extension('bot.cogs.owner_announce')
                 print("📢 [Owner Announce] โหลดระบบประกาศข่าวสารสำเร็จ!")
 
-                await bot.load_extension('cogs.adventure_zone')
+                await bot.load_extension('bot.cogs.adventure_zone')
                 print("🌌 [Adventure Zone] โหลดระบบห้องผจญภัยส่วนตัวสำเร็จ!")
 
-                await bot.load_extension("cogs.private_room")
+                await bot.load_extension("bot.cogs.private_room")
                 print("🏠 [Private Room Bot] โหลดระบบคำสั่ง สร้างห้อง สำเร็จ!")
                 
-                await bot.load_extension("cogs.pvp_duel")
+                await bot.load_extension("bot.cogs.pvp_duel")
                 print("⚔️ [PVP Commands] โหลดระบบคำสั่ง PVP สำเร็จ!")
 
-                await bot.load_extension("cogs.world_boss")
+                await bot.load_extension("bot.cogs.world_boss")
                 print("👿[World Boss Commands] โหลดระบบคำสั่ง Boss สำเร็จ!")
 
-                await bot.load_extension("cogs.casino")
+                await bot.load_extension("bot.cogs.casino")
                 print("🎰[Casino] โหลดระบบคำสั่ง casino สำเร็จ!")
 
-                await bot.load_extension("cogs.blackjack")
+                await bot.load_extension("bot.cogs.blackjack")
                 print("🃏[Blackjack Commands] โหลดระบบคำสั่ง เทรนบอท blackjack ")
 
-                await bot.load_extension("cogs.role_shop")
+                await bot.load_extension("bot.cogs.role_shop")
                 print("💸[Buy] โหลดระบบคำสั่ง ซื้อยศออนไลน์!")
 
             elif bot_type == "chat":
-                await bot.load_extension("cogs.voice_chat_tracker")
+                await bot.load_extension("bot.cogs.voice_chat_tracker")
                 print("🎙️ [Chat/Voice Bot] โหลดระบบลูปห้องเสียงและฟาร์มแชทสำเร็จ!")
                 
             elif bot_type == "admin":
@@ -144,8 +138,12 @@ def create_bot(bot_type: str):
 
 # 🚀 3. ฟังก์ชันควบคุมการจุดระเบิดเปิดบอ
 async def main():
+    if not TOKEN_GAME:
+        print("⚠️ ยังไม่ได้ตั้ง token — เปิดหน้า Panel แล้วใส่ token ก่อน")
+        return
+
     print("⏳ กำลังเตรียมการเปิดระบบในโหมดบายพาส (บอทแรกตัวเดียว)...")
-    
+
     # สั่งสร้างตัวรันบอทเกม (Arthur)
     run_game_bot = create_bot("game")
 

@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 import asyncio
-from utils import not_arrested, allowed_channel  # 👈 ใส่บรรทัดนี้ลงไป
+from bot.utils import not_arrested, allowed_channel  # 👈 ใส่บรรทัดนี้ลงไป
 class AdventureZone(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
