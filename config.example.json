@@ -13,7 +13,8 @@
     "police":       { "label": "ห้องแจ้งความ (arrest/fine)", "channel_id": null },
     "casino_hilo":  { "label": "Hi-Lo", "channel_id": null },
     "casino_slots": { "label": "สล็อต", "channel_id": null },
-    "casino_bj":    { "label": "Blackjack", "channel_id": null }
+    "casino_bj":    { "label": "Blackjack", "channel_id": null },
+    "levelup_announce": { "label": "ห้องประกาศเลเวลอัพ (Voice EXP)", "channel_id": null }
   },
 
   "permission_groups": {

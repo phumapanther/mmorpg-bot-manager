@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands, tasks
 import bot.models.player_model as player_model
+from bot import config_loader
 import random
 import time
 
@@ -86,7 +87,8 @@ class VoiceChatTracker(commands.Cog):
                     
                     if is_lv_up:
                         print(f"✨🎉 [LEVEL UP] -> {member.name} เลเวลอัปเป็น Lv.{new_lv} !!")
-                        target_channel = discord.utils.get(member.guild.channels, name="〔⚔〕โดมอัพแรงค์ผจญภัย-⍟")
+                        channel_id = config_loader.get_channel_id("levelup_announce")
+                        target_channel = member.guild.get_channel(channel_id) if channel_id else None
                         if target_channel:
                             try:
                                 # ส่งข้อความแท็กเรียกผู้เล่นประกาศความสำเร็จลงห้องที่กำหนด
@@ -118,7 +120,7 @@ class VoiceChatTracker(commands.Cog):
                             except Exception as e:
                                 print(f"⚠️ [LEVEL UP ERROR] ไม่สามารถส่งข้อความลงห้องได้เนื่องจาก: {e}")
                         else:
-                            print("❌ [LEVEL UP ERROR] หาห้องแชท '〔⚔〕โดมอัพแรงค์ผจญภัย-⍟' ไม่พบในเซิร์ฟเวอร์")
+                            print("❌ [LEVEL UP ERROR] ยังไม่ได้ตั้งค่าห้องแจ้งเตือนอัพยศ (levelup_announce) ในหน้า Panel หรือหาห้องไม่พบ")
                     
                     # 🏅 ตรวจสอบและอัปเดตยศ (Rank) แบบสะสมยศเก่าไม่ลบ
                     updated_player = player_model.get_player(member.id)
