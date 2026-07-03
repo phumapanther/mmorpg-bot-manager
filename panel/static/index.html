@@ -16,6 +16,7 @@
   <button class="tab-btn" data-tab="permissions">Permissions</button>
   <button class="tab-btn" data-tab="trade">Auto-trade</button>
   <button class="tab-btn" data-tab="shop">Shop</button>
+  <button class="tab-btn" data-tab="skills">Skills</button>
 </nav>
 
 <section id="tab-setup" class="tab-panel active">
@@ -96,6 +97,18 @@
   </table>
   <button id="shopAddBtn" type="button">+ เพิ่มแถว</button>
   <button id="shopSaveBtn" class="save-btn">บันทึก</button>
+</section>
+
+<section id="tab-skills" class="tab-panel">
+  <h2>Skills</h2>
+  <div id="skillCards"></div>
+  <h3>โบนัสยศพิเศษ</h3>
+  <table id="roleBonusTable">
+    <thead><tr><th>ชื่อ</th><th>ยศ</th><th>ประเภทบัพ</th><th>ค่าตัวคูณ</th><th></th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <button id="roleBonusAddBtn" type="button">+ เพิ่มแถว</button>
+  <button id="skillsSaveBtn" class="save-btn">บันทึก</button>
 </section>
 
 <script src="app.js"></script>

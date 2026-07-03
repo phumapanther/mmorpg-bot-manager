@@ -83,6 +83,7 @@ async function onGuildChange() {
     renderPermissions();
     renderTrade();
     renderShop();
+    renderSkillsTab();
     return;
   }
   try {
@@ -101,6 +102,7 @@ async function onGuildChange() {
   renderPermissions();
   renderTrade();
   renderShop();
+  renderSkillsTab();
 }
 
 async function setupSave() {
@@ -510,6 +512,206 @@ async function shopSave() {
   await saveConfig();
 }
 
+// ---------- skills tab ----------
+
+const SKILL_FIELD_LABELS = {
+  chance_base: "โอกาสติดสกิลพื้นฐาน (%)",
+  chance_lvl_scale: "โอกาสเพิ่มต่อเลเวล (%)",
+  damage_multiplier: "ตัวคูณดาเมจ",
+  duration: "ระยะเวลาบัพ (เทิร์น)",
+  reduction_base: "% ลดดาเมจพื้นฐาน",
+  reduction_lvl_scale: "% ลดดาเมจเพิ่มต่อเลเวล",
+  burn_base: "% ดาเมจเผาไหม้พื้นฐาน (จาก HP บอส)",
+  burn_lvl_scale: "% ดาเมจเผาไหม้เพิ่มต่อเลเวล",
+  duration_base: "ระยะเวลาพื้นฐาน (เทิร์น)",
+  duration_lvl_scale: "ระยะเวลาเพิ่มต่อเลเวล",
+  damage_reduce: "% หักล้างดาเมจ",
+  damage_reflect_mult: "ตัวคูณดาเมจสะท้อนกลับ",
+  heal_percent_base: "% ฮีลพื้นฐาน (จาก Max HP)",
+  heal_lvl_scale: "% ฮีลเพิ่มต่อเลเวล",
+};
+
+const SKILL_LABELS = {
+  Warrior: { heavy_strike: "เจาะเกราะสุดพลัง (heavy_strike)", shield_bash: "โล่กระแทก (shield_bash)" },
+  Mage: { fireball: "ลูกไฟ (fireball)", frostbolt: "ธนูน้ำแข็ง (frostbolt)" },
+  Rogue: { backstab: "แทงข้างหลัง (backstab)", evasion: "หลบหลีก (evasion)" },
+  Cleric: { heal: "รักษา (heal)", holy_aura: "ออร่าศักดิ์สิทธิ์ (holy_aura)" },
+};
+
+const ROLE_BONUS_TYPES = [
+  { value: "voice_exp_multiplier", label: "ตัวคูณ EXP ห้องเสียง" },
+  { value: "chat_event_multiplier", label: "ตัวคูณสถิติแชทกิจกรรม" },
+  { value: "chat_gold_multiplier", label: "ตัวคูณเงินแชท" },
+];
+
+function renderSkillCards() {
+  const root = document.getElementById("skillCards");
+  root.innerHTML = "";
+  const skills = state.config.skills || {};
+  for (const className of Object.keys(SKILL_LABELS)) {
+    const classSkills = skills[className] || {};
+    const classHeader = document.createElement("h3");
+    classHeader.textContent = className;
+    root.appendChild(classHeader);
+    for (const skillKey of Object.keys(SKILL_LABELS[className])) {
+      const fields = classSkills[skillKey] || {};
+      const card = document.createElement("div");
+      card.className = "skill-card";
+      card.dataset.class = className;
+      card.dataset.skill = skillKey;
+      const title = document.createElement("strong");
+      title.textContent = SKILL_LABELS[className][skillKey];
+      card.appendChild(title);
+      for (const fieldKey of Object.keys(fields)) {
+        const row = document.createElement("div");
+        row.className = "field";
+        const label = document.createElement("label");
+        label.textContent = SKILL_FIELD_LABELS[fieldKey] || fieldKey;
+        const input = document.createElement("input");
+        input.type = "number";
+        input.step = "any";
+        input.className = "skill-field";
+        input.dataset.field = fieldKey;
+        input.value = fields[fieldKey];
+        row.appendChild(label);
+        row.appendChild(input);
+        card.appendChild(row);
+      }
+      root.appendChild(card);
+    }
+  }
+}
+
+function refreshRoleBonusOptions() {
+  const selects = Array.from(document.querySelectorAll("#roleBonusTable select.bonus-role"));
+  const currentValues = selects.map((sel) => sel.value);
+  selects.forEach((sel, i) => {
+    const used = new Set(currentValues.filter((v, j) => j !== i && v));
+    Array.from(sel.options).forEach((opt) => {
+      if (!opt.value) return;
+      opt.hidden = used.has(opt.value) && opt.value !== sel.value;
+    });
+  });
+}
+
+function roleBonusRoleSelectHtml(selectedId) {
+  const sel = document.createElement("select");
+  sel.className = "bonus-role";
+  sel.innerHTML = '<option value="">-- ไม่ระบุ --</option>';
+  for (const r of state.roles) {
+    const opt = document.createElement("option");
+    opt.value = r.id;
+    opt.textContent = r.name;
+    sel.appendChild(opt);
+  }
+  if (selectedId != null) sel.value = String(selectedId);
+  sel.addEventListener("change", refreshRoleBonusOptions);
+  return sel;
+}
+
+function roleBonusTypeSelectHtml(selectedType) {
+  const sel = document.createElement("select");
+  sel.className = "bonus-type";
+  for (const t of ROLE_BONUS_TYPES) {
+    const opt = document.createElement("option");
+    opt.value = t.value;
+    opt.textContent = t.label;
+    sel.appendChild(opt);
+  }
+  sel.value = selectedType || ROLE_BONUS_TYPES[0].value;
+  return sel;
+}
+
+function renderRoleBonuses() {
+  const tbody = document.querySelector("#roleBonusTable tbody");
+  tbody.innerHTML = "";
+  const bonuses = state.config.role_bonuses || [];
+  bonuses.forEach((item, idx) => {
+    const tr = document.createElement("tr");
+    tr.dataset.idx = idx;
+
+    const tdLabel = document.createElement("td");
+    const labelInput = document.createElement("input");
+    labelInput.type = "text";
+    labelInput.className = "bonus-label";
+    labelInput.value = item.label || "";
+    tdLabel.appendChild(labelInput);
+    tr.appendChild(tdLabel);
+
+    const tdRole = document.createElement("td");
+    const roleSel = roleBonusRoleSelectHtml(item.role_id);
+    tdRole.appendChild(roleSel);
+    tr.appendChild(tdRole);
+
+    const tdType = document.createElement("td");
+    const typeSel = roleBonusTypeSelectHtml(item.bonus_type);
+    tdType.appendChild(typeSel);
+    tr.appendChild(tdType);
+
+    const tdValue = document.createElement("td");
+    const valueInput = document.createElement("input");
+    valueInput.type = "number";
+    valueInput.step = "any";
+    valueInput.className = "bonus-value";
+    valueInput.value = item.value != null ? item.value : 1.0;
+    tdValue.appendChild(valueInput);
+    tr.appendChild(tdValue);
+
+    const tdDel = document.createElement("td");
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.textContent = "ลบ";
+    delBtn.onclick = () => {
+      state.config.role_bonuses.splice(idx, 1);
+      renderRoleBonuses();
+    };
+    tdDel.appendChild(delBtn);
+    tr.appendChild(tdDel);
+
+    tbody.appendChild(tr);
+  });
+  refreshRoleBonusOptions();
+}
+
+function renderSkillsTab() {
+  renderSkillCards();
+  renderRoleBonuses();
+}
+
+function addRoleBonusRow() {
+  if (!state.config.role_bonuses) state.config.role_bonuses = [];
+  state.config.role_bonuses.push({ label: "โบนัสใหม่", role_id: null, bonus_type: ROLE_BONUS_TYPES[0].value, value: 1.0 });
+  renderRoleBonuses();
+}
+
+async function skillsSave() {
+  const skills = state.config.skills || {};
+  document.querySelectorAll("#skillCards .skill-card").forEach((card) => {
+    const className = card.dataset.class;
+    const skillKey = card.dataset.skill;
+    const fields = {};
+    card.querySelectorAll(".skill-field").forEach((input) => {
+      fields[input.dataset.field] = parseFloat(input.value);
+    });
+    if (!skills[className]) skills[className] = {};
+    skills[className][skillKey] = fields;
+  });
+  state.config.skills = skills;
+
+  const tbody = document.querySelector("#roleBonusTable tbody");
+  const bonuses = [];
+  tbody.querySelectorAll("tr").forEach((tr) => {
+    const label = tr.querySelector(".bonus-label").value;
+    const role_id = tr.querySelector(".bonus-role").value || null;
+    const bonus_type = tr.querySelector(".bonus-type").value;
+    const value = parseFloat(tr.querySelector(".bonus-value").value) || 1.0;
+    bonuses.push({ label, role_id, bonus_type, value });
+  });
+  state.config.role_bonuses = bonuses;
+
+  await saveConfig();
+}
+
 // ---------- tabs ----------
 
 function switchTab(name) {
@@ -542,6 +744,9 @@ async function init() {
   document.getElementById("shopAddBtn").addEventListener("click", addShopRow);
   document.getElementById("shopSaveBtn").addEventListener("click", shopSave);
 
+  document.getElementById("roleBonusAddBtn").addEventListener("click", addRoleBonusRow);
+  document.getElementById("skillsSaveBtn").addEventListener("click", skillsSave);
+
   await loadConfig();
   document.getElementById("tokenInput").value = state.config.bot_token || "";
 
@@ -563,6 +768,7 @@ async function init() {
   renderPermissions();
   renderTrade();
   renderShop();
+  renderSkillsTab();
 
   await refreshStatus();
   setInterval(refreshStatus, 1500);
