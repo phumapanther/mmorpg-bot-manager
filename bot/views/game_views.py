@@ -2,7 +2,7 @@ import discord
 from discord.ui import View
 import random
 import bot.models.player_model as player_model
-from bot.views.profile_embed import ARMOR_STATS, GAME_CLASSES ,WEAPON_STATS,ITEM_CONFIG
+from bot.views.profile_embed import GAME_CLASSES
 import traceback # เอาไว้ดูว่า Error บรรทัดไหน
 import json
 from bot import config_loader
@@ -139,8 +139,8 @@ class MonsterEventView(View):
             # 1. 🛡️ ดึงข้อมูลอุปกรณ์
             w_id = player.get("weapon", "Wooden_Weapon")
             a_id = player.get("armor", "None")
-            w_stat = WEAPON_STATS.get(w_id, WEAPON_STATS.get("Wooden_Weapon", {"atk": 1}))
-            a_stat = ARMOR_STATS.get(a_id, ARMOR_STATS.get("None", {"hp": 0}))
+            w_stat = config_loader.get_weapon_stats(w_id) or config_loader.get_weapon_stats("Wooden_Weapon") or {"atk": 1}
+            a_stat = config_loader.get_armor_stats(a_id) or config_loader.get_armor_stats("None") or {"hp": 0}
             
             # 2. 🛡️ คำนวณพลังโจมตี (ถ้าความทนทานเป็น 0 พลังโจมตีหาย)
             curr_atk = w_stat.get("atk", 0) if player.get("weapon_dur", 0) > 0 else 0
@@ -324,7 +324,8 @@ class MonsterEventView(View):
 
                     m_tier = getattr(self, "monster_rank", "Common")
                     dropped_item_id = None
-                    
+
+                    ITEM_CONFIG = config_loader.get_all_items()
                     if m_tier in ["Secret", "Unbeatable"] and random.random() <= 0.01:
                         dropped_item_id = random.choice(["8", "21"])
                     elif random.random() <= 0.70:
@@ -576,7 +577,7 @@ class VillageEventView(View):
         armor_key = player.get("armor", "None")
         current_dur = player.get("armor_dur", 0) # ดึงค่าความคงทนมาเช็กด้วย
         # ดึงข้อมูล Config เกราะ
-        armor_info = ARMOR_STATS.get(armor_key, ARMOR_STATS["None"])
+        armor_info = config_loader.get_armor_stats(armor_key) or config_loader.get_armor_stats("None")
         armor_hp_bonus = armor_info.get("hp", 0)
         # 🛡️ เงื่อนไขพิเศษ: ถ้าความคงทนเป็น 0 ให้โบนัส HP เป็น 0
         if current_dur <= 0:
@@ -675,6 +676,7 @@ class ShopEventView(View):
     # --- หน้าหลัก ---
     @discord.ui.button(label="💰 ซื้อไอเทม", style=discord.ButtonStyle.green)
     async def buy_menu(self, interaction: discord.Interaction, button: discord.ui.Button):
+        ITEM_CONFIG = config_loader.get_all_items()
         # 🛠️ กรองแสดงเฉพาะของที่ตั้งค่า purchasable ไม่เท่ากับ False
         content = "🛒 เลือกไอเทมที่ต้องการซื้อ:\n" + "\n".join([f"**เลข {k}:** {v['name']} ({v['buy']} ทอง)" for k, v in ITEM_CONFIG.items() if v.get("purchasable", True)])
         await interaction.response.edit_message(content=content, view=BuySelectView(self.user_id))
@@ -692,10 +694,11 @@ class BuySelectView(View):
     def __init__(self, user_id):
         super().__init__(timeout=60)
         self.user_id = user_id
-        
+        ITEM_CONFIG = config_loader.get_all_items()
+
         # [ระบบเช็กไฟล์/แคช]
         # print(f"DEBUG: [ร้านค้า] กำลังโหลดหน้า ซื้อไอเทม ให้ User ID: {user_id}")
-        
+
         try:
             for item_id, data in ITEM_CONFIG.items():
                 # 🛠️ สร้างปุ่มเฉพาะของที่อนุญาตให้ซื้อ
@@ -714,9 +717,10 @@ class BuySelectView(View):
 
     # 🛒 แก้ไขระบบซื้อ
     async def buy_callback(self, interaction: discord.Interaction):
+        ITEM_CONFIG = config_loader.get_all_items()
         # 🛡️ 1. สั่ง Defer ทันทีที่กดปุ่ม
         await interaction.response.defer()
-        
+
         item_id = str(interaction.data["custom_id"])
         player = player_model.get_player(self.user_id)
         item_data = ITEM_CONFIG.get(item_id)
@@ -778,7 +782,8 @@ class SellSelectView(View):
         super().__init__(timeout=None)
         self.user_id = user_id
         player = player_model.get_player(user_id)
-        
+        ITEM_CONFIG = config_loader.get_all_items()
+
         try:
             # 🛠️ ระบบกรองทำความสะอาดข้อมูลกระเป๋า
             raw_inv = player.get("inventory", "")
@@ -805,12 +810,13 @@ class SellSelectView(View):
 
     # 💰 แก้ไขระบบขาย
     async def sell_callback(self, interaction: discord.Interaction):
+        ITEM_CONFIG = config_loader.get_all_items()
         # 🛡️ 1. สั่ง Defer ทันทีที่กดปุ่ม
         await interaction.response.defer()
 
         item_id = str(interaction.data["custom_id"])
         player = player_model.get_player(self.user_id)
-        
+
         raw_inv = player.get("inventory", "")
         clean_inv = str(raw_inv)
         for char in ["(", ")", "[", "]", "'", '"', " "]:
@@ -850,8 +856,9 @@ class TreasureEventView(View):
 
     @discord.ui.button(label="📦 เปิดกล่องสมบัติ", style=discord.ButtonStyle.success)
     async def open_box(self, interaction: discord.Interaction, button: discord.ui.Button):
+        ITEM_CONFIG = config_loader.get_all_items()
         player = player_model.get_player(self.user_id)
-        
+
         # 🗡️ เช็กว่าผู้เล่นมีโรล Rogue หรือไม่
         is_rogue = any(role.name == "Rogue" for role in interaction.user.roles)
         
@@ -1021,6 +1028,7 @@ class NpcEventView(View):
     # ==========================================
     @discord.ui.button(label="💬 เข้าไปพูดคุย", style=discord.ButtonStyle.primary)
     async def talk(self, interaction: discord.Interaction, button: discord.ui.Button):
+        ITEM_CONFIG = config_loader.get_all_items()
         player = player_model.get_player(self.user_id)
         outcome = random.choice(["gift", "shop", "nothing"])
         
@@ -1074,6 +1082,7 @@ class NpcEventView(View):
     # ==========================================
     @discord.ui.button(label="📜 ฟังข้อเสนอเควส", style=discord.ButtonStyle.success)
     async def quest_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        ITEM_CONFIG = config_loader.get_all_items()
         player = player_model.get_player(self.user_id)
         inv_list = player_model.load_inventory(player.get("inventory", "[]"))
 
@@ -1210,11 +1219,11 @@ class TrapEventView(View):
 
         # แก้บรรทัดเดิมของคุณอาเธอร์เป็นชุดนี้ครับ:
         armor_key = player.get("armor", "None")
-        armor_data = ARMOR_STATS.get(armor_key)
-        
+        armor_data = config_loader.get_armor_stats(armor_key)
+
         # ถ้าหาเกราะไม่เจอ ให้ใช้ "None" เป็นค่าเริ่มต้น
         if not armor_data:
-            armor_data = ARMOR_STATS["None"]
+            armor_data = config_loader.get_armor_stats("None")
 
         armor_evasion = armor_data.get("eva", 0) 
         
