@@ -85,5 +85,69 @@
     { "name": "🎲 คัมภีร์กาชาสุ่มเปลี่ยนเผ่ามนุษย์", "price": 10000, "type": "gacha_human" },
     { "name": "🎲 คัมภีร์กาชาสุ่มเปลี่ยนเผ่าปีศาจ", "price": 10000, "type": "gacha_monster" },
     { "name": "🔮 คัมภีร์กาชาสุ่มเปลี่ยนคลาสอาชีพ", "price": 10000, "type": "gacha_class" }
-  ]
+  ],
+
+  "item_catalog": {
+    "items": {
+      "1": {"name": "💉 ยาฮีล", "buy": 300, "sell": 100, "type": "use", "effect": "heal", "effect_amount": 50},
+      "2": {"name": "🛠️ ใบซ่อมแซม", "buy": 500, "sell": 150, "type": "use", "effect": "repair"},
+      "3": {"name": "🟫 เกราะหนังเบา", "buy": 1000, "sell": 300, "type": "armor", "equip_key": "Leather_L"},
+      "4": {"name": "🟫 เกราะหนังหนัก", "buy": 3000, "sell": 900, "type": "armor", "equip_key": "Leather_H"},
+      "5": {"name": "⬜ เกราะเหล็กเบา", "buy": 8000, "sell": 2400, "type": "armor", "equip_key": "Steel_L"},
+      "6": {"name": "⬜ เกราะเหล็กหนัก", "buy": 20000, "sell": 6000, "type": "armor", "equip_key": "Steel_H"},
+      "7": {"name": "⚔️ อาวุธเหล็ก", "buy": 6000, "sell": 1800, "type": "weapon", "equip_key": "Iron_Weapon"},
+      "8": {"name": "🗡️ อาวุธในตำนาน", "buy": 9999999, "sell": 1, "type": "weapon", "equip_key": "Legen_Weapon"},
+      "9": {"name": "🦴 เศษกระดูก", "buy": 100, "sell": 10, "type": "junk", "purchasable": false},
+      "10": {"name": "🕸️ ใยแมงมุม", "buy": 150, "sell": 15, "type": "junk", "purchasable": false},
+      "11": {"name": "💎 เศษอัญมณีหมองหม่น", "buy": 500, "sell": 50, "type": "junk", "purchasable": false},
+      "12": {"name": "🪨 เศษหิน", "buy": 50, "sell": 5, "type": "junk", "purchasable": false},
+      "13": {"name": "🪵 เศษไม้", "buy": 30, "sell": 3, "type": "junk", "purchasable": false},
+      "14": {"name": "🧪 ขวดสารเคมี", "buy": 200, "sell": 20, "type": "junk", "purchasable": false},
+      "15": {"name": "🧵 เศษด้าย", "buy": 20, "sell": 2, "type": "junk", "purchasable": false},
+      "16": {"name": "🪶 ขนนก", "buy": 40, "sell": 4, "type": "junk", "purchasable": false},
+      "17": {"name": "🪙 เหรียญเก่า", "buy": 100, "sell": 10, "type": "junk", "purchasable": false},
+      "18": {"name": "🧱 ก้อนอิฐ", "buy": 60, "sell": 6, "type": "junk", "purchasable": false},
+      "19": {"name": "👜 กระเป๋ากลาง", "buy": 15000, "sell": 3000, "type": "bag", "equip_key": "Medium_Bag"},
+      "20": {"name": "👜 กระเป๋าใหญ่", "buy": 40000, "sell": 8000, "type": "bag", "equip_key": "Large_Bag"},
+      "21": {"name": "🌌 กระเป๋าเวทมนตร์", "buy": 9999999, "sell": 1, "type": "bag", "equip_key": "Magic_Bag"},
+      "22": {"name": "📜ใบวาปเมือง", "buy": 500, "sell": 50, "type": "drop", "purchasable": false, "effect": "set_state", "effect_value": "warp_village"},
+      "23": {"name": "🔑กุญแจวาปดันเจี้ยน", "buy": 2000, "sell": 200, "type": "drop", "purchasable": false, "effect": "set_state", "effect_value": "warp_dungeon"},
+      "24": {"name": "📃ใบเชิญมินิบอส", "buy": 8000, "sell": 1, "type": "drop", "purchasable": false, "effect": "set_state", "effect_value": "mini_summon"},
+      "25": {"name": "📃ใบเชิญบอสหลัก", "buy": 35000, "sell": 1, "type": "drop", "purchasable": false, "effect": "set_state", "effect_value": "main_summon"},
+      "26": {"name": "📃ใบเชิญบอสไร้พ่าย", "buy": 80000, "sell": 1, "type": "drop", "purchasable": false, "effect": "set_state", "effect_value": "unbeatable_summon"},
+      "27": {"name": "📡เรดาร์สแกนกล่องสมบัติ", "buy": 3000, "sell": 300, "type": "drop", "purchasable": false, "effect": "set_state", "effect_value": "scan_box"},
+      "28": {"name": "💌ใบชุบชีวิต", "buy": 5000, "sell": 500, "type": "drop", "purchasable": false, "effect": "revive"}
+    },
+    "armor_stats": {
+      "None":      {"name": "👕 เสื้อผ้าธรรมดา", "hp": 0,   "eva": 85, "dur": 100, "vis": 1},
+      "Leather_L": {"name": "🟫 เกราะหนังเบา",   "hp": 20,  "eva": 70, "dur": 150, "vis": 3},
+      "Leather_H": {"name": "🟫 เกราะหนังหนัก",  "hp": 30,  "eva": 60, "dur": 200, "vis": 5},
+      "Steel_L":   {"name": "⬜ เกราะเหล็กเบา",  "hp": 50,  "eva": 40, "dur": 300, "vis": 7},
+      "Steel_H":   {"name": "⬜ เกราะเหล็กหนัก", "hp": 100, "eva": 20, "dur": 500, "vis": 9}
+    },
+    "weapon_stats": {
+      "Wooden_Weapon": {"name": "🪵 อาวุธไม้",     "atk": 10, "dur": 50},
+      "Iron_Weapon":   {"name": "⚔️ อาวุธเหล็ก",   "atk": 30, "dur": 150},
+      "Legen_Weapon":  {"name": "🗡️ อาวุธในตำนาน", "atk": 999, "dur": 1000}
+    },
+    "bag_stats": {
+      "Small_Bag": {"name": "🎒 กระเป๋าเล็ก", "capacity": 10},
+      "Medium_Bag": {"name": "🎒 กระเป๋ากลาง", "capacity": 50},
+      "Large_Bag": {"name": "🎒 กระเป๋าใหญ่", "capacity": 100},
+      "Magic_Bag": {"name": "🎒 กระเป๋าเวทมนตร์", "capacity": 0}
+    },
+    "crafting_recipes": {
+      "1": {"recipe": {"9": 2, "12": 1}, "fail_rate": 0.1},
+      "2": {"recipe": {"18": 1, "14": 1}, "fail_rate": 0.15},
+      "3": {"recipe": {"15": 5, "10": 3}, "fail_rate": 0.25},
+      "7": {"recipe": {"9": 5, "11": 1}, "fail_rate": 0.4},
+      "22": {"recipe": {"9": 3, "12": 2}, "fail_rate": 0.05},
+      "23": {"recipe": {"14": 2, "13": 3}, "fail_rate": 0.15},
+      "24": {"recipe": {"11": 1, "14": 3, "3": 1}, "fail_rate": 0.25},
+      "25": {"recipe": {"11": 3, "7": 1, "14": 5}, "fail_rate": 0.4},
+      "26": {"recipe": {"11": 5, "6": 1, "27": 1}, "fail_rate": 0.6},
+      "27": {"recipe": {"14": 3, "12": 5}, "fail_rate": 0.2},
+      "28": {"recipe": {"9": 10, "11": 2}, "fail_rate": 0.3}
+    }
+  }
 }

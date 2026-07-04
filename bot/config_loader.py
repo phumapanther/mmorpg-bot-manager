@@ -95,6 +95,24 @@ def get_shop_items():
         result.append(it2)
     return result
 
+def get_item_config(item_id):
+    return dict(get_config().get("item_catalog", {}).get("items", {}).get(item_id, {}))
+
+def get_all_items():
+    return dict(get_config().get("item_catalog", {}).get("items", {}))
+
+def get_armor_stats(key):
+    return dict(get_config().get("item_catalog", {}).get("armor_stats", {}).get(key, {}))
+
+def get_weapon_stats(key):
+    return dict(get_config().get("item_catalog", {}).get("weapon_stats", {}).get(key, {}))
+
+def get_bag_stats(key):
+    return dict(get_config().get("item_catalog", {}).get("bag_stats", {}).get(key, {}))
+
+def get_crafting_recipe(item_id):
+    return dict(get_config().get("item_catalog", {}).get("crafting_recipes", {}).get(item_id, {}))
+
 def get_gacha_price():
     return int(get_config().get("auto_trade_roles", {}).get("gacha_price", 10000000))
 

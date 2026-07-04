@@ -144,3 +144,34 @@ def test_get_role_bonuses_no_match_returns_empty_list(tmp_path, monkeypatch):
     monkeypatch.setattr(config_loader, "CONFIG_PATH", str(_write(tmp_path, {"role_bonuses": []})))
     config_loader.reload_config()
     assert config_loader.get_role_bonuses("voice_exp_multiplier") == []
+
+def test_get_item_config_and_get_all_items(tmp_path, monkeypatch):
+    cfg = {"item_catalog": {"items": {
+        "1": {"name": "Potion", "buy": 300, "sell": 100, "type": "use", "effect": "heal", "effect_amount": 50},
+        "2": {"name": "Scroll", "buy": 500, "sell": 150, "type": "use", "effect": "repair"},
+    }}}
+    monkeypatch.setattr(config_loader, "CONFIG_PATH", str(_write(tmp_path, cfg)))
+    config_loader.reload_config()
+    assert config_loader.get_item_config("1") == cfg["item_catalog"]["items"]["1"]
+    assert config_loader.get_item_config("nonexistent") == {}
+    assert config_loader.get_all_items() == cfg["item_catalog"]["items"]
+
+def test_get_armor_weapon_bag_stats(tmp_path, monkeypatch):
+    cfg = {"item_catalog": {
+        "armor_stats": {"Steel_H": {"name": "Heavy Steel", "hp": 100, "eva": 20, "dur": 500, "vis": 9}},
+        "weapon_stats": {"Iron_Weapon": {"name": "Iron", "atk": 30, "dur": 150}},
+        "bag_stats": {"Medium_Bag": {"name": "Medium", "capacity": 50}},
+    }}
+    monkeypatch.setattr(config_loader, "CONFIG_PATH", str(_write(tmp_path, cfg)))
+    config_loader.reload_config()
+    assert config_loader.get_armor_stats("Steel_H")["hp"] == 100
+    assert config_loader.get_armor_stats("nonexistent") == {}
+    assert config_loader.get_weapon_stats("Iron_Weapon")["atk"] == 30
+    assert config_loader.get_bag_stats("Medium_Bag")["capacity"] == 50
+
+def test_get_crafting_recipe(tmp_path, monkeypatch):
+    cfg = {"item_catalog": {"crafting_recipes": {"1": {"recipe": {"9": 2, "12": 1}, "fail_rate": 0.1}}}}
+    monkeypatch.setattr(config_loader, "CONFIG_PATH", str(_write(tmp_path, cfg)))
+    config_loader.reload_config()
+    assert config_loader.get_crafting_recipe("1") == {"recipe": {"9": 2, "12": 1}, "fail_rate": 0.1}
+    assert config_loader.get_crafting_recipe("nonexistent") == {}

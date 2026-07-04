@@ -28,7 +28,7 @@ NEW_PLAYER_DEFAULTS = {
     "total_text": 0,
     "event_text": 0,
     "bag": "Medium_Bag",
-    "capacity": 10,
+    "capacity": 50,
     "sanity": 100
 }
     
