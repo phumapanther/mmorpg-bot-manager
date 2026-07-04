@@ -7,7 +7,8 @@ import time
 import sqlite3
 from contextlib import contextmanager
 from bot.utils import not_arrested, allowed_channel
-from bot.views.profile_embed import ARMOR_STATS, GAME_CLASSES, WEAPON_STATS, ITEM_CONFIG, BAG_STATS, CRAFTING_RECIPES
+from bot.views.profile_embed import GAME_CLASSES
+from bot import config_loader
 from bot.views.game_views import DeathRespawnView
 import json
 import traceback # อย่าลืม import อันนี้ที่ด้านบนสุดของไฟล์นะครับ
@@ -301,10 +302,11 @@ class PlayerCommands(commands.Cog):
         else:
             item_counts = Counter(inv_array)
             bag_list_text = ""
-            
+            all_items = config_loader.get_all_items()
+
             for item_id, count in item_counts.items():
-                if item_id in ITEM_CONFIG:
-                    item_name = ITEM_CONFIG[item_id]["name"]
+                if item_id in all_items:
+                    item_name = all_items[item_id]["name"]
                     # 🛠️ เพิ่ม [เลข ID] ไว้ด้านหน้าให้ผู้เล่นรู้ว่าต้องพิมพ์ !use เลขอะไร
                     bag_list_text += f"**[{item_id}]** {item_name} x`{count}` ชิ้น\n"
                 else:
@@ -382,25 +384,25 @@ class PlayerCommands(commands.Cog):
         if item_id not in inv_array:
             return await ctx.send(f"❌ คุณไม่มีไอเทมหมายเลข `{item_id}` ในกระเป๋า! (พิมพ์ `!bag` เพื่อเช็ก)")
             
-        if item_id not in ITEM_CONFIG:
+        if not config_loader.get_item_config(item_id):
             return await ctx.send("❌ ไม่มีข้อมูลไอเทมนี้ในระบบเซิร์ฟเวอร์!")
 
         # ดึงข้อมูลจาก Config มาเตรียมไว้
-        item_info = ITEM_CONFIG[item_id]
+        item_info = config_loader.get_item_config(item_id)
         item_name = item_info["name"]
         item_type = item_info.get("type", "unknown")
 
         # --- 3. ตรรกะผลลัพธ์ของไอเทม (Item Logic) ---
         msg = ""
         
-        # 🧪 กรณี: ใช้ยาฮีล
-        if item_id == "1":
-            heal_amount = 50 
+        # 🧪 กรณี: ใช้ยาฮีล (ตั้งค่าได้ผ่าน effect: "heal" + effect_amount)
+        if item_info.get("effect") == "heal":
+            heal_amount = item_info.get("effect_amount", 50)
             armor_key = player.get("armor", "None")
             current_dur = player.get("armor_dur", 0)
-            
+
             # ใช้ armor_info_stats เพื่อไม่ให้ชื่อตัวแปรซ้ำกัน
-            armor_info_stats = ARMOR_STATS.get(armor_key, ARMOR_STATS.get("None", {}))
+            armor_info_stats = config_loader.get_armor_stats(armor_key) or config_loader.get_armor_stats("None")
             
             armor_hp_bonus = armor_info_stats.get("hp", 0) if current_dur > 0 else 0
             max_hp_total = player.get("max_hp", 100) + armor_hp_bonus
@@ -413,16 +415,16 @@ class PlayerCommands(commands.Cog):
             player_model.update_player_field(user_id, "hp", new_hp)
             msg = f"🧪 คุณดื่ม **{item_name}** ฟื้นฟูพลังชีวิต! (HP: `{current_hp}` ➔ `{new_hp}/{max_hp_total}`)"
 
-        # 🛠️ กรณี: ใช้ใบซ่อมแซม
-        elif item_id == "2":
+        # 🛠️ กรณี: ใช้ใบซ่อมแซม (ตั้งค่าได้ผ่าน effect: "repair")
+        elif item_info.get("effect") == "repair":
             armor_key = player.get("armor", "None")
             weapon_key = player.get("weapon", "None")
-            
-            armor_info_stats = ARMOR_STATS.get(armor_key, {})
+
+            armor_info_stats = config_loader.get_armor_stats(armor_key)
             max_armor_dur = armor_info_stats.get("dur", 100)
             current_armor_dur = player.get("armor_dur", 0)
-            
-            weapon_info_stats = WEAPON_STATS.get(weapon_key, {})
+
+            weapon_info_stats = config_loader.get_weapon_stats(weapon_key)
             max_weapon_dur = weapon_info_stats.get("dur", 50)
             current_weapon_dur = player.get("weapon_dur", 0)
             
@@ -447,7 +449,7 @@ class PlayerCommands(commands.Cog):
         # 🛡️ กรณี: สวมใส่ชุดเกราะ (อ่านค่า type อัตโนมัติจาก ITEM_CONFIG)
         elif item_type == "armor":
             equip_key = item_info["equip_key"]
-            armor_stats = ARMOR_STATS.get(equip_key, {})
+            armor_stats = config_loader.get_armor_stats(equip_key)
             max_dur = armor_stats.get("dur", 100)
             
             player_model.update_player_field(user_id, "armor", equip_key)
@@ -464,7 +466,7 @@ class PlayerCommands(commands.Cog):
         # ⚔️ กรณี: สวมใส่อาวุธ
         elif item_type == "weapon":
             equip_key = item_info["equip_key"]
-            weapon_stats = WEAPON_STATS.get(equip_key, {})
+            weapon_stats = config_loader.get_weapon_stats(equip_key)
             max_dur = weapon_stats.get("dur", 50)
             
             player_model.update_player_field(user_id, "weapon", equip_key)
@@ -474,7 +476,7 @@ class PlayerCommands(commands.Cog):
         
         elif item_type == "bag":
             equip_key = item_info["equip_key"]
-            bag_status = BAG_STATS.get(equip_key, {})
+            bag_status = config_loader.get_bag_stats(equip_key)
             bag_limit = bag_status.get("capacity", 10)
 
             player_model.update_player_field(user_id, "bag", equip_key)
@@ -483,8 +485,8 @@ class PlayerCommands(commands.Cog):
             msg = f"⚔️ คุณสวมใส่ **{item_name}** เรียบร้อยแล้ว! (ความจุกระเป๋า: `{'ไม่จำกัด' if bag_limit == 0 else bag_limit}`)"
 
         elif item_type == "drop":
-            # 1. เช็กเคสพิเศษ: ใบชุบชีวิต (28) ต้องเช็กว่าตายไหม
-            if item_id == "28":
+            # 1. เช็กเคสพิเศษ: ไอเทมชุบชีวิต ต้องเช็กว่าตายไหม (ตั้งค่าได้ผ่าน effect: "revive")
+            if item_info.get("effect") == "revive":
                 if player.get("hp") > 0 and player.get("current_state") != "death":
                     return await ctx.send("❌ คุณยังไม่ได้ตาย จะใช้ใบชุบชีวิตไปทำไมล่ะเนี่ย! เก็บไว้ใช้ตอนตายดีหน้า!")
                 
@@ -497,21 +499,12 @@ class PlayerCommands(commands.Cog):
                 await ctx.send("✨ คุณใช้ `💌ใบชุบชีวิต`! ฟื้นคืนชีพและฟื้นฟู HP เต็มแล้ว! พร้อมลุยต่อแล้วครับ!")
                 # [ใส่คำสั่งลบไอเทมออกจากกระเป๋าที่นี่]
 
-            # 2. เคสไอเทม Drop อื่นๆ (ต้องเป็น idle เท่านั้น)
-            else:
+            # 2. เคสไอเทมตั้งค่า last_event อื่นๆ (ต้องเป็น idle เท่านั้น) — ตั้งค่าได้ผ่าน effect: "set_state" + effect_value
+            elif item_info.get("effect") == "set_state":
                 if player.get("current_state") != "idle":
                     return await ctx.send("❌ คุณไม่สามารถใช้ไอเทมนี้ได้ในขณะที่กำลังทำกิจกรรมอื่นอยู่ (ต้องอยู่ในสถานะว่างก่อนกดปุ่ม 🧭 เริ่มออกเดินทาง)!")
 
-                drop_map = {
-                    "22": "warp_village",
-                    "23": "warp_dungeon",
-                    "24": "mini_summon",
-                    "25": "main_summon",
-                    "26": "unbeatable_summon",
-                    "27": "scan_box"
-                }
-                
-                new_state = drop_map.get(item_id)
+                new_state = item_info.get("effect_value")
                 if new_state:
                     player_model.update_player_field(user_id, "last_event", new_state)
                     # [ใส่คำสั่งลบไอเทมออกจากกระเป๋าที่นี่]
@@ -566,9 +559,10 @@ class PlayerCommands(commands.Cog):
                 embed.description = "*~ กระเป๋าว่างเปล่า ไม่มีอะไรให้ทิ้ง ~*"
             else:
                 drop_text = "💡 **วิธีใช้:** พิมพ์ `!drop [เลขไอเทม] [จำนวน]` เพื่อทิ้งของ\n\n**รายการที่มี:**\n"
+                all_items = config_loader.get_all_items()
                 for i_id, count in item_counts.items():
-                    if i_id in ITEM_CONFIG:
-                        item_name = ITEM_CONFIG[i_id]["name"]
+                    if i_id in all_items:
+                        item_name = all_items[i_id]["name"]
                         drop_text += f"**[{i_id}]** {item_name} x`{count}`\n"
                     else:
                         drop_text += f"**[{i_id}]** ❓ ไอเทมปริศนา x`{count}`\n"
@@ -586,7 +580,7 @@ class PlayerCommands(commands.Cog):
         # ตรวจสอบว่าในกระเป๋ามีของนี้พอไหม
         current_count = inv_array.count(item_id)
         if current_count < amount:
-            item_name = ITEM_CONFIG.get(item_id, {}).get("name", f"ไอเทมรหัส {item_id}")
+            item_name = config_loader.get_item_config(item_id).get("name", f"ไอเทมรหัส {item_id}")
             return await ctx.send(f"❌ คุณมี {item_name} ไม่พอให้ทิ้ง! (ในกระเป๋ามีแค่ {current_count} ชิ้น)")
 
         # ทำการลบไอเทมตามจำนวนที่ระบุ
@@ -597,7 +591,7 @@ class PlayerCommands(commands.Cog):
         player_model.update_player_field(user_id, "inventory", inv_array)
         
         # แสดงข้อความยืนยัน
-        item_name = ITEM_CONFIG.get(item_id, {}).get("name", "ไอเทมปริศนา")
+        item_name = config_loader.get_item_config(item_id).get("name", "ไอเทมปริศนา")
         await ctx.send(f"🗑️ คุณได้โยน **{item_name}** ทิ้งไปจำนวน `{amount}` ชิ้นเรียบร้อยแล้ว!")
     
     @commands.command(name="give")
@@ -615,7 +609,7 @@ class PlayerCommands(commands.Cog):
         if member.bot:
             return await ctx.send("❌ บอทไม่ต้องการไอเทมของคุณหรอกนะ!")
 
-        if item_id not in ITEM_CONFIG:
+        if not config_loader.get_item_config(item_id):
             return await ctx.send(f"❌ ไม่พบไอเทมรหัส `{item_id}` ในระบบ!")
 
         # 2. ดึงข้อมูลและถอดรหัสกระเป๋า "คนส่ง" (ตัวเราเอง)
@@ -631,7 +625,7 @@ class PlayerCommands(commands.Cog):
 
         # ตรวจสอบว่าคนส่งมีของพอไหม
         sender_item_count = sender_inv.count(item_id)
-        item_name = ITEM_CONFIG[item_id]["name"]
+        item_name = config_loader.get_item_config(item_id)["name"]
         
         if sender_item_count < amount:
             return await ctx.send(f"❌ คุณมี {item_name} ไม่พอโอน! (ในกระเป๋าคุณมีแค่ {sender_item_count} ชิ้น)")
@@ -738,10 +732,10 @@ class PlayerCommands(commands.Cog):
 
         # 4. คำนวณพลังโจมตีอาวุธผู้ชนะ และ พลังป้องกันเกราะผู้แพ้
         w_weapon = winner.get("weapon", "None")
-        w_atk_bonus = WEAPON_STATS.get(w_weapon, {}).get("atk", 0)
+        w_atk_bonus = config_loader.get_weapon_stats(w_weapon).get("atk", 0)
 
         l_armor = loser.get("armor", "None")
-        l_def_bonus = int(ARMOR_STATS.get(l_armor, {}).get("hp", 0) * 0.2)
+        l_def_bonus = int(config_loader.get_armor_stats(l_armor).get("hp", 0) * 0.2)
 
         # สรุปความเสียหายรวม (ขั้นต่ำ 1 ดาเมจ)
         final_damage = max(1, base_dmg + w_atk_bonus - l_def_bonus)
@@ -878,11 +872,15 @@ class PlayerCommands(commands.Cog):
     @commands.command(name="recipes")
     async def show_recipes(self, ctx):
         msg = "📜 **สูตรการคราฟไอเทม (พิมพ์ `!craft [เลขไอเทม]` เพื่อเริ่มคราฟ):**\n"
-        for item_id, data in CRAFTING_RECIPES.items():
-            name = ITEM_CONFIG[item_id]['name']
+        all_items = config_loader.get_all_items()
+        for item_id in all_items:
+            data = config_loader.get_crafting_recipe(item_id)
+            if not data:
+                continue
+            name = all_items[item_id]['name']
             recipe = data["recipe"]
             fail_rate = int(data["fail_rate"] * 100)
-            ing_list = [f"{ITEM_CONFIG[ing_id]['name']} x{amt}" for ing_id, amt in recipe.items()]
+            ing_list = [f"{all_items[ing_id]['name']} x{amt}" for ing_id, amt in recipe.items()]
             # เพิ่ม [ID: item_id] เข้าไปหน้าชื่อ
             msg += f"• **[ID: {item_id}] {name}** (Fail: {fail_rate}%): ใช้ {', '.join(ing_list)}\n"
         await ctx.send(msg)
@@ -894,16 +892,16 @@ class PlayerCommands(commands.Cog):
         print(f"🔧 [DEBUG] เริ่มต้นการคราฟ | User: {ctx.author.id} | ไอเทม ID: {item_id}")
         
         try:
-            if not item_id or item_id not in CRAFTING_RECIPES:
+            if not item_id or not config_loader.get_crafting_recipe(item_id):
                 return await ctx.send("❌ รหัสไอเทมนี้ไม่มีสูตรคราฟ หรือรหัสไม่ถูกต้อง!")
-            
+
             player = player_model.get_player(ctx.author.id)
             raw_inv = player.get("inventory", [])
-            
+
             # 🛠️ เรียกใช้ผ่าน player_model ได้เลย!
             inv_list = player_model.load_inventory(raw_inv)
-            
-            recipe_data = CRAFTING_RECIPES[item_id]
+
+            recipe_data = config_loader.get_crafting_recipe(item_id)
             recipe = recipe_data["recipe"]
             fail_rate = recipe_data.get("fail_rate", 0.2)
             
@@ -912,7 +910,7 @@ class PlayerCommands(commands.Cog):
                 ing_id_str = str(ing_id)
                 current_count = inv_list.count(ing_id_str)
                 if current_count < amount:
-                    needed_name = ITEM_CONFIG.get(ing_id_str, {}).get("name", "Unknown")
+                    needed_name = config_loader.get_item_config(ing_id_str).get("name", "Unknown")
                     return await ctx.send(f"❌ วัตถุดิบไม่พอ! คุณขาด `{needed_name}`")
 
             # 2. เช็กกระเป๋าเต็ม
@@ -938,7 +936,7 @@ class PlayerCommands(commands.Cog):
             inv_list.append(str(item_id))
             player_model.update_player_field(ctx.author.id, "inventory", json.dumps(inv_list))
             
-            craft_name = ITEM_CONFIG[item_id]["name"]
+            craft_name = config_loader.get_item_config(item_id)["name"]
             await ctx.send(f"✨ คราฟสำเร็จ! คุณได้รับ `{craft_name}` 1 ชิ้น!")
 
         except Exception as e:
