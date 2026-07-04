@@ -1,6 +1,7 @@
 # profile_embed.py
 import discord
 import bot.models.player_model as player_model
+from bot import config_loader
 
 # ─── 🧬 คลังข้อมูลเผ่าพันธุ์ (สลักชื่อตรงตามยศในเซิร์ฟเวอร์ดิสคอร์ด 100%) ───
 GAME_RACES = [
@@ -37,100 +38,6 @@ CLASS_SKILLS = {
     "Unknown": ["❓ ไม่มีสกิล (กรุณารับยศคลาสอาชีพก่อน)"]
 }
 
-# ข้อมูลเกราะ (เพิ่ม Visibility และ Max Durability)
-ARMOR_STATS = {
-    "None":      {"name": "👕 เสื้อผ้าธรรมดา", "hp": 0,   "eva": 85, "dur": 100, "vis": 1},
-    "Leather_L": {"name": "🟫 เกราะหนังเบา",   "hp": 20,  "eva": 70, "dur": 150, "vis": 3},
-    "Leather_H": {"name": "🟫 เกราะหนังหนัก",  "hp": 30,  "eva": 60, "dur": 200, "vis": 5},
-    "Steel_L":   {"name": "⬜ เกราะเหล็กเบา",  "hp": 50,  "eva": 40, "dur": 300, "vis": 7},
-    "Steel_H":   {"name": "⬜ เกราะเหล็กหนัก", "hp": 100, "eva": 20, "dur": 500, "vis": 9}
-}
-
-# ข้อมูลอาวุธ
-WEAPON_STATS = {
-    "Wooden_Weapon": {"name": "🪵 อาวุธไม้",     "atk": 10, "dur": 50},
-    "Iron_Weapon":   {"name": "⚔️ อาวุธเหล็ก",   "atk": 30, "dur": 150},
-    "Legen_Weapon":  {"name": "🗡️ อาวุธในตำนาน", "atk": 999, "dur": 1000}
-}
-
-# ข้อมูลกระเป๋า
-BAG_STATS = {
-    "Small_Bag": {"name": "🎒 กระเป๋าเล็ก", "capacity": 10},
-    "Medium_Bag": {"name": "🎒 กระเป๋ากลาง", "capacity": 50},
-    "Large_Bag": {"name": "🎒 กระเป๋าใหญ่", "capacity": 100},
-    "Magic_Bag": {"name": "🎒 กระเป๋าเวทมนตร์", "capacity": 0}
-}
-
-ITEM_CONFIG = {
-    # --- ไอเทมกดใช้ (Consumables) ---
-    "1": {"name": "💉 ยาฮีล", "buy": 300, "sell": 100, "type": "use"}, 
-    "2": {"name": "🛠️ ใบซ่อมแซม", "buy": 500, "sell": 150, "type": "use"}, 
-    
-    # --- หมวดชุดเกราะ (Armors) - ปรับราคาให้มีความก้าวหน้า ---
-    "3": {"name": "🟫 เกราะหนังเบา", "buy": 1000, "sell": 300, "type": "armor", "equip_key": "Leather_L"},
-    "4": {"name": "🟫 เกราะหนังหนัก", "buy": 3000, "sell": 900, "type": "armor", "equip_key": "Leather_H"},
-    "5": {"name": "⬜ เกราะเหล็กเบา", "buy": 8000, "sell": 2400, "type": "armor", "equip_key": "Steel_L"},
-    "6": {"name": "⬜ เกราะเหล็กหนัก", "buy": 20000, "sell": 6000, "type": "armor", "equip_key": "Steel_H"},
-    
-    # ---   ป (Weapons) ---
-    "7": {"name": "⚔️ อาวุธเหล็ก", "buy": 6000, "sell": 1800, "type": "weapon", "equip_key": "Iron_Weapon"},
-    "8": {"name": "🗡️ อาวุธในตำนาน", "buy": 9999999, "sell": 1, "type": "weapon", "equip_key": "Legen_Weapon"},
-
-    # --- หมวดไอเทมขยะ (Junk) 
-    "9": {"name": "🦴 เศษกระดูก", "buy": 100, "sell": 10, "type": "junk", "purchasable": False},
-    "10": {"name": "🕸️ ใยแมงมุม", "buy": 150, "sell": 15, "type": "junk", "purchasable": False},
-    "11": {"name": "💎 เศษอัญมณีหมองหม่น", "buy": 500, "sell": 50, "type": "junk", "purchasable": False},
-    "12": {"name": "🪨 เศษหิน", "buy": 50, "sell": 5, "type": "junk", "purchasable": False},
-    "13": {"name": "🪵 เศษไม้", "buy": 30, "sell": 3, "type": "junk", "purchasable": False},
-    "14": {"name": "🧪 ขวดสารเคมี", "buy": 200, "sell": 20, "type": "junk", "purchasable": False},
-    "15": {"name": "🧵 เศษด้าย", "buy": 20, "sell": 2, "type": "junk", "purchasable": False},
-    "16": {"name": "🪶 ขนนก", "buy": 40, "sell": 4, "type": "junk", "purchasable": False},
-    "17": {"name": "🪙 เหรียญเก่า", "buy": 100, "sell": 10, "type": "junk", "purchasable": False},
-    "18": {"name": "🧱 ก้อนอิฐ", "buy": 60, "sell": 6, "type": "junk", "purchasable": False},
-
-    # --- หมวดกระเป๋า (Bag) ---
-    "19": {"name": "👜 กระเป๋ากลาง", "buy": 15000, "sell": 3000, "type": "bag", "equip_key": "Medium_Bag"},
-    "20": {"name": "👜 กระเป๋าใหญ่", "buy": 40000, "sell": 8000, "type": "bag", "equip_key": "Large_Bag"},
-    "21": {"name": "🌌 กระเป๋าเวทมนตร์", "buy": 9999999, "sell": 1, "type": "bag", "equip_key": "Magic_Bag"},
-
-    # --- หมวดไอเทมกดใช้เวทมนตร์ (Consumables Magic) ---
-    "22": {"name": "📜ใบวาปเมือง", "buy": 500, "sell": 50, "type": "drop", "purchasable": False},
-    "23": {"name": "🔑กุญแจวาปดันเจี้ยน", "buy": 2000, "sell": 200, "type": "drop", "purchasable": False},
-    "24": {"name": "📃ใบเชิญมินิบอส", "buy": 8000, "sell": 1, "type": "drop", "purchasable": False},
-    "25": {"name": "📃ใบเชิญบอสหลัก", "buy": 35000, "sell": 1, "type": "drop", "purchasable": False},
-    "26": {"name": "📃ใบเชิญบอสไร้พ่าย", "buy": 80000, "sell": 1, "type": "drop", "purchasable": False},
-    "27": {"name": "📡เรดาร์สแกนกล่องสมบัติ", "buy": 3000, "sell": 300, "type": "drop", "purchasable": False},
-    "28": {"name": "💌ใบชุบชีวิต", "buy": 5000, "sell": 500, "type": "drop", "purchasable": False},
-}
-
-CRAFTING_RECIPES = {
-    # 💉 ยาฮีล (1): โอกาสล้มเหลว 10%
-    "1": {"recipe": {"9": 2, "12": 1}, "fail_rate": 0.1},
-    # 🛠️ ใบซ่อมแซม (2): โอกาสล้มเหลว 15%
-    "2": {"recipe": {"18": 1, "14": 1}, "fail_rate": 0.15},
-    # 🟫 เกราะหนังเบา (3): โอกาสล้มเหลว 25% (ยากขึ้น)
-    "3": {"recipe": {"15": 5, "10": 3}, "fail_rate": 0.25},
-    # ⚔️ อาวุธเหล็ก (7): โอกาสล้มเหลว 40% (ยากมาก)
-    "7": {"recipe": {"9": 5, "11": 1}, "fail_rate": 0.4},
-}
-CRAFTING_RECIPES.update({
-    # --- ไอเทมกดใช้เวทมนตร์ (Consumables Magic) ---
-    # 22: ใบวาปเมือง (ราคา 500) - คราฟง่าย
-    "22": {"recipe": {"9": 3, "12": 2}, "fail_rate": 0.05},
-    # 23: กุญแจวาปดันเจี้ยน (ราคา 2000) - เริ่มใช้ของเคมี
-    "23": {"recipe": {"14": 2, "13": 3}, "fail_rate": 0.15},
-    # 24: ใบเชิญมินิบอส (ราคา 8000) - ต้องใช้เกราะหนังเบาด้วย
-    "24": {"recipe": {"11": 1, "14": 3, "3": 1}, "fail_rate": 0.25},
-    # 25: ใบเชิญบอสหลัก (ราคา 35000) - ต้องใช้เงินและของแรร์
-    "25": {"recipe": {"11": 3, "7": 1, "14": 5}, "fail_rate": 0.4},
-    # 26: ใบเชิญบอสไร้พ่าย (ราคา 80000) - โหดที่สุด
-    "26": {"recipe": {"11": 5, "6": 1, "27": 1}, "fail_rate": 0.6},
-    # 27: เรดาร์สแกนกล่อง (ราคา 3000) - ใช้เศษหินและเคมี
-    "27": {"recipe": {"14": 3, "12": 5}, "fail_rate": 0.2},
-    # 28: ใบชุบชีวิต (ราคา 5000) - ใช้กระดูกและอัญมณี
-    "28": {"recipe": {"9": 10, "11": 2}, "fail_rate": 0.3},
-})
-
 def create_profile_embed(target_member, player_data):
     player_level = player_data.get("level", 1)
     rank = player_data.get("rank", "None")
@@ -140,8 +47,8 @@ def create_profile_embed(target_member, player_data):
     weapon_key = player_data.get("weapon", "Wooden_Weapon")
     
     # ตรวจสอบความถูกต้องของ Key
-    armor_info = ARMOR_STATS.get(armor_key, ARMOR_STATS["None"])
-    weapon_info = WEAPON_STATS.get(weapon_key, WEAPON_STATS["Wooden_Weapon"])
+    armor_info = config_loader.get_armor_stats(armor_key) or config_loader.get_armor_stats("None")
+    weapon_info = config_loader.get_weapon_stats(weapon_key) or config_loader.get_weapon_stats("Wooden_Weapon")
     
     # คำนวณ HP รวม (ใช้ค่า 'hp' จากตารางใหม่)
     total_max_hp = player_data.get("max_hp", 100)
