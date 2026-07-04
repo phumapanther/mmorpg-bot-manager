@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from bot.models import player_model  # ดึงโมเดลจัดการฐานข้อมูลมาใช้งาน
 from bot.utils import has_permission, allowed_channel, not_arrested
-from bot.views.profile_embed import ARMOR_STATS, GAME_CLASSES ,WEAPON_STATS,ITEM_CONFIG
+from bot import config_loader
 import sqlite3
 import json  
 import random
@@ -745,7 +745,7 @@ class AdminCommands(commands.Cog):
 
         # ดึงโบนัสเลือดจากเกราะปัจจุบันมาคำนวณ Max HP เต็มหลอด
         armor_key = target.get("armor", "None")
-        armor_hp_bonus = ARMOR_STATS.get(armor_key, {}).get("hp", 0)
+        armor_hp_bonus = config_loader.get_armor_stats(armor_key).get("hp", 0)
         max_hp_total = target.get("max_hp", 100) + armor_hp_bonus
 
         # ตรรกะโอนเงินค่าธรรมเนียมชุบชีวิต 500 ทอง
@@ -790,9 +790,9 @@ class AdminCommands(commands.Cog):
 
         # 4. คำนวณ Max HP และเช็กเลือดปัจจุบัน
         armor_key = target.get("armor", "None")
-        armor_hp_bonus = ARMOR_STATS.get(armor_key, {}).get("hp", 0)
+        armor_hp_bonus = config_loader.get_armor_stats(armor_key).get("hp", 0)
         max_hp_total = target.get("max_hp", 100) + armor_hp_bonus
-        
+
         current_hp = target.get("hp", 100)
 
         if current_hp >= max_hp_total:
@@ -849,7 +849,7 @@ class AdminCommands(commands.Cog):
         if member is None or item_id is None:
             return await ctx.send("❌ วิธีใช้: `!spawn @ชื่อผู้เล่น [เลขไอเทม] [จำนวน]`\n💡 เช่น: `!spawn @Arthur 28 5`")
 
-        if item_id not in ITEM_CONFIG:
+        if not config_loader.get_item_config(item_id):
             return await ctx.send(f"❌ ไม่พบไอเทมรหัส `{item_id}` ในระบบ!")
             
         if amount <= 0:
@@ -875,8 +875,8 @@ class AdminCommands(commands.Cog):
             
         # บันทึกคืนฐานข้อมูล
         player_model.update_player_field(target_id, "inventory", inv_array)
-        
-        item_name = ITEM_CONFIG[item_id]["name"]
+
+        item_name = config_loader.get_item_config(item_id)["name"]
         await ctx.send(f"⚡ **[ADMIN]** ได้เสก `{item_name}` จำนวน `{amount}` ชิ้น เข้ากระเป๋าของ {member.mention} เรียบร้อยแล้ว!")
 
     # ==========================================
@@ -889,7 +889,7 @@ class AdminCommands(commands.Cog):
         if item_id is None:
             return await ctx.send("❌ วิธีใช้: `!giveall [เลขไอเทม] [จำนวน]`\n💡 เช่น: `!giveall 22 1`")
 
-        if item_id not in ITEM_CONFIG:
+        if not config_loader.get_item_config(item_id):
             return await ctx.send(f"❌ ไม่พบไอเทมรหัส `{item_id}` ในระบบ!")
             
         if amount <= 0:
@@ -929,7 +929,7 @@ class AdminCommands(commands.Cog):
         conn.commit()
         conn.close()
 
-        item_name = ITEM_CONFIG[item_id]["name"]
+        item_name = config_loader.get_item_config(item_id)["name"]
         count_players = len(update_data)
         await ctx.send(f"🎉 **[ADMIN GLOBAL]** แจกของขวัญสำเร็จ!\nเสก `{item_name}` x`{amount}` ให้ผู้เล่นทุกคนในฐานข้อมูลเรียบร้อย! (รวมทั้งหมด `{count_players}` คน)")
     
@@ -953,7 +953,7 @@ class AdminCommands(commands.Cog):
         if member is None or item_id is None:
             return await ctx.send("❌ วิธีใช้: `!remove @ชื่อผู้เล่น [เลขไอเทม] [จำนวน]`\n💡 เช่น: `!remove @Arthur 28 5`")
 
-        if item_id not in ITEM_CONFIG:
+        if not config_loader.get_item_config(item_id):
             return await ctx.send(f"❌ ไม่พบไอเทมรหัส `{item_id}` ในระบบ!")
             
         if amount <= 0:
@@ -975,8 +975,8 @@ class AdminCommands(commands.Cog):
 
         # เช็กว่าเขามีไอเทมนี้กี่ชิ้น
         current_count = inv_array.count(item_id)
-        item_name = ITEM_CONFIG[item_id]["name"]
-        
+        item_name = config_loader.get_item_config(item_id)["name"]
+
         if current_count == 0:
             return await ctx.send(f"❌ {member.display_name} ไม่มี `{item_name}` ในกระเป๋าเลยครับ!")
 
@@ -1001,7 +1001,7 @@ class AdminCommands(commands.Cog):
         if item_id is None:
             return await ctx.send("❌ วิธีใช้: `!removeall [เลขไอเทม] [จำนวน]`\n💡 เช่น: `!removeall 22 1` (ริบทีละ 1 ชิ้นจากทุกคน)")
 
-        if item_id not in ITEM_CONFIG:
+        if not config_loader.get_item_config(item_id):
             return await ctx.send(f"❌ ไม่พบไอเทมรหัส `{item_id}` ในระบบ!")
             
         if amount <= 0:
@@ -1049,8 +1049,8 @@ class AdminCommands(commands.Cog):
             
         conn.close()
 
-        item_name = ITEM_CONFIG[item_id]["name"]
-        
+        item_name = config_loader.get_item_config(item_id)["name"]
+
         if affected_players == 0:
             await ctx.send(f"✅ ตรวจสอบแล้ว ไม่มีใครในเซิร์ฟเวอร์ครอบครอง `{item_name}` เลยครับ!")
         else:
