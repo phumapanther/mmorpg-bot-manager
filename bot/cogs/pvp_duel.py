@@ -4,7 +4,7 @@ import bot.models.player_model as player_model
 import random
 import asyncio
 from bot.utils import not_arrested, allowed_channel
-from bot.views.profile_embed import ARMOR_STATS ,WEAPON_STATS
+from bot import config_loader
 
 class DuelView(discord.ui.View):
     def __init__(self, challenger, target, timeout=60):
@@ -46,8 +46,8 @@ class DuelView(discord.ui.View):
             armor_key = p_data.get("armor", "None")
             weapon_key = p_data.get("weapon", "Wooden_Weapon")
             
-            armor = ARMOR_STATS.get(armor_key, ARMOR_STATS["None"])
-            weapon = WEAPON_STATS.get(weapon_key, {"name": "✊ มือเปล่า", "atk": 5})
+            armor = config_loader.get_armor_stats(armor_key) or config_loader.get_armor_stats("None")
+            weapon = config_loader.get_weapon_stats(weapon_key) or {"name": "✊ มือเปล่า", "atk": 5}
 
             level = p_data.get("level", 1)
             base_max_hp = p_data.get("max_hp", 100) # ใช้ max_hp แทน hp เดิม
