@@ -961,7 +961,10 @@ function parseIngredients(text) {
   const result = {};
   text.split(",").map((s) => s.trim()).filter(Boolean).forEach((pair) => {
     const [id, qty] = pair.split(":").map((s) => s.trim());
-    if (id) result[id] = parseInt(qty, 10) || 1;
+    if (id) {
+      const parsedQty = parseInt(qty, 10);
+      result[id] = isNaN(parsedQty) ? 1 : parsedQty;
+    }
   });
   return result;
 }
@@ -985,7 +988,7 @@ async function itemsSave() {
     if (effect) {
       entry.effect = effect;
       if (effect === "heal") entry.effect_amount = parseInt(extraVal, 10) || 0;
-      if (effect === "set_state") entry.effect_value = extraVal;
+      if (effect === "set_state") entry.effect_value = extraVal.trim();
     }
     items[id] = entry;
   });
