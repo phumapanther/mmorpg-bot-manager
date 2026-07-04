@@ -17,6 +17,7 @@
   <button class="tab-btn" data-tab="trade">Auto-trade</button>
   <button class="tab-btn" data-tab="shop">Shop</button>
   <button class="tab-btn" data-tab="skills">Skills</button>
+  <button class="tab-btn" data-tab="items">Items</button>
 </nav>
 
 <section id="tab-setup" class="tab-panel active">
@@ -109,6 +110,47 @@
   </table>
   <button id="roleBonusAddBtn" type="button">+ เพิ่มแถว</button>
   <button id="skillsSaveBtn" class="save-btn">บันทึก</button>
+</section>
+
+<section id="tab-items" class="tab-panel">
+  <h2>Items</h2>
+
+  <h3>Items</h3>
+  <table id="itemsTable">
+    <thead><tr><th>ID</th><th>ชื่อ</th><th>ราคาซื้อ</th><th>ราคาขาย</th><th>ประเภท</th><th>ซื้อได้</th><th>อุปกรณ์/เอฟเฟกต์</th><th></th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <button id="itemAddBtn" type="button">+ เพิ่มไอเทม</button>
+
+  <h3>Armor Stats</h3>
+  <table id="armorStatsTable">
+    <thead><tr><th>Key</th><th>ชื่อ</th><th>HP</th><th>หลบหลีก(%)</th><th>ความทนทาน</th><th>การมองเห็น</th><th></th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <button id="armorStatAddBtn" type="button">+ เพิ่ม</button>
+
+  <h3>Weapon Stats</h3>
+  <table id="weaponStatsTable">
+    <thead><tr><th>Key</th><th>ชื่อ</th><th>โจมตี</th><th>ความทนทาน</th><th></th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <button id="weaponStatAddBtn" type="button">+ เพิ่ม</button>
+
+  <h3>Bag Stats</h3>
+  <table id="bagStatsTable">
+    <thead><tr><th>Key</th><th>ชื่อ</th><th>ความจุ (0=ไม่จำกัด)</th><th></th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <button id="bagStatAddBtn" type="button">+ เพิ่ม</button>
+
+  <h3>Crafting Recipes</h3>
+  <table id="recipesTable">
+    <thead><tr><th>ไอเทมที่คราฟต์ (ID)</th><th>วัตถุดิบ (รูปแบบ id:จำนวน,id:จำนวน)</th><th>โอกาสล้มเหลว (0-1)</th><th></th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <button id="recipeAddBtn" type="button">+ เพิ่มสูตร</button>
+
+  <button id="itemsSaveBtn" class="save-btn">บันทึก</button>
 </section>
 
 <script src="app.js"></script>

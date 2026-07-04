@@ -84,6 +84,7 @@ async function onGuildChange() {
     renderTrade();
     renderShop();
     renderSkillsTab();
+    renderItemsCatalog();
     return;
   }
   try {
@@ -103,6 +104,7 @@ async function onGuildChange() {
   renderTrade();
   renderShop();
   renderSkillsTab();
+  renderItemsCatalog();
 }
 
 async function setupSave() {
@@ -700,6 +702,328 @@ async function skillsSave() {
   await saveConfig();
 }
 
+// ---------- items tab ----------
+
+const ITEM_TYPES = [
+  { value: "use", label: "ใช้ได้ (Consumable)" },
+  { value: "armor", label: "เกราะ" },
+  { value: "weapon", label: "อาวุธ" },
+  { value: "bag", label: "กระเป๋า" },
+  { value: "junk", label: "ของเก็บ (Junk)" },
+  { value: "drop", label: "ดรอปพิเศษ" },
+];
+
+const ITEM_EFFECTS = [
+  { value: "", label: "-- ไม่มี --" },
+  { value: "heal", label: "ฟื้น HP (heal)" },
+  { value: "repair", label: "ซ่อมอุปกรณ์ (repair)" },
+  { value: "revive", label: "ชุบชีวิต (revive)" },
+  { value: "set_state", label: "ตั้งค่าเหตุการณ์ (set_state)" },
+];
+
+function renderItemsCatalog() {
+  const cat = state.config.item_catalog || {};
+  renderItemsTable(cat.items || {});
+  renderKvStatsTable(cat.armor_stats || {}, "armorStatsTable", ["hp", "eva", "dur", "vis"]);
+  renderKvStatsTable(cat.weapon_stats || {}, "weaponStatsTable", ["atk", "dur"]);
+  renderKvStatsTable(cat.bag_stats || {}, "bagStatsTable", ["capacity"]);
+  renderRecipesTable(cat.crafting_recipes || {});
+}
+
+function renderItemsTable(items) {
+  const tbody = document.querySelector("#itemsTable tbody");
+  tbody.innerHTML = "";
+  Object.keys(items).forEach((id) => {
+    const item = items[id];
+    const tr = document.createElement("tr");
+    tr.dataset.id = id;
+
+    const tdId = document.createElement("td");
+    tdId.textContent = id;
+    tr.appendChild(tdId);
+
+    const tdName = document.createElement("td");
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "item-name";
+    nameInput.value = item.name || "";
+    tdName.appendChild(nameInput);
+    tr.appendChild(tdName);
+
+    const tdBuy = document.createElement("td");
+    const buyInput = document.createElement("input");
+    buyInput.type = "number";
+    buyInput.className = "item-buy";
+    buyInput.value = item.buy != null ? item.buy : 0;
+    tdBuy.appendChild(buyInput);
+    tr.appendChild(tdBuy);
+
+    const tdSell = document.createElement("td");
+    const sellInput = document.createElement("input");
+    sellInput.type = "number";
+    sellInput.className = "item-sell";
+    sellInput.value = item.sell != null ? item.sell : 0;
+    tdSell.appendChild(sellInput);
+    tr.appendChild(tdSell);
+
+    const tdType = document.createElement("td");
+    const typeSel = document.createElement("select");
+    typeSel.className = "item-type";
+    for (const t of ITEM_TYPES) {
+      const opt = document.createElement("option");
+      opt.value = t.value;
+      opt.textContent = t.label;
+      typeSel.appendChild(opt);
+    }
+    typeSel.value = item.type || "use";
+    tdType.appendChild(typeSel);
+    tr.appendChild(tdType);
+
+    const tdPurchasable = document.createElement("td");
+    const purchasableCb = document.createElement("input");
+    purchasableCb.type = "checkbox";
+    purchasableCb.className = "item-purchasable";
+    purchasableCb.checked = item.purchasable !== false;
+    tdPurchasable.appendChild(purchasableCb);
+    tr.appendChild(tdPurchasable);
+
+    const tdExtra = document.createElement("td");
+    const equipKeyInput = document.createElement("input");
+    equipKeyInput.type = "text";
+    equipKeyInput.className = "item-equip-key";
+    equipKeyInput.placeholder = "equip_key (armor/weapon/bag)";
+    equipKeyInput.value = item.equip_key || "";
+    const effectSel = document.createElement("select");
+    effectSel.className = "item-effect";
+    for (const e of ITEM_EFFECTS) {
+      const opt = document.createElement("option");
+      opt.value = e.value;
+      opt.textContent = e.label;
+      effectSel.appendChild(opt);
+    }
+    effectSel.value = item.effect || "";
+    const effectValInput = document.createElement("input");
+    effectValInput.type = "text";
+    effectValInput.className = "item-effect-value";
+    effectValInput.placeholder = "effect_amount / effect_value";
+    effectValInput.value = item.effect_amount != null ? item.effect_amount : (item.effect_value || "");
+    tdExtra.appendChild(equipKeyInput);
+    tdExtra.appendChild(effectSel);
+    tdExtra.appendChild(effectValInput);
+    tr.appendChild(tdExtra);
+
+    const tdDel = document.createElement("td");
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.textContent = "ลบ";
+    delBtn.onclick = () => {
+      delete state.config.item_catalog.items[id];
+      renderItemsCatalog();
+    };
+    tdDel.appendChild(delBtn);
+    tr.appendChild(tdDel);
+
+    tbody.appendChild(tr);
+  });
+}
+
+function addNewItem() {
+  if (!state.config.item_catalog) state.config.item_catalog = {};
+  if (!state.config.item_catalog.items) state.config.item_catalog.items = {};
+  const items = state.config.item_catalog.items;
+  let n = 1;
+  while (items[String(n)]) n++;
+  items[String(n)] = { name: "ไอเทมใหม่", buy: 0, sell: 0, type: "use", purchasable: true };
+  renderItemsCatalog();
+}
+
+function renderKvStatsTable(statsObj, tableId, fieldNames) {
+  const tbody = document.querySelector(`#${tableId} tbody`);
+  tbody.innerHTML = "";
+  Object.keys(statsObj).forEach((key) => {
+    const entry = statsObj[key];
+    const tr = document.createElement("tr");
+    tr.dataset.key = key;
+
+    const tdKey = document.createElement("td");
+    const keyInput = document.createElement("input");
+    keyInput.type = "text";
+    keyInput.className = "stat-key";
+    keyInput.value = key;
+    tdKey.appendChild(keyInput);
+    tr.appendChild(tdKey);
+
+    const tdName = document.createElement("td");
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "stat-name";
+    nameInput.value = entry.name || "";
+    tdName.appendChild(nameInput);
+    tr.appendChild(tdName);
+
+    for (const field of fieldNames) {
+      const td = document.createElement("td");
+      const input = document.createElement("input");
+      input.type = "number";
+      input.className = "stat-field";
+      input.dataset.field = field;
+      input.value = entry[field] != null ? entry[field] : 0;
+      td.appendChild(input);
+      tr.appendChild(td);
+    }
+
+    const tdDel = document.createElement("td");
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.textContent = "ลบ";
+    delBtn.onclick = () => {
+      delete statsObj[key];
+      renderItemsCatalog();
+    };
+    tdDel.appendChild(delBtn);
+    tr.appendChild(tdDel);
+
+    tbody.appendChild(tr);
+  });
+}
+
+function addStatRow(catalogField, tableId, fieldNames) {
+  if (!state.config.item_catalog) state.config.item_catalog = {};
+  if (!state.config.item_catalog[catalogField]) state.config.item_catalog[catalogField] = {};
+  const statsObj = state.config.item_catalog[catalogField];
+  let n = 1;
+  while (statsObj["new_" + n]) n++;
+  const entry = { name: "ใหม่" };
+  for (const f of fieldNames) entry[f] = 0;
+  statsObj["new_" + n] = entry;
+  renderItemsCatalog();
+}
+
+function renderRecipesTable(recipes) {
+  const tbody = document.querySelector("#recipesTable tbody");
+  tbody.innerHTML = "";
+  Object.keys(recipes).forEach((itemId) => {
+    const r = recipes[itemId];
+    const tr = document.createElement("tr");
+    tr.dataset.itemId = itemId;
+
+    const tdItem = document.createElement("td");
+    const itemIdInput = document.createElement("input");
+    itemIdInput.type = "text";
+    itemIdInput.className = "recipe-item-id";
+    itemIdInput.value = itemId;
+    tdItem.appendChild(itemIdInput);
+    tr.appendChild(tdItem);
+
+    const tdIngredients = document.createElement("td");
+    const ingredientsInput = document.createElement("input");
+    ingredientsInput.type = "text";
+    ingredientsInput.className = "recipe-ingredients";
+    ingredientsInput.value = Object.entries(r.recipe || {}).map(([id, qty]) => `${id}:${qty}`).join(",");
+    tdIngredients.appendChild(ingredientsInput);
+    tr.appendChild(tdIngredients);
+
+    const tdFail = document.createElement("td");
+    const failInput = document.createElement("input");
+    failInput.type = "number";
+    failInput.step = "any";
+    failInput.className = "recipe-fail-rate";
+    failInput.value = r.fail_rate != null ? r.fail_rate : 0;
+    tdFail.appendChild(failInput);
+    tr.appendChild(tdFail);
+
+    const tdDel = document.createElement("td");
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.textContent = "ลบ";
+    delBtn.onclick = () => {
+      delete state.config.item_catalog.crafting_recipes[itemId];
+      renderItemsCatalog();
+    };
+    tdDel.appendChild(delBtn);
+    tr.appendChild(tdDel);
+
+    tbody.appendChild(tr);
+  });
+}
+
+function addRecipeRow() {
+  if (!state.config.item_catalog) state.config.item_catalog = {};
+  if (!state.config.item_catalog.crafting_recipes) state.config.item_catalog.crafting_recipes = {};
+  const recipes = state.config.item_catalog.crafting_recipes;
+  let n = 1;
+  while (recipes["new_" + n]) n++;
+  recipes["new_" + n] = { recipe: {}, fail_rate: 0.1 };
+  renderItemsCatalog();
+}
+
+function parseIngredients(text) {
+  const result = {};
+  text.split(",").map((s) => s.trim()).filter(Boolean).forEach((pair) => {
+    const [id, qty] = pair.split(":").map((s) => s.trim());
+    if (id) result[id] = parseInt(qty, 10) || 1;
+  });
+  return result;
+}
+
+async function itemsSave() {
+  const items = {};
+  document.querySelectorAll("#itemsTable tbody tr").forEach((tr) => {
+    const id = tr.dataset.id;
+    const type = tr.querySelector(".item-type").value;
+    const effect = tr.querySelector(".item-effect").value;
+    const extraVal = tr.querySelector(".item-effect-value").value;
+    const entry = {
+      name: tr.querySelector(".item-name").value,
+      buy: parseInt(tr.querySelector(".item-buy").value, 10) || 0,
+      sell: parseInt(tr.querySelector(".item-sell").value, 10) || 0,
+      type,
+      purchasable: tr.querySelector(".item-purchasable").checked,
+    };
+    const equipKey = tr.querySelector(".item-equip-key").value.trim();
+    if (["armor", "weapon", "bag"].includes(type) && equipKey) entry.equip_key = equipKey;
+    if (effect) {
+      entry.effect = effect;
+      if (effect === "heal") entry.effect_amount = parseInt(extraVal, 10) || 0;
+      if (effect === "set_state") entry.effect_value = extraVal;
+    }
+    items[id] = entry;
+  });
+
+  function collectStats(tableId, fieldNames) {
+    const out = {};
+    document.querySelectorAll(`#${tableId} tbody tr`).forEach((tr) => {
+      const key = tr.querySelector(".stat-key").value.trim();
+      if (!key) return;
+      const entry = { name: tr.querySelector(".stat-name").value };
+      tr.querySelectorAll(".stat-field").forEach((input) => {
+        const parsed = parseFloat(input.value);
+        entry[input.dataset.field] = isNaN(parsed) ? 0 : parsed;
+      });
+      out[key] = entry;
+    });
+    return out;
+  }
+
+  const armor_stats = collectStats("armorStatsTable", ["hp", "eva", "dur", "vis"]);
+  const weapon_stats = collectStats("weaponStatsTable", ["atk", "dur"]);
+  const bag_stats = collectStats("bagStatsTable", ["capacity"]);
+
+  const crafting_recipes = {};
+  document.querySelectorAll("#recipesTable tbody tr").forEach((tr) => {
+    const itemId = tr.querySelector(".recipe-item-id").value.trim();
+    if (!itemId) return;
+    const fail = parseFloat(tr.querySelector(".recipe-fail-rate").value);
+    crafting_recipes[itemId] = {
+      recipe: parseIngredients(tr.querySelector(".recipe-ingredients").value),
+      fail_rate: isNaN(fail) ? 0 : fail,
+    };
+  });
+
+  state.config.item_catalog = { items, armor_stats, weapon_stats, bag_stats, crafting_recipes };
+  await saveConfig();
+}
+
 // ---------- tabs ----------
 
 function switchTab(name) {
@@ -735,6 +1059,13 @@ async function init() {
   document.getElementById("roleBonusAddBtn").addEventListener("click", addRoleBonusRow);
   document.getElementById("skillsSaveBtn").addEventListener("click", skillsSave);
 
+  document.getElementById("itemAddBtn").addEventListener("click", addNewItem);
+  document.getElementById("armorStatAddBtn").addEventListener("click", () => addStatRow("armor_stats", "armorStatsTable", ["hp", "eva", "dur", "vis"]));
+  document.getElementById("weaponStatAddBtn").addEventListener("click", () => addStatRow("weapon_stats", "weaponStatsTable", ["atk", "dur"]));
+  document.getElementById("bagStatAddBtn").addEventListener("click", () => addStatRow("bag_stats", "bagStatsTable", ["capacity"]));
+  document.getElementById("recipeAddBtn").addEventListener("click", addRecipeRow);
+  document.getElementById("itemsSaveBtn").addEventListener("click", itemsSave);
+
   await loadConfig();
   document.getElementById("tokenInput").value = state.config.bot_token || "";
 
@@ -757,6 +1088,7 @@ async function init() {
   renderTrade();
   renderShop();
   renderSkillsTab();
+  renderItemsCatalog();
 
   await refreshStatus();
   setInterval(refreshStatus, 1500);
