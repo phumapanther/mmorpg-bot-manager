@@ -176,6 +176,8 @@ th { color: var(--muted); font-weight: normal; }
 
 .gacha-row { margin-top: 0.8rem; }
 
+.hint { color: var(--muted); font-size: 0.85rem; max-width: 640px; }
+
 /* toast */
 
 #toast {
@@ -196,4 +198,12 @@ th { color: var(--muted); font-weight: normal; }
 #toast.show {
   opacity: 1;
   transform: translateY(0);
+}
+
+.version-badge {
+  position: fixed;
+  bottom: 0.5rem;
+  right: 0.75rem;
+  color: var(--muted);
+  font-size: 0.75rem;
 }

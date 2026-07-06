@@ -85,6 +85,7 @@ async function onGuildChange() {
     renderShop();
     renderSkillsTab();
     renderItemsCatalog();
+    renderRankRewards();
     return;
   }
   try {
@@ -105,9 +106,11 @@ async function onGuildChange() {
   renderShop();
   renderSkillsTab();
   renderItemsCatalog();
+  renderRankRewards();
 }
 
 async function setupSave() {
+  state.config.license_key = document.getElementById("licenseKeyInput").value.trim();
   await saveConfig();
 }
 
@@ -1027,6 +1030,138 @@ async function itemsSave() {
   await saveConfig();
 }
 
+// ---------- rank rewards tab ----------
+
+function renderRankRewards() {
+  document.getElementById("rankRewardCooldown").value = (state.config.rank_rewards || {}).cooldown_hours ?? 24;
+  const tbody = document.querySelector("#rankRewardsTable tbody");
+  tbody.innerHTML = "";
+  const ranks = (state.config.rank_rewards || {}).ranks || [];
+  ranks.forEach((r, idx) => {
+    const tr = document.createElement("tr");
+    tr.dataset.idx = idx;
+
+    const tdLabel = document.createElement("td");
+    const labelInput = document.createElement("input");
+    labelInput.type = "text";
+    labelInput.className = "rank-label";
+    labelInput.value = r.label || "";
+    tdLabel.appendChild(labelInput);
+    tr.appendChild(tdLabel);
+
+    const tdRole = document.createElement("td");
+    const roleSel = roleBonusRoleSelectHtml(r.role_id);
+    tdRole.appendChild(roleSel);
+    tr.appendChild(tdRole);
+
+    const tdCash = document.createElement("td");
+    const cashInput = document.createElement("input");
+    cashInput.type = "number";
+    cashInput.className = "rank-cash";
+    cashInput.value = r.cash || 0;
+    tdCash.appendChild(cashInput);
+    tr.appendChild(tdCash);
+
+    const tdExp = document.createElement("td");
+    const expInput = document.createElement("input");
+    expInput.type = "number";
+    expInput.className = "rank-exp";
+    expInput.value = r.exp || 0;
+    tdExp.appendChild(expInput);
+    tr.appendChild(tdExp);
+
+    const tdItems = document.createElement("td");
+    const itemsInput = document.createElement("input");
+    itemsInput.type = "text";
+    itemsInput.className = "rank-items";
+    itemsInput.value = (r.items || []).map((it) => `${it.item_id}:${it.amount}`).join(",");
+    tdItems.appendChild(itemsInput);
+    tr.appendChild(tdItems);
+
+    const tdDel = document.createElement("td");
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.textContent = "ลบ";
+    delBtn.onclick = () => {
+      state.config.rank_rewards.ranks.splice(idx, 1);
+      renderRankRewards();
+    };
+    tdDel.appendChild(delBtn);
+    tr.appendChild(tdDel);
+
+    tbody.appendChild(tr);
+  });
+}
+
+function addRankRewardRow() {
+  if (!state.config.rank_rewards) state.config.rank_rewards = { cooldown_hours: 24, ranks: [] };
+  if (!state.config.rank_rewards.ranks) state.config.rank_rewards.ranks = [];
+  state.config.rank_rewards.ranks.push({ label: "ยศใหม่", role_id: null, cash: 0, exp: 0, items: [] });
+  renderRankRewards();
+}
+
+async function rankRewardsSave() {
+  const cooldown = parseFloat(document.getElementById("rankRewardCooldown").value);
+  const ranks = [];
+  document.querySelectorAll("#rankRewardsTable tbody tr").forEach((tr) => {
+    const items = [];
+    const parsed = parseIngredients(tr.querySelector(".rank-items").value);
+    Object.entries(parsed).forEach(([item_id, amount]) => items.push({ item_id, amount }));
+    ranks.push({
+      label: tr.querySelector(".rank-label").value,
+      role_id: tr.querySelector(".bonus-role").value || null,
+      cash: parseInt(tr.querySelector(".rank-cash").value, 10) || 0,
+      exp: parseInt(tr.querySelector(".rank-exp").value, 10) || 0,
+      items,
+    });
+  });
+  state.config.rank_rewards = { cooldown_hours: isNaN(cooldown) ? 24 : cooldown, ranks };
+  await saveConfig();
+}
+
+// ---------- payment tab ----------
+
+function renderPayment() {
+  const p = state.config.payment || {};
+  document.getElementById("paymentCurrency").value = p.currency || "THB";
+  document.getElementById("paymentExchangeRate").value = p.exchange_rate ?? 1;
+  document.getElementById("paymentMinAmount").value = p.min_amount ?? 0;
+  document.getElementById("paymentMaxAmount").value = p.max_amount ?? 0;
+  const pp = p.promptpay || {};
+  document.getElementById("promptpayEnabled").checked = !!pp.enabled;
+  document.getElementById("promptpayId").value = pp.id || "";
+  document.getElementById("promptpayName").value = pp.name || "";
+  const paypal = p.paypal || {};
+  document.getElementById("paypalEnabled").checked = !!paypal.enabled;
+  document.getElementById("paypalLink").value = paypal.link || "";
+  const tm = p.truemoney || {};
+  document.getElementById("truemoneyEnabled").checked = !!tm.enabled;
+  document.getElementById("truemoneyPhone").value = tm.phone || "";
+}
+
+async function paymentSave() {
+  state.config.payment = {
+    currency: document.getElementById("paymentCurrency").value.trim() || "THB",
+    exchange_rate: parseFloat(document.getElementById("paymentExchangeRate").value) || 0,
+    min_amount: parseFloat(document.getElementById("paymentMinAmount").value) || 0,
+    max_amount: parseFloat(document.getElementById("paymentMaxAmount").value) || 0,
+    promptpay: {
+      enabled: document.getElementById("promptpayEnabled").checked,
+      id: document.getElementById("promptpayId").value.trim(),
+      name: document.getElementById("promptpayName").value.trim(),
+    },
+    paypal: {
+      enabled: document.getElementById("paypalEnabled").checked,
+      link: document.getElementById("paypalLink").value.trim(),
+    },
+    truemoney: {
+      enabled: document.getElementById("truemoneyEnabled").checked,
+      phone: document.getElementById("truemoneyPhone").value.trim(),
+    },
+  };
+  await saveConfig();
+}
+
 // ---------- tabs ----------
 
 function switchTab(name) {
@@ -1069,8 +1204,20 @@ async function init() {
   document.getElementById("recipeAddBtn").addEventListener("click", addRecipeRow);
   document.getElementById("itemsSaveBtn").addEventListener("click", itemsSave);
 
+  document.getElementById("rankRewardAddBtn").addEventListener("click", addRankRewardRow);
+  document.getElementById("rankRewardsSaveBtn").addEventListener("click", rankRewardsSave);
+  document.getElementById("paymentSaveBtn").addEventListener("click", paymentSave);
+
+  try {
+    const v = await api("GET", "/api/version");
+    document.getElementById("versionBadge").textContent = "v" + v.version;
+  } catch (e) {
+    // ไม่ใช่ตัวบล็อกการทำงาน แค่แสดงเลขเวอร์ชันเฉยๆ
+  }
+
   await loadConfig();
   document.getElementById("tokenInput").value = state.config.bot_token || "";
+  document.getElementById("licenseKeyInput").value = state.config.license_key || "";
 
   // best-effort auto-restore: if a token + guild are already configured,
   // silently fetch guilds/channels/roles so tabs are pre-populated.
@@ -1092,6 +1239,8 @@ async function init() {
   renderShop();
   renderSkillsTab();
   renderItemsCatalog();
+  renderRankRewards();
+  renderPayment();
 
   await refreshStatus();
   setInterval(refreshStatus, 1500);

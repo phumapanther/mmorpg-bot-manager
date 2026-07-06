@@ -8,6 +8,7 @@
 </head>
 <body>
 <div id="toast"></div>
+<div id="versionBadge" class="version-badge"></div>
 
 <nav class="tabs">
   <button class="tab-btn active" data-tab="setup">Setup</button>
@@ -18,6 +19,8 @@
   <button class="tab-btn" data-tab="shop">Shop</button>
   <button class="tab-btn" data-tab="skills">Skills</button>
   <button class="tab-btn" data-tab="items">Items</button>
+  <button class="tab-btn" data-tab="rank-rewards">Rank Rewards</button>
+  <button class="tab-btn" data-tab="payment">Payment</button>
 </nav>
 
 <section id="tab-setup" class="tab-panel active">
@@ -28,6 +31,11 @@
     <button id="verifyBtn">ตรวจสอบ</button>
   </div>
   <div id="setupError" class="error"></div>
+  <div class="field">
+    <label for="licenseKeyInput">License Key</label>
+    <input type="text" id="licenseKeyInput" placeholder="XXXX-XXXX-XXXX-XXXX">
+  </div>
+  <p class="hint">ใส่คีย์ที่ได้รับจากผู้ขาย แล้วกด "บันทึก" ด้านล่าง — ระบบจะเช็คคีย์นี้กับ License Server ทุกครั้งที่กด Start บอท (1 คีย์ใช้ได้ 1 เครื่องเท่านั้น)</p>
   <div class="field">
     <label for="guildSelect">Guild</label>
     <select id="guildSelect"><option value="">-- เลือกกิลด์ --</option></select>
@@ -151,6 +159,60 @@
   <button id="recipeAddBtn" type="button">+ เพิ่มสูตร</button>
 
   <button id="itemsSaveBtn" class="save-btn">บันทึก</button>
+</section>
+
+<section id="tab-rank-rewards" class="tab-panel">
+  <h2>Rank Rewards (!reward)</h2>
+  <div class="field">
+    <label for="rankRewardCooldown">คูลดาวน์รับรางวัลซ้ำ (ชั่วโมง)</label>
+    <input type="number" id="rankRewardCooldown" step="any" min="0">
+  </div>
+  <table id="rankRewardsTable">
+    <thead><tr><th>ยศ (ชื่อแสดงผล)</th><th>Role</th><th>เงิน</th><th>EXP</th><th>ไอเทม (รูปแบบ id:จำนวน,id:จำนวน)</th><th></th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <button id="rankRewardAddBtn" type="button">+ เพิ่มยศ</button>
+  <button id="rankRewardsSaveBtn" class="save-btn">บันทึก</button>
+</section>
+
+<section id="tab-payment" class="tab-panel">
+  <h2>Payment (!payment)</h2>
+  <div class="field">
+    <label for="paymentCurrency">สกุลเงิน</label>
+    <input type="text" id="paymentCurrency" placeholder="THB">
+  </div>
+  <div class="field">
+    <label for="paymentExchangeRate">อัตราแลกเปลี่ยน (ทอง ต่อ 1 หน่วยเงิน)</label>
+    <input type="number" id="paymentExchangeRate" step="any" min="0">
+  </div>
+  <div class="field">
+    <label for="paymentMinAmount">ยอดเติมขั้นต่ำ</label>
+    <input type="number" id="paymentMinAmount" step="any" min="0">
+  </div>
+  <div class="field">
+    <label for="paymentMaxAmount">ยอดเติมสูงสุด</label>
+    <input type="number" id="paymentMaxAmount" step="any" min="0">
+  </div>
+  <h3>PromptPay (สร้าง QR อัตโนมัติ)</h3>
+  <div class="field">
+    <label for="promptpayId"><input type="checkbox" id="promptpayEnabled"> เปิดใช้งาน — เบอร์โทร/เลขบัตร ปชช. ผู้รับเงิน</label>
+    <input type="text" id="promptpayId" placeholder="0812345678 หรือ 1234567890123">
+  </div>
+  <div class="field">
+    <label for="promptpayName">ชื่อผู้รับ (แสดงในสลิป)</label>
+    <input type="text" id="promptpayName">
+  </div>
+  <h3>ช่องทางอื่น (แสดงเป็นข้อความ ต้องให้แอดมินยืนยันมือ)</h3>
+  <div class="field">
+    <label for="paypalLink"><input type="checkbox" id="paypalEnabled"> เปิดใช้งาน — PayPal.me link</label>
+    <input type="text" id="paypalLink" placeholder="https://paypal.me/yourname">
+  </div>
+  <div class="field">
+    <label for="truemoneyPhone"><input type="checkbox" id="truemoneyEnabled"> เปิดใช้งาน — เบอร์ TrueMoney Wallet</label>
+    <input type="text" id="truemoneyPhone" placeholder="0812345678">
+  </div>
+  <p class="hint">หมายเหตุ: PromptPay สร้าง QR ให้อัตโนมัติจากเบอร์/เลขบัตรนี้ (ไม่ต้องมี API). PayPal/TrueMoney แสดงเป็นช่องทางให้ผู้เล่นโอนเอง แล้วแอดมินกด <code>!confirm_payment</code> ยืนยันด้วยมือหลังตรวจสลิป (ระบบยังไม่เชื่อมต่อ API ตรวจสลิปอัตโนมัติ)</p>
+  <button id="paymentSaveBtn" class="save-btn">บันทึก</button>
 </section>
 
 <script src="app.js"></script>

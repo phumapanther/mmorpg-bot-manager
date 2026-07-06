@@ -13,6 +13,204 @@ from bot.views.game_views import DeathRespawnView
 import json
 import traceback # อย่าลืม import อันนี้ที่ด้านบนสุดของไฟล์นะครับ
 
+
+def apply_item_effect(user_id, item_id):
+    """ใช้ไอเทมตาม effect ที่ตั้งค่าไว้ใน config — คืนค่า (success: bool, message: str)
+    ดึงออกมาเป็นฟังก์ชันระดับโมดูล เพื่อให้ทั้งคำสั่ง !use และปุ่มเมนู (game_views) เรียกใช้ตรรกะเดียวกันได้
+    """
+    player = player_model.get_player(user_id)
+    if not player:
+        return False, "❌ ไม่พบข้อมูลตัวละครของคุณ!"
+
+    inv_array = player_model.load_inventory(player.get("inventory", ""))
+
+    if item_id not in inv_array:
+        return False, f"❌ คุณไม่มีไอเทมหมายเลข `{item_id}` ในกระเป๋า! (พิมพ์ `!bag` เพื่อเช็ก)"
+
+    if not config_loader.get_item_config(item_id):
+        return False, "❌ ไม่มีข้อมูลไอเทมนี้ในระบบเซิร์ฟเวอร์!"
+
+    item_info = config_loader.get_item_config(item_id)
+    item_name = item_info["name"]
+    item_type = item_info.get("type", "unknown")
+
+    msg = ""
+
+    # 🧪 กรณี: ใช้ยาฮีล (ตั้งค่าได้ผ่าน effect: "heal" + effect_amount)
+    if item_info.get("effect") == "heal":
+        heal_amount = item_info.get("effect_amount", 50)
+        armor_key = player.get("armor", "None")
+        current_dur = player.get("armor_dur", 0)
+
+        armor_info_stats = config_loader.get_armor_stats(armor_key) or config_loader.get_armor_stats("None")
+
+        armor_hp_bonus = armor_info_stats.get("hp", 0) if current_dur > 0 else 0
+        max_hp_total = player.get("max_hp", 100) + armor_hp_bonus
+        current_hp = player.get("hp", 0)
+
+        if current_hp >= max_hp_total:
+            return False, f"❌ เลือดของคุณเต็มอยู่แล้ว! (`{current_hp}/{max_hp_total}`) ไม่สามารถใช้ {item_name} ได้"
+
+        new_hp = min(current_hp + heal_amount, max_hp_total)
+        player_model.update_player_field(user_id, "hp", new_hp)
+        msg = f"🧪 คุณดื่ม **{item_name}** ฟื้นฟูพลังชีวิต! (HP: `{current_hp}` ➔ `{new_hp}/{max_hp_total}`)"
+
+    # 🛠️ กรณี: ใช้ใบซ่อมแซม (ตั้งค่าได้ผ่าน effect: "repair")
+    elif item_info.get("effect") == "repair":
+        armor_key = player.get("armor", "None")
+        weapon_key = player.get("weapon", "None")
+
+        armor_info_stats = config_loader.get_armor_stats(armor_key)
+        max_armor_dur = armor_info_stats.get("dur", 100)
+        current_armor_dur = player.get("armor_dur", 0)
+
+        weapon_info_stats = config_loader.get_weapon_stats(weapon_key)
+        max_weapon_dur = weapon_info_stats.get("dur", 50)
+        current_weapon_dur = player.get("weapon_dur", 0)
+
+        needs_armor_repair = (armor_key != "None" and current_armor_dur < max_armor_dur)
+        needs_weapon_repair = (weapon_key != "None" and current_weapon_dur < max_weapon_dur)
+
+        if not needs_armor_repair and not needs_weapon_repair:
+            return False, f"❌ อุปกรณ์ทั้งหมดของคุณสภาพสมบูรณ์อยู่แล้ว (หรือไม่ได้สวมใส่)! ไม่สามารถใช้ {item_name} ได้"
+
+        repaired_items = []
+        if needs_armor_repair:
+            player_model.update_player_field(user_id, "armor_dur", max_armor_dur)
+            repaired_items.append(f"เกราะ **{armor_info_stats.get('name', armor_key)}** (`{max_armor_dur}/{max_armor_dur}`)")
+
+        if needs_weapon_repair:
+            player_model.update_player_field(user_id, "weapon_dur", max_weapon_dur)
+            repaired_items.append(f"อาวุธ **{weapon_info_stats.get('name', weapon_key)}** (`{max_weapon_dur}/{max_weapon_dur}`)")
+
+        repair_text = " และ ".join(repaired_items)
+        msg = f"🛠️ คุณใช้ **{item_name}** ซ่อมแซม {repair_text} กลับมาสภาพสมบูรณ์!"
+
+    # 🛡️ กรณี: สวมใส่ชุดเกราะ (อ่านค่า type อัตโนมัติจาก ITEM_CONFIG)
+    elif item_type == "armor":
+        equip_key = item_info["equip_key"]
+        armor_stats = config_loader.get_armor_stats(equip_key)
+        max_dur = armor_stats.get("dur", 100)
+
+        player_model.update_player_field(user_id, "armor", equip_key)
+        player_model.update_player_field(user_id, "armor_dur", max_dur)
+
+        current_hp = player.get("hp", 0)
+        new_max_hp = player.get("max_hp", 100) + armor_stats.get("hp", 0)
+        if current_hp > new_max_hp:
+            player_model.update_player_field(user_id, "hp", new_max_hp)
+
+        msg = f"🛡️ คุณสวมใส่ **{item_name}** เรียบร้อยแล้ว! (ความคงทน: `{max_dur}/{max_dur}`)"
+
+    # ⚔️ กรณี: สวมใส่อาวุธ
+    elif item_type == "weapon":
+        equip_key = item_info["equip_key"]
+        weapon_stats = config_loader.get_weapon_stats(equip_key)
+        max_dur = weapon_stats.get("dur", 50)
+
+        player_model.update_player_field(user_id, "weapon", equip_key)
+        player_model.update_player_field(user_id, "weapon_dur", max_dur)
+
+        msg = f"⚔️ คุณสวมใส่ **{item_name}** เรียบร้อยแล้ว! (ความคงทน: `{max_dur}/{max_dur}`)"
+
+    elif item_type == "bag":
+        equip_key = item_info["equip_key"]
+        bag_status = config_loader.get_bag_stats(equip_key)
+        bag_limit = bag_status.get("capacity", 10)
+
+        player_model.update_player_field(user_id, "bag", equip_key)
+        player_model.update_player_field(user_id, "capacity", bag_limit)
+
+        msg = f"⚔️ คุณสวมใส่ **{item_name}** เรียบร้อยแล้ว! (ความจุกระเป๋า: `{'ไม่จำกัด' if bag_limit == 0 else bag_limit}`)"
+
+    elif item_type == "drop":
+        # 1. เช็กเคสพิเศษ: ไอเทมชุบชีวิต ต้องเช็กว่าตายไหม (ตั้งค่าได้ผ่าน effect: "revive")
+        if item_info.get("effect") == "revive":
+            if player.get("hp") > 0 and player.get("current_state") != "death":
+                return False, "❌ คุณยังไม่ได้ตาย จะใช้ใบชุบชีวิตไปทำไมล่ะเนี่ย! เก็บไว้ใช้ตอนตายดีหน้า!"
+
+            max_hp = player.get("max_hp", 100)
+            player_model.update_player_field(user_id, "hp", max_hp)
+            player_model.update_player_field(user_id, "current_state", "idle")
+            player_model.update_player_field(user_id, "last_event", "revive")
+
+            msg = "✨ คุณใช้ `💌ใบชุบชีวิต`! ฟื้นคืนชีพและฟื้นฟู HP เต็มแล้ว! พร้อมลุยต่อแล้วครับ!"
+
+        # 2. เคสไอเทมตั้งค่า last_event อื่นๆ (ต้องเป็น idle เท่านั้น) — ตั้งค่าได้ผ่าน effect: "set_state" + effect_value
+        elif item_info.get("effect") == "set_state":
+            if player.get("current_state") != "idle":
+                return False, "❌ คุณไม่สามารถใช้ไอเทมนี้ได้ในขณะที่กำลังทำกิจกรรมอื่นอยู่ (ต้องอยู่ในสถานะว่างก่อนกดปุ่ม 🧭 เริ่มออกเดินทาง)!"
+
+            new_state = item_info.get("effect_value")
+            if new_state:
+                player_model.update_player_field(user_id, "last_event", new_state)
+                msg = f"✨ คุณได้เปิดใช้งาน `{item_name}` แล้ว! เตรียมพบกับเหตุการณ์ถัดไป..."
+            else:
+                msg = "❌ ไอเทมนี้ยังไม่ถูกตั้งค่าการใช้งาน!"  # ponytail: คงพฤติกรรมเดิม (ไอเทมถูกใช้/หักออกแม้ยังไม่ตั้งค่า effect_value)
+        else:
+            return False, f"❌ ไอเทม **{item_name}** ยังไม่สามารถกดใช้งานได้ในตอนนี้ (ยังไม่ได้ตั้งค่า effect ให้ถูกต้อง)"
+
+    else:
+        return False, f"❌ ไอเทม **{item_name}** ยังไม่สามารถกดใช้งานได้ในตอนนี้"
+
+    inv_array.remove(item_id)
+    player_model.update_player_field(user_id, "inventory", inv_array)
+    return True, msg
+
+
+def build_bank_embed(player):
+    """สร้าง Embed บัญชีธนาคาร — ใช้ร่วมกันระหว่างคำสั่ง !bank และปุ่มเมนู"""
+    bank_balance = player.get("bank", 0)
+    cash_balance = player.get("cash", 0)
+    embed = discord.Embed(title="🏦 บัญชีธนาคารของคุณ", color=discord.Color.gold())
+    embed.add_field(name="💰 เงินสดติดตัว", value=f"`{cash_balance:,}` ทอง", inline=True)
+    embed.add_field(name="🏦 เงินในธนาคาร", value=f"`{bank_balance:,}` ทอง", inline=True)
+    embed.set_footer(text="ใช้คำสั่ง !deposit [จำนวน] เพื่อฝากเงิน (ถ้ามี)")
+    return embed
+
+
+def build_bag_embed(display_name, avatar_url, player):
+    """สร้าง Embed กระเป๋าเดินทาง — ใช้ร่วมกันระหว่างคำสั่ง !bag และปุ่มเมนู"""
+    inv_array = player_model.load_inventory(player.get("inventory", ""))
+
+    embed = discord.Embed(
+        title=f"🎒 กระเป๋าเดินทางของ {display_name}",
+        description=f"💰 **เงินสดกลาง:** {player.get('cash', 0):,} ทอง",
+        color=discord.Color.blue()
+    )
+
+    capacity = player.get("capacity", 10)
+    current_count = len(inv_array)
+    cap_display = "ไม่จำกัด" if capacity == 0 else f"{current_count} / {capacity}"
+
+    if not inv_array:
+        embed.add_field(
+            name=f"📦 ไอเทมในกระเป๋า ({cap_display})",
+            value="*~ กระเป๋าว่างเปล่า ไม่มีไอเทมเลย ~*",
+            inline=False
+        )
+    else:
+        item_counts = Counter(inv_array)
+        bag_list_text = ""
+        all_items = config_loader.get_all_items()
+
+        for item_id, count in item_counts.items():
+            if item_id in all_items:
+                item_name = all_items[item_id]["name"]
+                bag_list_text += f"**[{item_id}]** {item_name} x`{count}` ชิ้น\n"
+            else:
+                bag_list_text += f"**[{item_id}]** ❓ ไอเทมปริศนา x`{count}` ชิ้น\n"
+
+        embed.add_field(
+            name=f"📦 ไอเทมในกระเป๋า ({len(inv_array)} / {'ไม่จำกัด' if capacity == 0 else capacity})",
+            value=bag_list_text,
+            inline=False
+        )
+
+    embed.set_thumbnail(url=avatar_url)
+    return embed
+
+
 class PlayerCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -244,84 +442,84 @@ class PlayerCommands(commands.Cog):
     @commands.command(name="bank")
     @allowed_channel("bank")
     async def check_bank(self, ctx):
-        # ดึงข้อมูลผู้เล่น
         player = player_model.get_player(ctx.author.id)
-        bank_balance = player.get("bank", 0)
-        cash_balance = player.get("cash", 0) # แถมเช็กเงินสดให้ด้วยเลยเพื่อความสะดวก
-        
-        # สร้าง Embed สวยๆ
-        embed = discord.Embed(
-            title="🏦 บัญชีธนาคารของคุณ",
-            color=discord.Color.gold()
-        )
-        embed.add_field(name="💰 เงินสดติดตัว", value=f"`{cash_balance:,}` ทอง", inline=True)
-        embed.add_field(name="🏦 เงินในธนาคาร", value=f"`{bank_balance:,}` ทอง", inline=True)
-        embed.set_footer(text="ใช้คำสั่ง !deposit [จำนวน] เพื่อฝากเงิน (ถ้ามี)")
-        
-        await ctx.send(embed=embed)
-    
+        await ctx.send(embed=build_bank_embed(player))
+
+    # ==========================================
+    # 🎖️ คำสั่งรับรางวัลตามยศ (!reward) — รวมรางวัลทุกยศที่มีสิทธิ์ในครั้งเดียว
+    # ponytail: คูลดาวน์เดียวรวมทุกยศ (ไม่ใช่แยกคูลดาวน์ต่อยศ) — ง่ายกว่าและพอสำหรับสเปกปัจจุบัน
+    # ==========================================
+    @not_arrested()
+    @commands.command(name="reward")
+    async def claim_rank_reward(self, ctx):
+        user_id = ctx.author.id
+        player = player_model.get_player(user_id)
+        if not player:
+            return await ctx.send("❌ ไม่พบข้อมูลตัวละครของคุณ! พิมพ์ `!play` เพื่อสร้างตัวละครก่อนน้า")
+
+        my_role_ids = {role.id for role in ctx.author.roles}
+        matched = [r for r in config_loader.get_rank_rewards() if r.get("role_id") in my_role_ids]
+        if not matched:
+            return await ctx.send("❌ ยศของคุณยังไม่มีรางวัลให้รับในตอนนี้!")
+
+        cooldown_seconds = config_loader.get_rank_reward_cooldown_hours() * 3600
+        last_claim = player.get("last_reward_claim", 0) or 0
+        now = time.time()
+        remaining = cooldown_seconds - (now - last_claim)
+        if remaining > 0:
+            hours = int(remaining // 3600)
+            minutes = int((remaining % 3600) // 60)
+            return await ctx.send(f"⏳ คุณรับรางวัลไปแล้ว! กรุณารออีก `{hours}` ชั่วโมง `{minutes}` นาที")
+
+        total_cash = sum(int(r.get("cash", 0)) for r in matched)
+        total_exp = sum(int(r.get("exp", 0)) for r in matched)
+        item_grants = Counter()
+        for r in matched:
+            for it in r.get("items", []):
+                item_grants[str(it.get("item_id"))] += int(it.get("amount", 1))
+
+        if total_cash:
+            player_model.increment_player_field(user_id, "cash", total_cash)
+        is_lvl_up, new_level, _ = (False, None, None)
+        if total_exp:
+            is_lvl_up, new_level, _ = player_model.add_exp(user_id, total_exp)
+
+        if item_grants:
+            inv_list = player_model.load_inventory(player.get("inventory", ""))
+            all_items = config_loader.get_all_items()
+            for item_id, amount in item_grants.items():
+                if item_id not in all_items:
+                    continue
+                inv_list.extend([item_id] * amount)
+            player_model.update_player_field(user_id, "inventory", inv_list)
+
+        player_model.update_player_field(user_id, "last_reward_claim", int(now))
+
+        labels = ", ".join(r.get("label", "ยศ") for r in matched)
+        lines = [f"🎖️ **รับรางวัลจากยศสำเร็จ!** ({labels})"]
+        if total_cash:
+            lines.append(f"💰 เงินสด: `+{total_cash:,}` ทอง")
+        if total_exp:
+            lvl_txt = f" (✨ Level Up! → {new_level})" if is_lvl_up else ""
+            lines.append(f"⭐ EXP: `+{total_exp}`{lvl_txt}")
+        all_items = config_loader.get_all_items()
+        for item_id, amount in item_grants.items():
+            name = all_items.get(item_id, {}).get("name", f"ไอเทม {item_id}")
+            lines.append(f"📦 {name} x`{amount}`")
+        await ctx.send("\n".join(lines))
+
     # --- โค้ดคำสั่ง !bag ---
     @commands.command(name="bag")
     async def check_bag(self, ctx): # 🚨 จุดสำคัญ: เติม self ลงไปตรงนี้ครับ
         user_id = ctx.author.id
         player = player_model.get_player(user_id)
-        
-        # [ระบบเช็กไฟล์/แคช]
+
         if not player:
             print(f"ERROR: [Bag] ไม่พบข้อมูลผู้เล่นสำหรับ User ID: {user_id}")
             await ctx.send("❌ ไม่พบข้อมูลตัวละครของคุณ! พิมพ์ `!play` เพื่อสร้างตัวละครก่อนน้า")
             return
 
-        raw_inv = player.get("inventory", "")
-        clean_inv = str(raw_inv)
-        for char in ["(", ")", "[", "]", "'", '"', " "]:
-            clean_inv = clean_inv.replace(char, "")
-            
-        # print(f"DEBUG: [Bag] User {user_id} เปิดกระเป๋า | ข้อมูลดิบใน DB: '{raw_inv}' | คลีนแล้ว: '{clean_inv}'")
-
-        inv_array = clean_inv.split(",") if clean_inv and clean_inv not in ["None", "null"] else []
-
-        embed = discord.Embed(
-            title=f"🎒 กระเป๋าเดินทางของ {ctx.author.display_name}",
-            description=f"💰 **เงินสดกลาง:** {player.get('cash', 0):,} ทอง",
-            color=discord.Color.blue()
-        )
-
-        # 2. คำนวณความจุ
-        capacity = player.get("capacity", 10)
-        current_count = len(inv_array)
-        cap_display = "ไม่จำกัด" if capacity == 0 else f"{current_count} / {capacity}"
-
-        # 3. แสดงผลใน Embed
-        if not inv_array:
-            embed.add_field(
-                name=f"📦 ไอเทมในกระเป๋า ({cap_display})", 
-                value="*~ กระเป๋าว่างเปล่า ไม่มีไอเทมเลย ~*", 
-                inline=False
-            )
-        else:
-            item_counts = Counter(inv_array)
-            bag_list_text = ""
-            all_items = config_loader.get_all_items()
-
-            for item_id, count in item_counts.items():
-                if item_id in all_items:
-                    item_name = all_items[item_id]["name"]
-                    # 🛠️ เพิ่ม [เลข ID] ไว้ด้านหน้าให้ผู้เล่นรู้ว่าต้องพิมพ์ !use เลขอะไร
-                    bag_list_text += f"**[{item_id}]** {item_name} x`{count}` ชิ้น\n"
-                else:
-                    print(f"WARNING: [Bag] พบ Item ID '{item_id}' ในกระเป๋าผู้เล่น แต่ไม่มีใน ITEM_CONFIG!")
-                    bag_list_text += f"**[{item_id}]** ❓ ไอเทมปริศนา x`{count}` ชิ้น\n"
-
-            embed.add_field(
-                name=f"📦 ไอเทมในกระเป๋า ({len(inv_array)} / {'ไม่จำกัด' if capacity == 0 else capacity})", 
-                value=bag_list_text, 
-                inline=False
-            )
-
-        # 💡 แนะนำเสริม: ใช้ display_avatar เพื่อป้องกันบั๊กเวลาคนไม่มีรูปโปรไฟล์
-        embed.set_thumbnail(url=ctx.author.display_avatar.url)
-
+        embed = build_bag_embed(ctx.author.display_name, ctx.author.display_avatar.url, player)
         await ctx.send(embed=embed)
     
     # ⏱️ เช็กเวลาออนไลน์ของตัวเอง
@@ -366,167 +564,9 @@ class PlayerCommands(commands.Cog):
     # --- คำสั่ง !use <เลขไอเทม> ---
     @commands.command(name="use")
     async def use_item(self, ctx, item_id: str):
-        user_id = ctx.author.id
-        player = player_model.get_player(user_id)
-        
-        if not player:
-            return await ctx.send("❌ ไม่พบข้อมูลตัวละครของคุณ!")
-
-        # 1. ทำความสะอาดและดึง Array กระเป๋า
-        raw_inv = player.get("inventory", "")
-        clean_inv = str(raw_inv)
-        for char in ["(", ")", "[", "]", "'", '"', " "]:
-            clean_inv = clean_inv.replace(char, "")
-            
-        inv_array = clean_inv.split(",") if clean_inv and clean_inv not in ["None", "null"] else []
-
-        # 2. เช็กว่ามีไอเทมในกระเป๋าไหม
-        if item_id not in inv_array:
-            return await ctx.send(f"❌ คุณไม่มีไอเทมหมายเลข `{item_id}` ในกระเป๋า! (พิมพ์ `!bag` เพื่อเช็ก)")
-            
-        if not config_loader.get_item_config(item_id):
-            return await ctx.send("❌ ไม่มีข้อมูลไอเทมนี้ในระบบเซิร์ฟเวอร์!")
-
-        # ดึงข้อมูลจาก Config มาเตรียมไว้
-        item_info = config_loader.get_item_config(item_id)
-        item_name = item_info["name"]
-        item_type = item_info.get("type", "unknown")
-
-        # --- 3. ตรรกะผลลัพธ์ของไอเทม (Item Logic) ---
-        msg = ""
-        
-        # 🧪 กรณี: ใช้ยาฮีล (ตั้งค่าได้ผ่าน effect: "heal" + effect_amount)
-        if item_info.get("effect") == "heal":
-            heal_amount = item_info.get("effect_amount", 50)
-            armor_key = player.get("armor", "None")
-            current_dur = player.get("armor_dur", 0)
-
-            # ใช้ armor_info_stats เพื่อไม่ให้ชื่อตัวแปรซ้ำกัน
-            armor_info_stats = config_loader.get_armor_stats(armor_key) or config_loader.get_armor_stats("None")
-            
-            armor_hp_bonus = armor_info_stats.get("hp", 0) if current_dur > 0 else 0
-            max_hp_total = player.get("max_hp", 100) + armor_hp_bonus
-            current_hp = player.get("hp", 0)
-            
-            if current_hp >= max_hp_total:
-                return await ctx.send(f"❌ เลือดของคุณเต็มอยู่แล้ว! (`{current_hp}/{max_hp_total}`) ไม่สามารถใช้ {item_name} ได้")
-                
-            new_hp = min(current_hp + heal_amount, max_hp_total)
-            player_model.update_player_field(user_id, "hp", new_hp)
-            msg = f"🧪 คุณดื่ม **{item_name}** ฟื้นฟูพลังชีวิต! (HP: `{current_hp}` ➔ `{new_hp}/{max_hp_total}`)"
-
-        # 🛠️ กรณี: ใช้ใบซ่อมแซม (ตั้งค่าได้ผ่าน effect: "repair")
-        elif item_info.get("effect") == "repair":
-            armor_key = player.get("armor", "None")
-            weapon_key = player.get("weapon", "None")
-
-            armor_info_stats = config_loader.get_armor_stats(armor_key)
-            max_armor_dur = armor_info_stats.get("dur", 100)
-            current_armor_dur = player.get("armor_dur", 0)
-
-            weapon_info_stats = config_loader.get_weapon_stats(weapon_key)
-            max_weapon_dur = weapon_info_stats.get("dur", 50)
-            current_weapon_dur = player.get("weapon_dur", 0)
-            
-            needs_armor_repair = (armor_key != "None" and current_armor_dur < max_armor_dur)
-            needs_weapon_repair = (weapon_key != "None" and current_weapon_dur < max_weapon_dur)
-            
-            if not needs_armor_repair and not needs_weapon_repair:
-                return await ctx.send(f"❌ อุปกรณ์ทั้งหมดของคุณสภาพสมบูรณ์อยู่แล้ว (หรือไม่ได้สวมใส่)! ไม่สามารถใช้ {item_name} ได้")
-            
-            repaired_items = []
-            if needs_armor_repair:
-                player_model.update_player_field(user_id, "armor_dur", max_armor_dur)
-                repaired_items.append(f"เกราะ **{armor_info_stats.get('name', armor_key)}** (`{max_armor_dur}/{max_armor_dur}`)")
-                
-            if needs_weapon_repair:
-                player_model.update_player_field(user_id, "weapon_dur", max_weapon_dur)
-                repaired_items.append(f"อาวุธ **{weapon_info_stats.get('name', weapon_key)}** (`{max_weapon_dur}/{max_weapon_dur}`)")
-            
-            repair_text = " และ ".join(repaired_items)
-            msg = f"🛠️ คุณใช้ **{item_name}** ซ่อมแซม {repair_text} กลับมาสภาพสมบูรณ์!"
-
-        # 🛡️ กรณี: สวมใส่ชุดเกราะ (อ่านค่า type อัตโนมัติจาก ITEM_CONFIG)
-        elif item_type == "armor":
-            equip_key = item_info["equip_key"]
-            armor_stats = config_loader.get_armor_stats(equip_key)
-            max_dur = armor_stats.get("dur", 100)
-            
-            player_model.update_player_field(user_id, "armor", equip_key)
-            player_model.update_player_field(user_id, "armor_dur", max_dur)
-            
-            # [เสริมความปลอดภัย] ป้องกันเลือดล้นเวลาเปลี่ยนเกราะที่บวก HP น้อยลง
-            current_hp = player.get("hp", 0)
-            new_max_hp = player.get("max_hp", 100) + armor_stats.get("hp", 0)
-            if current_hp > new_max_hp:
-                player_model.update_player_field(user_id, "hp", new_max_hp)
-            
-            msg = f"🛡️ คุณสวมใส่ **{item_name}** เรียบร้อยแล้ว! (ความคงทน: `{max_dur}/{max_dur}`)"
-
-        # ⚔️ กรณี: สวมใส่อาวุธ
-        elif item_type == "weapon":
-            equip_key = item_info["equip_key"]
-            weapon_stats = config_loader.get_weapon_stats(equip_key)
-            max_dur = weapon_stats.get("dur", 50)
-            
-            player_model.update_player_field(user_id, "weapon", equip_key)
-            player_model.update_player_field(user_id, "weapon_dur", max_dur)
-            
-            msg = f"⚔️ คุณสวมใส่ **{item_name}** เรียบร้อยแล้ว! (ความคงทน: `{max_dur}/{max_dur}`)"
-        
-        elif item_type == "bag":
-            equip_key = item_info["equip_key"]
-            bag_status = config_loader.get_bag_stats(equip_key)
-            bag_limit = bag_status.get("capacity", 10)
-
-            player_model.update_player_field(user_id, "bag", equip_key)
-            player_model.update_player_field(user_id, "capacity", bag_limit)
-        
-            msg = f"⚔️ คุณสวมใส่ **{item_name}** เรียบร้อยแล้ว! (ความจุกระเป๋า: `{'ไม่จำกัด' if bag_limit == 0 else bag_limit}`)"
-
-        elif item_type == "drop":
-            # 1. เช็กเคสพิเศษ: ไอเทมชุบชีวิต ต้องเช็กว่าตายไหม (ตั้งค่าได้ผ่าน effect: "revive")
-            if item_info.get("effect") == "revive":
-                if player.get("hp") > 0 and player.get("current_state") != "death":
-                    return await ctx.send("❌ คุณยังไม่ได้ตาย จะใช้ใบชุบชีวิตไปทำไมล่ะเนี่ย! เก็บไว้ใช้ตอนตายดีหน้า!")
-                
-                # ถ้าตายจริง ให้ชุบชีวิต
-                max_hp = player.get("max_hp", 100)
-                player_model.update_player_field(user_id, "hp", max_hp)
-                player_model.update_player_field(user_id, "current_state", "idle")
-                player_model.update_player_field(user_id, "last_event", "revive") # ใส่เพื่อให้ระบบสุ่มเหตุการณ์รู้ว่าเพิ่งชุบ
-                
-                await ctx.send("✨ คุณใช้ `💌ใบชุบชีวิต`! ฟื้นคืนชีพและฟื้นฟู HP เต็มแล้ว! พร้อมลุยต่อแล้วครับ!")
-                # [ใส่คำสั่งลบไอเทมออกจากกระเป๋าที่นี่]
-
-            # 2. เคสไอเทมตั้งค่า last_event อื่นๆ (ต้องเป็น idle เท่านั้น) — ตั้งค่าได้ผ่าน effect: "set_state" + effect_value
-            elif item_info.get("effect") == "set_state":
-                if player.get("current_state") != "idle":
-                    return await ctx.send("❌ คุณไม่สามารถใช้ไอเทมนี้ได้ในขณะที่กำลังทำกิจกรรมอื่นอยู่ (ต้องอยู่ในสถานะว่างก่อนกดปุ่ม 🧭 เริ่มออกเดินทาง)!")
-
-                new_state = item_info.get("effect_value")
-                if new_state:
-                    player_model.update_player_field(user_id, "last_event", new_state)
-                    # [ใส่คำสั่งลบไอเทมออกจากกระเป๋าที่นี่]
-                    await ctx.send(f"✨ คุณได้เปิดใช้งาน `{item_name}` แล้ว! เตรียมพบกับเหตุการณ์ถัดไป...")
-                else:
-                    await ctx.send("❌ ไอเทมนี้ยังไม่ถูกตั้งค่าการใช้งาน!")
-
-            else:
-                return await ctx.send(f"❌ ไอเทม **{item_name}** ยังไม่สามารถกดใช้งานได้ในตอนนี้ (ยังไม่ได้ตั้งค่า effect ให้ถูกต้อง)")
-        ##ตั้งเงื่อไขว่าต้องสเตตัสฑรรมดาเท่านั้นถึงใช้ ใบบอสได้
-        ##เวลาใช้ใบบอส เหตุการจะเป็นตีมอน และเหตุการลองจะเป็นเงื่อนไขบอส มั้ง ตั้งเงื่อไขคอมแบทตอนสุ่มมอน ถ้าสเตตัสนี้ เรทมอนอะไร
-
-        # ถ้าไม่ตรงกับอะไรเลย
-        else:
-            return await ctx.send(f"❌ ไอเทม **{item_name}** ยังไม่สามารถกดใช้งานได้ในตอนนี้")
-
-        # --- 4. หักไอเทมออกจากกระเป๋า ---
-        inv_array.remove(item_id) 
-        player_model.update_player_field(user_id, "inventory", ",".join(inv_array))
-        
+        ok, msg = apply_item_effect(ctx.author.id, item_id)
         await ctx.send(msg)
-    
+
     @commands.command(name="drop")
     async def drop_item(self, ctx, item_id: str = None, amount: int = None):
         user_id = ctx.author.id

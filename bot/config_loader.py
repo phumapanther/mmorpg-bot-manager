@@ -1,7 +1,8 @@
 import json, os
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_ROOT = os.path.dirname(_HERE)
+from app_paths import get_app_root
+
+_ROOT = get_app_root()
 CONFIG_PATH = os.path.join(_ROOT, "config.json")
 EXAMPLE_PATH = os.path.join(_ROOT, "config.example.json")
 
@@ -113,6 +114,22 @@ def get_bag_stats(key):
 def get_crafting_recipe(item_id):
     return dict(get_config().get("item_catalog", {}).get("crafting_recipes", {}).get(item_id, {}))
 
+def get_rank_rewards():
+    entries = get_config().get("rank_rewards", {}).get("ranks", [])
+    result = []
+    for e in entries:
+        e2 = dict(e)
+        if e2.get("role_id") is not None:
+            e2["role_id"] = int(e2["role_id"])
+        result.append(e2)
+    return result
+
+def get_rank_reward_cooldown_hours():
+    return float(get_config().get("rank_rewards", {}).get("cooldown_hours", 24))
+
+def get_payment_config():
+    return dict(get_config().get("payment", {}))
+
 def get_gacha_price():
     return int(get_config().get("auto_trade_roles", {}).get("gacha_price", 10000000))
 
@@ -121,6 +138,9 @@ def get_gacha_pool_price():
 
 def get_token():
     return get_config().get("bot_token", "")
+
+def get_license_key():
+    return get_config().get("license_key", "")
 
 def get_guild_id():
     return get_config().get("guild_id")

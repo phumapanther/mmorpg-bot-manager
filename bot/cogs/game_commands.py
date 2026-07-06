@@ -209,6 +209,17 @@ class GameCommands(commands.Cog):
         embed = create_profile_embed(target_member, player_data)
         await ctx.send(embed=embed)
 
+    # ─── 🕹️ เมนูปุ่มสะดวก (กระเป๋า/ธนาคาร/โปรไฟล์/ใช้ไอเทม) — ระบบเดียวกับคำสั่งเดิม แค่แยกเป็นปุ่ม ───
+    @commands.command(name="menu")
+    async def game_menu(self, ctx):
+        from bot.views.menu_view import GameMenuView
+        embed = discord.Embed(
+            title="🕹️ เมนูผู้เล่น",
+            description="กดปุ่มด้านล่างเพื่อเช็กกระเป๋า/ธนาคาร/โปรไฟล์ หรือใช้ไอเทม (คำสั่งพิมพ์เดิม เช่น `!bag` `!bank` ยังใช้ได้ตามปกติ)",
+            color=discord.Color.blurple()
+        )
+        await ctx.send(embed=embed, view=GameMenuView())
+
     # ─── ⚔️ คำสั่งเล่นเกมคอร์หลัก (ระบบแสดงผลเฉพาะคนใช้คำสั่ง - Ephemeral + ล็อกห้องมิติ) ───
     @commands.hybrid_command(name="play", description="เริ่มออกเดินทางในโลก D&D MMORPG")
     @commands.cooldown(1, 3.0, commands.BucketType.user) # ⏱️ แก้กลับเป็นคูลดาวน์ 3 วินาทีตามที่คุยกันรอบก่อนครับน้า

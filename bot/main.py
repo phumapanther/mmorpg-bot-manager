@@ -2,6 +2,14 @@ import discord
 from discord.ext import commands
 import asyncio
 import sys
+
+# ponytail: การส่ง env PYTHONIOENCODING=utf-8 ตอน spawn subprocess (ใน process_manager.py) ไม่ชัวร์
+# ว่าจะมีผลตอนบอทถูกแพ็กเป็น onefile exe แล้ว re-exec ตัวเอง (--run-bot) — reconfigure ตรงนี้ชัวร์กว่า
+# ไม่งั้น print ข้อความไทย/emoji จะพัง UnicodeEncodeError บน Windows locale ที่ไม่ใช่ UTF-8
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 import bot.models.player_model as player_model
 from bot import config_loader
 
@@ -64,7 +72,11 @@ def create_bot(bot_type: str):
     async def on_ready():
         player_model.init_db()
         player_model.auto_update_schema()
-        
+
+        # 🕹️ ลงทะเบียนปุ่มเมนูแบบ persistent ให้กดใช้ได้ตลอดแม้บอทรีสตาร์ท
+        from bot.views.menu_view import GameMenuView
+        bot.add_view(GameMenuView())
+
         # 🔄 สั่งให้บอทลงทะเบียนและอัปเดตระบบสแลชคำสั่งเข้าเซิร์ฟเวอร์จริง
         try:
             synced = await bot.tree.sync()
@@ -116,6 +128,9 @@ def create_bot(bot_type: str):
                 await bot.load_extension("bot.cogs.role_shop")
                 print("💸[Buy] โหลดระบบคำสั่ง ซื้อยศออนไลน์!")
 
+                await bot.load_extension("bot.cogs.payment")
+                print("💳[Payment] โหลดระบบคำสั่ง เติมเงิน สำเร็จ!")
+
             elif bot_type == "chat":
                 await bot.load_extension("bot.cogs.voice_chat_tracker")
                 print("🎙️ [Chat/Voice Bot] โหลดระบบลูปห้องเสียงและฟาร์มแชทสำเร็จ!")
@@ -140,6 +155,13 @@ def create_bot(bot_type: str):
 async def main():
     if not TOKEN_GAME:
         print("⚠️ ยังไม่ได้ตั้ง token — เปิดหน้า Panel แล้วใส่ token ก่อน")
+        return
+
+    # 🔐 เช็ค License Key กับ License Server ทุกครั้งที่สตาร์ท (ต้องเปิดโปรแกรม License Server ทิ้งไว้)
+    from bot import license_client
+    license_ok, license_msg = license_client.check_license(config_loader.get_license_key(), TOKEN_GAME)
+    print(license_msg)
+    if not license_ok:
         return
 
     print("⏳ กำลังเตรียมการเปิดระบบในโหมดบายพาส (บอทแรกตัวเดียว)...")

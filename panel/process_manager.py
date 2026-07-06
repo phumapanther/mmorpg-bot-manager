@@ -1,6 +1,8 @@
 import os, sys, subprocess, threading, collections
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from app_paths import get_app_root
+
+_ROOT = get_app_root()
 # default: run the packaged/launcher bot; overridable in tests
 if getattr(sys, "frozen", False):
     BOT_CMD = [sys.executable, "--run-bot"]

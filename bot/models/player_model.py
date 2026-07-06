@@ -29,7 +29,8 @@ NEW_PLAYER_DEFAULTS = {
     "event_text": 0,
     "bag": "Medium_Bag",
     "capacity": 50,
-    "sanity": 100
+    "sanity": 100,
+    "last_reward_claim": 0
 }
     
 def init_db():

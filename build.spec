@@ -12,6 +12,8 @@ a = Analysis(
     datas=[
         ('panel/static', 'panel/static'),
         ('config.example.json', '.'),
+        ('VERSION', '.'),
+        ('LICENSE_SERVER_URL.txt', '.'),
     ],
     hiddenimports=[
         # discord.py dynamic imports

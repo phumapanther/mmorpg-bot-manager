@@ -1,5 +1,6 @@
 {
   "bot_token": "",
+  "license_key": "",
   "guild_id": null,
   "panel_port": 8770,
 
@@ -14,7 +15,8 @@
     "casino_hilo":  { "label": "Hi-Lo", "channel_id": null },
     "casino_slots": { "label": "สล็อต", "channel_id": null },
     "casino_bj":    { "label": "Blackjack", "channel_id": null },
-    "levelup_announce": { "label": "ห้องประกาศเลเวลอัพ (Voice EXP)", "channel_id": null, "mention_player": false }
+    "levelup_announce": { "label": "ห้องประกาศเลเวลอัพ (Voice EXP)", "channel_id": null, "mention_player": false },
+    "payment": { "label": "เติมเงิน (Topup)", "channel_id": null }
   },
 
   "permission_groups": {
@@ -69,6 +71,23 @@
       "heal":      {"heal_percent_base": 0.40, "heal_lvl_scale": 0.01},
       "holy_aura": {"chance_base": 50, "chance_lvl_scale": 1}
     }
+  },
+
+  "payment": {
+    "currency": "THB",
+    "exchange_rate": 1000,
+    "min_amount": 10,
+    "max_amount": 10000,
+    "promptpay": { "enabled": false, "id": "", "name": "" },
+    "paypal": { "enabled": false, "link": "" },
+    "truemoney": { "enabled": false, "phone": "" }
+  },
+
+  "rank_rewards": {
+    "cooldown_hours": 24,
+    "ranks": [
+      { "label": "ยศอันที่ 1", "role_id": null, "cash": 10000, "exp": 500, "items": [{"item_id": "1", "amount": 2}] }
+    ]
   },
 
   "role_bonuses": [

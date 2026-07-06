@@ -2,6 +2,13 @@ __pycache__/
 *.pyc
 config.json
 game_data.db
+LICENSE_SERVER_URL.txt
 build/
 dist/
+dist_nuitka/
+*.build/
+*.onefile-build/
 *.spec.bak
+license_server/licenses.db
+license_server/admin_secret.txt
+license_server/tools/

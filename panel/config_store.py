@@ -1,7 +1,8 @@
 import json, os, shutil, tempfile
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_ROOT = os.path.dirname(_HERE)
+from app_paths import get_app_root
+
+_ROOT = get_app_root()
 CONFIG_PATH = os.path.join(_ROOT, "config.json")
 EXAMPLE_PATH = os.path.join(_ROOT, "config.example.json")
 
