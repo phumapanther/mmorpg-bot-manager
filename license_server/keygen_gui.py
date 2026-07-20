@@ -49,6 +49,7 @@ class KeygenApp:
     def __init__(self, root):
         self.root = root
         self.tunnel_proc = None
+        self.launcher_proc = None
         root.title("License Server / Key Generator")
         root.geometry("820x460")
         root.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -73,6 +74,7 @@ class KeygenApp:
         self.build_btn = tk.Button(btn_row, text="🔨 Build ชุดแจกลูกค้า", command=self.start_build)
         self.build_btn.pack(side="left", padx=6)
         tk.Button(btn_row, text="📂 เปิดโฟลเดอร์ dist", command=self.open_dist).pack(side="left")
+        tk.Button(btn_row, text="🚀 รันบอท (เปิด Panel)", command=self.launch_bot_manager).pack(side="left", padx=6)
 
         self.build_status_var = tk.StringVar(value="")
         tk.Label(root, textvariable=self.build_status_var, anchor="w", wraplength=800).pack(fill="x", padx=8)
@@ -189,6 +191,35 @@ class KeygenApp:
             self.root.after(0, lambda: messagebox.showerror("Build ล้มเหลว", err[-2000:]))
         finally:
             self.root.after(0, lambda: self.build_btn.config(state="normal"))
+
+    def launch_bot_manager(self):
+        """เปิด launcher.py (Panel ของบอทตัวเอง) เป็นโปรเซสแยก — ปิดหน้าต่าง keygen บอทก็ยังรันต่อ"""
+        import json
+        import webbrowser
+
+        try:
+            with open(os.path.join(PROJECT_ROOT, "config.json"), encoding="utf-8") as f:
+                port = json.load(f).get("panel_port", 8770)
+        except (OSError, ValueError):
+            port = 8770
+
+        if self.launcher_proc and self.launcher_proc.poll() is None:
+            webbrowser.open(f"http://localhost:{port}")  # รันอยู่แล้ว — เปิดหน้า Panel ให้แทน
+            return
+
+        # ถ้าตัวเราถูกเปิดด้วย pythonw (ไม่มี console) ให้สลับไป python.exe เพื่อให้ launcher
+        # ได้หน้าต่าง console ของตัวเอง — ผู้ใช้เห็น log และปิดหน้าต่างเพื่อหยุด Panel ได้
+        py = sys.executable
+        if os.path.basename(py).lower() == "pythonw.exe":
+            candidate = os.path.join(os.path.dirname(py), "python.exe")
+            if os.path.exists(candidate):
+                py = candidate
+
+        flags = subprocess.CREATE_NEW_CONSOLE if os.name == "nt" else 0
+        self.launcher_proc = subprocess.Popen(
+            [py, os.path.join(PROJECT_ROOT, "launcher.py")],
+            cwd=PROJECT_ROOT, creationflags=flags,
+        )
 
     def _ask_open_dist(self):
         if messagebox.askyesno("Build เสร็จ", "ได้ไฟล์ dist\\BotManager-Setup.zip แล้ว ส่งไฟล์นี้ให้ลูกค้าได้เลย\n\nเปิดโฟลเดอร์ dist เลยไหม?"):
