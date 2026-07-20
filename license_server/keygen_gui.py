@@ -21,6 +21,14 @@ from tkinter import messagebox, simpledialog, ttk
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# ตอนเปิดด้วย pythonw (เช่นจาก shortcut หน้าเดสก์ทอป) จะไม่มี console → sys.stdout/stderr เป็น None
+# แล้ว uvicorn เรียก sys.stdout.isatty() ตอนตั้ง logging ทำให้ crash เงียบทั้งโปรแกรมก่อนหน้าต่างเปิด
+# จึงแทนด้วย devnull ก่อนใครแตะ stdio
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, "w", encoding="utf-8")
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w", encoding="utf-8")
+
 from license_server import db
 from license_server.api import create_app, get_or_create_admin_secret
 
