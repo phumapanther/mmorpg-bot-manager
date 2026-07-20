@@ -12,6 +12,7 @@ LICENSE_SERVER_URL.txt ที่ root โปรเจ็คให้อัตโ
 import asyncio
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -69,6 +70,11 @@ class KeygenApp:
         btn_row.pack(fill="x", padx=8)
         tk.Button(btn_row, text="+ สร้างคีย์ใหม่", command=self.generate_key).pack(side="left")
         tk.Button(btn_row, text="🔄 รีเฟรช", command=self.refresh).pack(side="left", padx=6)
+        self.build_btn = tk.Button(btn_row, text="🔨 Build ชุดแจกลูกค้า", command=self.start_build)
+        self.build_btn.pack(side="left", padx=6)
+
+        self.build_status_var = tk.StringVar(value="")
+        tk.Label(root, textvariable=self.build_status_var, anchor="w", wraplength=800).pack(fill="x", padx=8)
 
         columns = ("key", "used", "machine_id", "bot_token_hash", "used_at", "last_seen_at", "note")
         self.tree = ttk.Treeview(root, columns=columns, show="headings")
@@ -114,6 +120,64 @@ class KeygenApp:
         self.root.clipboard_clear()
         self.root.clipboard_append(url)
         messagebox.showinfo("คัดลอกแล้ว", f"คัดลอกลิงก์แล้ว:\n{url}\n\n(ลิงก์นี้ถูกบันทึกลง LICENSE_SERVER_URL.txt ให้อัตโนมัติแล้ว)")
+
+    def start_build(self):
+        """กดปุ่ม Build — ทำเหมือน build_release.bat แต่รันเบื้องหลัง หน้าต่างไม่ค้าง"""
+        current = self.tunnel_var.get()
+        if current.startswith("https://"):
+            try:
+                with open(URL_FILE, encoding="utf-8") as f:
+                    saved = f.read().strip()
+            except OSError:
+                saved = ""
+            if saved != current:
+                messagebox.showwarning(
+                    "ลิงก์ยังไม่ถูกบันทึก",
+                    "ลิงก์ tunnel ปัจจุบันยังไม่ตรงกับ LICENSE_SERVER_URL.txt — แก้ไฟล์ให้ตรงก่อนแล้วค่อย build",
+                )
+                return
+        elif os.path.exists(CLOUDFLARED_PATH):
+            if not messagebox.askyesno(
+                "ยังไม่มีลิงก์ tunnel",
+                "tunnel ยังไม่ขึ้น — ถ้า build ตอนนี้จะได้ลิงก์เก่าใน LICENSE_SERVER_URL.txt\nbuild ต่อเลยไหม?",
+            ):
+                return
+
+        self.build_btn.config(state="disabled")
+        threading.Thread(target=self._run_build, daemon=True).start()
+
+    def _run_build(self):
+        def status(msg):
+            self.root.after(0, lambda: self.build_status_var.set(msg))
+
+        steps = [
+            ("🔨 [1/2] กำลัง build exe ด้วย PyInstaller... (ขั้นนี้ใช้เวลาหลายนาที)",
+             [sys.executable, "-m", "PyInstaller", "build.spec", "--noconfirm"]),
+            ("📦 [2/2] กำลังแพ็ก installer zip...",
+             [sys.executable, "make_installer_zip.py"]),
+        ]
+        try:
+            build_dir = os.path.join(PROJECT_ROOT, "build")
+            if os.path.exists(build_dir):
+                shutil.rmtree(build_dir)
+            for label, cmd in steps:
+                status(label)
+                result = subprocess.run(
+                    cmd, cwd=PROJECT_ROOT, capture_output=True, text=True,
+                    encoding="utf-8", errors="replace",
+                )
+                if result.returncode != 0:
+                    tail = "\n".join((result.stdout + "\n" + result.stderr).strip().splitlines()[-15:])
+                    raise RuntimeError(f"{label}\nล้มเหลว:\n{tail}")
+            status("✅ Build เสร็จ — dist\\BotManager-Setup.zip พร้อมส่งลูกค้า")
+            self.root.after(0, lambda: messagebox.showinfo(
+                "Build เสร็จ", "ได้ไฟล์ dist\\BotManager-Setup.zip แล้ว ส่งไฟล์นี้ให้ลูกค้าได้เลย"))
+        except Exception as e:
+            status("❌ Build ล้มเหลว")
+            err = str(e)
+            self.root.after(0, lambda: messagebox.showerror("Build ล้มเหลว", err[-2000:]))
+        finally:
+            self.root.after(0, lambda: self.build_btn.config(state="normal"))
 
     def on_close(self):
         if self.tunnel_proc and self.tunnel_proc.poll() is None:
