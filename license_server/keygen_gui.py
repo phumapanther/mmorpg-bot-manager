@@ -82,7 +82,18 @@ class KeygenApp:
         for col, width in zip(columns, (150, 50, 160, 120, 140, 140, 120)):
             self.tree.heading(col, text=col)
             self.tree.column(col, width=width)
-        self.tree.pack(fill="both", expand=True, padx=8, pady=8)
+        self.tree.pack(fill="both", expand=True, padx=8, pady=(8, 4))
+        self.tree.bind("<<TreeviewSelect>>", self._on_select_row)
+        self.tree.bind("<Double-1>", lambda _e: self.copy_selected_key())
+
+        key_row = tk.Frame(root)
+        key_row.pack(fill="x", padx=8, pady=(0, 8))
+        tk.Label(key_row, text="คีย์ที่เลือก:").pack(side="left")
+        self.selected_key_var = tk.StringVar(value="")
+        tk.Entry(key_row, textvariable=self.selected_key_var, width=45, state="readonly").pack(side="left", padx=6)
+        tk.Button(key_row, text="📋 คัดลอกคีย์", command=self.copy_selected_key).pack(side="left")
+        self.copy_feedback = tk.Label(key_row, text="", fg="#006400")
+        self.copy_feedback.pack(side="left", padx=6)
 
         self.refresh()
         self.start_tunnel()
@@ -199,7 +210,29 @@ class KeygenApp:
         note = simpledialog.askstring("หมายเหตุ", "หมายเหตุกำกับคีย์ (ใครซื้อ/ชื่อลูกค้า) — ไม่ใส่ก็ได้:", parent=self.root) or ""
         key = db.generate_key(note)
         self.refresh()
-        messagebox.showinfo("สร้างคีย์สำเร็จ", f"คีย์ใหม่:\n\n{key}\n\nคัดลอกไปให้ลูกค้ากรอกตอนสตาร์ทบอทได้เลย (ใช้ได้ 1 ครั้ง/1 เครื่องเท่านั้น)")
+        for iid in self.tree.get_children():
+            if self.tree.item(iid, "values")[0] == key:
+                self.tree.selection_set(iid)
+                self.tree.see(iid)
+                break
+        self.selected_key_var.set(key)
+        self.root.clipboard_clear()
+        self.root.clipboard_append(key)
+        messagebox.showinfo("สร้างคีย์สำเร็จ", f"คีย์ใหม่:\n\n{key}\n\n📋 คัดลอกเข้าคลิปบอร์ดให้แล้ว วางส่งลูกค้าได้เลย (1 คีย์ = 1 เครื่องเท่านั้น)")
+
+    def _on_select_row(self, _event=None):
+        sel = self.tree.selection()
+        if sel:
+            self.selected_key_var.set(self.tree.item(sel[0], "values")[0])
+
+    def copy_selected_key(self):
+        key = self.selected_key_var.get()
+        if not key:
+            return
+        self.root.clipboard_clear()
+        self.root.clipboard_append(key)
+        self.copy_feedback.config(text="✅ คัดลอกแล้ว")
+        self.root.after(2000, lambda: self.copy_feedback.config(text=""))
 
     def refresh(self):
         for row in self.tree.get_children():
