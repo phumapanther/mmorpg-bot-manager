@@ -72,6 +72,7 @@ class KeygenApp:
         tk.Button(btn_row, text="🔄 รีเฟรช", command=self.refresh).pack(side="left", padx=6)
         self.build_btn = tk.Button(btn_row, text="🔨 Build ชุดแจกลูกค้า", command=self.start_build)
         self.build_btn.pack(side="left", padx=6)
+        tk.Button(btn_row, text="📂 เปิดโฟลเดอร์ dist", command=self.open_dist).pack(side="left")
 
         self.build_status_var = tk.StringVar(value="")
         tk.Label(root, textvariable=self.build_status_var, anchor="w", wraplength=800).pack(fill="x", padx=8)
@@ -170,14 +171,24 @@ class KeygenApp:
                     tail = "\n".join((result.stdout + "\n" + result.stderr).strip().splitlines()[-15:])
                     raise RuntimeError(f"{label}\nล้มเหลว:\n{tail}")
             status("✅ Build เสร็จ — dist\\BotManager-Setup.zip พร้อมส่งลูกค้า")
-            self.root.after(0, lambda: messagebox.showinfo(
-                "Build เสร็จ", "ได้ไฟล์ dist\\BotManager-Setup.zip แล้ว ส่งไฟล์นี้ให้ลูกค้าได้เลย"))
+            self.root.after(0, self._ask_open_dist)
         except Exception as e:
             status("❌ Build ล้มเหลว")
             err = str(e)
             self.root.after(0, lambda: messagebox.showerror("Build ล้มเหลว", err[-2000:]))
         finally:
             self.root.after(0, lambda: self.build_btn.config(state="normal"))
+
+    def _ask_open_dist(self):
+        if messagebox.askyesno("Build เสร็จ", "ได้ไฟล์ dist\\BotManager-Setup.zip แล้ว ส่งไฟล์นี้ให้ลูกค้าได้เลย\n\nเปิดโฟลเดอร์ dist เลยไหม?"):
+            self.open_dist()
+
+    def open_dist(self):
+        dist_dir = os.path.join(PROJECT_ROOT, "dist")
+        if not os.path.isdir(dist_dir):
+            messagebox.showwarning("ยังไม่มีโฟลเดอร์ dist", "ยังไม่เคย build — กดปุ่ม \"🔨 Build ชุดแจกลูกค้า\" ก่อน")
+            return
+        os.startfile(dist_dir)
 
     def on_close(self):
         if self.tunnel_proc and self.tunnel_proc.poll() is None:
