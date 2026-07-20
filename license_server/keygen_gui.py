@@ -4,8 +4,8 @@
 ถ้าปิดโปรแกรมนี้ บอทของลูกค้าจะสตาร์ทไม่ได้ (เช็คคีย์ไม่ผ่าน)
 
 ถ้ามี license_server/tools/cloudflared.exe จะเปิด quick tunnel ให้อัตโนมัติ และโชว์ลิงก์ปัจจุบัน
-ในหน้าต่างนี้ (ลิงก์จะเปลี่ยนทุกครั้งที่เปิดโปรแกรมใหม่ — ต้องเอาไปแก้ LICENSE_SERVER_URL ใน
-bot/license_client.py แล้ว build ใหม่ทุกครั้งที่ลิงก์เปลี่ยน จนกว่าจะมี tunnel แบบถาวร)
+ในหน้าต่างนี้ (ลิงก์เปลี่ยนทุกครั้งที่เปิดโปรแกรมใหม่ — โปรแกรมจะเขียนลิงก์ใหม่ลง
+LICENSE_SERVER_URL.txt ที่ root โปรเจ็คให้อัตโนมัติ เหลือแค่กด build ใหม่แจกลูกค้า)
 
 รัน: python -m license_server.keygen_gui
 """
@@ -25,7 +25,9 @@ from license_server.api import create_app, get_or_create_admin_secret
 
 PORT = 8790
 _HERE = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(_HERE)
 CLOUDFLARED_PATH = os.path.join(_HERE, "tools", "cloudflared.exe")
+URL_FILE = os.path.join(PROJECT_ROOT, "LICENSE_SERVER_URL.txt")
 TUNNEL_URL_PATTERN = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
 
 
@@ -60,6 +62,9 @@ class KeygenApp:
         tk.Entry(tunnel_row, textvariable=self.tunnel_var, width=55, state="readonly").pack(side="left", padx=6)
         tk.Button(tunnel_row, text="📋 คัดลอก", command=self.copy_tunnel_url).pack(side="left")
 
+        self.url_status_var = tk.StringVar(value="")
+        tk.Label(root, textvariable=self.url_status_var, anchor="w", fg="#006400", wraplength=800).pack(fill="x", padx=8)
+
         btn_row = tk.Frame(root)
         btn_row.pack(fill="x", padx=8)
         tk.Button(btn_row, text="+ สร้างคีย์ใหม่", command=self.generate_key).pack(side="left")
@@ -92,13 +97,23 @@ class KeygenApp:
             if match:
                 url = match.group(0)
                 print(f"[Tunnel URL] {url}", flush=True)
-                self.root.after(0, lambda: self.tunnel_var.set(url))
+                status = self._save_url_file(url)
+                self.root.after(0, lambda u=url, s=status: (self.tunnel_var.set(u), self.url_status_var.set(s)))
+
+    def _save_url_file(self, url):
+        """เขียน tunnel URL ล่าสุดทับ LICENSE_SERVER_URL.txt — คืนข้อความสถานะไว้โชว์ในหน้าต่าง"""
+        try:
+            with open(URL_FILE, "w", encoding="utf-8") as f:
+                f.write(url + "\n")
+            return "💾 บันทึกลิงก์ลง LICENSE_SERVER_URL.txt ให้แล้วอัตโนมัติ — กด Build เพื่อสร้างชุดแจกลูกค้าด้วยลิงก์ใหม่"
+        except OSError as e:
+            return f"⚠️ เขียน LICENSE_SERVER_URL.txt ไม่สำเร็จ: {e} — ต้องแก้ไฟล์เองก่อน build"
 
     def copy_tunnel_url(self):
         url = self.tunnel_var.get()
         self.root.clipboard_clear()
         self.root.clipboard_append(url)
-        messagebox.showinfo("คัดลอกแล้ว", f"คัดลอกลิงก์แล้ว:\n{url}\n\nเอาไปแทนใน LICENSE_SERVER_URL (bot/license_client.py) แล้ว build ใหม่")
+        messagebox.showinfo("คัดลอกแล้ว", f"คัดลอกลิงก์แล้ว:\n{url}\n\n(ลิงก์นี้ถูกบันทึกลง LICENSE_SERVER_URL.txt ให้อัตโนมัติแล้ว)")
 
     def on_close(self):
         if self.tunnel_proc and self.tunnel_proc.poll() is None:
