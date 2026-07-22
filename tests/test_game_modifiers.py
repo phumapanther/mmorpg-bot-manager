@@ -81,3 +81,46 @@ def test_weekly_theme_deterministic(monkeypatch):
 
 def test_weekly_theme_none_when_empty():
     assert gm.get_weekly_theme() is None
+
+
+# ===== ระบบเดินทางข้ามทวีป (ข้อ 2) =====
+
+def test_travel_encounter_fare_within_cash():
+    rng = __import__("random").Random(42)
+    for cash in (0, 1, 50_000):
+        enc = gm.roll_travel_encounter(cash, rng=rng)
+        assert enc["vehicle"] in gm.VEHICLES
+        assert enc["label"] == gm.VEHICLES[enc["vehicle"]]["label"]
+        assert 0 <= enc["fare"] <= cash
+
+
+def test_roll_destination_never_returns_current():
+    rng = __import__("random").Random(7)
+    for vehicle in gm.VEHICLES:
+        for current in gm.CONTINENTS:
+            for _ in range(30):
+                assert gm.roll_destination(vehicle, current, rng=rng) != current
+
+
+def test_roll_destination_respects_zero_weight():
+    # เรือข้ามสมุทรตั้ง demon=5 — ถ้า set เป็น 0 ต้องไม่สุ่มไป demon เลย
+    rng = __import__("random").Random(1)
+    original = gm.VEHICLES["ship"]["dest_weights"]
+    gm.VEHICLES["ship"]["dest_weights"] = {"main": 0, "demon": 0, "ocean": 100}
+    try:
+        for _ in range(30):
+            assert gm.roll_destination("ship", "main", rng=rng) == "ocean"
+    finally:
+        gm.VEHICLES["ship"]["dest_weights"] = original
+
+
+def test_travel_chance_boundaries():
+    class FakeRng:
+        def __init__(self, value):
+            self.value = value
+
+        def randint(self, lo, hi):
+            return self.value
+
+    assert gm.roll_travel_chance(FakeRng(gm.TRAVEL_EVENT_CHANCE)) is True
+    assert gm.roll_travel_chance(FakeRng(gm.TRAVEL_EVENT_CHANCE + 1)) is False

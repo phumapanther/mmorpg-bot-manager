@@ -30,7 +30,8 @@ NEW_PLAYER_DEFAULTS = {
     "bag": "Medium_Bag",
     "capacity": 50,
     "sanity": 100,
-    "last_reward_claim": 0
+    "last_reward_claim": 0,
+    "continent": "main"
 }
     
 def init_db():

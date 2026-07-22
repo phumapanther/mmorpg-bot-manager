@@ -294,14 +294,19 @@ class GameCommands(commands.Cog):
             await ctx.send(embed=embed, view=RespawnView(user_id), ephemeral=True)
             return 
 
-        lock_states = ["npc_choice", "treasure_choice", "dungeon_choice", "trap_defense", "village", "shopping"]
+        lock_states = ["npc_choice", "treasure_choice", "dungeon_choice", "trap_defense", "village", "shopping", "travel_choice"]
         if player["current_state"] in lock_states:
             player_model.update_player_field(user_id, "current_state", "idle")
             player = player_model.get_player(user_id)
 
+        from bot import game_modifiers
         embed = discord.Embed(
             title="⚔️ ยินดีต้อนรับสู่โลก D&D MMORPG",
-            description=f"กระเป๋าเงินกลางของคุณ: `{player['cash']}` ทอง\nสถานะปัจจุบัน: `{player['current_state']}`",
+            description=(
+                f"กระเป๋าเงินกลางของคุณ: `{player['cash']}` ทอง\n"
+                f"สถานะปัจจุบัน: `{player['current_state']}`\n"
+                f"🗺️ ทวีปปัจจุบัน: {game_modifiers.get_continent(player)['label']}"
+            ),
             color=0x2b6cb0
         )
 

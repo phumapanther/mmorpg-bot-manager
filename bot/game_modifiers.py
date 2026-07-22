@@ -18,10 +18,62 @@ DEFAULT_MODS = {
     "theme_texts": {},         # ข้อความ reskin อีเวนต์ (ข้อ 3/5 ใช้)
 }
 
-# ทวีป — ข้อ 2-3 จะเติม demon/ocean
+# ทวีป — ตัวคูณเกมเพลย์ (mods) เติมในข้อ 3
 CONTINENTS = {
-    "main": {"label": "🏰 ทวีปหลัก", "mods": {}},
+    "main": {
+        "label": "🏰 ทวีปหลัก",
+        "arrival_text": "คุณกลับสู่แผ่นดินอันคุ้นเคยของทวีปหลัก ผู้คนพลุกพล่านและปลอดภัย",
+        "mods": {},
+    },
+    "demon": {
+        "label": "😈 ทวีปปีศาจ",
+        "arrival_text": "ท้องฟ้าสีเลือดทอดเงาทะมึน... คุณเหยียบแผ่นดินทวีปปีศาจแล้ว — ที่นี่อันตรายกว่า แต่รางวัลก็ล้ำค่ากว่า",
+        "mods": {},
+    },
+    "ocean": {
+        "label": "🌊 ทวีปมหาสมุทร",
+        "arrival_text": "กลิ่นไอเกลือและเสียงคลื่นต้อนรับคุณสู่ทวีปมหาสมุทร ดินแดนแห่งโจรสลัดและสมบัติใต้ทะเล",
+        "mods": {},
+    },
 }
+
+# ===== ระบบเดินทางข้ามทวีป (สุ่มเจอระหว่างผจญภัย ไม่มีคำสั่งเรียกเอง) =====
+
+TRAVEL_EVENT_CHANCE = 8  # % ต่อการสุ่มอีเวนต์ปกติหนึ่งครั้ง
+
+# พาหนะ: weight = โอกาสเจอเทียบกัน, dest_weights = เรทปลายทางของพาหนะนั้น
+# (ขึ้นยานแล้วค่อยรู้ปลายทาง — วัดดวงตามเรท, ไม่ไปซ้ำทวีปที่ยืนอยู่)
+VEHICLES = {
+    "airship": {"label": "🎈 เรือเหาะพ่อค้า",    "weight": 25, "dest_weights": {"main": 40, "demon": 30, "ocean": 30}},
+    "ship":    {"label": "⛵ เรือข้ามสมุทร",      "weight": 30, "dest_weights": {"main": 25, "demon": 5,  "ocean": 70}},
+    "portal":  {"label": "🕳️ ประตูวาร์ปปริศนา",  "weight": 15, "dest_weights": {"main": 20, "demon": 70, "ocean": 10}},
+    "caravan": {"label": "🐎 ขบวนนักเดินทาง",    "weight": 30, "dest_weights": {"main": 60, "demon": 20, "ocean": 20}},
+}
+
+
+def roll_travel_chance(rng=None):
+    """ทอยว่าการสุ่มปกติครั้งนี้เจอเหตุการณ์เดินทางไหม"""
+    return (rng or random).randint(1, 100) <= TRAVEL_EVENT_CHANCE
+
+
+def roll_travel_encounter(player_cash, rng=None):
+    """สุ่มพาหนะ + ค่าโดยสาร (0 ถึงเงินสดทั้งกระเป๋า — ไม่แตะธนาคาร)"""
+    rng = rng or random
+    keys = list(VEHICLES.keys())
+    vehicle_key = rng.choices(keys, weights=[VEHICLES[k]["weight"] for k in keys], k=1)[0]
+    fare = rng.randint(0, max(0, int(player_cash)))
+    return {"vehicle": vehicle_key, "label": VEHICLES[vehicle_key]["label"], "fare": fare}
+
+
+def roll_destination(vehicle_key, current_continent, rng=None):
+    """สุ่มทวีปปลายทางตามเรทของพาหนะ โดยตัดทวีปที่ยืนอยู่ออก"""
+    rng = rng or random
+    dest_weights = VEHICLES[vehicle_key]["dest_weights"]
+    choices = [(k, w) for k, w in dest_weights.items() if k != current_continent and w > 0]
+    if not choices:
+        choices = [(k, 1) for k in CONTINENTS if k != current_continent]
+    keys, weights = zip(*choices)
+    return rng.choices(keys, weights=weights, k=1)[0]
 
 # ธีมรายสัปดาห์ — ข้อ 4-5 จะเติม palette/zombie
 WEEKLY_THEMES = []

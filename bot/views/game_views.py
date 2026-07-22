@@ -1317,6 +1317,73 @@ class RespawnView(View):
 
 
 # 🧭 VIEW หลักในการเริ่มเดินทาง (!play)
+class TravelEventView(View):
+    """เหตุการณ์สุ่มเจอพาหนะข้ามทวีป — เลือกขึ้นยาน (จ่ายค่าโดยสาร วัดดวงปลายทางตามเรทพาหนะ) หรือไม่ไป"""
+
+    def __init__(self, user_id, encounter):
+        super().__init__(timeout=60)
+        self.user_id = user_id
+        self.encounter = encounter  # {"vehicle", "label", "fare"} จาก game_modifiers.roll_travel_encounter
+        self.message = None
+
+        board_btn = discord.ui.Button(label=f"🧳 ขึ้นยาน (จ่าย {encounter['fare']:,} ทอง)", style=discord.ButtonStyle.success)
+        board_btn.callback = self.board
+        self.add_item(board_btn)
+
+        decline_btn = discord.ui.Button(label="🙅 ไม่ไป เดินทางต่อ", style=discord.ButtonStyle.secondary)
+        decline_btn.callback = self.decline
+        self.add_item(decline_btn)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ นี่ไม่ใช่การเดินทางของคุณ! พิมพ์ `!play` เพื่อเปิดบอร์ดตัวเองนะจ๊ะ", ephemeral=True)
+            return False
+        return True
+
+    async def on_timeout(self):
+        player_model.update_player_field(self.user_id, "current_state", "idle")
+        if self.message:
+            try:
+                await self.message.edit(content=f"⏳ {self.encounter['label']} ออกเดินทางไปแล้วโดยไม่มีคุณ...", view=None)
+            except Exception:
+                pass
+
+    async def board(self, interaction: discord.Interaction):
+        player = player_model.get_player(self.user_id)
+        fare = self.encounter["fare"]
+
+        # กันเงินสดเปลี่ยนไประหว่างรอกด (ค่าโดยสารสุ่มจากเงินสด ณ ตอนเจอ)
+        if player.get("cash", 0) < fare:
+            player_model.update_player_field(self.user_id, "current_state", "idle")
+            self.stop()
+            return await interaction.response.edit_message(
+                content=f"💸 เงินสดของคุณไม่พอค่าโดยสาร (`{fare:,}` ทอง) — {self.encounter['label']} จากไปต่อหน้าต่อตา...", view=None)
+
+        current = player.get("continent") or "main"
+        dest = game_modifiers.roll_destination(self.encounter["vehicle"], current)
+        dest_info = game_modifiers.CONTINENTS[dest]
+
+        player_model.update_player_fields(self.user_id, {
+            "cash": player.get("cash", 0) - fare,
+            "continent": dest,
+            "current_state": "idle",
+            "last_event": "none",
+        })
+        self.stop()
+
+        embed = discord.Embed(
+            title=f"{self.encounter['label']} ➜ {dest_info['label']}",
+            description=f"{dest_info['arrival_text']}\n\n💰 จ่ายค่าโดยสาร `{fare:,}` ทอง",
+            color=0x9f7aea,
+        )
+        await interaction.response.edit_message(content=None, embed=embed, view=None)
+
+    async def decline(self, interaction: discord.Interaction):
+        player_model.update_player_field(self.user_id, "current_state", "idle")
+        self.stop()
+        await interaction.response.edit_message(content=f"🙅 คุณโบกมือปฏิเสธ {self.encounter['label']} แล้วออกเดินทางต่อ...", view=None)
+
+
 class AdventureView(View):
     def __init__(self, author_id: int):
         super().__init__(timeout=60)
@@ -1416,15 +1483,19 @@ class AdventureView(View):
 
         # [Priority 5: สุ่มปกติ]
         else:
-            if last_evt not in EVENT_WEIGHTS: 
-                last_evt = "none"
-            current_weights = list(EVENT_WEIGHTS[last_evt])
-            if current_cooldown > 0:
-                current_weights[1] = 0
-            # ตัวคูณน้ำหนักอีเวนต์จากทวีป/ธีมสัปดาห์ (mult ว่าง = น้ำหนักเดิมเป๊ะ)
-            mods = game_modifiers.get_active_modifiers(player)
-            current_weights = game_modifiers.apply_event_weights(current_weights, EVENT_LIST, mods)
-            chosen_event = random.choices(EVENT_LIST, weights=current_weights, k=1)[0]
+            # 🧭 โอกาสสุ่มเจอพาหนะข้ามทวีป (แทรกเฉพาะจังหวะสุ่มปกติ ไม่ชนดันเจี้ยน/บอส/วาร์ป)
+            if game_modifiers.roll_travel_chance():
+                chosen_event = "travel"
+            else:
+                if last_evt not in EVENT_WEIGHTS:
+                    last_evt = "none"
+                current_weights = list(EVENT_WEIGHTS[last_evt])
+                if current_cooldown > 0:
+                    current_weights[1] = 0
+                # ตัวคูณน้ำหนักอีเวนต์จากทวีป/ธีมสัปดาห์ (mult ว่าง = น้ำหนักเดิมเป๊ะ)
+                mods = game_modifiers.get_active_modifiers(player)
+                current_weights = game_modifiers.apply_event_weights(current_weights, EVENT_LIST, mods)
+                chosen_event = random.choices(EVENT_LIST, weights=current_weights, k=1)[0]
 
         summon_events = ["mini_summon", "main_summon", "unbeatable_summon"]
         # 4. อัปเดต last_event
@@ -1480,7 +1551,21 @@ class AdventureView(View):
 
         elif chosen_event == "trap":
             player_model.update_player_field(user_id, "current_state", "trap_defense")
-            
+
             next_view = TrapEventView(user_id, interaction.user.roles)
             sent_msg = await interaction.followup.send(content=f"⚠️ *แก๊ก!* คุณพลาดก้าวขาไปเกี่ยวสายสลิง **'กับดักโบราณ'** เข้าให้แล้ว! เตรียมรับมือแอคชั่นหลบหลีก: *(คูลดาวน์หมู่บ้านเหลือ: {current_cooldown} ตา)*", view=next_view, wait=True)
+            next_view.message = sent_msg
+
+        elif chosen_event == "travel":
+            player_model.update_player_field(user_id, "current_state", "travel_choice")
+
+            encounter = game_modifiers.roll_travel_encounter(player.get("cash", 0))
+            next_view = TravelEventView(user_id, encounter)
+            sent_msg = await interaction.followup.send(
+                content=(
+                    f"🧭 ระหว่างทาง... **{encounter['label']}** ปรากฏขึ้นตรงหน้าคุณ!\n"
+                    f"💰 ค่าโดยสาร: `{encounter['fare']:,}` ทอง (จ่ายจากเงินสดในกระเป๋า)\n"
+                    f"🎲 ปลายทางจะรู้ก็ต่อเมื่อไปถึงแล้วเท่านั้น — จะร่วมเดินทางไหม?"
+                ),
+                view=next_view, wait=True)
             next_view.message = sent_msg
