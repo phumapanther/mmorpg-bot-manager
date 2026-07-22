@@ -6,6 +6,7 @@ from bot.views.profile_embed import GAME_CLASSES
 import traceback # เอาไว้ดูว่า Error บรรทัดไหน
 import json
 from bot import config_loader
+from bot import game_modifiers
 
 def _holy_aura_chance(p_lvl):
     cfg = config_loader.get_skill_config("Cleric", "holy_aura")
@@ -48,7 +49,8 @@ class MonsterEventView(View):
         if monster_rank is None:
             # 1. ดึงข้อมูลผู้เล่นเพื่อเช็กเลเวลปัจจุบัน
             # (ถ้าในคลาสใช้ชื่อตัวแปรอื่น เช่น self.user_id ให้เปลี่ยนตามความเหมาะสมครับ)
-            player = player_model.get_player(user_id) 
+            player = player_model.get_player(user_id)
+            self.mods = game_modifiers.get_active_modifiers(player)
             player_level = player.get("level", 0)
             last_evt = player.get("last_event", "none")
             rank_keys = list(MONSTER_RANKS.keys())
@@ -91,6 +93,8 @@ class MonsterEventView(View):
             self.monster_rank = random.choices(rank_keys, weights=spawn_weights, k=1)[0]
             self.m_stats = MONSTER_RANKS[self.monster_rank]
             self.monster_hp = random.randint(self.m_stats["hp_range"][0], self.m_stats["hp_range"][1])
+            # ตัวคูณ HP จากทวีป/ธีมสัปดาห์ — ใช้เฉพาะตอนเกิดใหม่ (เทิร์นต่อๆ ไปส่ง hp เดิมเข้ามา ไม่คูณซ้ำ)
+            self.monster_hp = max(1, round(self.monster_hp * self.mods["monster_hp_mult"]))
             
             # [ระบบเช็กไฟล์/แคช]
             # print(f"DEBUG: [มอนสเตอร์] เลเวล {player_level} -> ใช้เรท {spawn_weights} -> สุ่มได้ {self.monster_rank}")
@@ -99,6 +103,7 @@ class MonsterEventView(View):
             self.monster_rank = monster_rank
             self.m_stats = MONSTER_RANKS[self.monster_rank]
             self.monster_hp = monster_hp
+            self.mods = game_modifiers.get_active_modifiers(player_model.get_player(user_id))
 
         self.player_class = "Unknown"
         for role in self.member_roles:
@@ -294,8 +299,8 @@ class MonsterEventView(View):
             # 🏆 กรณี: ผู้เล่นชนะ (บอสตาย)
             # =================================================================
             if self.monster_hp <= 0:
-                reward = int(random.randint(1, 25) * self.m_stats.get("gold_mult", 1.0))
-                gained_exp = self.m_stats.get("exp_reward", 10) + random.randint(5, 15)
+                reward = int(random.randint(1, 25) * self.m_stats.get("gold_mult", 1.0) * self.mods.get("monster_gold_mult", 1.0))
+                gained_exp = int((self.m_stats.get("exp_reward", 10) + random.randint(5, 15)) * self.mods.get("monster_exp_mult", 1.0))
                 
                 db_updates["cash"] = player.get("cash", 0) + reward
                 db_updates["sanity"] = player.get("sanity", 100) + 1
@@ -1415,7 +1420,10 @@ class AdventureView(View):
                 last_evt = "none"
             current_weights = list(EVENT_WEIGHTS[last_evt])
             if current_cooldown > 0:
-                current_weights[1] = 0 
+                current_weights[1] = 0
+            # ตัวคูณน้ำหนักอีเวนต์จากทวีป/ธีมสัปดาห์ (mult ว่าง = น้ำหนักเดิมเป๊ะ)
+            mods = game_modifiers.get_active_modifiers(player)
+            current_weights = game_modifiers.apply_event_weights(current_weights, EVENT_LIST, mods)
             chosen_event = random.choices(EVENT_LIST, weights=current_weights, k=1)[0]
 
         summon_events = ["mini_summon", "main_summon", "unbeatable_summon"]
