@@ -1398,6 +1398,192 @@ class RespawnView(View):
 
 
 # 🧭 VIEW หลักในการเริ่มเดินทาง (!play)
+def _roll_amount(value, rng=None):
+    """ค่าคงที่ หรือช่วง [lo, hi] → เลขจริง"""
+    if isinstance(value, (list, tuple)):
+        return (rng or random).randint(int(value[0]), int(value[1]))
+    return int(value)
+
+
+def execute_special_outcome(user_id, outcome, rng=None):
+    """จ่ายผลอีเวนต์พิเศษ (ดู outcome format ใน game_modifiers) — คืน (บรรทัดข้อความ, died)"""
+    rng = rng or random
+    player = player_model.get_player(user_id)
+    lines = []
+    updates = {}
+    died = False
+
+    if outcome.get("text"):
+        lines.append(outcome["text"])
+
+    if "gold" in outcome:
+        amount = _roll_amount(outcome["gold"], rng)
+        new_cash = max(0, player.get("cash", 0) + amount)
+        updates["cash"] = new_cash
+        word = "ได้รับ" if amount >= 0 else "เสีย"
+        lines.append(f"💰 {word}เงิน `{abs(amount):,}` ทอง (คงเหลือ `{new_cash:,}`)")
+
+    if "items" in outcome:
+        item_entries = outcome["items"] if isinstance(outcome["items"], list) else [outcome["items"]]
+        inv = player_model.load_inventory(player.get("inventory", "[]"))
+        cash_base = updates.get("cash", player.get("cash", 0))
+        catalog = config_loader.get_all_items()
+        capacity = player.get("capacity", 10)
+        for entry in item_entries:
+            item_id = str(entry["id"])
+            qty = _roll_amount(entry.get("qty", 1), rng)
+            item_cfg = catalog.get(item_id, {})
+            name = item_cfg.get("name", f"ไอเทม #{item_id}")
+            added = 0
+            while added < qty and (capacity == 0 or len(inv) < capacity):
+                inv.append(item_id)
+                added += 1
+            overflow = qty - added
+            if added:
+                lines.append(f"🎁 ได้รับ `{name}` ×{added}")
+            if overflow:
+                # กระเป๋าเต็ม → แปลงส่วนเกินเป็นทองตามราคาขาย (ตามที่ตกลง)
+                gold = overflow * int(item_cfg.get("sell", 0))
+                cash_base += gold
+                lines.append(f"⚠️ กระเป๋าเต็ม! `{name}` ×{overflow} ถูกแปลงเป็นเงิน `{gold:,}` ทองแทน")
+        updates["inventory"] = inv
+        updates["cash"] = cash_base
+
+    if "heal" in outcome:
+        max_hp = player.get("max_hp", 100)
+        if outcome["heal"] == "full":
+            new_hp = max_hp
+        else:
+            new_hp = min(max_hp, player.get("hp", 100) + _roll_amount(outcome["heal"], rng))
+        updates["hp"] = new_hp
+        lines.append(f"💖 ฟื้นฟูพลังชีวิต → `{new_hp}/{max_hp}`")
+
+    if "damage" in outcome:
+        dmg = _roll_amount(outcome["damage"], rng)
+        base_hp = updates.get("hp", player.get("hp", 100))
+        new_hp = max(0, base_hp - dmg)
+        updates["hp"] = new_hp
+        lines.append(f"💥 บาดเจ็บ `-{dmg}` HP (เหลือ `{new_hp}`)")
+        if new_hp <= 0:
+            died = True
+            updates["current_state"] = "dead"
+            lines.append("💀 **คุณหมดสติจากเหตุการณ์นี้!**")
+
+    statuses = game_modifiers.parse_statuses(player)
+    status_changed = False
+    if "apply_status" in outcome:
+        entries = outcome["apply_status"] if isinstance(outcome["apply_status"], list) else [outcome["apply_status"]]
+        for entry in entries:
+            statuses = game_modifiers.apply_status(statuses, entry["key"], entry.get("turns"))
+            label = game_modifiers.STATUS_EFFECTS.get(entry["key"], {}).get("label", entry["key"])
+            lines.append(f"🧬 ติดสถานะ {label}!")
+        status_changed = True
+    if outcome.get("cleanse_all") and statuses:
+        names = " ".join(game_modifiers.STATUS_EFFECTS[k]["label"] for k in statuses)
+        lines.append(f"✨ สถานะทั้งหมดถูกชำระล้าง: {names}")
+        statuses = {}
+        status_changed = True
+    if outcome.get("cleanse_random") and statuses:
+        removed = rng.choice(list(statuses))
+        statuses = {k: v for k, v in statuses.items() if k != removed}
+        lines.append(f"✨ {game_modifiers.STATUS_EFFECTS[removed]['label']} ถูกชำระล้างออกไป")
+        status_changed = True
+    if status_changed:
+        updates["status_effects"] = statuses
+
+    if "force_continent" in outcome:
+        dest = outcome["force_continent"]
+        if dest in game_modifiers.CONTINENTS:
+            updates["continent"] = dest
+            updates["last_event"] = "none"
+            lines.append(f"🗺️ คุณถูกส่งตัวไปยัง {game_modifiers.CONTINENTS[dest]['label']}!")
+
+    if not died:
+        updates.setdefault("current_state", "idle")
+    if updates:
+        player_model.update_player_fields(user_id, updates)
+
+    if "exp" in outcome and not died:
+        exp_gain = _roll_amount(outcome["exp"], rng)
+        player_model.add_exp(user_id, exp_gain)
+        lines.append(f"✨ ได้รับ EXP `{exp_gain}`")
+
+    return lines, died
+
+
+def resolve_instant_special(event, rng=None):
+    """เลือก outcome จาก pool ถ่วงน้ำหนักของอีเวนต์แบบ instant"""
+    rng = rng or random
+    outcomes = event.get("outcomes", [])
+    if not outcomes:
+        return {}
+    weights = [o.get("weight", 1) for o in outcomes]
+    return rng.choices(outcomes, weights=weights, k=1)[0]
+
+
+class SpecialEventView(View):
+    """View กลางของอีเวนต์พิเศษ — render ปุ่มจาก data (dice_check/choice; ส่วน instant จ่ายผลตรงไม่ผ่าน View)"""
+
+    def __init__(self, user_id, event):
+        super().__init__(timeout=60)
+        self.user_id = user_id
+        self.event = event
+        self.message = None
+
+        if event.get("template") == "dice_check":
+            btn = discord.ui.Button(label="🎲 ทอยเต๋าวัดดวง", style=discord.ButtonStyle.primary)
+            btn.callback = self.roll_dice
+            self.add_item(btn)
+        elif event.get("template") == "choice":
+            for idx, choice in enumerate(event.get("choices", [])):
+                btn = discord.ui.Button(
+                    label=choice["label"],
+                    style=discord.ButtonStyle.primary if idx == 0 else discord.ButtonStyle.secondary,
+                )
+                btn.callback = self._make_choice_callback(choice)
+                self.add_item(btn)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ นี่ไม่ใช่เหตุการณ์ของคุณ! พิมพ์ `!play` เพื่อเปิดบอร์ดตัวเองนะจ๊ะ", ephemeral=True)
+            return False
+        return True
+
+    async def on_timeout(self):
+        player_model.update_player_field(self.user_id, "current_state", "idle")
+        if self.message:
+            try:
+                await self.message.edit(content="⏳ คุณยืนลังเลนานเกินไป... เหตุการณ์ตรงหน้าผ่านพ้นไปแล้ว (พิมพ์ `!play` เพื่อเดินทางต่อ)", view=None)
+            except Exception:
+                pass
+
+    def _make_choice_callback(self, choice):
+        async def _callback(interaction: discord.Interaction):
+            await self._finish(interaction, choice.get("outcome", {}), prefix=None)
+        return _callback
+
+    async def roll_dice(self, interaction: discord.Interaction):
+        roll = random.randint(1, 20)
+        need = int(self.event.get("pass_roll", 10))
+        success = roll >= need
+        outcome = self.event.get("success" if success else "fail", {})
+        prefix = f"🎲 คุณทอยได้ `{roll}` (ต้องการ `{need}`) — {'✅ สำเร็จ!' if success else '❌ พลาด!'}"
+        await self._finish(interaction, outcome, prefix)
+
+    async def _finish(self, interaction: discord.Interaction, outcome, prefix):
+        self.stop()
+        lines, died = execute_special_outcome(self.user_id, outcome)
+        if prefix:
+            lines = [prefix] + lines
+        body = "\n".join(lines) if lines else "…ไม่มีอะไรเกิดขึ้น"
+        if died:
+            await interaction.response.edit_message(content=body, view=RespawnView(self.user_id))
+        else:
+            await interaction.response.edit_message(
+                content=f"{body}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
+                view=AdventureView(author_id=self.user_id))
+
+
 class TravelEventView(View):
     """เหตุการณ์สุ่มเจอพาหนะข้ามทวีป — เลือกขึ้นยาน (จ่ายค่าโดยสาร วัดดวงปลายทางตามเรทพาหนะ) หรือไม่ไป"""
 
@@ -1600,9 +1786,13 @@ class AdventureView(View):
 
         # [Priority 5: สุ่มปกติ]
         else:
+            special_event = None
             # 🧭 โอกาสสุ่มเจอพาหนะข้ามทวีป (แทรกเฉพาะจังหวะสุ่มปกติ ไม่ชนดันเจี้ยน/บอส/วาร์ป)
             if game_modifiers.roll_travel_chance():
                 chosen_event = "travel"
+            # 🎪 อีเวนต์พิเศษประจำทวีป/ธีมสัปดาห์ (ทอยตาม chance รายอีเวนต์)
+            elif (special_event := game_modifiers.roll_special_event(mods)):
+                chosen_event = "special"
             # 🍃 โอกาสเจออีเวนต์เงียบสงบ — ไม่มีอะไรเกิดขึ้น แค่บรรยากาศ
             elif game_modifiers.roll_calm_chance():
                 chosen_event = "calm"
@@ -1703,6 +1893,27 @@ class AdventureView(View):
                 content=f"{calm_text}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
                 view=next_view, wait=True)
             next_view.message = sent_msg
+
+        elif chosen_event == "special":
+            intro = special_event.get("intro", "✨ มีบางอย่างเกิดขึ้นตรงหน้าคุณ...")
+            if special_event.get("template") == "instant":
+                # ไม่มีสิทธิ์เลือก — จ่ายผลทันที (เช่น งานเลี้ยงบรรพชน)
+                outcome = resolve_instant_special(special_event)
+                lines, died = execute_special_outcome(user_id, outcome)
+                body = intro + "\n" + "\n".join(lines)
+                if died:
+                    await interaction.followup.send(content=body, view=RespawnView(user_id))
+                else:
+                    next_view = AdventureView(author_id=user_id)
+                    sent_msg = await interaction.followup.send(
+                        content=f"{body}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
+                        view=next_view, wait=True)
+                    next_view.message = sent_msg
+            else:
+                player_model.update_player_field(user_id, "current_state", "special_choice")
+                next_view = SpecialEventView(user_id, special_event)
+                sent_msg = await interaction.followup.send(content=intro, view=next_view, wait=True)
+                next_view.message = sent_msg
 
         elif chosen_event == "travel":
             player_model.update_player_field(user_id, "current_state", "travel_choice")

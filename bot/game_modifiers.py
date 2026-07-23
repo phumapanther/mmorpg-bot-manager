@@ -20,6 +20,7 @@ DEFAULT_MODS = {
     "theme_texts": {},         # ข้อความ reskin อีเวนต์ เช่น {"treasure": "...", "trap": "..."} (ไม่มี = ข้อความเดิม)
     "element_weights": {},     # เรทธาตุทับค่ามาตรฐานราย key เช่น {"dark": 35} (ว่าง = เรทสมดุล)
     "element_overrides": {},   # ปรับพารามิเตอร์ธาตุเฉพาะถิ่น เช่น {"wood": {"root_chance": 50}} — ทับรายพารามิเตอร์
+    "special_events": [],      # อีเวนต์สุ่มประจำทวีป/ธีม (ต่อกัน) — ดู SpecialEventView ใน game_views
 }
 
 # ทวีป — ตัวคูณเกมเพลย์ (mods) เติมในข้อ 3
@@ -218,6 +219,24 @@ def format_status_line(statuses):
     return " · ".join(parts)
 
 
+# ===== อีเวนต์พิเศษประจำทวีป/ธีม (Special Events) =====
+# โครง event dict: {key, chance(%), template: "dice_check"|"choice"|"instant", intro, ...}
+# - dice_check: pass_roll + success/fail (outcome)
+# - choice:     choices: [{label, outcome}]
+# - instant:    outcomes: [{weight, ...outcome}] สุ่มทันทีไม่มีปุ่ม
+# outcome รองรับ: text, gold, damage, heal("full"/เลข/ช่วง), exp, items[{id, qty}],
+#                 apply_status[{key, turns}], cleanse_all, cleanse_random, force_continent
+
+
+def roll_special_event(mods, rng=None):
+    """ทอยอีเวนต์พิเศษของถิ่น/ธีมทีละตัวตามลำดับ — คืน event แรกที่ทอยติด หรือ None"""
+    rng = rng or random
+    for event in mods.get("special_events") or []:
+        if rng.randint(1, 100) <= event.get("chance", 0):
+            return event
+    return None
+
+
 # ===== อีเวนต์เงียบสงบ (ไม่มีอะไรเกิดขึ้น — แค่บรรยากาศ) =====
 
 CALM_EVENT_CHANCE = 12  # % ต่อการสุ่มอีเวนต์ปกติหนึ่งครั้ง
@@ -367,6 +386,8 @@ def _merge(base, extra):
             for elem, params in value.items():
                 merged_ov[elem] = {**merged_ov.get(elem, {}), **params}
             out[key] = merged_ov
+        elif key == "special_events":
+            out[key] = list(out.get(key, [])) + list(value)
         elif key.endswith("_mult"):
             out[key] = out.get(key, 1.0) * value
     return out

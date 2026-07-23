@@ -294,7 +294,7 @@ class GameCommands(commands.Cog):
             await ctx.send(embed=embed, view=RespawnView(user_id), ephemeral=True)
             return 
 
-        lock_states = ["npc_choice", "treasure_choice", "dungeon_choice", "trap_defense", "village", "shopping", "travel_choice"]
+        lock_states = ["npc_choice", "treasure_choice", "dungeon_choice", "trap_defense", "village", "shopping", "travel_choice", "special_choice"]
         if player["current_state"] in lock_states:
             player_model.update_player_field(user_id, "current_state", "idle")
             player = player_model.get_player(user_id)
