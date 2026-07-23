@@ -191,6 +191,25 @@ def apply_item_effect(user_id, item_id):
             cured_note = " และล้างเชื้อซอมบี้ออกจากร่างกายจนหมดจด!"
         msg = f"🥫 คุณกิน **{item_name}** ฟื้นพลังชีวิต ➔ `{new_hp}/{max_hp}`{cured_note}"
 
+    # 🌀 กรณี: ประตูวาร์ปมิติ (effect: "random_continent" — วาร์ปทันทีไปทวีปสุ่ม ไม่ซ้ำที่ยืนอยู่)
+    elif item_info.get("effect") == "random_continent":
+        if player.get("current_state") in ("fighting", "dead") or player.get("dungeon_steps", 0) > 0:
+            return False, "❌ ตอนนี้เปิดประตูมิติไม่ได้! (ติดการต่อสู้/อยู่ในดันเจี้ยน — เคลียร์ให้จบก่อน)"
+        import random as _rng
+        current_continent = player.get("continent") or "main"
+        dest = _rng.choice([k for k in game_modifiers.CONTINENTS if k != current_continent])
+        dest_info = game_modifiers.CONTINENTS[dest]
+        player_model.update_player_fields(user_id, {"continent": dest, "last_event": "none", "current_state": "idle"})
+        msg = (
+            f"🌀 **ประตูมิติเปิดออกกลางอากาศ ดูดร่างคุณหายวับ!**\n"
+            f"{dest_info['arrival_text']}\n"
+            f"🗺️ ปลายทาง: {dest_info['label']} (พิมพ์ `!play` เพื่อออกสำรวจ)"
+        )
+
+    # 🗺️ กรณี: ตั๋ววาร์ปเจาะจง — ต้องใช้ผ่าน !use เพื่อเปิดเมนูเลือกทวีป (ตั๋วถูกหักตอนยืนยันใน view)
+    elif item_info.get("effect") == "choose_continent":
+        return False, "🗺️ ไอเทมนี้ใช้ผ่านคำสั่ง `!use` ในห้องแชทเท่านั้น — จะมีเมนูให้เลือกทวีปปลายทาง"
+
     # 🏺 กรณี: สวมอาร์ติแฟกต์ (effect: "equip_artifact" — ช่องเดียว สวมทับ = ของเก่าถูกทำลายถาวร)
     elif item_info.get("effect") == "equip_artifact":
         art_key = str(item_info.get("effect_value", ""))
@@ -622,6 +641,22 @@ class PlayerCommands(commands.Cog):
     # --- คำสั่ง !use <เลขไอเทม> ---
     @commands.command(name="use")
     async def use_item(self, ctx, item_id: str):
+        # 🎫 ตั๋วเรือเหมาลำ: เปิดเมนูเลือกทวีป (ตั๋วถูกหักตอนยืนยันใน view ไม่ใช่ตอนนี้)
+        item_cfg = config_loader.get_item_config(item_id)
+        if item_cfg and item_cfg.get("effect") == "choose_continent":
+            player = player_model.get_player(ctx.author.id)
+            inv = player_model.load_inventory(player.get("inventory", ""))
+            if str(item_id) not in inv:
+                return await ctx.send(f"❌ คุณไม่มีไอเทมหมายเลข `{item_id}` ในกระเป๋า! (พิมพ์ `!bag` เพื่อเช็ก)")
+            if player.get("current_state") in ("fighting", "dead") or player.get("dungeon_steps", 0) > 0:
+                return await ctx.send("❌ ตอนนี้ออกเรือไม่ได้! (ติดการต่อสู้/อยู่ในดันเจี้ยน — เคลียร์ให้จบก่อน)")
+            from bot.views.game_views import ContinentWarpView
+            view = ContinentWarpView(ctx.author.id, item_id)
+            view.message = await ctx.send(
+                "🎫 **กัปตันเรือเหมาลำกางแผนที่โลก** — เลือกทวีปปลายทางได้เลย (ตั๋วจะถูกใช้เมื่อยืนยัน):",
+                view=view)
+            return
+
         ok, msg = apply_item_effect(ctx.author.id, item_id)
         await ctx.send(msg)
 

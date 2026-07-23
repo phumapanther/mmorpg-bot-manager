@@ -690,6 +690,18 @@ class MonsterEventView(View):
                         except Exception as e:
                             print(f"❌ [ERROR] ดรอปไอเทม infusion พัง: {e}")
 
+                # 🌀 มอนในดันเจี้ยน: มีโอกาสดรอปไอเทมวาร์ปทวีป (แหล่งเดียวในเกม)
+                if player.get("current_state") == "dungeon_choice" or player.get("dungeon_steps", 0) > 0:
+                    try:
+                        warp_lines, _ = execute_special_outcome(self.user_id, {"items": [
+                            {"id": "52", "qty": 1, "chance": 6},   # 🌀 ประตูวาร์ปมิติ (สุ่มทวีป)
+                            {"id": "53", "qty": 1, "chance": 2},   # 🎫 ตั๋วเรือเหมาลำ (เลือกทวีปเอง — แรร์กว่า)
+                        ]})
+                        if warp_lines:
+                            dropped_item_msg += "\n🌀 **แสงมิติเล็ดลอดจากซากมอนสเตอร์!** " + " · ".join(warp_lines)
+                    except Exception as e:
+                        print(f"❌ [ERROR] ดรอปไอเทมวาร์ปพัง: {e}")
+
                 # -----------------------------------------------------------------
                 # 📩 จบการทำงาน (ส่งข้อความชนะแบบต้นฉบับ 100%)
                 # -----------------------------------------------------------------
@@ -1858,6 +1870,70 @@ class SpecialEventView(View):
             await interaction.response.edit_message(
                 content=f"{body}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
                 view=AdventureView(author_id=self.user_id))
+
+
+class ContinentWarpView(View):
+    """🎫 ตั๋วเรือเหมาลำ: เมนูเลือกทวีปปลายทางเอง — ตั๋วถูกหักตอนยืนยันเลือกเท่านั้น (ยกเลิก/หมดเวลา = ตั๋วอยู่ครบ)"""
+
+    def __init__(self, user_id, item_id):
+        super().__init__(timeout=60)
+        self.user_id = user_id
+        self.item_id = str(item_id)
+        self.message = None
+
+        player = player_model.get_player(user_id)
+        current = player.get("continent") or "main"
+        select = discord.ui.Select(placeholder="🗺️ เลือกทวีปปลายทาง...")
+        for key, continent in game_modifiers.CONTINENTS.items():
+            if key == current:
+                continue  # ไม่ให้เลือกทวีปที่ยืนอยู่
+            select.add_option(label=continent["label"], value=key)
+        select.callback = self.pick
+        self.add_item(select)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ นี่ไม่ใช่ตั๋วของคุณ!", ephemeral=True)
+            return False
+        return True
+
+    async def on_timeout(self):
+        if self.message:
+            try:
+                await self.message.edit(content="⏳ กัปตันรอไม่ไหวออกเรือไปก่อน... (ตั๋วยังอยู่ในกระเป๋า ใช้ใหม่ได้)", view=None)
+            except Exception:
+                pass
+
+    async def pick(self, interaction: discord.Interaction):
+        dest = interaction.data["values"][0]
+        player = player_model.get_player(self.user_id)
+
+        if player.get("current_state") in ("fighting", "dead") or player.get("dungeon_steps", 0) > 0:
+            self.stop()
+            return await interaction.response.edit_message(
+                content="❌ ตอนนี้ออกเรือไม่ได้! (ติดการต่อสู้/อยู่ในดันเจี้ยน)", view=None)
+
+        inv = player_model.load_inventory(player.get("inventory", "[]"))
+        if self.item_id not in inv:
+            self.stop()
+            return await interaction.response.edit_message(content="❌ ตั๋วไม่อยู่ในกระเป๋าแล้ว!", view=None)
+
+        inv.remove(self.item_id)
+        dest_info = game_modifiers.CONTINENTS[dest]
+        player_model.update_player_fields(self.user_id, {
+            "inventory": inv,
+            "continent": dest,
+            "last_event": "none",
+            "current_state": "idle",
+        })
+        self.stop()
+        await interaction.response.edit_message(
+            content=(
+                f"🎫 **เรือเหมาลำออกเดินทาง!** กัปตันฉีกตั๋วของคุณแล้วมุ่งหน้าเต็มใบ...\n"
+                f"{dest_info['arrival_text']}\n"
+                f"🗺️ ถึงแล้ว: {dest_info['label']} (พิมพ์ `!play` เพื่อออกสำรวจ)"
+            ),
+            view=None)
 
 
 class TravelEventView(View):

@@ -159,7 +159,9 @@
       "48": {"name": "⚔️ ดาบคู่แฝด", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_twin_blade"},
       "49": {"name": "🌟 คทาไม้เทวา", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_celestial_staff"},
       "50": {"name": "🎭 แว่นเดี่ยวหน้ากาก", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_masquerade_monocle"},
-      "51": {"name": "👝 ถุงเต๋าเทพี", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_goddess_dicebag"}
+      "51": {"name": "👝 ถุงเต๋าเทพี", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_goddess_dicebag"},
+      "52": {"name": "🌀 ประตูวาร์ปมิติ", "buy": 40000, "sell": 4000, "type": "use", "purchasable": false, "effect": "random_continent"},
+      "53": {"name": "🎫 ตั๋วเรือเหมาลำ", "buy": 25000, "sell": 2500, "type": "use", "purchasable": false, "effect": "choose_continent"}
     },
     "armor_stats": {
       "None":      {"name": "👕 เสื้อผ้าธรรมดา", "hp": 0,   "eva": 85, "dur": 100, "vis": 1},
