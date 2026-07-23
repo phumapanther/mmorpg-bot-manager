@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from bot.utils import not_arrested, allowed_channel
 from bot.views.profile_embed import GAME_CLASSES
 from bot import config_loader
+from bot import game_modifiers
 from bot.views.game_views import DeathRespawnView
 import json
 import traceback # อย่าลืม import อันนี้ที่ด้านบนสุดของไฟล์นะครับ
@@ -149,6 +150,41 @@ def apply_item_effect(user_id, item_id):
                 msg = "❌ ไอเทมนี้ยังไม่ถูกตั้งค่าการใช้งาน!"  # ponytail: คงพฤติกรรมเดิม (ไอเทมถูกใช้/หักออกแม้ยังไม่ตั้งค่า effect_value)
         else:
             return False, f"❌ ไอเทม **{item_name}** ยังไม่สามารถกดใช้งานได้ในตอนนี้ (ยังไม่ได้ตั้งค่า effect ให้ถูกต้อง)"
+
+    # ✨ กรณี: ไอเทมแก้สถานะ (effect: "cure_status" + effect_value: key เดียว หรือ "all")
+    elif item_info.get("effect") == "cure_status":
+        statuses = game_modifiers.parse_statuses(player)
+        target = str(item_info.get("effect_value", "all"))
+        to_remove = list(statuses) if target == "all" else ([target] if target in statuses else [])
+        if not to_remove:
+            return False, f"❌ ตอนนี้คุณไม่มีสถานะที่ **{item_name}** รักษาได้"
+        names = " ".join(game_modifiers.STATUS_EFFECTS.get(k, {}).get("label", k) for k in to_remove)
+        statuses = {k: v for k, v in statuses.items() if k not in to_remove}
+        player_model.update_player_field(user_id, "status_effects", statuses)
+        msg = f"✨ คุณใช้ **{item_name}** — {names} หายเป็นปกติ!"
+
+    # 🧬 กรณี: ไอเทมเสกสถานะใส่ตัวเอง (effect: "apply_status" + effect_value: key + effect_amount: เทิร์น)
+    elif item_info.get("effect") == "apply_status":
+        key = str(item_info.get("effect_value", ""))
+        cfg = game_modifiers.STATUS_EFFECTS.get(key)
+        if not cfg:
+            return False, "❌ ไอเทมนี้ตั้งค่าสถานะไว้ไม่ถูกต้อง (แจ้งแอดมินตรวจ config)"
+        statuses = game_modifiers.apply_status(game_modifiers.parse_statuses(player), key, item_info.get("effect_amount"))
+        player_model.update_player_field(user_id, "status_effects", statuses)
+        msg = f"🧬 คุณใช้ **{item_name}** — ได้รับสถานะ {cfg['label']} (`{statuses[key]}` เทิร์น)!"
+
+    # 🥫 กรณี: เสบียงฉุกเฉิน (effect: "emergency_ration" — ฮีล 50% MaxHP + ล้างเชื้อซอมบี้)
+    elif item_info.get("effect") == "emergency_ration":
+        max_hp = player.get("max_hp", 100)
+        new_hp = min(max_hp, player.get("hp", 0) + max_hp // 2)
+        player_model.update_player_field(user_id, "hp", new_hp)
+        cured_note = ""
+        statuses = game_modifiers.parse_statuses(player)
+        if "zombie_parasite" in statuses:  # สถานะเชื้อซอมบี้มาเฟส S4 — รองรับล่วงหน้า
+            statuses = {k: v for k, v in statuses.items() if k != "zombie_parasite"}
+            player_model.update_player_field(user_id, "status_effects", statuses)
+            cured_note = " และล้างเชื้อซอมบี้ออกจากร่างกาย!"
+        msg = f"🥫 คุณกิน **{item_name}** ฟื้นพลังชีวิต ➔ `{new_hp}/{max_hp}`{cured_note}"
 
     else:
         return False, f"❌ ไอเทม **{item_name}** ยังไม่สามารถกดใช้งานได้ในตอนนี้"

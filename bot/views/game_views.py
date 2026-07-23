@@ -373,6 +373,22 @@ class MonsterEventView(View):
                         self.monster_hp += healed
                         combat_log += f"💧 **ดูดเลือด!** มอนสเตอร์สูบพลังชีวิตจากบาดแผลของคุณ ฟื้น HP `+{healed}` (บอสเหลือ HP: {self.monster_hp})\n"
 
+                    # 🧪 มอนเสกสถานะใส่ผู้เล่นตอนตีโดน — จากธาตุ (element_overrides ได้) หรือระดับทวีป/ธีม
+                    for on_hit in (self.element_data.get("on_hit_status"), self.mods.get("on_hit_status")):
+                        if not on_hit:
+                            continue
+                        if random.randint(1, 100) > on_hit.get("chance", 100):
+                            continue
+                        status_key = on_hit.get("key")
+                        status_cfg = game_modifiers.STATUS_EFFECTS.get(status_key)
+                        if not status_cfg or status_key in self.statuses:
+                            continue  # ติดซ้ำระหว่างไฟต์ไม่สแปมข้อความ
+                        fresh = game_modifiers.parse_statuses(player_model.get_player(self.user_id))
+                        fresh = game_modifiers.apply_status(fresh, status_key, on_hit.get("turns"))
+                        player_model.update_player_field(self.user_id, "status_effects", fresh)
+                        self.statuses = game_modifiers.apply_status(self.statuses, status_key, on_hit.get("turns"))
+                        combat_log += f"🧪 **พิษสงจากศัตรู!** คุณติดสถานะ {status_cfg['label']}!\n"
+
             # 💀 Life Drain (ทวีป/ธีม เช่น เนเธอร์): วิญญาณดูดกลืนชีวิตทุกเทิร์นที่สู้
             drain_range = self.mods.get("combat_hp_drain")
             if drain_range:

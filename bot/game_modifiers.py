@@ -27,6 +27,8 @@ DEFAULT_MODS = {
     "ambient_status": None,    # สถานะแวดล้อมของธีม (เช่น "frostbite") — ยังไม่ติดจะติดอัตโนมัติทุกก้าว
     "dice_rules": False,       # เปิดกติกาเต๋ารายวัน (ธีมเต๋าแห่งเทพี) — ดู DICE_RULES
     "masquerade": None,        # NPC อาจเป็นมอนปลอมตัว {chance, inspect_fee} (ธีมหน้ากาก) — None = ปิด
+    "on_hit_status": None,     # มอนเสกสถานะใส่ผู้เล่นตอนตีโดน {key, chance, turns} ระดับทวีป/ธีม — None = ปิด
+                               # (ระดับ "รายธาตุ" ใส่ผ่าน ELEMENTS/element_overrides ด้วย key เดียวกัน)
     "travel_chance_mult": 1.0, # คูณโอกาสเจอพาหนะข้ามทวีป (เช่น แม่น้ำน้ำแข็ง = ×2)
 }
 
@@ -879,7 +881,7 @@ def _merge(base, extra):
             out[key] = merged_ov
         elif key == "special_events":
             out[key] = list(out.get(key, [])) + list(value)
-        elif key in ("combat_hp_drain", "infusion", "ambient_status", "dice_rules", "masquerade"):
+        elif key in ("combat_hp_drain", "infusion", "ambient_status", "dice_rules", "masquerade", "on_hit_status"):
             out[key] = value  # แทนที่ (ธีมทับทวีป)
         elif key.endswith("_mult"):
             out[key] = out.get(key, 1.0) * value
