@@ -250,6 +250,22 @@ def test_masquerade_theme_numbers(monkeypatch):
     assert gm.get_active_modifiers({"continent": "main"})["masquerade"] is None
 
 
+def test_black_market_theme_numbers(monkeypatch):
+    market = next(t for t in gm.WEEKLY_THEMES if t["key"] == "black_market")
+    monkeypatch.setattr(gm, "WEEKLY_THEMES", [market])
+    mods = gm.get_active_modifiers({"continent": "frozen"})
+    assert mods["monster_gold_mult"] == pytest.approx(1.6 * 1.4)  # ทบกับทวีป
+    # อีเวนต์พ่อค้าต่อท้ายอีเวนต์ของทวีป (frozen มีพายุหิมะอยู่แล้ว)
+    keys = [e["key"] for e in mods["special_events"]]
+    assert keys == ["blizzard_ambush", "black_market_dealer"]
+    dealer = mods["special_events"][1]
+    assert dealer["template"] == "choice" and dealer["chance"] == 14
+    assert dealer["choices"][0]["outcome"]["apply_status"]["key"] == "illegal_buff"
+    # สถานะบัฟตัวแรก: ดาเมจผู้เล่น ×1.3 และทบกับ "ชา" ได้
+    assert gm.status_combat_mult({"illegal_buff": 5}, "player_dmg_mult") == 1.3
+    assert gm.status_combat_mult({"illegal_buff": 5, "numb": 2}, "player_dmg_mult") == pytest.approx(0.65)
+
+
 def test_demon_plus_zombie_stacking(monkeypatch):
     zombie = next(t for t in gm.WEEKLY_THEMES if t["key"] == "zombie")
     monkeypatch.setattr(gm, "WEEKLY_THEMES", [zombie])  # ธีมเดียว = สัปดาห์ไหนก็ได้ zombie
