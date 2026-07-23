@@ -163,6 +163,21 @@ def test_s4_zombie_theme_bindings():
     assert infusion["drop_items"] == {"id": "31", "qty": 1}   # พาหะดรอปเสบียงแก้
 
 
+def test_t1_immunity_mechanics():
+    # อบอุ่น: ล้างหนาวตอนติด + กันหนาวติดใหม่
+    s = gm.apply_status({"frostbite": 999}, "warm")
+    assert "frostbite" not in s and s["warm"] == 10
+    s = gm.apply_status(s, "frostbite")
+    assert "frostbite" not in s                      # โดน block
+    # เกราะกันคลื่น: ล้าง EMP + กัน EMP
+    s = gm.apply_status({"emp": 1}, "emp_shield")
+    assert "emp" not in s and "emp_shield" in s
+    assert gm.apply_status(s, "emp") == s
+    # น้ำมนต์: ธง block_hp_drain / ขนนก: ธง fall_guard
+    assert gm.has_status_flag({"holy_guard": 3}, "block_hp_drain") is True
+    assert gm.has_status_flag({"featherfall": 30}, "fall_guard") is True
+
+
 def test_format_status_line_units():
     line = gm.format_status_line({"poison": 12, "emp": 1})
     assert "☠️ พิษป่า (เหลือ 12 ก้าว)" in line

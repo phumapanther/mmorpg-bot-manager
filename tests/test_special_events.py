@@ -126,6 +126,22 @@ def test_outcome_status_and_force_continent(game_db):
     assert p["continent"] == "main"
 
 
+def test_fall_guard_saves_from_island_crash(game_db):
+    uid = game_db
+    player_model.update_player_fields(uid, {"hp": 100, "max_hp": 100})
+    gv.execute_special_outcome(uid, {"apply_status": {"key": "featherfall"}})
+    # ร่วงจากเกาะ (ดาเมจหนัก + บังคับย้ายทวีป) — ขนนกกดดาเมจเหลือ <=5 และสลายไป
+    lines, died = gv.execute_special_outcome(uid, {"damage": [40, 80], "force_continent": "main"})
+    p = player_model.get_player(uid)
+    assert not died and p["hp"] >= 95
+    assert p["continent"] == "main"
+    assert "featherfall" not in gm.parse_statuses(p)
+    # ดาเมจธรรมดา (ไม่ใช่การร่วง) ไม่กิน fall_guard
+    gv.execute_special_outcome(uid, {"apply_status": {"key": "featherfall"}})
+    gv.execute_special_outcome(uid, {"damage": 30})
+    assert "featherfall" in gm.parse_statuses(player_model.get_player(uid))
+
+
 def test_outcome_exp_uses_add_exp(game_db):
     uid = game_db
     start_exp = player_model.get_player(uid)["exp"]

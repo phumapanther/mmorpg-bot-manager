@@ -445,9 +445,12 @@ class MonsterEventView(View):
             # 💀 Life Drain (ทวีป/ธีม เช่น เนเธอร์): วิญญาณดูดกลืนชีวิตทุกเทิร์นที่สู้
             drain_range = self.mods.get("combat_hp_drain")
             if drain_range:
-                drain = random.randint(int(drain_range[0]), int(drain_range[1]))
-                player["hp"] = max(0, player.get("hp", 100) - drain)
-                combat_log += f"🩸 **แดนมรณะดูดกลืนชีวิต** `-{drain}` HP (เหลือ {player['hp']})\n"
+                if game_modifiers.has_status_flag(self.statuses, "block_hp_drain"):
+                    combat_log += "✝️ **น้ำมนต์เปล่งแสงคุ้มครอง** — พลังดูดกลืนชีวิตถูกขับไล่ออกไป!\n"
+                else:
+                    drain = random.randint(int(drain_range[0]), int(drain_range[1]))
+                    player["hp"] = max(0, player.get("hp", 100) - drain)
+                    combat_log += f"🩸 **แดนมรณะดูดกลืนชีวิต** `-{drain}` HP (เหลือ {player['hp']})\n"
 
             # 🔥 สถานะเผาไหม้: เสียเลือดตาม % MaxHP ทุกเทิร์นที่สู้
             burn_pct = game_modifiers.status_pct_damage(self.statuses)
@@ -1595,6 +1598,8 @@ def execute_special_outcome(user_id, outcome, rng=None):
     lines = []
     updates = {}
     died = False
+    statuses = game_modifiers.parse_statuses(player)
+    status_changed = False
 
     if outcome.get("text"):
         lines.append(outcome["text"])
@@ -1644,6 +1649,13 @@ def execute_special_outcome(user_id, outcome, rng=None):
 
     if "damage" in outcome:
         dmg = _roll_amount(outcome["damage"], rng)
+        # 🪶 ขนนก: การร่วง/ถูกดีดข้ามทวีปเหลือดาเมจขั้นต่ำ รอดเสมอ (ใช้แล้วหมดไป)
+        if "force_continent" in outcome and game_modifiers.has_status_flag(statuses, "fall_guard"):
+            dmg = min(dmg, 5)
+            statuses = {k: v for k, v in statuses.items()
+                        if not game_modifiers.STATUS_EFFECTS[k].get("fall_guard")}
+            status_changed = True
+            lines.append("🪶 **ม้วนคาถาขนนกทำงาน!** ร่างคุณลอยละลิ่วลงพื้นอย่างแผ่วเบา (ขนนกสลายไป)")
         base_hp = updates.get("hp", player.get("hp", 100))
         new_hp = max(0, base_hp - dmg)
         updates["hp"] = new_hp
@@ -1653,8 +1665,6 @@ def execute_special_outcome(user_id, outcome, rng=None):
             updates["current_state"] = "dead"
             lines.append("💀 **คุณหมดสติจากเหตุการณ์นี้!**")
 
-    statuses = game_modifiers.parse_statuses(player)
-    status_changed = False
     if "apply_status" in outcome:
         entries = outcome["apply_status"] if isinstance(outcome["apply_status"], list) else [outcome["apply_status"]]
         for entry in entries:
@@ -1915,10 +1925,11 @@ class AdventureView(View):
         ambient_note = None
         if ambient and ambient in game_modifiers.STATUS_EFFECTS and ambient not in statuses:
             statuses = game_modifiers.apply_status(statuses, ambient)
-            ambient_note = (
-                f"🌨️ {game_modifiers.STATUS_EFFECTS[ambient]['label']} แทรกซึมเข้าร่างคุณ! "
-                f"(หาความอบอุ่นจากหมู่บ้าน/NPC/ดันเจี้ยนเพื่อคลายหนาว)"
-            )
+            if ambient in statuses:  # ติดจริงเท่านั้น (สถานะภูมิคุ้มกันเช่น "อบอุ่น" อาจกันไว้)
+                ambient_note = (
+                    f"🌨️ {game_modifiers.STATUS_EFFECTS[ambient]['label']} แทรกซึมเข้าร่างคุณ! "
+                    f"(หาความอบอุ่นจากหมู่บ้าน/NPC/ดันเจี้ยนเพื่อคลายหนาว)"
+                )
 
         if statuses:
             step_dmg, dmg_details = game_modifiers.roll_step_damage(statuses)

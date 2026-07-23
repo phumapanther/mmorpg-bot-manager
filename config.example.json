@@ -139,7 +139,11 @@
       "28": {"name": "💌ใบชุบชีวิต", "buy": 5000, "sell": 500, "type": "drop", "purchasable": false, "effect": "revive"},
       "29": {"name": "🔮 มานาคริสตัลบริสุทธิ์", "buy": 50000, "sell": 5000, "type": "junk", "purchasable": false},
       "30": {"name": "🌿 ยาถอนพิษพงไพร", "buy": 1500, "sell": 300, "type": "use", "purchasable": true, "effect": "cure_status", "effect_value": "poison"},
-      "31": {"name": "🥫 กล่องเสบียงฉุกเฉิน", "buy": 4000, "sell": 800, "type": "use", "purchasable": false, "effect": "emergency_ration"}
+      "31": {"name": "🥫 กล่องเสบียงฉุกเฉิน", "buy": 4000, "sell": 800, "type": "use", "purchasable": false, "effect": "emergency_ration"},
+      "32": {"name": "🏮 ตะเกียงมานาบริสุทธิ์", "buy": 3000, "sell": 600, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "warm"},
+      "33": {"name": "💾 ชิปกันคลื่น EMP", "buy": 2500, "sell": 500, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "emp_shield"},
+      "34": {"name": "📜 ม้วนคาถาขนนก", "buy": 5000, "sell": 1000, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "featherfall"},
+      "35": {"name": "💧 น้ำมนต์ชำระบาป", "buy": 3500, "sell": 700, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "holy_guard"}
     },
     "armor_stats": {
       "None":      {"name": "👕 เสื้อผ้าธรรมดา", "hp": 0,   "eva": 85, "dur": 100, "vis": 1},

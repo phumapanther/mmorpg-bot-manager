@@ -463,6 +463,25 @@ STATUS_EFFECTS = {
         "label": "🧟 คลั่งซอมบี้", "tick": "step", "default_turns": 5,
         "seal_high_roll": 2,                 # เต๋าทุกลูกถูกกดเหลือ 1 (ใช้กลไกผนึกเดิม)
     },
+    # ── สถานะภูมิคุ้มกันจากไอเทม (เฟส T) ──
+    "warm": {
+        "label": "🔆 อบอุ่น", "tick": "step", "default_turns": 10,
+        "blocks": ["frostbite"],             # กันไม่ให้ติดหนาวกัดกระดูก
+        "cleanse_on_apply": ["frostbite"],   # ติดปุ๊บล้างความหนาวเดิมทิ้ง
+    },
+    "emp_shield": {
+        "label": "💾 เกราะกันคลื่น", "tick": "fight", "default_turns": 1,
+        "blocks": ["emp"],
+        "cleanse_on_apply": ["emp"],
+    },
+    "featherfall": {
+        "label": "🪶 ขนนก", "tick": "step", "default_turns": 30,
+        "fall_guard": True,                  # เกาะถล่ม/การร่วง = รอดเสมอ (ดาเมจเหลือขั้นต่ำ) ใช้แล้วหมด
+    },
+    "holy_guard": {
+        "label": "✝️ คุ้มครองศักดิ์สิทธิ์", "tick": "fight", "default_turns": 3,
+        "block_hp_drain": True,              # กัน Life Drain (เนเธอร์) สนิท
+    },
 }
 
 
@@ -483,8 +502,18 @@ def apply_status(statuses, key, turns=None):
     คืน dict ใหม่เสมอ"""
     if key not in STATUS_EFFECTS:
         return dict(statuses)
+
+    # 🛡️ สถานะภูมิคุ้มกัน: ถ้ามีสถานะที่ block key นี้อยู่ ติดไม่เข้า
+    for existing in statuses:
+        if key in STATUS_EFFECTS.get(existing, {}).get("blocks", []):
+            return dict(statuses)
+
     cfg = STATUS_EFFECTS[key]
     out = dict(statuses)
+
+    # ติดสถานะนี้แล้วล้างสถานะที่ระบุทิ้ง (เช่น อบอุ่นล้างหนาว)
+    for doomed in cfg.get("cleanse_on_apply", []):
+        out.pop(doomed, None)
 
     if cfg.get("stacking"):
         stacks = int(out.get(key, 0)) + int(turns if turns is not None else 1)
