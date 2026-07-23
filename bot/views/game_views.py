@@ -1365,7 +1365,8 @@ class TravelEventView(View):
             player_model.update_player_field(self.user_id, "current_state", "idle")
             self.stop()
             return await interaction.response.edit_message(
-                content=f"💸 เงินสดของคุณไม่พอค่าโดยสาร (`{fare:,}` ทอง) — {self.encounter['label']} จากไปต่อหน้าต่อตา...", view=None)
+                content=f"💸 เงินสดของคุณไม่พอค่าโดยสาร (`{fare:,}` ทอง) — {self.encounter['label']} จากไปต่อหน้าต่อตา...\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
+                view=AdventureView(author_id=self.user_id))
 
         current = player.get("continent") or "main"
         dest = game_modifiers.roll_destination(self.encounter["vehicle"], current)
@@ -1381,15 +1382,17 @@ class TravelEventView(View):
 
         embed = discord.Embed(
             title=f"{self.encounter['label']} ➜ {dest_info['label']}",
-            description=f"{dest_info['arrival_text']}\n\n💰 จ่ายค่าโดยสาร `{fare:,}` ทอง",
+            description=f"{dest_info['arrival_text']}\n\n💰 จ่ายค่าโดยสาร `{fare:,}` ทอง\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
             color=0x9f7aea,
         )
-        await interaction.response.edit_message(content=None, embed=embed, view=None)
+        await interaction.response.edit_message(content=None, embed=embed, view=AdventureView(author_id=self.user_id))
 
     async def decline(self, interaction: discord.Interaction):
         player_model.update_player_field(self.user_id, "current_state", "idle")
         self.stop()
-        await interaction.response.edit_message(content=f"🙅 คุณโบกมือปฏิเสธ {self.encounter['label']} แล้วออกเดินทางต่อ...", view=None)
+        await interaction.response.edit_message(
+            content=f"🙅 คุณโบกมือปฏิเสธ {self.encounter['label']} แล้วออกเดินทางต่อ...\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
+            view=AdventureView(author_id=self.user_id))
 
 
 class AdventureView(View):
