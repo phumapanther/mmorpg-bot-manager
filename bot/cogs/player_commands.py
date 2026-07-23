@@ -180,10 +180,11 @@ def apply_item_effect(user_id, item_id):
         player_model.update_player_field(user_id, "hp", new_hp)
         cured_note = ""
         statuses = game_modifiers.parse_statuses(player)
-        if "zombie_parasite" in statuses:  # สถานะเชื้อซอมบี้มาเฟส S4 — รองรับล่วงหน้า
-            statuses = {k: v for k, v in statuses.items() if k != "zombie_parasite"}
+        zombie_keys = [k for k in ("zombie_parasite", "zombie_frenzy") if k in statuses]
+        if zombie_keys:
+            statuses = {k: v for k, v in statuses.items() if k not in zombie_keys}
             player_model.update_player_field(user_id, "status_effects", statuses)
-            cured_note = " และล้างเชื้อซอมบี้ออกจากร่างกาย!"
+            cured_note = " และล้างเชื้อซอมบี้ออกจากร่างกายจนหมดจด!"
         msg = f"🥫 คุณกิน **{item_name}** ฟื้นพลังชีวิต ➔ `{new_hp}/{max_hp}`{cured_note}"
 
     else:

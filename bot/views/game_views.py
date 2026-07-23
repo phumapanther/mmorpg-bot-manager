@@ -259,7 +259,7 @@ class MonsterEventView(View):
             # 🎲 เต๋าถูกผนึก: ทอยได้สูงถึงเพดานผนึก ถูกกดเหลือ 1
             seal_at = game_modifiers.status_seal_threshold(self.statuses)
             if seal_at and player_roll >= seal_at:
-                skill_log += f"🎲 **ตราผนึกทำงาน!** เต๋าของคุณออก `{player_roll}` แต่ถูกผนึกบีบเหลือ `1`!\n"
+                skill_log += f"🎲 **เต๋าถูกกดทับ!** สถานะบนร่างคุณบีบแต้ม `{player_roll}` ให้เหลือ `1`!\n"
                 player_roll = 1
             # 🌱 รากรัด/สถานะอื่น: โบนัสเต๋ามอนสเตอร์
             status_dice_bonus = game_modifiers.status_monster_dice_bonus(self.statuses)
@@ -423,13 +423,24 @@ class MonsterEventView(View):
                             continue
                         status_key = on_hit.get("key")
                         status_cfg = game_modifiers.STATUS_EFFECTS.get(status_key)
-                        if not status_cfg or status_key in self.statuses:
-                            continue  # ติดซ้ำระหว่างไฟต์ไม่สแปมข้อความ
+                        if not status_cfg:
+                            continue
+                        if status_key in self.statuses and not status_cfg.get("stacking"):
+                            continue  # สถานะปกติติดซ้ำระหว่างไฟต์ไม่สแปมข้อความ (แบบสะสมสแตกได้เรื่อยๆ)
                         fresh = game_modifiers.parse_statuses(player_model.get_player(self.user_id))
                         fresh = game_modifiers.apply_status(fresh, status_key, on_hit.get("turns"))
                         player_model.update_player_field(self.user_id, "status_effects", fresh)
                         self.statuses = game_modifiers.apply_status(self.statuses, status_key, on_hit.get("turns"))
-                        combat_log += f"🧪 **พิษสงจากศัตรู!** คุณติดสถานะ {status_cfg['label']}!\n"
+                        if status_cfg.get("stacking"):
+                            transform_to = status_cfg.get("transform_to")
+                            if status_key in self.statuses:
+                                combat_log += (f"🦠 **เชื้อกลายพันธุ์แทรกซึม!** {status_cfg['label']} "
+                                               f"({self.statuses[status_key]}/{status_cfg.get('transform_at')} สแตก)\n")
+                            elif transform_to and transform_to in self.statuses:
+                                frenzy_label = game_modifiers.STATUS_EFFECTS[transform_to]["label"]
+                                combat_log += f"🧟 **เชื้อครบสามสแตก — คุณเสียสติ!** ติดสถานะ {frenzy_label}!\n"
+                        else:
+                            combat_log += f"🧪 **พิษสงจากศัตรู!** คุณติดสถานะ {status_cfg['label']}!\n"
 
             # 💀 Life Drain (ทวีป/ธีม เช่น เนเธอร์): วิญญาณดูดกลืนชีวิตทุกเทิร์นที่สู้
             drain_range = self.mods.get("combat_hp_drain")

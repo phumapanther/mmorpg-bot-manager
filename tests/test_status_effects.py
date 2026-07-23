@@ -135,6 +135,34 @@ def test_s3_on_hit_bindings():
     assert goddess["mods"]["on_hit_status"] == {"key": "even_curse", "chance": 18}
 
 
+def test_s4_zombie_parasite_stacking():
+    # ติดครั้งแรก = 1 สแตก, ติดซ้ำ = สะสม (ไม่ใช่ refresh)
+    s = gm.apply_status({}, "zombie_parasite")
+    assert s == {"zombie_parasite": 1}
+    s = gm.apply_status(s, "zombie_parasite")
+    assert s == {"zombie_parasite": 2}
+    # ครบ 3 → แปลงร่างเป็นคลั่งซอมบี้ (เชื้อหาย คลั่งโผล่พร้อมเทิร์นเต็ม)
+    s = gm.apply_status(s, "zombie_parasite")
+    assert "zombie_parasite" not in s
+    assert s["zombie_frenzy"] == gm.STATUS_EFFECTS["zombie_frenzy"]["default_turns"]
+    # คลั่ง = เต๋าทุกลูกโดนผนึกเหลือ 1
+    assert gm.status_seal_threshold(s) == 2
+    # เชื้อไม่ tick ลดเอง แต่คลั่ง tick ตามก้าวปกติ
+    ticked, expired = gm.tick_statuses({"zombie_parasite": 2}, "step")
+    assert ticked == {"zombie_parasite": 2} and expired == []
+    ticked, expired = gm.tick_statuses({"zombie_frenzy": 1}, "step")
+    assert ticked == {} and expired == ["zombie_frenzy"]
+    # บรรทัดสถานะแสดงเป็นสแตก
+    assert "(2/3 สแตก)" in gm.format_status_line({"zombie_parasite": 2})
+
+
+def test_s4_zombie_theme_bindings():
+    zombie = next(t for t in gm.WEEKLY_THEMES if t["key"] == "zombie")
+    assert zombie["mods"]["on_hit_status"] == {"key": "zombie_parasite", "chance": 35}
+    infusion = zombie["mods"]["infusion"]
+    assert infusion["drop_items"] == {"id": "31", "qty": 1}   # พาหะดรอปเสบียงแก้
+
+
 def test_format_status_line_units():
     line = gm.format_status_line({"poison": 12, "emp": 1})
     assert "☠️ พิษป่า (เหลือ 12 ก้าว)" in line

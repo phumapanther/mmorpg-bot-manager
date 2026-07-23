@@ -453,6 +453,16 @@ STATUS_EFFECTS = {
         "skill_fail_chance": 50,             # กดสกิลมีโอกาสลัดวงจร (กลายเป็นโจมตีธรรมดา)
         "shock_damage": (5, 12),             # + ช็อกตัวเอง
     },
+    "zombie_parasite": {
+        "label": "🧟 เชื้อซอมบี้", "tick": "step", "default_turns": 1,
+        "stacking": True, "no_tick": True,   # ค่าที่เก็บ = จำนวนสแตก (ไม่ลดเอง — แก้ด้วยเสบียง/ล้างสถานะ)
+        "transform_at": 3,                   # ครบ 3 สแตก → แปลงร่างเป็นคลั่งซอมบี้
+        "transform_to": "zombie_frenzy",
+    },
+    "zombie_frenzy": {
+        "label": "🧟 คลั่งซอมบี้", "tick": "step", "default_turns": 5,
+        "seal_high_roll": 2,                 # เต๋าทุกลูกถูกกดเหลือ 1 (ใช้กลไกผนึกเดิม)
+    },
 }
 
 
@@ -468,21 +478,39 @@ def parse_statuses(player):
 
 
 def apply_status(statuses, key, turns=None):
-    """ติดสถานะ — ติดซ้ำ = รีเซ็ตตัวนับเป็นค่าใหม่ถ้ามากกว่าของเดิม; คืน dict ใหม่"""
+    """ติดสถานะ — ปกติ: ติดซ้ำ = รีเซ็ตตัวนับเป็นค่าใหม่ถ้ามากกว่าของเดิม
+    สถานะแบบสะสม (stacking): ติดซ้ำ = สแตกเพิ่ม และครบ transform_at → แปลงร่างเป็นสถานะใหม่
+    คืน dict ใหม่เสมอ"""
     if key not in STATUS_EFFECTS:
         return dict(statuses)
-    if turns is None:
-        turns = STATUS_EFFECTS[key].get("default_turns", 1)
+    cfg = STATUS_EFFECTS[key]
     out = dict(statuses)
+
+    if cfg.get("stacking"):
+        stacks = int(out.get(key, 0)) + int(turns if turns is not None else 1)
+        transform_at = cfg.get("transform_at")
+        if transform_at and stacks >= transform_at:
+            out.pop(key, None)
+            transform_to = cfg.get("transform_to")
+            if transform_to in STATUS_EFFECTS:
+                return apply_status(out, transform_to)
+            return out
+        out[key] = stacks
+        return out
+
+    if turns is None:
+        turns = cfg.get("default_turns", 1)
     out[key] = max(int(out.get(key, 0)), int(turns))
     return out
 
 
 def tick_statuses(statuses, tick_type):
-    """ลดตัวนับสถานะประเภท tick นั้นลง 1 — คืน (dict ใหม่, รายชื่อที่หมดฤทธิ์)"""
+    """ลดตัวนับสถานะประเภท tick นั้นลง 1 — คืน (dict ใหม่, รายชื่อที่หมดฤทธิ์)
+    สถานะ no_tick (เช่น เชื้อสะสมสแตก) ไม่ลดเอง"""
     out, expired = {}, []
     for key, turns in statuses.items():
-        if STATUS_EFFECTS[key].get("tick") == tick_type:
+        cfg = STATUS_EFFECTS[key]
+        if cfg.get("tick") == tick_type and not cfg.get("no_tick"):
             turns -= 1
         if turns > 0:
             out[key] = turns
@@ -576,6 +604,9 @@ def format_status_line(statuses):
     parts = []
     for key, turns in statuses.items():
         cfg = STATUS_EFFECTS[key]
+        if cfg.get("stacking"):
+            parts.append(f"{cfg['label']} ({turns}/{cfg.get('transform_at', '?')} สแตก)")
+            continue
         unit = "ไฟต์" if cfg.get("tick") == "fight" else "ก้าว"
         parts.append(f"{cfg['label']} (เหลือ {turns} {unit})")
     return " · ".join(parts)
@@ -935,6 +966,15 @@ WEEKLY_THEMES = [
             "monster_pool": {
                 "Common": ["🧟 ซอมบี้กลายพันธุ์ (Mutant Zombie)", "💥 ซอมบี้ระเบิด (Exploding Zombie)"],
                 "Mini-Boss": ["🧟‍♂️ ซอมบี้ไททัน (Zombie Titan)"],
+            },
+            # กัดแล้วติดเชื้อสะสม (ครบ 3 สแตก = คลั่ง) — แก้ด้วยกล่องเสบียงฉุกเฉินที่พาหะดรอป
+            "on_hit_status": {"key": "zombie_parasite", "chance": 35},
+            "infusion": {
+                "chance": 25,
+                "badge": "🦠",
+                "label": "พาหะเชื้อกลายพันธุ์",
+                "dmg_mult": 1.0,
+                "drop_items": {"id": "31", "qty": 1},
             },
         },
     },
