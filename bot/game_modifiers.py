@@ -892,9 +892,26 @@ def get_continent(player):
     return CONTINENTS.get(key, CONTINENTS["main"])
 
 
+# ล็อกธีมโดยแอดมิน (!settheme) — None = สุ่มตามสัปดาห์ปกติ
+# (world_admin cog เป็นคนตั้ง/อ่าน และ persist ลงตาราง weekly_state ให้ข้าม restart)
+THEME_OVERRIDE = None
+
+
+def get_theme_by_key(key):
+    for theme in WEEKLY_THEMES:
+        if theme["key"] == key:
+            return theme
+    return None
+
+
 def get_weekly_theme(when=None):
     """ธีมประจำสัปดาห์ ISO — deterministic: สัปดาห์เดียวกันได้ธีมเดิมเสมอ ทุกเครื่อง ทุก restart
-    เปลี่ยนเองทุกวันจันทร์โดยไม่ต้องมี scheduler/state; ไม่มีธีมในระบบ = None"""
+    เปลี่ยนเองทุกวันจันทร์โดยไม่ต้องมี scheduler/state; ไม่มีธีมในระบบ = None
+    ถ้าแอดมินล็อกธีมไว้ (THEME_OVERRIDE) ใช้ธีมนั้นแทนการสุ่ม"""
+    if THEME_OVERRIDE:
+        forced = get_theme_by_key(THEME_OVERRIDE)
+        if forced:
+            return forced
     if not WEEKLY_THEMES:
         return None
     day = when or datetime.date.today()
