@@ -131,6 +131,9 @@ def create_bot(bot_type: str):
                 await bot.load_extension("bot.cogs.payment")
                 print("💳[Payment] โหลดระบบคำสั่ง เติมเงิน สำเร็จ!")
 
+                await bot.load_extension("bot.cogs.weekly_event")
+                print("🎪[Weekly Event] โหลดระบบประกาศอีเวนต์ประจำสัปดาห์สำเร็จ!")
+
             elif bot_type == "chat":
                 await bot.load_extension("bot.cogs.voice_chat_tracker")
                 print("🎙️ [Chat/Voice Bot] โหลดระบบลูปห้องเสียงและฟาร์มแชทสำเร็จ!")

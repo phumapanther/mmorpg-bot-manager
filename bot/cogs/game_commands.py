@@ -300,12 +300,15 @@ class GameCommands(commands.Cog):
             player = player_model.get_player(user_id)
 
         from bot import game_modifiers
+        weekly_theme = game_modifiers.get_weekly_theme()
+        theme_line = f"\n🎪 อีเวนต์สัปดาห์นี้: {weekly_theme['label']}" if weekly_theme else ""
         embed = discord.Embed(
             title="⚔️ ยินดีต้อนรับสู่โลก D&D MMORPG",
             description=(
                 f"กระเป๋าเงินกลางของคุณ: `{player['cash']}` ทอง\n"
                 f"สถานะปัจจุบัน: `{player['current_state']}`\n"
                 f"🗺️ ทวีปปัจจุบัน: {game_modifiers.get_continent(player)['label']}"
+                f"{theme_line}"
             ),
             color=0x2b6cb0
         )

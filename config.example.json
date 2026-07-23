@@ -16,7 +16,8 @@
     "casino_slots": { "label": "สล็อต", "channel_id": null },
     "casino_bj":    { "label": "Blackjack", "channel_id": null },
     "levelup_announce": { "label": "ห้องประกาศเลเวลอัพ (Voice EXP)", "channel_id": null, "mention_player": false },
-    "payment": { "label": "เติมเงิน (Topup)", "channel_id": null }
+    "payment": { "label": "เติมเงิน (Topup)", "channel_id": null },
+    "weekly_event": { "label": "ประกาศอีเวนต์ประจำสัปดาห์", "channel_id": null }
   },
 
   "permission_groups": {
