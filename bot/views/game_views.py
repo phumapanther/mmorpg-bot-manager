@@ -158,7 +158,20 @@ class MonsterEventView(View):
                 return await interaction.response.send_message("❌ ไม่พบข้อมูลตัวละครของคุณในระบบ!", ephemeral=True)
 
             p_lvl = player.get("level", 1)
-            
+
+            # ✨ ธาตุแสง: โอกาสมอนสเตอร์เผ่นหนีต้นเทิร์น (แบบ Metal Slime) — จบไฟต์ ไม่ได้รางวัล
+            monster_flee = self.element_data.get("monster_flee_chance", 0)
+            if monster_flee and random.randint(1, 100) <= monster_flee:
+                player_model.update_player_field(self.user_id, "current_state", "idle")
+                self.stop()
+                flee_msg = (
+                    f"💨✨ **{self.m_stats.get('name', 'มอนสเตอร์')} ระเบิดแสงวาบตาแล้วเผ่นหนีหายไป!** "
+                    f"คุณคว้าอะไรไม่ทันเลย...\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?"
+                )
+                if not interaction.response.is_done():
+                    return await interaction.response.edit_message(content=flee_msg, view=AdventureView(author_id=self.user_id))
+                return await interaction.followup.edit_message(message_id=interaction.message.id, content=flee_msg, view=AdventureView(author_id=self.user_id))
+
             # 1. 🛡️ ดึงข้อมูลอุปกรณ์
             w_id = player.get("weapon", "Wooden_Weapon")
             a_id = player.get("armor", "None")
@@ -186,6 +199,19 @@ class MonsterEventView(View):
                 rank_danger = {"Common": 2, "Mini-Boss": 5, "Main-Boss": 10, "Secret": 8, "Unbeatable": 25}
                 enrage_bonus = enraged_turns * rank_danger.get(self.monster_rank, 2)
                 skill_log += f"😡 **{self.m_stats.get('name', 'บอส')} กำลังคลั่ง!** บอสสะสมความโกรธเพิ่มพลังโจมตีเด็ดขาด `+{enrage_bonus}` หน่วยในเทิร์นนี้!\n"
+
+            # ─── 🧪 เอฟเฟกต์ธาตุช่วงทอยเต๋า ───
+            # 🌿 ไม้: รากพันธนาการ — โอกาสล็อกเต๋าผู้เล่นเหลือ 0 ในเทิร์นนี้
+            root_chance = self.element_data.get("root_chance", 0)
+            if root_chance and random.randint(1, 100) <= root_chance:
+                player_roll = 0
+                skill_log += "🌿 **รากพันธนาการ!** เถาวัลย์พุ่งขึ้นรัดแขนคุณแน่น เต๋าโจมตีถูกล็อกเหลือ `0` ในเทิร์นนี้!\n"
+            # 💨 ลม / 🌿 ไม้: โบนัสเต๋ามอนสเตอร์
+            elem_dice = self.element_data.get("dice_bonus")
+            if elem_dice:
+                dice_bonus = random.randint(elem_dice[0], elem_dice[1])
+                monster_roll += dice_bonus
+                skill_log += f"{self.element_data['label']}: กระแสธาตุหนุนเต๋ามอนสเตอร์ `+{dice_bonus}` หน่วย!\n"
 
             damage_multiplier = 1
 
@@ -260,8 +286,11 @@ class MonsterEventView(View):
             
             # 👾 บอสทอยได้เต๋าชนะ
             else:
-                # ตัวคูณดาเมจมอนสเตอร์จากทวีป/ธีมสัปดาห์ (ปกติ = 1.0)
-                damage_to_player = round((random.randint(10, 25) + enrage_bonus) * self.mods.get("monster_dmg_mult", 1.0))
+                # ตัวคูณดาเมจมอนสเตอร์จากทวีป/ธีมสัปดาห์ × ธาตุ (🔥 ไฟ = ×1.5)
+                elem_dmg_mult = self.element_data.get("dmg_mult", 1.0)
+                damage_to_player = round((random.randint(10, 25) + enrage_bonus) * self.mods.get("monster_dmg_mult", 1.0) * elem_dmg_mult)
+                if elem_dmg_mult > 1.0:
+                    combat_log += "🔥 **เพลิงธาตุลุกโหม!** การโจมตีของมอนสเตอร์รุนแรงขึ้นกว่าปกติ!\n"
                 
                 if player.get("armor_dur", 0) > 0:
                     damage_to_armor = max(1, int(damage_to_player / 10))
@@ -295,6 +324,12 @@ class MonsterEventView(View):
                 if damage_to_player > 0:
                     player["hp"] = max(0, player.get("hp", 100) - damage_to_player)
                     combat_log += f"⚔️ คุณทอยได้ **🎲 {player_roll}/บอส({monster_roll})** 💥 บอสโจมตีสวน! เสีย HP `- {damage_to_player}` (เกราะเสื่อมสภาพ `- {damage_to_armor}`)\n"
+                    # 💧 ธาตุน้ำ: ดูดเลือดจากดาเมจสุทธิที่ตีโดนจริง
+                    lifesteal = self.element_data.get("lifesteal", 0)
+                    if lifesteal:
+                        healed = max(1, round(damage_to_player * lifesteal))
+                        self.monster_hp += healed
+                        combat_log += f"💧 **ดูดเลือด!** มอนสเตอร์สูบพลังชีวิตจากบาดแผลของคุณ ฟื้น HP `+{healed}` (บอสเหลือ HP: {self.monster_hp})\n"
 
             # 6. 💾 คำนวณค่าทนทานใหม่
             new_w_dur = max(0, player.get("weapon_dur", 0) - durability_lost_w)
@@ -320,8 +355,12 @@ class MonsterEventView(View):
             # 🏆 กรณี: ผู้เล่นชนะ (บอสตาย)
             # =================================================================
             if self.monster_hp <= 0:
-                reward = int(random.randint(1, 25) * self.m_stats.get("gold_mult", 1.0) * self.mods.get("monster_gold_mult", 1.0))
+                # รางวัล = ฐานสุ่ม × แรงค์ × ทวีป/ธีม × ธาตุ (✨ แสง = ทอง ×3.5)
+                elem_gold_mult = self.element_data.get("gold_mult", 1.0)
+                reward = int(random.randint(1, 25) * self.m_stats.get("gold_mult", 1.0) * self.mods.get("monster_gold_mult", 1.0) * elem_gold_mult)
                 gained_exp = int((self.m_stats.get("exp_reward", 10) + random.randint(5, 15)) * self.mods.get("monster_exp_mult", 1.0))
+                if elem_gold_mult > 1.0:
+                    combat_log += "✨ **พรแห่งแสง!** ร่างมอนสเตอร์สลายเป็นกองทองคำมูลค่าพิเศษ!\n"
                 
                 db_updates["cash"] = player.get("cash", 0) + reward
                 db_updates["sanity"] = player.get("sanity", 100) + 1
