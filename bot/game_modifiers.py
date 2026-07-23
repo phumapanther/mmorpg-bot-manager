@@ -6,6 +6,7 @@
 จึงเก็บเป็น dict — เพิ่มได้โดยไม่แก้โค้ดเดิมตามหลัก Open-Closed เหมือนกัน)
 """
 import datetime
+import json
 import random
 
 # ชุดตัวคูณมาตรฐาน (identity) — ทุกค่าเท่านี้ = เกมทำงานเหมือนไม่มีระบบนี้อยู่
@@ -107,6 +108,114 @@ def get_element_data(mods, element_key):
         return {}
     override = (mods.get("element_overrides") or {}).get(element_key, {})
     return {**base, **override}
+
+
+# ===== ระบบสถานะติดตัว (Status Effects) =====
+# ติดได้หลายสถานะพร้อมกัน แต่ละตัวมีตัวนับเทิร์นของตัวเอง หมด = ลบออกอัตโนมัติ
+# tick "step" = ลดตอนกดเริ่มออกเดินทาง | tick "fight" = ลดตอนเริ่มไฟต์ใหม่ (สแนปช็อตไฟต์นั้นยังมีผลเต็ม)
+# เพิ่มสถานะใหม่ = เพิ่ม entry ที่นี่
+
+STATUS_EFFECTS = {
+    "poison": {
+        "label": "☠️ พิษป่า", "tick": "step", "default_turns": 20,
+        "step_damage": (3, 6),               # เลือดไหลต่อก้าวเดิน
+        "cleanse_on": ["village", "npc"],    # หายเมื่อเจอหมู่บ้าน/NPC
+    },
+    "numb": {
+        "label": "🥶 ชา", "tick": "step", "default_turns": 6,
+        "player_dmg_mult": 0.5,              # ดาเมจผู้เล่นในไฟต์ลดครึ่ง
+    },
+    "emp": {
+        "label": "⚡ โดน EMP", "tick": "fight", "default_turns": 1,
+        "disable_skills": True,              # ปิดปุ่มสกิลในไฟต์
+    },
+    "exp_blessing": {
+        "label": "🌟 พรบรรพชน", "tick": "step", "default_turns": 10,
+        "exp_mult": 1.5,                     # EXP จากมอนสเตอร์คูณระหว่างติด
+    },
+}
+
+
+def parse_statuses(player):
+    """อ่าน status_effects ของผู้เล่น (JSON str หรือ dict) → {key: เทิร์นเหลือ} เฉพาะที่รู้จักและเทิร์น > 0"""
+    raw = (player or {}).get("status_effects") or "{}"
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except ValueError:
+            raw = {}
+    return {k: int(v) for k, v in (raw or {}).items() if k in STATUS_EFFECTS and int(v) > 0}
+
+
+def apply_status(statuses, key, turns=None):
+    """ติดสถานะ — ติดซ้ำ = รีเซ็ตตัวนับเป็นค่าใหม่ถ้ามากกว่าของเดิม; คืน dict ใหม่"""
+    if key not in STATUS_EFFECTS:
+        return dict(statuses)
+    if turns is None:
+        turns = STATUS_EFFECTS[key].get("default_turns", 1)
+    out = dict(statuses)
+    out[key] = max(int(out.get(key, 0)), int(turns))
+    return out
+
+
+def tick_statuses(statuses, tick_type):
+    """ลดตัวนับสถานะประเภท tick นั้นลง 1 — คืน (dict ใหม่, รายชื่อที่หมดฤทธิ์)"""
+    out, expired = {}, []
+    for key, turns in statuses.items():
+        if STATUS_EFFECTS[key].get("tick") == tick_type:
+            turns -= 1
+        if turns > 0:
+            out[key] = turns
+        else:
+            expired.append(key)
+    return out, expired
+
+
+def cleanse_statuses(statuses, trigger):
+    """ล้างสถานะที่มี trigger ใน cleanse_on — คืน (dict ใหม่, รายชื่อที่ถูกล้าง)"""
+    out, cleansed = {}, []
+    for key, turns in statuses.items():
+        if trigger in STATUS_EFFECTS[key].get("cleanse_on", []):
+            cleansed.append(key)
+        else:
+            out[key] = turns
+    return out, cleansed
+
+
+def status_combat_mult(statuses, param):
+    """ผลคูณรวมของพารามิเตอร์จากทุกสถานะที่ติดอยู่ (ไม่มี = 1.0)"""
+    mult = 1.0
+    for key in statuses:
+        mult *= STATUS_EFFECTS[key].get(param, 1.0)
+    return mult
+
+
+def has_status_flag(statuses, param):
+    """มีสถานะไหนที่เปิดธง param นี้ไหม (เช่น disable_skills)"""
+    return any(STATUS_EFFECTS[key].get(param) for key in statuses)
+
+
+def roll_step_damage(statuses, rng=None):
+    """รวมเลือดไหลต่อก้าวเดินจากทุกสถานะ — คืน (ดาเมจรวม, [(label, dmg), ...])"""
+    rng = rng or random
+    total, details = 0, []
+    for key in statuses:
+        dmg_range = STATUS_EFFECTS[key].get("step_damage")
+        if dmg_range:
+            dmg = rng.randint(dmg_range[0], dmg_range[1])
+            total += dmg
+            details.append((STATUS_EFFECTS[key]["label"], dmg))
+    return total, details
+
+
+def format_status_line(statuses):
+    """บรรทัดสรุปสถานะสำหรับหน้า !play เช่น "☠️ พิษป่า (เหลือ 12 ก้าว) · ⚡ โดน EMP (เหลือ 1 ไฟต์)" """
+    parts = []
+    for key, turns in statuses.items():
+        cfg = STATUS_EFFECTS[key]
+        unit = "ไฟต์" if cfg.get("tick") == "fight" else "ก้าว"
+        parts.append(f"{cfg['label']} (เหลือ {turns} {unit})")
+    return " · ".join(parts)
 
 
 # ===== อีเวนต์เงียบสงบ (ไม่มีอะไรเกิดขึ้น — แค่บรรยากาศ) =====

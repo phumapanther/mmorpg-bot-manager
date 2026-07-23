@@ -31,7 +31,8 @@ NEW_PLAYER_DEFAULTS = {
     "capacity": 50,
     "sanity": 100,
     "last_reward_claim": 0,
-    "continent": "main"
+    "continent": "main",
+    "status_effects": "{}"
 }
     
 def init_db():

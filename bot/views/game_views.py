@@ -39,7 +39,7 @@ MONSTER_RANKS = {
 # ==========================================================
 
 class MonsterEventView(View):
-    def __init__(self, user_id, member_roles, monster_rank=None, monster_hp=None, active_buffs=None, turn_count=1, monster_name=None, element=None):
+    def __init__(self, user_id, member_roles, monster_rank=None, monster_hp=None, active_buffs=None, turn_count=1, monster_name=None, element=None, fight_statuses=None):
         super().__init__(timeout=60)
         self.user_id = user_id
         self.member_roles = member_roles
@@ -51,6 +51,8 @@ class MonsterEventView(View):
             # (ถ้าในคลาสใช้ชื่อตัวแปรอื่น เช่น self.user_id ให้เปลี่ยนตามความเหมาะสมครับ)
             player = player_model.get_player(user_id)
             self.mods = game_modifiers.get_active_modifiers(player)
+            # 🧬 สแนปช็อตสถานะของไฟต์นี้ (มีผลเต็มทั้งไฟต์ ไม่เปลี่ยนกลางคัน)
+            self.statuses = game_modifiers.parse_statuses(player)
             player_level = player.get("level", 0)
             last_evt = player.get("last_event", "none")
             rank_keys = list(MONSTER_RANKS.keys())
@@ -107,6 +109,11 @@ class MonsterEventView(View):
             self.monster_hp = max(1, round(self.monster_hp * self.element_data.get("hp_mult", 1.0)))
             # ป้ายธาตุนำหน้าชื่อ — ผู้เล่นเห็นธาตุในทุกข้อความที่มีชื่อมอนสเตอร์
             self.m_stats["name"] = f"{self.element_data['label']} · {self.m_stats['name']}"
+
+            # tick สถานะแบบ "ต่อไฟต์" ตอนเริ่มไฟต์ใหม่ (สแนปช็อตข้างบนของไฟต์นี้ยังมีผลเต็ม)
+            remaining, _ = game_modifiers.tick_statuses(self.statuses, "fight")
+            if remaining != self.statuses:
+                player_model.update_player_field(user_id, "status_effects", remaining)
             
             # [ระบบเช็กไฟล์/แคช]
             # print(f"DEBUG: [มอนสเตอร์] เลเวล {player_level} -> ใช้เรท {spawn_weights} -> สุ่มได้ {self.monster_rank}")
@@ -115,13 +122,16 @@ class MonsterEventView(View):
             self.monster_rank = monster_rank
             self.m_stats = dict(MONSTER_RANKS[self.monster_rank])
             self.monster_hp = monster_hp
-            self.mods = game_modifiers.get_active_modifiers(player_model.get_player(user_id))
+            player = player_model.get_player(user_id)
+            self.mods = game_modifiers.get_active_modifiers(player)
             if monster_name:
                 # รับชื่อธีมต่อจากเทิร์นก่อน ไม่สุ่มใหม่กลางไฟต์
                 self.m_stats["name"] = monster_name
             # รับธาตุต่อจากเทิร์นก่อน (ไม่สุ่มใหม่) — ไม่มี = ไม่มีเอฟเฟกต์ธาตุ
             self.element = element
             self.element_data = game_modifiers.get_element_data(self.mods, self.element)
+            # รับสแนปช็อตสถานะต่อจากเทิร์นก่อน (สถานะแบบ fight ถูก tick ไปแล้วตอนไฟต์เริ่ม)
+            self.statuses = fight_statuses if fight_statuses is not None else game_modifiers.parse_statuses(player)
 
         self.player_class = "Unknown"
         for role in self.member_roles:
@@ -132,6 +142,10 @@ class MonsterEventView(View):
         self.add_skill_buttons()
 
     def add_skill_buttons(self):
+        # ⚡ สถานะ EMP: ปิดปุ่มสกิลทั้งไฟต์ (เหลือปุ่มโจมตี/หนีปกติ)
+        if game_modifiers.has_status_flag(self.statuses, "disable_skills"):
+            return
+
         skills_map = {
             "Warrior": [("🛡️ Shield Bash", "skill_shield_bash"), ("⚔️ Heavy Strike", "skill_heavy_strike")],
             "Mage":    [("🔥 Fireball", "skill_fireball"),       ("❄️ Frostbolt", "skill_frostbolt")],
@@ -280,8 +294,12 @@ class MonsterEventView(View):
 
             # ⚔ คุณทอยได้เต๋าชนะบอส
             if player_roll >= monster_roll:
-                damage_to_monster = int((player_roll + curr_atk) * 5 * damage_multiplier)
+                # 🥶 สถานะลดแรงโจมตีผู้เล่น (เช่น ชา = ×0.5)
+                status_dmg_mult = game_modifiers.status_combat_mult(self.statuses, "player_dmg_mult")
+                damage_to_monster = int((player_roll + curr_atk) * 5 * damage_multiplier * status_dmg_mult)
                 self.monster_hp = max(0, self.monster_hp - damage_to_monster)
+                if status_dmg_mult < 1.0:
+                    combat_log += "🥶 ร่างกายชาเย็นจนขยับช้า แรงโจมตีอ่อนลงกว่าปกติ!\n"
                 combat_log += f"⚔️ คุณทอยได้ **🎲 {player_roll}/บอส({monster_roll})** (+{curr_atk} ดาบ) สร้างความเสียหายใส่บอส `- {damage_to_monster}` หน่วย\n"
             
             # 👾 บอสทอยได้เต๋าชนะ
@@ -358,9 +376,12 @@ class MonsterEventView(View):
                 # รางวัล = ฐานสุ่ม × แรงค์ × ทวีป/ธีม × ธาตุ (✨ แสง = ทอง ×3.5)
                 elem_gold_mult = self.element_data.get("gold_mult", 1.0)
                 reward = int(random.randint(1, 25) * self.m_stats.get("gold_mult", 1.0) * self.mods.get("monster_gold_mult", 1.0) * elem_gold_mult)
-                gained_exp = int((self.m_stats.get("exp_reward", 10) + random.randint(5, 15)) * self.mods.get("monster_exp_mult", 1.0) * self.element_data.get("exp_mult", 1.0))
+                status_exp_mult = game_modifiers.status_combat_mult(self.statuses, "exp_mult")
+                gained_exp = int((self.m_stats.get("exp_reward", 10) + random.randint(5, 15)) * self.mods.get("monster_exp_mult", 1.0) * self.element_data.get("exp_mult", 1.0) * status_exp_mult)
                 if elem_gold_mult > 1.0:
                     combat_log += "✨ **พรแห่งแสง!** ร่างมอนสเตอร์สลายเป็นกองทองคำมูลค่าพิเศษ!\n"
+                if status_exp_mult > 1.0:
+                    combat_log += "🌟 **พรบรรพชนหนุนนำ!** ประสบการณ์ที่ได้รับเพิ่มขึ้นเป็นพิเศษ!\n"
                 
                 db_updates["cash"] = player.get("cash", 0) + reward
                 db_updates["sanity"] = player.get("sanity", 100) + 1
@@ -545,9 +566,9 @@ class MonsterEventView(View):
                     next_msg = f"⚔️ **[เทิร์นที่ {self.turn_count}] การต่อสู้ทวีความรุนแรง!**\n👾 ศัตรู: **{self.m_stats.get('name','?')}** (🩸 HP คงเหลือ: **{self.monster_hp}**)\n❤️ เลือดร่างกายของคุณ: **{db_updates['hp']}/{player.get('max_hp',100)}**\n\n{skill_log}{combat_log}----------------------------------------\nบอสจะแกร่งขึ้นเรื่อยๆ เลือกแอคชั่นหรือสกิลที่จะใช้ถัดไป:"
                     
                     if not interaction.response.is_done():
-                        await interaction.response.edit_message(content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element))
+                        await interaction.response.edit_message(content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses))
                     else:
-                        await interaction.followup.edit_message(message_id=interaction.message.id, content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element))
+                        await interaction.followup.edit_message(message_id=interaction.message.id, content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses))
                 except Exception as e:
                     print(f"❌ [ERROR] การไปเทิร์นถัดไปพัง: {e}")
 
@@ -613,7 +634,7 @@ class MonsterEventView(View):
                 if new_armor_dur == 0 and player.get("armor_dur", 0) > 0:
                     msg += "\n🚨 **ชุดเกราะของคุณพังยับเยิน!**"
                     
-                await interaction.response.edit_message(content=msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element))
+                await interaction.response.edit_message(content=msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses))
 
     async def skill_callback(self, interaction: discord.Interaction):
         if not await self.interaction_check(interaction): return
@@ -1509,6 +1530,37 @@ class AdventureView(View):
         # ชุดตัวคูณ/ธีมจากทวีป+อีเวนต์สัปดาห์ — ใช้ทั้งตอนสุ่มน้ำหนักและตอนแต่งข้อความอีเวนต์
         mods = game_modifiers.get_active_modifiers(player)
 
+        # 🧬 สถานะติดตัว: ผลต่อก้าวเดิน (เลือดไหล) + tick แบบ step
+        statuses = game_modifiers.parse_statuses(player)
+        if statuses:
+            step_dmg, dmg_details = game_modifiers.roll_step_damage(statuses)
+            statuses, expired = game_modifiers.tick_statuses(statuses, "step")
+            player_model.update_player_field(user_id, "status_effects", statuses)
+
+            status_notes = []
+            if step_dmg:
+                new_hp = max(0, player.get("hp", 100) - step_dmg)
+                player_model.update_player_field(user_id, "hp", new_hp)
+                player["hp"] = new_hp
+                detail_txt = " ".join(f"{label} `-{dmg}`" for label, dmg in dmg_details)
+                status_notes.append(f"🩸 สถานะกัดกินร่างกาย: {detail_txt} (HP เหลือ `{new_hp}`)")
+
+                if new_hp <= 0:
+                    # ตายกลางทางจากพิษ/สถานะ — เข้า flow ตายปกติ
+                    player_model.update_player_fields(user_id, {"current_state": "dead", "hp": 0})
+                    embed = discord.Embed(
+                        title="💀 คุณล้มลงกลางทาง... พิษกัดกินร่างกายจนหมดสติ",
+                        description="\n".join(status_notes) + "\n\n📌 กดปุ่มด้านล่างเพื่อฟื้นตัวและยอมรับบทลงโทษกลับหมู่บ้าน",
+                        color=0xe53e3e,
+                    )
+                    await interaction.followup.send(embed=embed, view=RespawnView(user_id))
+                    return
+
+            for key in expired:
+                status_notes.append(f"⏳ {game_modifiers.STATUS_EFFECTS[key]['label']} หมดฤทธิ์แล้ว")
+            if status_notes:
+                await interaction.followup.send("\n".join(status_notes))
+
         # 2. จัดลำดับความสำคัญ (Priority Order)
         
         # [Priority 1: วาปกลับเมือง] - สำคัญที่สุด ต้องทำก่อนเสมอ
@@ -1582,17 +1634,28 @@ class AdventureView(View):
         if chosen_event == "monster":
             player_model.update_player_field(user_id, "current_state", "fighting")
             status_msg = f"*(เหลืออีก {dg_steps} ตาในดันเจี้ยน)*" if dg_steps > 0 or player.get("dungeon_steps", 0) > 0 else f"*(คูลดาวน์หมู่บ้านเหลือ: {current_cooldown} ตา)*"
-            
+
+            emp_note = ""
+            if game_modifiers.has_status_flag(statuses, "disable_skills"):
+                emp_note = "\n⚡ **คลื่น EMP รบกวนร่างกาย! สกิลถูกปิดในไฟต์นี้ — ใช้ได้แค่โจมตีปกติ**"
+
             # สร้าง View -> ส่งข้อความรอรับค่า -> ยัดข้อความกลับเข้า View
             next_view = MonsterEventView(user_id, interaction.user.roles)
-            sent_msg = await interaction.followup.send(content=f"👹 มีเงาปริศนาพุ่งออกมากระโจนขวางทางคุณ! เลือกแอคชั่นหรือคลาสสกิลของคุณ: {status_msg}", view=next_view, wait=True)
+            sent_msg = await interaction.followup.send(content=f"👹 มีเงาปริศนาพุ่งออกมากระโจนขวางทางคุณ! เลือกแอคชั่นหรือคลาสสกิลของคุณ: {status_msg}{emp_note}", view=next_view, wait=True)
             next_view.message = sent_msg
             
         elif chosen_event == "village":
             player_model.update_player_field(user_id, "current_state", "village")
-            
+
+            cleanse_note = ""
+            statuses, cleansed = game_modifiers.cleanse_statuses(statuses, "village")
+            if cleansed:
+                player_model.update_player_field(user_id, "status_effects", statuses)
+                names = " ".join(game_modifiers.STATUS_EFFECTS[k]["label"] for k in cleansed)
+                cleanse_note = f"\n✨ หมอสมุนไพรประจำหมู่บ้านรักษาคุณ — {names} หายเป็นปกติ!"
+
             next_view = VillageEventView(user_id)
-            sent_msg = await interaction.followup.send(content="🏡 คุณเดินทางมาพบ **'หมู่บ้านอุ่นใจ'** เลือกแอคชั่นของคุณ:", view=next_view, wait=True)
+            sent_msg = await interaction.followup.send(content=f"🏡 คุณเดินทางมาพบ **'หมู่บ้านอุ่นใจ'** เลือกแอคชั่นของคุณ:{cleanse_note}", view=next_view, wait=True)
             next_view.message = sent_msg
 
         elif chosen_event == "treasure":
@@ -1605,9 +1668,16 @@ class AdventureView(View):
 
         elif chosen_event == "npc":
             player_model.update_player_field(user_id, "current_state", "npc_choice")
-            
+
+            cleanse_note = ""
+            statuses, cleansed = game_modifiers.cleanse_statuses(statuses, "npc")
+            if cleansed:
+                player_model.update_player_field(user_id, "status_effects", statuses)
+                names = " ".join(game_modifiers.STATUS_EFFECTS[k]["label"] for k in cleansed)
+                cleanse_note = f"\n✨ นักเดินทางแบ่งยาสมุนไพรให้คุณ — {names} หายเป็นปกติ!"
+
             next_view = NpcEventView(user_id)
-            sent_msg = await interaction.followup.send(content=f"🧓 คุณเจอนักเดินทางพเนจร (NPC) นั่งอยู่ข้างกองไฟ เลือกแอคชั่นของคุณ: *(คูลดาวน์หมู่บ้านเหลือ: {current_cooldown} ตา)*", view=next_view, wait=True)
+            sent_msg = await interaction.followup.send(content=f"🧓 คุณเจอนักเดินทางพเนจร (NPC) นั่งอยู่ข้างกองไฟ เลือกแอคชั่นของคุณ: *(คูลดาวน์หมู่บ้านเหลือ: {current_cooldown} ตา)*{cleanse_note}", view=next_view, wait=True)
             next_view.message = sent_msg
 
         elif chosen_event == "dungeon":
