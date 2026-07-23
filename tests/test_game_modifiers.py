@@ -394,6 +394,30 @@ def test_mechanized_continent_numbers(monkeypatch):
     assert "Ancient Guardian" in mods["monster_pool"]["Main-Boss"][0]
 
 
+def test_skyward_continent_numbers(monkeypatch):
+    monkeypatch.setattr(gm, "WEEKLY_THEMES", [])
+    mods = gm.get_active_modifiers({"continent": "skyward"})
+    assert mods["monster_hp_mult"] == 1.25
+    assert mods["monster_exp_mult"] == 1.4
+    assert mods["element_weights"] == {"wind": 35, "light": 15}
+    wind = gm.get_element_data(mods, "wind")
+    assert wind["dice_bonus"] == [3, 6] and wind["exp_mult"] == 1.75
+    island = mods["special_events"][0]
+    assert island["key"] == "falling_island"
+    # เกาะถล่ม: บังคับกลับทวีปหลักทุกกรณี (รอดหรือตาย)
+    assert island["success"]["force_continent"] == "main"
+    assert island["fail"]["force_continent"] == "main"
+    assert island["fail"]["damage"] == [40, 80]
+    assert "Fallen Angel" in mods["monster_pool"]["Main-Boss"][0]
+
+
+def test_all_six_new_continents_registered():
+    assert set(gm.CONTINENTS) == {"main", "demon", "ocean", "frozen", "nether",
+                                  "volcanic", "sylvan", "mechanized", "skyward"}
+    for key, continent in gm.CONTINENTS.items():
+        assert continent["label"] and continent["arrival_text"]
+
+
 def test_pick_monster_name_themed_and_fallback(monkeypatch):
     monkeypatch.setattr(gm, "WEEKLY_THEMES", [])
     demon_mods = gm.get_active_modifiers({"continent": "demon"})
