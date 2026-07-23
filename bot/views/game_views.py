@@ -39,7 +39,7 @@ MONSTER_RANKS = {
 # ==========================================================
 
 class MonsterEventView(View):
-    def __init__(self, user_id, member_roles, monster_rank=None, monster_hp=None, active_buffs=None, turn_count=1, monster_name=None):
+    def __init__(self, user_id, member_roles, monster_rank=None, monster_hp=None, active_buffs=None, turn_count=1, monster_name=None, element=None):
         super().__init__(timeout=60)
         self.user_id = user_id
         self.member_roles = member_roles
@@ -99,6 +99,14 @@ class MonsterEventView(View):
             themed_name = game_modifiers.pick_monster_name(self.mods, self.monster_rank)
             if themed_name:
                 self.m_stats["name"] = themed_name
+
+            # 🧪 สุ่มธาตุประจำตัว (เรทตามทวีป/ธีม) — เกิดครั้งเดียว คงเดิมตลอดไฟต์
+            self.element = game_modifiers.roll_element(self.mods)
+            self.element_data = game_modifiers.ELEMENTS.get(self.element, {})
+            # 🪨 ธาตุดิน: เลือดหนาขึ้นตามสเปกธาตุ (คูณทบกับตัวคูณทวีป/ธีมที่ใส่ไปแล้ว)
+            self.monster_hp = max(1, round(self.monster_hp * self.element_data.get("hp_mult", 1.0)))
+            # ป้ายธาตุนำหน้าชื่อ — ผู้เล่นเห็นธาตุในทุกข้อความที่มีชื่อมอนสเตอร์
+            self.m_stats["name"] = f"{self.element_data['label']} · {self.m_stats['name']}"
             
             # [ระบบเช็กไฟล์/แคช]
             # print(f"DEBUG: [มอนสเตอร์] เลเวล {player_level} -> ใช้เรท {spawn_weights} -> สุ่มได้ {self.monster_rank}")
@@ -111,6 +119,9 @@ class MonsterEventView(View):
             if monster_name:
                 # รับชื่อธีมต่อจากเทิร์นก่อน ไม่สุ่มใหม่กลางไฟต์
                 self.m_stats["name"] = monster_name
+            # รับธาตุต่อจากเทิร์นก่อน (ไม่สุ่มใหม่) — ไม่มี = ไม่มีเอฟเฟกต์ธาตุ
+            self.element = element
+            self.element_data = game_modifiers.ELEMENTS.get(self.element, {})
 
         self.player_class = "Unknown"
         for role in self.member_roles:
@@ -169,9 +180,11 @@ class MonsterEventView(View):
             db_updates = {}
             
             enrage_bonus = 0
-            if self.turn_count > 3:
+            # 🌑 ธาตุมืด: เข้าสถานะคลั่งตั้งแต่เทิร์นแรก (ระบบคลั่งปกติเริ่มหลังเทิร์น 3)
+            enraged_turns = self.turn_count if self.element_data.get("pre_enraged") else self.turn_count - 3
+            if enraged_turns > 0:
                 rank_danger = {"Common": 2, "Mini-Boss": 5, "Main-Boss": 10, "Secret": 8, "Unbeatable": 25}
-                enrage_bonus = (self.turn_count - 3) * rank_danger.get(self.monster_rank, 2)
+                enrage_bonus = enraged_turns * rank_danger.get(self.monster_rank, 2)
                 skill_log += f"😡 **{self.m_stats.get('name', 'บอส')} กำลังคลั่ง!** บอสสะสมความโกรธเพิ่มพลังโจมตีเด็ดขาด `+{enrage_bonus}` หน่วยในเทิร์นนี้!\n"
 
             damage_multiplier = 1
@@ -493,9 +506,9 @@ class MonsterEventView(View):
                     next_msg = f"⚔️ **[เทิร์นที่ {self.turn_count}] การต่อสู้ทวีความรุนแรง!**\n👾 ศัตรู: **{self.m_stats.get('name','?')}** (🩸 HP คงเหลือ: **{self.monster_hp}**)\n❤️ เลือดร่างกายของคุณ: **{db_updates['hp']}/{player.get('max_hp',100)}**\n\n{skill_log}{combat_log}----------------------------------------\nบอสจะแกร่งขึ้นเรื่อยๆ เลือกแอคชั่นหรือสกิลที่จะใช้ถัดไป:"
                     
                     if not interaction.response.is_done():
-                        await interaction.response.edit_message(content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name")))
+                        await interaction.response.edit_message(content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element))
                     else:
-                        await interaction.followup.edit_message(message_id=interaction.message.id, content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name")))
+                        await interaction.followup.edit_message(message_id=interaction.message.id, content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element))
                 except Exception as e:
                     print(f"❌ [ERROR] การไปเทิร์นถัดไปพัง: {e}")
 
@@ -561,7 +574,7 @@ class MonsterEventView(View):
                 if new_armor_dur == 0 and player.get("armor_dur", 0) > 0:
                     msg += "\n🚨 **ชุดเกราะของคุณพังยับเยิน!**"
                     
-                await interaction.response.edit_message(content=msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name")))
+                await interaction.response.edit_message(content=msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element))
 
     async def skill_callback(self, interaction: discord.Interaction):
         if not await self.interaction_check(interaction): return
