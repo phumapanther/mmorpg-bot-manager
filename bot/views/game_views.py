@@ -102,7 +102,7 @@ class MonsterEventView(View):
 
             # 🧪 สุ่มธาตุประจำตัว (เรทตามทวีป/ธีม) — เกิดครั้งเดียว คงเดิมตลอดไฟต์
             self.element = game_modifiers.roll_element(self.mods)
-            self.element_data = game_modifiers.ELEMENTS.get(self.element, {})
+            self.element_data = game_modifiers.get_element_data(self.mods, self.element)
             # 🪨 ธาตุดิน: เลือดหนาขึ้นตามสเปกธาตุ (คูณทบกับตัวคูณทวีป/ธีมที่ใส่ไปแล้ว)
             self.monster_hp = max(1, round(self.monster_hp * self.element_data.get("hp_mult", 1.0)))
             # ป้ายธาตุนำหน้าชื่อ — ผู้เล่นเห็นธาตุในทุกข้อความที่มีชื่อมอนสเตอร์
@@ -121,7 +121,7 @@ class MonsterEventView(View):
                 self.m_stats["name"] = monster_name
             # รับธาตุต่อจากเทิร์นก่อน (ไม่สุ่มใหม่) — ไม่มี = ไม่มีเอฟเฟกต์ธาตุ
             self.element = element
-            self.element_data = game_modifiers.ELEMENTS.get(self.element, {})
+            self.element_data = game_modifiers.get_element_data(self.mods, self.element)
 
         self.player_class = "Unknown"
         for role in self.member_roles:
@@ -358,7 +358,7 @@ class MonsterEventView(View):
                 # รางวัล = ฐานสุ่ม × แรงค์ × ทวีป/ธีม × ธาตุ (✨ แสง = ทอง ×3.5)
                 elem_gold_mult = self.element_data.get("gold_mult", 1.0)
                 reward = int(random.randint(1, 25) * self.m_stats.get("gold_mult", 1.0) * self.mods.get("monster_gold_mult", 1.0) * elem_gold_mult)
-                gained_exp = int((self.m_stats.get("exp_reward", 10) + random.randint(5, 15)) * self.mods.get("monster_exp_mult", 1.0))
+                gained_exp = int((self.m_stats.get("exp_reward", 10) + random.randint(5, 15)) * self.mods.get("monster_exp_mult", 1.0) * self.element_data.get("exp_mult", 1.0))
                 if elem_gold_mult > 1.0:
                     combat_log += "✨ **พรแห่งแสง!** ร่างมอนสเตอร์สลายเป็นกองทองคำมูลค่าพิเศษ!\n"
                 

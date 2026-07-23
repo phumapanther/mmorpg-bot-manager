@@ -18,6 +18,7 @@ DEFAULT_MODS = {
     "monster_pool": {},        # ชื่อมอนสเตอร์ธีมราย "แรงค์" เช่น {"Common": ["😈 อิมป์"]} (แรงค์ที่ไม่มี = ใช้ชื่อเดิม)
     "theme_texts": {},         # ข้อความ reskin อีเวนต์ เช่น {"treasure": "...", "trap": "..."} (ไม่มี = ข้อความเดิม)
     "element_weights": {},     # เรทธาตุทับค่ามาตรฐานราย key เช่น {"dark": 35} (ว่าง = เรทสมดุล)
+    "element_overrides": {},   # ปรับพารามิเตอร์ธาตุเฉพาะถิ่น เช่น {"wood": {"root_chance": 50}} — ทับรายพารามิเตอร์
 }
 
 # ทวีป — ตัวคูณเกมเพลย์ (mods) เติมในข้อ 3
@@ -98,6 +99,16 @@ def roll_element(mods, rng=None):
     return (rng or random).choices(keys, weights=[weights[k] for k in keys], k=1)[0]
 
 
+def get_element_data(mods, element_key):
+    """ข้อมูลธาตุ "ที่มีผลจริง" = ค่ามาตรฐานจาก ELEMENTS ทับด้วย element_overrides ของทวีป/ธีม
+    (ธาตุไม่รู้จัก/None = dict ว่าง ไม่มีเอฟเฟกต์)"""
+    base = ELEMENTS.get(element_key)
+    if base is None:
+        return {}
+    override = (mods.get("element_overrides") or {}).get(element_key, {})
+    return {**base, **override}
+
+
 # ===== อีเวนต์เงียบสงบ (ไม่มีอะไรเกิดขึ้น — แค่บรรยากาศ) =====
 
 CALM_EVENT_CHANCE = 12  # % ต่อการสุ่มอีเวนต์ปกติหนึ่งครั้ง
@@ -148,11 +159,19 @@ def roll_travel_encounter(player_cash, rng=None):
     return {"vehicle": vehicle_key, "label": VEHICLES[vehicle_key]["label"], "fare": fare}
 
 
+DEFAULT_DEST_WEIGHT = 10  # ทวีปที่พาหนะไม่ได้ระบุในตาราง ได้ weight นี้อัตโนมัติ
+
+
 def roll_destination(vehicle_key, current_continent, rng=None):
-    """สุ่มทวีปปลายทางตามเรทของพาหนะ โดยตัดทวีปที่ยืนอยู่ออก"""
+    """สุ่มทวีปปลายทางตามเรทของพาหนะ โดยตัดทวีปที่ยืนอยู่ออก
+
+    ทวีปที่ไม่อยู่ใน dest_weights ของพาหนะ = ได้ DEFAULT_DEST_WEIGHT อัตโนมัติ
+    (เพิ่มทวีปใหม่ใน CONTINENTS แล้วโผล่เป็นปลายทางเองทันที ไม่ต้องแก้พาหนะ)
+    ระบุ weight 0 = พาหนะนั้นไม่ไปทวีปนั้นเด็ดขาด"""
     rng = rng or random
     dest_weights = VEHICLES[vehicle_key]["dest_weights"]
-    choices = [(k, w) for k, w in dest_weights.items() if k != current_continent and w > 0]
+    choices = [(k, dest_weights.get(k, DEFAULT_DEST_WEIGHT)) for k in CONTINENTS if k != current_continent]
+    choices = [(k, w) for k, w in choices if w > 0]
     if not choices:
         choices = [(k, 1) for k in CONTINENTS if k != current_continent]
     keys, weights = zip(*choices)
@@ -233,6 +252,12 @@ def _merge(base, extra):
             out[key] = merged_pool
         elif key in ("theme_texts", "element_weights"):
             out[key] = {**out.get(key, {}), **value}
+        elif key == "element_overrides":
+            # ซ้อนสองชั้น: ราย "ธาตุ" → ราย "พารามิเตอร์" (ธีมทับทวีปรายพารามิเตอร์ ไม่ล้างทั้งธาตุ)
+            merged_ov = {elem: dict(params) for elem, params in out.get(key, {}).items()}
+            for elem, params in value.items():
+                merged_ov[elem] = {**merged_ov.get(elem, {}), **params}
+            out[key] = merged_ov
         elif key.endswith("_mult"):
             out[key] = out.get(key, 1.0) * value
     return out

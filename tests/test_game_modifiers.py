@@ -16,6 +16,7 @@ def test_default_is_identity(monkeypatch):
     assert mods["event_weight_mult"] == {}
     assert mods["monster_pool"] == {}
     assert mods["theme_texts"] == {}
+    assert mods["element_overrides"] == {}
 
 
 def test_missing_or_unknown_continent_falls_back_to_main():
@@ -184,6 +185,38 @@ def test_roll_element_valid_and_respects_weights():
         assert gm.roll_element(forced, rng=rng) == "water"
 
 
+def test_get_element_data_with_overrides():
+    # ไม่มี override = ค่ามาตรฐานเป๊ะ
+    assert gm.get_element_data(gm.DEFAULT_MODS, "wood") == gm.ELEMENTS["wood"]
+    # override ทับเฉพาะพารามิเตอร์ที่ระบุ พารามิเตอร์อื่นของธาตุเดิมอยู่ครบ
+    mods = {"element_overrides": {"wood": {"root_chance": 50, "exp_mult": 2.0}}}
+    wood = gm.get_element_data(mods, "wood")
+    assert wood["root_chance"] == 50
+    assert wood["exp_mult"] == 2.0
+    assert wood["dice_bonus"] == (2, 4)          # ของเดิมไม่หาย
+    assert gm.ELEMENTS["wood"]["root_chance"] == 25  # ตารางกลางไม่ถูกแก้
+    # ธาตุอื่นไม่กระทบ
+    assert gm.get_element_data(mods, "fire") == gm.ELEMENTS["fire"]
+    # ธาตุไม่รู้จัก/None = ว่าง
+    assert gm.get_element_data(mods, None) == {}
+    assert gm.get_element_data(mods, "void?") == {}
+
+
+def test_element_overrides_merge_nested(monkeypatch):
+    monkeypatch.setitem(gm.CONTINENTS, "testland", {
+        "label": "test",
+        "mods": {"element_overrides": {"wood": {"root_chance": 50}}},
+    })
+    monkeypatch.setattr(gm, "WEEKLY_THEMES", [{
+        "key": "t",
+        "mods": {"element_overrides": {"wood": {"exp_mult": 2.0}, "fire": {"dmg_mult": 2.0}}},
+    }])
+    mods = gm.get_active_modifiers({"continent": "testland"})
+    # รวมรายพารามิเตอร์ ไม่ล้างกัน: wood ได้ทั้งของทวีปและธีม
+    assert mods["element_overrides"]["wood"] == {"root_chance": 50, "exp_mult": 2.0}
+    assert mods["element_overrides"]["fire"] == {"dmg_mult": 2.0}
+
+
 def test_element_weights_merge_theme_over_continent(monkeypatch):
     monkeypatch.setattr(gm, "WEEKLY_THEMES", [{
         "key": "t", "mods": {"element_weights": {"dark": 50}},
@@ -209,6 +242,16 @@ def test_roll_destination_never_returns_current():
         for current in gm.CONTINENTS:
             for _ in range(30):
                 assert gm.roll_destination(vehicle, current, rng=rng) != current
+
+
+def test_roll_destination_fallback_for_new_continent(monkeypatch):
+    # ทวีปใหม่ที่พาหนะไม่รู้จัก ต้องโผล่เป็นปลายทางเองด้วย weight มาตรฐาน
+    monkeypatch.setitem(gm.CONTINENTS, "frozen_test", {"label": "❄️ test", "mods": {}})
+    rng = __import__("random").Random(11)
+    seen = {gm.roll_destination("caravan", "main", rng=rng) for _ in range(300)}
+    assert "frozen_test" in seen
+    # ทวีปเดิมยังโผล่ครบ (เรทเดิมไม่ถูกลบ)
+    assert {"demon", "ocean"} <= seen
 
 
 def test_roll_destination_respects_zero_weight():
