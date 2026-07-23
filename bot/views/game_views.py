@@ -1144,17 +1144,73 @@ class NpcEventView(View):
         super().__init__(timeout=60)
         self.user_id = user_id
 
+        # 🎭 Masquerade (ธีมสัปดาห์): NPC ตัวนี้อาจเป็นมอนสเตอร์ปลอมตัว — ตัดสินตอนเจอ ผู้เล่นไม่รู้
+        mods = game_modifiers.get_active_modifiers(player_model.get_player(user_id))
+        self.masq_cfg = mods.get("masquerade")
+        self.disguised = bool(self.masq_cfg and random.randint(1, 100) <= self.masq_cfg.get("chance", 0))
+        if self.masq_cfg:
+            fee = self.masq_cfg.get("inspect_fee", 1500)
+            inspect_btn = discord.ui.Button(label=f"🔍 ตรวจสอบตัวตน (จ่าย {fee:,} ทอง)", style=discord.ButtonStyle.danger)
+            inspect_btn.callback = self.inspect
+            self.add_item(inspect_btn)
+
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.user_id:
             await interaction.response.send_message("❌ NPC กำลังสนทนากับนักผจญภัยท่านอื่นอยู่ รบกวนพิมพ์ `!play` แยกน้า", ephemeral=True)
             return False
         return True
 
+    async def _masquerade_ambush(self, interaction: discord.Interaction):
+        """🎭 มอนปลอมตัวจู่โจมคนที่ไม่ทันระวัง — ดาเมจเปิดฉากแล้วเข้าไฟต์"""
+        dmg = random.randint(10, 20)
+        player = player_model.get_player(self.user_id)
+        new_hp = max(0, player.get("hp", 100) - dmg)
+        if new_hp <= 0:
+            player_model.update_player_fields(self.user_id, {"hp": 0, "current_state": "dead"})
+            return await interaction.response.edit_message(
+                content=f"🎭 **'NPC' ฉีกคราบออก — มันคือมอนสเตอร์ปลอมตัวมา!** จู่โจมจากระยะประชิด `-{dmg}` HP... คุณหมดสติ!",
+                view=RespawnView(self.user_id))
+        player_model.update_player_fields(self.user_id, {"hp": new_hp, "current_state": "fighting"})
+        next_view = MonsterEventView(self.user_id, interaction.user.roles)
+        await interaction.response.edit_message(
+            content=(
+                f"🎭 **'NPC' ฉีกคราบออก — มันคือมอนสเตอร์ปลอมตัวมา!**\n"
+                f"💥 โดนจู่โจมเปิดฉาก `-{dmg}` HP (เหลือ {new_hp}) — เข้าสู่การต่อสู้ทั้งแบบนั้น!"
+            ),
+            view=next_view)
+
+    async def inspect(self, interaction: discord.Interaction):
+        """🔍 จ่ายเงินตรวจตัวตน — จับตัวปลอมได้ก่อนโดนซุ่ม (สู้แบบไม่เสียเปรียบ)"""
+        player = player_model.get_player(self.user_id)
+        fee = self.masq_cfg.get("inspect_fee", 1500)
+        if player.get("cash", 0) < fee:
+            return await interaction.response.send_message(f"❌ เงินสดไม่พอค่าตรวจสอบ (`{fee:,}` ทอง)", ephemeral=True)
+        player_model.update_player_field(self.user_id, "cash", player["cash"] - fee)
+
+        if self.disguised:
+            player_model.update_player_field(self.user_id, "current_state", "fighting")
+            next_view = MonsterEventView(self.user_id, interaction.user.roles)
+            await interaction.response.edit_message(
+                content=(
+                    f"🔍 คุณจ่าย `{fee:,}` ทองให้ผู้เชี่ยวชาญส่องหน้ากาก...\n"
+                    f"🎭 **จับได้! มันคือมอนสเตอร์ปลอมตัวมา!** มันจนมุมก่อนได้ลงมือ — คุณเข้าปะทะแบบไม่เสียเปรียบ!"
+                ),
+                view=next_view)
+        else:
+            self.remove_item(next(c for c in self.children if getattr(c, "label", "").startswith("🔍")))
+            await interaction.response.edit_message(
+                content=f"🔍 คุณจ่าย `{fee:,}` ทองตรวจสอบ... ผลออกมา: **เป็น NPC ตัวจริงเสียเงินฟรี!** คุยต่อได้ตามปกติ 🧓",
+                view=self)
+
     # ==========================================
     # ปุ่ม 1: พูดคุยปกติ (สุ่มให้เงิน / ขายของ / ไม่มีอะไร)
     # ==========================================
     @discord.ui.button(label="💬 เข้าไปพูดคุย", style=discord.ButtonStyle.primary)
     async def talk(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # 🎭 เข้าไปคุยกับตัวปลอมโดยไม่ตรวจสอบ = โดนซุ่มทำร้าย
+        if self.disguised:
+            return await self._masquerade_ambush(interaction)
+
         ITEM_CONFIG = config_loader.get_all_items()
         player = player_model.get_player(self.user_id)
         outcome = random.choice(["gift", "shop", "nothing"])
@@ -1209,6 +1265,10 @@ class NpcEventView(View):
     # ==========================================
     @discord.ui.button(label="📜 ฟังข้อเสนอเควส", style=discord.ButtonStyle.success)
     async def quest_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # 🎭 เข้าไปฟังเควสจากตัวปลอมโดยไม่ตรวจสอบ = โดนซุ่มทำร้าย
+        if self.disguised:
+            return await self._masquerade_ambush(interaction)
+
         ITEM_CONFIG = config_loader.get_all_items()
         player = player_model.get_player(self.user_id)
         inv_list = player_model.load_inventory(player.get("inventory", "[]"))

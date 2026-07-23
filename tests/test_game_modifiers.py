@@ -238,6 +238,18 @@ def test_goddess_dice_rules():
     assert gm.dice_rule_penalty(even, 3) == 1.0   # กติกาอื่นไม่มีโทษ
 
 
+def test_masquerade_theme_numbers(monkeypatch):
+    masq = next(t for t in gm.WEEKLY_THEMES if t["key"] == "masquerade")
+    monkeypatch.setattr(gm, "WEEKLY_THEMES", [masq])
+    mods = gm.get_active_modifiers({"continent": "main"})
+    assert mods["masquerade"] == {"chance": 40, "inspect_fee": 1500}
+    assert mods["monster_gold_mult"] == 1.6
+    assert mods["monster_exp_mult"] == 1.2
+    # ธีมอื่น/สัปดาห์ปกติต้องไม่มี masquerade
+    monkeypatch.setattr(gm, "WEEKLY_THEMES", [])
+    assert gm.get_active_modifiers({"continent": "main"})["masquerade"] is None
+
+
 def test_demon_plus_zombie_stacking(monkeypatch):
     zombie = next(t for t in gm.WEEKLY_THEMES if t["key"] == "zombie")
     monkeypatch.setattr(gm, "WEEKLY_THEMES", [zombie])  # ธีมเดียว = สัปดาห์ไหนก็ได้ zombie

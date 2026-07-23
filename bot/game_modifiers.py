@@ -26,6 +26,7 @@ DEFAULT_MODS = {
     "infusion": None,          # มอนติดบัฟพิเศษตอนเกิด {chance, badge, dmg_mult, drop_items} — None = ไม่มี
     "ambient_status": None,    # สถานะแวดล้อมของธีม (เช่น "frostbite") — ยังไม่ติดจะติดอัตโนมัติทุกก้าว
     "dice_rules": False,       # เปิดกติกาเต๋ารายวัน (ธีมเต๋าแห่งเทพี) — ดู DICE_RULES
+    "masquerade": None,        # NPC อาจเป็นมอนปลอมตัว {chance, inspect_fee} (ธีมหน้ากาก) — None = ปิด
     "travel_chance_mult": 1.0, # คูณโอกาสเจอพาหนะข้ามทวีป (เช่น แม่น้ำน้ำแข็ง = ×2)
 }
 
@@ -772,6 +773,20 @@ WEEKLY_THEMES = [
         },
     },
     {
+        "key": "masquerade",
+        "label": "🎭 เทศกาลหน้ากากสวมรอย (Masquerade Festival)",
+        "description": (
+            "เทศกาลหน้ากากมาถึง... แต่มอนสเตอร์ก็แฝงตัวมาร่วมงานด้วย! NPC ที่เจอระหว่างทาง "
+            "อาจเป็นของปลอม — จ่ายค่าตรวจสอบก่อนคุยเพื่อความปลอดภัย ไม่งั้นเสี่ยงโดนซุ่มทำร้าย "
+            "(ทอง ×1.6 และ EXP ×1.2 ตลอดสัปดาห์)"
+        ),
+        "mods": {
+            "masquerade": {"chance": 40, "inspect_fee": 1500},
+            "monster_gold_mult": 1.6,
+            "monster_exp_mult": 1.2,
+        },
+    },
+    {
         "key": "zombie",
         "label": "🧟 ซอมบี้บุก (Zombie Invasion)",
         "description": (
@@ -818,7 +833,7 @@ def _merge(base, extra):
             out[key] = merged_ov
         elif key == "special_events":
             out[key] = list(out.get(key, [])) + list(value)
-        elif key in ("combat_hp_drain", "infusion", "ambient_status", "dice_rules"):
+        elif key in ("combat_hp_drain", "infusion", "ambient_status", "dice_rules", "masquerade"):
             out[key] = value  # แทนที่ (ธีมทับทวีป)
         elif key.endswith("_mult"):
             out[key] = out.get(key, 1.0) * value
