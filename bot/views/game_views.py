@@ -304,11 +304,17 @@ class MonsterEventView(View):
                     self.active_buffs["fireball"] -= 1
                 except Exception as e: pass
 
+            # 🎲 กติกาเต๋าประจำวัน (ธีมเต๋าแห่งเทพี)
+            goddess_rule = game_modifiers.get_daily_dice_rule() if self.mods.get("dice_rules") else None
+
             # ⚔ คุณทอยได้เต๋าชนะบอส
             if player_roll >= monster_roll:
                 # 🥶 สถานะลดแรงโจมตีผู้เล่น (เช่น ชา = ×0.5)
                 status_dmg_mult = game_modifiers.status_combat_mult(self.statuses, "player_dmg_mult")
-                damage_to_monster = int((player_roll + curr_atk) * 5 * damage_multiplier * status_dmg_mult)
+                goddess_mult = game_modifiers.dice_rule_bonus(goddess_rule, player_roll) if goddess_rule else 1.0
+                if goddess_mult > 1.0:
+                    combat_log += f"🎲 **เทพีโปรดปราน!** เต๋าของคุณเข้ากติกาวันนี้ ดาเมจ ×{goddess_mult:g}!\n"
+                damage_to_monster = int((player_roll + curr_atk) * 5 * damage_multiplier * status_dmg_mult * goddess_mult)
                 self.monster_hp = max(0, self.monster_hp - damage_to_monster)
                 if status_dmg_mult < 1.0:
                     combat_log += "🥶 ร่างกายชาเย็นจนขยับช้า แรงโจมตีอ่อนลงกว่าปกติ!\n"
@@ -319,7 +325,10 @@ class MonsterEventView(View):
                 # ตัวคูณดาเมจมอนสเตอร์จากทวีป/ธีมสัปดาห์ × ธาตุ (🔥 ไฟ = ×1.5) × infusion (☄️ ×2)
                 elem_dmg_mult = self.element_data.get("dmg_mult", 1.0)
                 infusion_mult = (self.mods.get("infusion") or {}).get("dmg_mult", 1.0) if getattr(self, "infused", False) else 1.0
-                damage_to_player = round((random.randint(10, 25) + enrage_bonus) * self.mods.get("monster_dmg_mult", 1.0) * elem_dmg_mult * infusion_mult)
+                goddess_penalty = game_modifiers.dice_rule_penalty(goddess_rule, player_roll) if goddess_rule else 1.0
+                if goddess_penalty > 1.0:
+                    combat_log += "🎲 **เทพีเบือนหน้าหนี...** เต๋าตกโซนโทษ มอนสเตอร์ตีสวนแรงขึ้น!\n"
+                damage_to_player = round((random.randint(10, 25) + enrage_bonus) * self.mods.get("monster_dmg_mult", 1.0) * elem_dmg_mult * infusion_mult * goddess_penalty)
                 if elem_dmg_mult > 1.0:
                     combat_log += "🔥 **เพลิงธาตุลุกโหม!** การโจมตีของมอนสเตอร์รุนแรงขึ้นกว่าปกติ!\n"
                 if infusion_mult > 1.0:

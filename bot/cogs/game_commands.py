@@ -302,6 +302,8 @@ class GameCommands(commands.Cog):
         from bot import game_modifiers
         weekly_theme = game_modifiers.get_weekly_theme()
         theme_line = f"\n🎪 อีเวนต์สัปดาห์นี้: {weekly_theme['label']}" if weekly_theme else ""
+        if weekly_theme and weekly_theme.get("mods", {}).get("dice_rules"):
+            theme_line += f"\n🎲 กติกาเทพีวันนี้: {game_modifiers.get_daily_dice_rule()['label']}"
         player_statuses = game_modifiers.parse_statuses(player)
         status_line = f"\n🩸 สถานะติดตัว: {game_modifiers.format_status_line(player_statuses)}" if player_statuses else ""
         embed = discord.Embed(

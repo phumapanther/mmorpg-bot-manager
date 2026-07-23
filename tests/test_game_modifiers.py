@@ -216,6 +216,28 @@ def test_blood_moon_theme_numbers():
     assert len(infusion["drop_items"]["id_pool"]) == 10
 
 
+def test_goddess_dice_rules():
+    theme = next(t for t in gm.WEEKLY_THEMES if t["key"] == "goddess_dice")
+    assert theme["mods"]["dice_rules"] is True
+    assert theme["mods"]["monster_exp_mult"] == 1.5
+    # กติการายวัน deterministic: วันเดียวกันได้กติกาเดิม
+    day = datetime.date(2026, 7, 23)
+    assert gm.get_daily_dice_rule(day) is gm.get_daily_dice_rule(day)
+    # bonus/penalty logic
+    even = next(r for r in gm.DICE_RULES if r["key"] == "even")
+    assert gm.dice_rule_bonus(even, 10) == 2.0
+    assert gm.dice_rule_bonus(even, 7) == 1.0
+    assert gm.dice_rule_bonus(even, 0) == 1.0     # เต๋าโดนล็อก 0 (รากพันธนาการ) ไม่นับเป็นคู่
+    odd = next(r for r in gm.DICE_RULES if r["key"] == "odd")
+    assert gm.dice_rule_bonus(odd, 7) == 2.0 and gm.dice_rule_bonus(odd, 8) == 1.0
+    high = next(r for r in gm.DICE_RULES if r["key"] == "high")
+    assert gm.dice_rule_bonus(high, 15) == 2.5 and gm.dice_rule_bonus(high, 14) == 1.0
+    gamble = next(r for r in gm.DICE_RULES if r["key"] == "gamble")
+    assert gm.dice_rule_bonus(gamble, 16) == 3.0 and gm.dice_rule_bonus(gamble, 15) == 1.0
+    assert gm.dice_rule_penalty(gamble, 5) == 1.5 and gm.dice_rule_penalty(gamble, 6) == 1.0
+    assert gm.dice_rule_penalty(even, 3) == 1.0   # กติกาอื่นไม่มีโทษ
+
+
 def test_demon_plus_zombie_stacking(monkeypatch):
     zombie = next(t for t in gm.WEEKLY_THEMES if t["key"] == "zombie")
     monkeypatch.setattr(gm, "WEEKLY_THEMES", [zombie])  # ธีมเดียว = สัปดาห์ไหนก็ได้ zombie

@@ -25,6 +25,7 @@ DEFAULT_MODS = {
     "combat_hp_drain": None,   # [lo, hi] เลือดผู้เล่นไหลทุกเทิร์นที่สู้ (เช่น เนเธอร์) — None = ไม่มี
     "infusion": None,          # มอนติดบัฟพิเศษตอนเกิด {chance, badge, dmg_mult, drop_items} — None = ไม่มี
     "ambient_status": None,    # สถานะแวดล้อมของธีม (เช่น "frostbite") — ยังไม่ติดจะติดอัตโนมัติทุกก้าว
+    "dice_rules": False,       # เปิดกติกาเต๋ารายวัน (ธีมเต๋าแห่งเทพี) — ดู DICE_RULES
     "travel_chance_mult": 1.0, # คูณโอกาสเจอพาหนะข้ามทวีป (เช่น แม่น้ำน้ำแข็ง = ×2)
 }
 
@@ -490,6 +491,43 @@ def format_status_line(statuses):
     return " · ".join(parts)
 
 
+# ===== กติกาเต๋ารายวัน (ธีมเต๋าแห่งเทพี) =====
+# เปลี่ยนทุกวัน แบบ deterministic จากวันที่ (ทุกเซิร์ฟตรงกัน restart ไม่เปลี่ยน)
+
+DICE_RULES = [
+    {"key": "even", "label": "วันเลขคู่ — เต๋าโจมตีออกเลขคู่ ดาเมจ ×2", "match": "even", "dmg_mult": 2.0},
+    {"key": "odd", "label": "วันเลขคี่ — เต๋าโจมตีออกเลขคี่ ดาเมจ ×2", "match": "odd", "dmg_mult": 2.0},
+    {"key": "high", "label": "วันเต๋าสูง — ทอยได้ 15 ขึ้นไป ดาเมจ ×2.5", "match": "high", "dmg_mult": 2.5},
+    {"key": "gamble", "label": "วันเสี่ยงดวง — ทอย 16-20 ดาเมจ ×3 แต่ทอย 1-5 โดนมอนสวนแรงขึ้น",
+     "match": "gamble", "dmg_mult": 3.0, "low_penalty_mult": 1.5},
+]
+
+
+def get_daily_dice_rule(when=None):
+    """กติกาเต๋าประจำวัน — seed จากวันที่ (แบบเดียวกับธีมรายสัปดาห์แต่หน่วยเป็นวัน)"""
+    day = when or datetime.date.today()
+    return random.Random(f"dice-{day.isoformat()}").choice(DICE_RULES)
+
+
+def dice_rule_bonus(rule, roll):
+    """เต๋าผู้เล่นเข้ากติกาโบนัสไหม → คืนตัวคูณดาเมจ (ไม่เข้า = 1.0)"""
+    match = rule.get("match")
+    hit = (
+        (match == "even" and roll > 0 and roll % 2 == 0)
+        or (match == "odd" and roll % 2 == 1)
+        or (match == "high" and roll >= 15)
+        or (match == "gamble" and roll >= 16)
+    )
+    return rule.get("dmg_mult", 1.0) if hit else 1.0
+
+
+def dice_rule_penalty(rule, roll):
+    """เต๋าผู้เล่นเข้าโซนโทษของกติกาไหม → คืนตัวคูณดาเมจที่มอนตีสวน (ไม่เข้า = 1.0)"""
+    if rule.get("match") == "gamble" and 1 <= roll <= 5:
+        return rule.get("low_penalty_mult", 1.0)
+    return 1.0
+
+
 # ===== อีเวนต์พิเศษประจำทวีป/ธีม (Special Events) =====
 # โครง event dict: {key, chance(%), template: "dice_check"|"choice"|"instant", intro, ...}
 # - dice_check: pass_roll + success/fail (outcome)
@@ -721,6 +759,19 @@ WEEKLY_THEMES = [
         },
     },
     {
+        "key": "goddess_dice",
+        "label": "🎲 เต๋าแห่งเทพี (Goddess's Dice)",
+        "description": (
+            "เทพีแห่งโชคชะตาลงมาเล่นเต๋ากับมนุษย์! กติกาพิเศษเปลี่ยนใหม่ทุกวัน "
+            "(เช็คกติกาวันนี้ได้ที่หน้า !play) — และตลอดสัปดาห์ EXP ×1.5 ทอง ×1.5"
+        ),
+        "mods": {
+            "dice_rules": True,
+            "monster_exp_mult": 1.5,
+            "monster_gold_mult": 1.5,
+        },
+    },
+    {
         "key": "zombie",
         "label": "🧟 ซอมบี้บุก (Zombie Invasion)",
         "description": (
@@ -767,7 +818,7 @@ def _merge(base, extra):
             out[key] = merged_ov
         elif key == "special_events":
             out[key] = list(out.get(key, [])) + list(value)
-        elif key in ("combat_hp_drain", "infusion", "ambient_status"):
+        elif key in ("combat_hp_drain", "infusion", "ambient_status", "dice_rules"):
             out[key] = value  # แทนที่ (ธีมทับทวีป)
         elif key.endswith("_mult"):
             out[key] = out.get(key, 1.0) * value
