@@ -604,6 +604,21 @@ WEEKLY_THEMES = [
         },
     },
     {
+        "key": "royal_convoy",
+        "label": "👑 ขบวนราชสมบัติล่ม (Royal Convoy Crash)",
+        "description": (
+            "ขบวนขนสมบัติหลวงถูกซุ่มโจมตี ทรัพย์สินกระจัดกระจายไปทั่วแผ่นดิน! "
+            "สัปดาห์นี้เจอหีบสมบัติถี่ขึ้นมาก และทองจากการต่อสู้ทั้งหมด ×2 — ล่าสมบัติกันให้สนุก!"
+        ),
+        "mods": {
+            "event_weight_mult": {"treasure": 1.8},
+            "monster_gold_mult": 2.0,
+            "theme_texts": {
+                "treasure": "👑 คุณพบ **'หีบราชสมบัติหลวงตกหล่น'** ตราประจำราชวงศ์ยังประทับอยู่บนฝา",
+            },
+        },
+    },
+    {
         "key": "zombie",
         "label": "🧟 ซอมบี้บุก (Zombie Invasion)",
         "description": (

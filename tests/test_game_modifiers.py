@@ -95,7 +95,7 @@ VALID_RANKS = {"Common", "Mini-Boss", "Main-Boss", "Secret", "Unbeatable"}
 
 def test_real_themes_structure():
     keys = [t["key"] for t in gm.WEEKLY_THEMES]
-    assert "normal" in keys and "palette" in keys and "zombie" in keys
+    assert "normal" in keys and "palette" in keys and "zombie" in keys and "royal_convoy" in keys
     for theme in gm.WEEKLY_THEMES:
         assert theme["label"] and theme["description"]
         assert set(theme["mods"].get("monster_pool", {})) <= VALID_RANKS
@@ -131,6 +131,13 @@ def test_palette_theme_numbers():
     assert palette["mods"]["monster_gold_mult"] == 1.5
     # มีหลายสีต่อแรงค์ให้สุ่มไม่ซ้ำ
     assert len(palette["mods"]["monster_pool"]["Common"]) >= 3
+
+
+def test_royal_convoy_theme_numbers():
+    convoy = next(t for t in gm.WEEKLY_THEMES if t["key"] == "royal_convoy")
+    assert convoy["mods"]["event_weight_mult"] == {"treasure": 1.8}
+    assert convoy["mods"]["monster_gold_mult"] == 2.0
+    assert "หีบราชสมบัติ" in convoy["mods"]["theme_texts"]["treasure"]
 
 
 def test_demon_plus_zombie_stacking(monkeypatch):
