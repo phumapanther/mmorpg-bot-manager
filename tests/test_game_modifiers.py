@@ -266,6 +266,33 @@ def test_black_market_theme_numbers(monkeypatch):
     assert gm.status_combat_mult({"illegal_buff": 5, "numb": 2}, "player_dmg_mult") == pytest.approx(0.65)
 
 
+def test_theme_pool_weights_final():
+    # ธีมพิเศษทุกตัว weight 1 (ไม่ระบุ = 1), สงบสุข = 11 → ครึ่งหนึ่งของสัปดาห์
+    specials = [t for t in gm.WEEKLY_THEMES if t["key"] != "normal"]
+    assert len(specials) == 11
+    assert all(t.get("weight", 1) == 1 for t in specials)
+    normal = next(t for t in gm.WEEKLY_THEMES if t["key"] == "normal")
+    assert normal["weight"] == len(specials)
+
+
+def test_stacking_ceilings_locked(monkeypatch):
+    """ล็อกเพดานตัวคูณทบสูงสุดที่เป็นไปได้ทั้งเกม — เพิ่มทวีป/ธีม/ธาตุแล้วเกินนี้ = ตั้งใจต้องมาแก้เลขนี้"""
+    max_gold = max_dmg = max_hp = 1.0
+    for theme in gm.WEEKLY_THEMES:
+        monkeypatch.setattr(gm, "WEEKLY_THEMES", [theme])
+        for continent_key in gm.CONTINENTS:
+            mods = gm.get_active_modifiers({"continent": continent_key})
+            infusion_dmg = (mods.get("infusion") or {}).get("dmg_mult", 1.0)
+            for element_key in gm.ELEMENTS:
+                elem = gm.get_element_data(mods, element_key)
+                max_gold = max(max_gold, mods["monster_gold_mult"] * elem.get("gold_mult", 1.0))
+                max_dmg = max(max_dmg, mods["monster_dmg_mult"] * elem.get("dmg_mult", 1.0) * infusion_dmg)
+                max_hp = max(max_hp, mods["monster_hp_mult"] * elem.get("hp_mult", 1.0))
+    assert max_gold == pytest.approx(14.0)   # demon x2.0 × convoy x2.0 × แสง x3.5
+    assert max_dmg == pytest.approx(4.14)    # volcanic x1.15 × ไฟ override x1.8 × meteor infusion x2.0
+    assert max_hp == pytest.approx(4.5)      # demon x1.5 × blood moon x1.5 × ดิน x2.0
+
+
 def test_demon_plus_zombie_stacking(monkeypatch):
     zombie = next(t for t in gm.WEEKLY_THEMES if t["key"] == "zombie")
     monkeypatch.setattr(gm, "WEEKLY_THEMES", [zombie])  # ธีมเดียว = สัปดาห์ไหนก็ได้ zombie
