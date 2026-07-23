@@ -242,6 +242,12 @@ class MonsterEventView(View):
                 skill_log += f"😡 **{self.m_stats.get('name', 'บอส')} กำลังคลั่ง!** บอสสะสมความโกรธเพิ่มพลังโจมตีเด็ดขาด `+{enrage_bonus}` หน่วยในเทิร์นนี้!\n"
 
             # ─── 🧪 เอฟเฟกต์ธาตุช่วงทอยเต๋า ───
+            # 👝 ถุงเต๋าเทพี: โบนัสเต๋าถาวร
+            roll_bonus = game_modifiers.status_roll_bonus(self.statuses)
+            if roll_bonus:
+                player_roll += roll_bonus
+                skill_log += f"👝 **ถุงเต๋าเทพีสั่นกรุ๋งกริ๋ง** เต๋า `+{roll_bonus}` (รวม {player_roll})\n"
+
             # 🎲 เต๋าถ่วงน้ำหนัก: การันตีแต้มขั้นต่ำ (ก่อนผลราก/เต๋าหลุดมือ — ของพวกนั้นทำเต๋าหลุดจากมือ ไม่ใช่แต้มไม่ดี)
             weighted_min = game_modifiers.status_min_roll(self.statuses)
             if weighted_min and player_roll < weighted_min:
@@ -1318,7 +1324,10 @@ class NpcEventView(View):
         fee = self.masq_cfg.get("inspect_fee", 1500)
 
         inv = player_model.load_inventory(player.get("inventory", "[]"))
-        if "38" in inv:
+        if game_modifiers.has_status_flag(game_modifiers.parse_statuses(player), "free_inspect"):
+            # 🎭 แว่นเดี่ยวหน้ากาก (อาร์ติแฟกต์): มองทะลุการอำพรางฟรีตลอดกาล
+            paid_note = "🎭 แว่นเดี่ยวหน้ากากของคุณเรืองแสง มองทะลุทุกการอำพราง (ฟรี — พลังถาวร)"
+        elif "38" in inv:
             inv.remove("38")
             player_model.update_player_field(self.user_id, "inventory", inv)
             paid_note = "🔍 คุณยกแว่นส่องสัจจะขึ้นส่องทะลุหน้ากาก... (ไม่เสียเงิน — เลนส์แตกสลายหลังใช้)"

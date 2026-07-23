@@ -81,6 +81,47 @@ def test_artifact_passive_helpers():
     assert "emp" not in s
 
 
+def test_v2_artifact_table_and_helpers():
+    for key in ("art_frostward_mail", "art_nether_amulet", "art_twin_blade",
+                "art_celestial_staff", "art_masquerade_monocle", "art_goddess_dicebag"):
+        assert gm.STATUS_EFFECTS[key]["artifact"] is True
+    # เกราะน้ำแข็ง: กันชา+เต๋าหลุดมือ
+    s = gm.apply_status({"numb": 3, "fumble": 2}, "art_frostward_mail")
+    assert "numb" not in s and "fumble" not in s
+    assert gm.apply_status(s, "numb") == s
+    # สร้อยเนเธอร์: กัน drain + กันสาปคี่
+    amulet = {"art_nether_amulet": 1}
+    assert gm.has_status_flag(amulet, "block_hp_drain") is True
+    assert gm.apply_status(amulet, "odd_curse") == amulet
+    # ดาบแฝด/คทา: ตัวคูณถาวร
+    assert gm.status_combat_mult({"art_twin_blade": 1}, "player_dmg_mult") == 1.15
+    assert gm.status_combat_mult({"art_celestial_staff": 1}, "exp_mult") == 1.25
+    # แว่นหน้ากาก/ถุงเต๋า
+    assert gm.has_status_flag({"art_masquerade_monocle": 1}, "free_inspect") is True
+    assert gm.status_roll_bonus({"art_goddess_dicebag": 1}) == 1
+    assert gm.status_roll_bonus({}) == 0
+
+
+def test_v2_drop_sources():
+    # แหล่งดรอปครบ 6: น้ำแข็ง/เนเธอร์/จักรกล/พงไพร/ตลาดมืด/โต๊ะพนันเทพี
+    frozen_success = gm.CONTINENTS["frozen"]["mods"]["special_events"][0]["success"]
+    assert {"id": "46", "qty": 1, "chance": 8} in frozen_success["items"]
+    feast = gm.CONTINENTS["nether"]["mods"]["special_events"][0]
+    blessing = next(o for o in feast["outcomes"] if o.get("cleanse_all"))
+    assert {"id": "47", "qty": 1, "chance": 8} in blessing["items"]
+    dig = next(e for e in gm.CONTINENTS["mechanized"]["mods"]["special_events"] if e["key"] == "ancient_excavation")
+    assert {"id": "48", "qty": 1, "chance": 8} in dig["success"]["items"]
+    thicket = gm.CONTINENTS["sylvan"]["mods"]["special_events"][0]
+    assert {"id": "49", "qty": 1, "chance": 8} in thicket["choices"][0]["outcome"]["items"]
+    market = next(t for t in gm.WEEKLY_THEMES if t["key"] == "black_market")
+    monocle_choice = market["mods"]["special_events"][0]["choices"][2]
+    assert {"id": "50", "qty": 1, "chance": 30} in monocle_choice["outcome"]["items"]
+    goddess = next(t for t in gm.WEEKLY_THEMES if t["key"] == "goddess_dice")
+    gamble = goddess["mods"]["special_events"][0]
+    assert gamble["key"] == "goddess_gamble"
+    assert {"id": "51", "qty": 1, "chance": 8} in gamble["success"]["items"]
+
+
 def test_item_drop_chance_gate(game_db, monkeypatch):
     uid = game_db
     monkeypatch.setattr(gv.config_loader, "get_all_items", lambda: {"42": {"name": "ถุงมือ", "sell": 5000}})

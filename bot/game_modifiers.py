@@ -88,7 +88,10 @@ CONTINENTS = {
                     "key": "blizzard_ambush", "chance": 12, "template": "dice_check",
                     "intro": "🌨️ พายุหิมะโหมกระหน่ำจนมองไม่เห็นปลายจมูก! เงาตะคุ่มขนาดมหึมากำลังเคลื่อนเข้ามาในม่านหิมะ... ทอยเต๋าหลบให้พ้น!",
                     "pass_roll": 11,
-                    "success": {"text": "🫥 คุณหมอบต่ำหลบหลังโขดน้ำแข็งได้ทันเวลา... เงานั้นเดินผ่านไปอย่างเฉียดฉิว"},
+                    "success": {
+                        "text": "🫥 คุณหมอบต่ำหลบหลังโขดน้ำแข็งได้ทันเวลา... เงานั้นเดินผ่านไป และคุณเหลือบเห็นบางอย่างฝังอยู่ในน้ำแข็ง",
+                        "items": [{"id": "46", "qty": 1, "chance": 8}],  # 🧊 เกราะเกล็ดน้ำแข็ง (แรร์)
+                    },
                     "fail": {
                         "text": "💥 *โครม!* ร่างมหึมาพุ่งทะลุม่านหิมะเข้าใส่คุณเต็มแรง!",
                         "damage": [8, 18],
@@ -130,7 +133,8 @@ CONTINENTS = {
                     ),
                     "outcomes": [
                         {"weight": 1, "text": "💖 บรรพชนพอใจในตัวคุณ ประทานพรฟื้นฟูร่างกายทั้งหมด!", "heal": "full"},
-                        {"weight": 1, "text": "✨ บรรพชนเป่ามนตร์ชำระล้างมลทินทั้งปวงออกจากร่าง!", "cleanse_all": True, "exp": [10, 30]},
+                        {"weight": 1, "text": "✨ บรรพชนเป่ามนตร์ชำระล้างมลทินทั้งปวงออกจากร่าง!", "cleanse_all": True, "exp": [10, 30],
+                         "items": [{"id": "47", "qty": 1, "chance": 8}]},  # 📿 สร้อยวิญญาณ (แรร์ — ของขวัญบรรพชน)
                         {"weight": 1, "text": "🌟 บรรพชนหยิบมลทินหนึ่งออกจากวิญญาณของคุณ", "cleanse_random": True, "exp": [10, 30]},
                         {"weight": 1, "text": "😱 บรรพชนพิโรธ! คำสาปโบราณแผดเผาร่างของคุณ!", "damage": [25, 45]},
                         {"weight": 1, "text": "🪙 บรรพชนเรียกร้องเครื่องเซ่น... เงินในถุงของคุณลอยหายไปในความมืด", "gold": [-10000, -2000]},
@@ -212,7 +216,8 @@ CONTINENTS = {
                             "outcome": {
                                 "text": "คุณกัดฟันมุดฝ่าดงหนาม... หนามพิษข่วนตามแขนขาจนแสบร้อนไปทั้งตัว",
                                 "apply_status": {"key": "poison"},
-                                "items": [{"id": "44", "qty": 1, "chance": 8}],  # 🧥 เสื้อคลุมเปลือกไม้ (แรร์ — รางวัลคนกล้า)
+                                "items": [{"id": "44", "qty": 1, "chance": 8},   # 🧥 เสื้อคลุมเปลือกไม้ (แรร์ — รางวัลคนกล้า)
+                                          {"id": "49", "qty": 1, "chance": 8}],  # 🌟 คทาไม้เทวา (แรร์)
                             },
                         },
                         {
@@ -280,7 +285,8 @@ CONTINENTS = {
                         "text": "🔓 *คลิก!* กลไกทุกชั้นปลดล็อกพร้อมกัน — ข้างในอัดแน่นด้วยสมบัติสองเท่าของหีบปกติ!",
                         "gold": [1500, 4000],
                         "exp": [20, 40],
-                        "items": [{"id": "42", "qty": 1, "chance": 8}],  # 🧤 ถุงมือกันคลื่น (แรร์)
+                        "items": [{"id": "42", "qty": 1, "chance": 8},   # 🧤 ถุงมือกันคลื่น (แรร์)
+                                  {"id": "48", "qty": 1, "chance": 8}],  # ⚔️ ดาบคู่แฝด (แรร์)
                     },
                     "fail": {
                         "text": "💥 ไขพลาด! กระแสไฟฟ้าแล่นเข้าใส่มือคุณเต็มเปา!",
@@ -526,6 +532,37 @@ STATUS_EFFECTS = {
         "artifact": True, "no_tick": True,
         "reflect_vs_element": {"element": "fire", "pct": 0.2},   # สะท้อนดาเมจมอนไฟ 20%
     },
+    "art_frostward_mail": {
+        "label": "🧊 เกราะเกล็ดน้ำแข็ง", "tick": "step", "default_turns": 1,
+        "artifact": True, "no_tick": True,
+        "blocks": ["numb", "fumble"], "cleanse_on_apply": ["numb", "fumble"],  # ภูมิคุ้มกันความหนาวครบชุด
+    },
+    "art_nether_amulet": {
+        "label": "📿 สร้อยวิญญาณเนเธอร์", "tick": "step", "default_turns": 1,
+        "artifact": True, "no_tick": True,
+        "block_hp_drain": True,                                  # กัน Life Drain ถาวร
+        "blocks": ["odd_curse"], "cleanse_on_apply": ["odd_curse"],
+    },
+    "art_twin_blade": {
+        "label": "⚔️ ดาบคู่แฝด", "tick": "step", "default_turns": 1,
+        "artifact": True, "no_tick": True,
+        "player_dmg_mult": 1.15,                                 # ดาเมจถาวร +15%
+    },
+    "art_celestial_staff": {
+        "label": "🌟 คทาไม้เทวา", "tick": "step", "default_turns": 1,
+        "artifact": True, "no_tick": True,
+        "exp_mult": 1.25,                                        # EXP ถาวร +25%
+    },
+    "art_masquerade_monocle": {
+        "label": "🎭 แว่นเดี่ยวหน้ากาก", "tick": "step", "default_turns": 1,
+        "artifact": True, "no_tick": True,
+        "free_inspect": True,                                    # ตรวจสอบ NPC ฟรีตลอดกาล
+    },
+    "art_goddess_dicebag": {
+        "label": "👝 ถุงเต๋าเทพี", "tick": "step", "default_turns": 1,
+        "artifact": True, "no_tick": True,
+        "roll_bonus": 1,                                         # เต๋าผู้เล่น +1 ทุกเทิร์นถาวร
+    },
 }
 
 
@@ -649,6 +686,11 @@ def status_event_weight_mult(statuses):
         for evt, mult in STATUS_EFFECTS[key].get("event_weight_mult", {}).items():
             merged[evt] = merged.get(evt, 1.0) * mult
     return merged
+
+
+def status_roll_bonus(statuses):
+    """โบนัสเต๋าผู้เล่นรวมจากสถานะ/อาร์ติแฟกต์ (เช่น ถุงเต๋าเทพี +1)"""
+    return sum(STATUS_EFFECTS[k].get("roll_bonus", 0) for k in statuses)
 
 
 def status_reroll_vs(statuses, monster_element):
@@ -1095,6 +1137,22 @@ WEEKLY_THEMES = [
             "monster_gold_mult": 1.5,
             # เทพีขี้เล่น: มอนตีติดคำสาปแต้มคู่ได้
             "on_hit_status": {"key": "even_curse", "chance": 18},
+            "special_events": [
+                {
+                    "key": "goddess_gamble", "chance": 10, "template": "dice_check",
+                    "intro": "🎲 เทพีปรากฏพร้อมโต๊ะพนันลอยฟ้า... *'มาเล่นเต๋ากับข้าสักตาไหม ผู้กล้า?'* — ทอยให้ถึง 15!",
+                    "pass_roll": 15,
+                    "success": {
+                        "text": "🎉 เทพีปรบมือหัวเราะร่วน! 'เจ้ามีดวงของนักพนัน... รับรางวัลไปเถอะ'",
+                        "gold": [2000, 6000],
+                        "items": [{"id": "51", "qty": 1, "chance": 8}],  # 👝 ถุงเต๋าเทพี (แรร์)
+                    },
+                    "fail": {
+                        "text": "😏 เทพีเก็บเต๋าพร้อมรอยยิ้มเจ้าเล่ห์ — 'ค่าเล่นตามระเบียบนะจ๊ะ'",
+                        "gold": [-3000, -1000],
+                    },
+                },
+            ],
         },
     },
     {
@@ -1142,6 +1200,14 @@ WEEKLY_THEMES = [
                                 "text": "พ่อค้ายัดห่อของใส่มือคุณแล้วรีบชิ่งหายเข้าเงามืด",
                                 "gold": -4000,
                                 "items": {"id_pool": ["1", "2", "9", "10", "12", "13", "14", "15", "18", "27"], "qty": [2, 4]},
+                            },
+                        },
+                        {
+                            "label": "🎭 ของหายากใต้ผ้าคลุม (15,000 ทอง — วัดดวง)",
+                            "outcome": {
+                                "text": "พ่อค้าล้วงห่อผ้าดำจากก้นถุง... 'ของชิ้นนี้ข้าได้มาจากงานเต้นรำหลวง อย่าถามต่อ'",
+                                "gold": -15000,
+                                "items": [{"id": "50", "qty": 1, "chance": 30}],  # 🎭 แว่นเดี่ยวหน้ากาก (วัดดวง 30%)
                             },
                         },
                         {

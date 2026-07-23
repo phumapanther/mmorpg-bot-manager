@@ -153,7 +153,13 @@
       "42": {"name": "🧤 ถุงมือกันคลื่น EMP", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_emp_gauntlet"},
       "43": {"name": "🥾 รองเท้าขนนกวายุ", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_gale_boots"},
       "44": {"name": "🧥 เสื้อคลุมเปลือกไม้", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_sylvan_cloak"},
-      "45": {"name": "💍 แหวนหินอัคนี", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_fire_ring"}
+      "45": {"name": "💍 แหวนหินอัคนี", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_fire_ring"},
+      "46": {"name": "🧊 เกราะเกล็ดน้ำแข็ง", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_frostward_mail"},
+      "47": {"name": "📿 สร้อยวิญญาณเนเธอร์", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_nether_amulet"},
+      "48": {"name": "⚔️ ดาบคู่แฝด", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_twin_blade"},
+      "49": {"name": "🌟 คทาไม้เทวา", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_celestial_staff"},
+      "50": {"name": "🎭 แว่นเดี่ยวหน้ากาก", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_masquerade_monocle"},
+      "51": {"name": "👝 ถุงเต๋าเทพี", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_goddess_dicebag"}
     },
     "armor_stats": {
       "None":      {"name": "👕 เสื้อผ้าธรรมดา", "hp": 0,   "eva": 85, "dur": 100, "vis": 1},
