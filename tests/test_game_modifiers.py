@@ -255,13 +255,14 @@ def test_roll_destination_fallback_for_new_continent(monkeypatch):
 
 
 def test_roll_destination_respects_zero_weight():
-    # เรือข้ามสมุทรตั้ง demon=5 — ถ้า set เป็น 0 ต้องไม่สุ่มไป demon เลย
+    # ระบุ weight 0 = พาหนะนั้นห้ามไปทวีปนั้นเด็ดขาด (ทวีปอื่นที่ไม่ระบุยังได้ fallback ตามปกติ)
     rng = __import__("random").Random(1)
     original = gm.VEHICLES["ship"]["dest_weights"]
     gm.VEHICLES["ship"]["dest_weights"] = {"main": 0, "demon": 0, "ocean": 100}
     try:
-        for _ in range(30):
-            assert gm.roll_destination("ship", "main", rng=rng) == "ocean"
+        results = {gm.roll_destination("ship", "main", rng=rng) for _ in range(60)}
+        assert "demon" not in results          # โดนแบนด้วย weight 0
+        assert "ocean" in results              # เรทหลักยังมา
     finally:
         gm.VEHICLES["ship"]["dest_weights"] = original
 
@@ -292,6 +293,28 @@ def test_ocean_continent_mods_match_approved_numbers(monkeypatch):
     assert "Ghost Pirate" in mods["monster_pool"]["Common"][0]
     assert "Tropical Storm" in mods["theme_texts"]["trap"]
     assert "Treasure Island" in mods["theme_texts"]["treasure"]
+
+
+def test_frozen_continent_numbers(monkeypatch):
+    monkeypatch.setattr(gm, "WEEKLY_THEMES", [])
+    mods = gm.get_active_modifiers({"continent": "frozen"})
+    assert mods["event_weight_mult"] == {"monster": 1.5}
+    assert mods["monster_hp_mult"] == 1.2
+    assert mods["monster_gold_mult"] == 1.6
+    assert mods["monster_exp_mult"] == 1.3
+    assert mods["element_weights"] == {"water": 30, "wind": 20}
+    assert "Yeti" in mods["monster_pool"]["Common"][0]
+    assert "Ice Dragon" in mods["monster_pool"]["Main-Boss"][0]
+    events = mods["special_events"]
+    assert len(events) == 1 and events[0]["key"] == "blizzard_ambush"
+    ambush = events[0]
+    assert ambush["template"] == "dice_check" and ambush["chance"] == 12
+    assert ambush["fail"]["start_fight"] is True
+    assert ambush["fail"]["apply_status"]["key"] == "numb"
+    # ทวีปใหม่ต้องโผล่เป็นปลายทางพาหนะอัตโนมัติ (fallback จาก A1)
+    rng = __import__("random").Random(21)
+    seen = {gm.roll_destination("caravan", "main", rng=rng) for _ in range(300)}
+    assert "frozen" in seen
 
 
 def test_pick_monster_name_themed_and_fallback(monkeypatch):

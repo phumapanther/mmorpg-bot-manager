@@ -1578,6 +1578,13 @@ class SpecialEventView(View):
         body = "\n".join(lines) if lines else "…ไม่มีอะไรเกิดขึ้น"
         if died:
             await interaction.response.edit_message(content=body, view=RespawnView(self.user_id))
+        elif outcome.get("start_fight"):
+            # ⚔️ เหตุการณ์ลากเข้าสู่การต่อสู้ทันที (เช่น โดนซุ่มโจมตี)
+            player_model.update_player_field(self.user_id, "current_state", "fighting")
+            next_view = MonsterEventView(self.user_id, interaction.user.roles)
+            await interaction.response.edit_message(
+                content=f"{body}\n👹 **ศัตรูไม่ให้เวลาคุณหายใจ — เข้าสู่การต่อสู้ทันที!**",
+                view=next_view)
         else:
             await interaction.response.edit_message(
                 content=f"{body}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
@@ -1903,6 +1910,13 @@ class AdventureView(View):
                 body = intro + "\n" + "\n".join(lines)
                 if died:
                     await interaction.followup.send(content=body, view=RespawnView(user_id))
+                elif outcome.get("start_fight"):
+                    player_model.update_player_field(user_id, "current_state", "fighting")
+                    next_view = MonsterEventView(user_id, interaction.user.roles)
+                    sent_msg = await interaction.followup.send(
+                        content=f"{body}\n👹 **ศัตรูไม่ให้เวลาคุณหายใจ — เข้าสู่การต่อสู้ทันที!**",
+                        view=next_view, wait=True)
+                    next_view.message = sent_msg
                 else:
                     next_view = AdventureView(author_id=user_id)
                     sent_msg = await interaction.followup.send(
