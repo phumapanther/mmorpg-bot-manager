@@ -1551,6 +1551,9 @@ class AdventureView(View):
             # 🧭 โอกาสสุ่มเจอพาหนะข้ามทวีป (แทรกเฉพาะจังหวะสุ่มปกติ ไม่ชนดันเจี้ยน/บอส/วาร์ป)
             if game_modifiers.roll_travel_chance():
                 chosen_event = "travel"
+            # 🍃 โอกาสเจออีเวนต์เงียบสงบ — ไม่มีอะไรเกิดขึ้น แค่บรรยากาศ
+            elif game_modifiers.roll_calm_chance():
+                chosen_event = "calm"
             else:
                 if last_evt not in EVENT_WEIGHTS:
                     last_evt = "none"
@@ -1620,6 +1623,15 @@ class AdventureView(View):
             next_view = TrapEventView(user_id, interaction.user.roles)
             trap_text = mods["theme_texts"].get("trap", "⚠️ *แก๊ก!* คุณพลาดก้าวขาไปเกี่ยวสายสลิง **'กับดักโบราณ'** เข้าให้แล้ว!")
             sent_msg = await interaction.followup.send(content=f"{trap_text} เตรียมรับมือแอคชั่นหลบหลีก: *(คูลดาวน์หมู่บ้านเหลือ: {current_cooldown} ตา)*", view=next_view, wait=True)
+            next_view.message = sent_msg
+
+        elif chosen_event == "calm":
+            # ไม่มีอะไรเกิดขึ้น — สถานะยังเป็น idle กดไปต่อได้ทันที
+            next_view = AdventureView(author_id=user_id)
+            calm_text = game_modifiers.pick_calm_text()
+            sent_msg = await interaction.followup.send(
+                content=f"{calm_text}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
+                view=next_view, wait=True)
             next_view.message = sent_msg
 
         elif chosen_event == "travel":

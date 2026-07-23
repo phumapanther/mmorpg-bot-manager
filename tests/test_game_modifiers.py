@@ -257,3 +257,18 @@ def test_travel_chance_boundaries():
 
     assert gm.roll_travel_chance(FakeRng(gm.TRAVEL_EVENT_CHANCE)) is True
     assert gm.roll_travel_chance(FakeRng(gm.TRAVEL_EVENT_CHANCE + 1)) is False
+
+
+def test_calm_event_chance_and_texts():
+    class FakeRng:
+        def __init__(self, value):
+            self.value = value
+
+        def randint(self, lo, hi):
+            return self.value
+
+    assert gm.roll_calm_chance(FakeRng(gm.CALM_EVENT_CHANCE)) is True
+    assert gm.roll_calm_chance(FakeRng(gm.CALM_EVENT_CHANCE + 1)) is False
+    rng = __import__("random").Random(3)
+    for _ in range(10):
+        assert gm.pick_calm_text(rng) in gm.CALM_TEXTS
