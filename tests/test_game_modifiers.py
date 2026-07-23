@@ -377,6 +377,23 @@ def test_sylvan_continent_numbers(monkeypatch):
     assert "Cursed Dryad" in mods["monster_pool"]["Main-Boss"][0]
 
 
+def test_mechanized_continent_numbers(monkeypatch):
+    monkeypatch.setattr(gm, "WEEKLY_THEMES", [])
+    mods = gm.get_active_modifiers({"continent": "mechanized"})
+    assert mods["monster_hp_mult"] == 1.3
+    assert mods["monster_gold_mult"] == 1.9
+    assert mods["element_weights"] == {"earth": 25, "fire": 20, "wind": 15}
+    events = {e["key"]: e for e in mods["special_events"]}
+    assert set(events) == {"emp_field", "ancient_excavation"}
+    emp = events["emp_field"]
+    assert emp["template"] == "choice"
+    assert emp["choices"][0]["outcome"]["apply_status"]["key"] == "emp"
+    dig = events["ancient_excavation"]
+    assert dig["template"] == "dice_check" and dig["pass_roll"] == 12
+    assert "Steam Puppet" in mods["monster_pool"]["Common"][0]
+    assert "Ancient Guardian" in mods["monster_pool"]["Main-Boss"][0]
+
+
 def test_pick_monster_name_themed_and_fallback(monkeypatch):
     monkeypatch.setattr(gm, "WEEKLY_THEMES", [])
     demon_mods = gm.get_active_modifiers({"continent": "demon"})
