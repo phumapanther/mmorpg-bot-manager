@@ -191,6 +191,20 @@ def test_infusion_merge_replace(monkeypatch):
     assert gm.DEFAULT_MODS["infusion"] is None # ค่าตั้งต้นไม่ถูกแตะ
 
 
+def test_absolute_zero_theme_numbers(monkeypatch):
+    zero = next(t for t in gm.WEEKLY_THEMES if t["key"] == "absolute_zero")
+    monkeypatch.setattr(gm, "WEEKLY_THEMES", [zero])
+    mods = gm.get_active_modifiers({"continent": "main"})
+    assert mods["ambient_status"] == "frostbite"
+    assert mods["travel_chance_mult"] == 2.0
+    assert mods["element_weights"] == {"water": 35}
+    assert gm.get_element_data(mods, "water")["hp_mult"] == 2.0
+    # สถานะ frostbite ต้องมีในตาราง + ล้างที่แหล่งความอบอุ่นทั้ง 3
+    frost = gm.STATUS_EFFECTS["frostbite"]
+    assert frost["tick"] == "step" and frost["step_damage"] == (2, 4)
+    assert set(frost["cleanse_on"]) == {"village", "npc", "dungeon"}
+
+
 def test_demon_plus_zombie_stacking(monkeypatch):
     zombie = next(t for t in gm.WEEKLY_THEMES if t["key"] == "zombie")
     monkeypatch.setattr(gm, "WEEKLY_THEMES", [zombie])  # ธีมเดียว = สัปดาห์ไหนก็ได้ zombie
@@ -494,8 +508,12 @@ def test_travel_chance_boundaries():
         def randint(self, lo, hi):
             return self.value
 
-    assert gm.roll_travel_chance(FakeRng(gm.TRAVEL_EVENT_CHANCE)) is True
-    assert gm.roll_travel_chance(FakeRng(gm.TRAVEL_EVENT_CHANCE + 1)) is False
+    assert gm.roll_travel_chance(rng=FakeRng(gm.TRAVEL_EVENT_CHANCE)) is True
+    assert gm.roll_travel_chance(rng=FakeRng(gm.TRAVEL_EVENT_CHANCE + 1)) is False
+    # travel_chance_mult คูณโอกาส (Absolute Zero = ×2)
+    doubled = {"travel_chance_mult": 2.0}
+    assert gm.roll_travel_chance(doubled, rng=FakeRng(gm.TRAVEL_EVENT_CHANCE * 2)) is True
+    assert gm.roll_travel_chance(doubled, rng=FakeRng(gm.TRAVEL_EVENT_CHANCE * 2 + 1)) is False
 
 
 def test_calm_event_chance_and_texts():

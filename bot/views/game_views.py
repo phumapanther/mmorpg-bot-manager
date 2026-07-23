@@ -1757,12 +1757,23 @@ class AdventureView(View):
 
         # 🧬 สถานะติดตัว: ผลต่อก้าวเดิน (เลือดไหล) + tick แบบ step
         statuses = game_modifiers.parse_statuses(player)
+
+        # 🌨️ สถานะแวดล้อมของธีม (เช่น frostbite ช่วง Absolute Zero): ยังไม่ติด = ติดทันที
+        ambient = mods.get("ambient_status")
+        ambient_note = None
+        if ambient and ambient in game_modifiers.STATUS_EFFECTS and ambient not in statuses:
+            statuses = game_modifiers.apply_status(statuses, ambient)
+            ambient_note = (
+                f"🌨️ {game_modifiers.STATUS_EFFECTS[ambient]['label']} แทรกซึมเข้าร่างคุณ! "
+                f"(หาความอบอุ่นจากหมู่บ้าน/NPC/ดันเจี้ยนเพื่อคลายหนาว)"
+            )
+
         if statuses:
             step_dmg, dmg_details = game_modifiers.roll_step_damage(statuses)
             statuses, expired = game_modifiers.tick_statuses(statuses, "step")
             player_model.update_player_field(user_id, "status_effects", statuses)
 
-            status_notes = []
+            status_notes = [ambient_note] if ambient_note else []
             if step_dmg:
                 new_hp = max(0, player.get("hp", 100) - step_dmg)
                 player_model.update_player_field(user_id, "hp", new_hp)
@@ -1827,7 +1838,7 @@ class AdventureView(View):
         else:
             special_event = None
             # 🧭 โอกาสสุ่มเจอพาหนะข้ามทวีป (แทรกเฉพาะจังหวะสุ่มปกติ ไม่ชนดันเจี้ยน/บอส/วาร์ป)
-            if game_modifiers.roll_travel_chance():
+            if game_modifiers.roll_travel_chance(mods):
                 chosen_event = "travel"
             # 🎪 อีเวนต์พิเศษประจำทวีป/ธีมสัปดาห์ (ทอยตาม chance รายอีเวนต์)
             elif (special_event := game_modifiers.roll_special_event(mods)):
@@ -1911,9 +1922,16 @@ class AdventureView(View):
 
         elif chosen_event == "dungeon":
             player_model.update_player_field(user_id, "current_state", "dungeon_choice")
-            
+
+            cleanse_note = ""
+            statuses, cleansed = game_modifiers.cleanse_statuses(statuses, "dungeon")
+            if cleansed:
+                player_model.update_player_field(user_id, "status_effects", statuses)
+                names = " ".join(game_modifiers.STATUS_EFFECTS[k]["label"] for k in cleansed)
+                cleanse_note = f"\n🔥 ไออุ่นจากใต้พิภพแผ่ซ่านไปทั่วร่าง — {names} หายเป็นปกติ!"
+
             next_view = DungeonEventView(user_id)
-            sent_msg = await interaction.followup.send(content=f"💀 คุณส่องเห็น **'ช่องอุโมงค์ถ้ำใต้พิภพ (Dungeon)'** เลือกแอคชั่นของคุณ: *(คูลดาวน์หมู่บ้านเหลือ: {current_cooldown} ตา)*", view=next_view, wait=True)
+            sent_msg = await interaction.followup.send(content=f"💀 คุณส่องเห็น **'ช่องอุโมงค์ถ้ำใต้พิภพ (Dungeon)'** เลือกแอคชั่นของคุณ: *(คูลดาวน์หมู่บ้านเหลือ: {current_cooldown} ตา)*{cleanse_note}", view=next_view, wait=True)
             next_view.message = sent_msg
 
         elif chosen_event == "trap":

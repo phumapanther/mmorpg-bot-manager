@@ -24,6 +24,8 @@ DEFAULT_MODS = {
     "special_events": [],      # อีเวนต์สุ่มประจำทวีป/ธีม (ต่อกัน) — ดู SpecialEventView ใน game_views
     "combat_hp_drain": None,   # [lo, hi] เลือดผู้เล่นไหลทุกเทิร์นที่สู้ (เช่น เนเธอร์) — None = ไม่มี
     "infusion": None,          # มอนติดบัฟพิเศษตอนเกิด {chance, badge, dmg_mult, drop_items} — None = ไม่มี
+    "ambient_status": None,    # สถานะแวดล้อมของธีม (เช่น "frostbite") — ยังไม่ติดจะติดอัตโนมัติทุกก้าว
+    "travel_chance_mult": 1.0, # คูณโอกาสเจอพาหนะข้ามทวีป (เช่น แม่น้ำน้ำแข็ง = ×2)
 }
 
 # ทวีป — ตัวคูณเกมเพลย์ (mods) เติมในข้อ 3
@@ -398,6 +400,11 @@ STATUS_EFFECTS = {
         "label": "🌟 พรบรรพชน", "tick": "step", "default_turns": 10,
         "exp_mult": 1.5,                     # EXP จากมอนสเตอร์คูณระหว่างติด
     },
+    "frostbite": {
+        "label": "🥶 หนาวกัดกระดูก", "tick": "step", "default_turns": 999,
+        "step_damage": (2, 4),               # ความหนาวกัดกินตลอดทาง (ธีม Absolute Zero ติดให้ใหม่เรื่อยๆ)
+        "cleanse_on": ["village", "npc", "dungeon"],  # แหล่งความอบอุ่นตามสเปก
+    },
 }
 
 
@@ -537,9 +544,10 @@ VEHICLES = {
 }
 
 
-def roll_travel_chance(rng=None):
-    """ทอยว่าการสุ่มปกติครั้งนี้เจอเหตุการณ์เดินทางไหม"""
-    return (rng or random).randint(1, 100) <= TRAVEL_EVENT_CHANCE
+def roll_travel_chance(mods=None, rng=None):
+    """ทอยว่าการสุ่มปกติครั้งนี้เจอเหตุการณ์เดินทางไหม (ธีมคูณโอกาสได้ผ่าน travel_chance_mult)"""
+    chance = TRAVEL_EVENT_CHANCE * (mods or {}).get("travel_chance_mult", 1.0)
+    return (rng or random).randint(1, 100) <= chance
 
 
 def roll_travel_encounter(player_cash, rng=None):
@@ -670,6 +678,21 @@ WEEKLY_THEMES = [
         },
     },
     {
+        "key": "absolute_zero",
+        "label": "🥶 พายุหิมะศูนย์สัมบูรณ์ (Absolute Zero Blizzard)",
+        "description": (
+            "ความหนาวเหน็บสุดขั้วปกคลุมทุกทวีป! ทุกคนติดสภาวะหนาวกัดกระดูก เลือดไหลไม่หยุด "
+            "จนกว่าจะพบความอบอุ่น (หมู่บ้าน/NPC/ดันเจี้ยน) — มอนธาตุน้ำแกร่งเป็นสองเท่า "
+            "แต่แม่น้ำที่กลายเป็นน้ำแข็งทำให้พบพาหนะข้ามทวีปบ่อยขึ้นสองเท่า!"
+        ),
+        "mods": {
+            "ambient_status": "frostbite",
+            "element_weights": {"water": 35},
+            "element_overrides": {"water": {"hp_mult": 2.0}},
+            "travel_chance_mult": 2.0,
+        },
+    },
+    {
         "key": "zombie",
         "label": "🧟 ซอมบี้บุก (Zombie Invasion)",
         "description": (
@@ -716,7 +739,7 @@ def _merge(base, extra):
             out[key] = merged_ov
         elif key == "special_events":
             out[key] = list(out.get(key, [])) + list(value)
-        elif key in ("combat_hp_drain", "infusion"):
+        elif key in ("combat_hp_drain", "infusion", "ambient_status"):
             out[key] = value  # แทนที่ (ธีมทับทวีป)
         elif key.endswith("_mult"):
             out[key] = out.get(key, 1.0) * value
