@@ -317,6 +317,28 @@ def test_frozen_continent_numbers(monkeypatch):
     assert "frozen" in seen
 
 
+def test_nether_continent_numbers(monkeypatch):
+    monkeypatch.setattr(gm, "WEEKLY_THEMES", [])
+    mods = gm.get_active_modifiers({"continent": "nether"})
+    assert mods["monster_hp_mult"] == 1.3
+    assert mods["monster_dmg_mult"] == 1.2
+    assert mods["monster_gold_mult"] == 1.8
+    assert mods["monster_exp_mult"] == 1.4
+    assert mods["element_weights"] == {"dark": 30, "water": 15}
+    assert mods["combat_hp_drain"] == [2, 5]        # Life Drain ต้องรอดผ่าน merge
+    assert "Banshee" in mods["monster_pool"]["Common"][0]
+    assert "Undead King" in mods["monster_pool"]["Main-Boss"][0]
+    feast = mods["special_events"][0]
+    assert feast["key"] == "ancestral_feast" and feast["template"] == "instant"
+    outcomes = feast["outcomes"]
+    assert len(outcomes) == 6
+    # พร 3 / สาป 3 น้ำหนักเท่ากัน = 50/50
+    blessings = [o for o in outcomes if "heal" in o or "cleanse_all" in o or "cleanse_random" in o]
+    curses = [o for o in outcomes if "damage" in o or "apply_status" in o
+              or (isinstance(o.get("gold"), list) and o["gold"][1] < 0)]
+    assert len(blessings) == 3 and len(curses) == 3
+
+
 def test_pick_monster_name_themed_and_fallback(monkeypatch):
     monkeypatch.setattr(gm, "WEEKLY_THEMES", [])
     demon_mods = gm.get_active_modifiers({"continent": "demon"})

@@ -21,6 +21,7 @@ DEFAULT_MODS = {
     "element_weights": {},     # เรทธาตุทับค่ามาตรฐานราย key เช่น {"dark": 35} (ว่าง = เรทสมดุล)
     "element_overrides": {},   # ปรับพารามิเตอร์ธาตุเฉพาะถิ่น เช่น {"wood": {"root_chance": 50}} — ทับรายพารามิเตอร์
     "special_events": [],      # อีเวนต์สุ่มประจำทวีป/ธีม (ต่อกัน) — ดู SpecialEventView ใน game_views
+    "combat_hp_drain": None,   # [lo, hi] เลือดผู้เล่นไหลทุกเทิร์นที่สู้ (เช่น เนเธอร์) — None = ไม่มี
 }
 
 # ทวีป — ตัวคูณเกมเพลย์ (mods) เติมในข้อ 3
@@ -84,6 +85,45 @@ CONTINENTS = {
                         "apply_status": {"key": "numb"},
                         "start_fight": True,
                     },
+                },
+            ],
+        },
+    },
+    "nether": {
+        "label": "💀 ทวีปเนเธอร์",
+        "arrival_text": "หมอกสีม่วงหม่นปกคลุมแผ่นดินร้าง เสียงกระซิบของวิญญาณแว่วมาจากทุกทิศ... ที่นี่คือแดนของคนตาย",
+        "mods": {
+            # แดนวิญญาณ: โหดรองจากปีศาจ + Life Drain ระหว่างสู้ แลกทอง/EXP งาม
+            "monster_hp_mult": 1.3,
+            "monster_dmg_mult": 1.2,
+            "monster_gold_mult": 1.8,
+            "monster_exp_mult": 1.4,
+            "element_weights": {"dark": 30, "water": 15},
+            "combat_hp_drain": [2, 5],
+            "monster_pool": {
+                "Common": ["👻 แบนชี (Banshee)", "🧟 กูล (Ghoul)"],
+                "Mini-Boss": ["💀 ลิช (Lich)"],
+                "Main-Boss": ["👑 ราชันอันเดด (Undead King)"],
+            },
+            "theme_texts": {
+                "treasure": "⚰️ คุณพบ **'โลงศพโบราณลงอาคม'** ฝาโลงแง้มออกเผยประกายสมบัติข้างใน",
+                "trap":     "🕸️ วิญญาณอาฆาตผุดขึ้นจากพื้น — **'กับดักมนตร์ต้องสาป'** ล้อมรอบตัวคุณ!",
+            },
+            "special_events": [
+                {
+                    "key": "ancestral_feast", "chance": 10, "template": "instant",
+                    "intro": (
+                        "🕯️ เทียนนับร้อยเล่มจุดสว่างวาบพร้อมกัน... ดวงวิญญาณบรรพชนล้อมวงรอบตัวคุณ\n"
+                        "**งานเลี้ยงบรรพชนเริ่มขึ้นแล้ว — เจอแล้วไม่มีทางปฏิเสธ**"
+                    ),
+                    "outcomes": [
+                        {"weight": 1, "text": "💖 บรรพชนพอใจในตัวคุณ ประทานพรฟื้นฟูร่างกายทั้งหมด!", "heal": "full"},
+                        {"weight": 1, "text": "✨ บรรพชนเป่ามนตร์ชำระล้างมลทินทั้งปวงออกจากร่าง!", "cleanse_all": True, "exp": [10, 30]},
+                        {"weight": 1, "text": "🌟 บรรพชนหยิบมลทินหนึ่งออกจากวิญญาณของคุณ", "cleanse_random": True, "exp": [10, 30]},
+                        {"weight": 1, "text": "😱 บรรพชนพิโรธ! คำสาปโบราณแผดเผาร่างของคุณ!", "damage": [25, 45]},
+                        {"weight": 1, "text": "🪙 บรรพชนเรียกร้องเครื่องเซ่น... เงินในถุงของคุณลอยหายไปในความมืด", "gold": [-10000, -2000]},
+                        {"weight": 1, "text": "☠️ ไอหมอกพิษแห่งแดนมรณะซึมเข้าสู่ผิวกายของคุณ", "apply_status": {"key": "poison"}},
+                    ],
                 },
             ],
         },
@@ -423,6 +463,8 @@ def _merge(base, extra):
             out[key] = merged_ov
         elif key == "special_events":
             out[key] = list(out.get(key, [])) + list(value)
+        elif key == "combat_hp_drain":
+            out[key] = value  # แทนที่ (ธีมทับทวีป)
         elif key.endswith("_mult"):
             out[key] = out.get(key, 1.0) * value
     return out

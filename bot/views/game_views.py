@@ -349,6 +349,13 @@ class MonsterEventView(View):
                         self.monster_hp += healed
                         combat_log += f"💧 **ดูดเลือด!** มอนสเตอร์สูบพลังชีวิตจากบาดแผลของคุณ ฟื้น HP `+{healed}` (บอสเหลือ HP: {self.monster_hp})\n"
 
+            # 💀 Life Drain (ทวีป/ธีม เช่น เนเธอร์): วิญญาณดูดกลืนชีวิตทุกเทิร์นที่สู้
+            drain_range = self.mods.get("combat_hp_drain")
+            if drain_range:
+                drain = random.randint(int(drain_range[0]), int(drain_range[1]))
+                player["hp"] = max(0, player.get("hp", 100) - drain)
+                combat_log += f"🩸 **แดนมรณะดูดกลืนชีวิต** `-{drain}` HP (เหลือ {player['hp']})\n"
+
             # 6. 💾 คำนวณค่าทนทานใหม่
             new_w_dur = max(0, player.get("weapon_dur", 0) - durability_lost_w)
             new_a_dur = max(0, player.get("armor_dur", 0) - damage_to_armor)
