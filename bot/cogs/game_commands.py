@@ -306,13 +306,18 @@ class GameCommands(commands.Cog):
             theme_line += f"\n🎲 กติกาเทพีวันนี้: {game_modifiers.get_daily_dice_rule()['label']}"
         player_statuses = game_modifiers.parse_statuses(player)
         status_line = f"\n🩸 สถานะติดตัว: {game_modifiers.format_status_line(player_statuses)}" if player_statuses else ""
+        player_elements = game_modifiers.resolve_player_elements([r.name for r in ctx.author.roles])
+        element_line = ""
+        if player_elements:
+            element_labels = " ".join(game_modifiers.ELEMENTS[e]["label"] for e in player_elements)
+            element_line = f"\n🧬 ธาตุประจำตัว: {element_labels}"
         embed = discord.Embed(
             title="⚔️ ยินดีต้อนรับสู่โลก D&D MMORPG",
             description=(
                 f"กระเป๋าเงินกลางของคุณ: `{player['cash']}` ทอง\n"
                 f"สถานะปัจจุบัน: `{player['current_state']}`\n"
                 f"🗺️ ทวีปปัจจุบัน: {game_modifiers.get_continent(player)['label']}"
-                f"{theme_line}{status_line}"
+                f"{theme_line}{status_line}{element_line}"
             ),
             color=0x2b6cb0
         )

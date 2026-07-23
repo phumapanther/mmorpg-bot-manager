@@ -672,6 +672,81 @@ def format_status_line(statuses):
     return " · ".join(parts)
 
 
+# ===== ธาตุประจำตัวผู้เล่น (จากยศเผ่า Discord) =====
+# จับคู่ด้วย "คำสำคัญ" ในชื่อยศ — ทนต่อช่องว่าง/อีโมจิ/สัญลักษณ์แปลกในชื่อยศจริง
+# เผ่าที่สเปกเขียน "or" (มนุษย์/คนแคระ) = ได้สองธาตุในตัว (จุดขายของเผ่า)
+
+RACE_ELEMENTS = {
+    # เผ่าผู้เล่น (GAME_RACES)
+    "มนุษย์": ["light", "wind"],
+    "เอลฟ์": ["wood"],
+    "ยักษ์": ["earth"],
+    "คนแคระ": ["earth", "fire"],
+    "มังกร": ["fire"],
+    "ภูติ": ["wind"],
+    "เงือก": ["water"],
+    "มิ้ง": ["wind"],
+    # เผ่าฝ่ายมอนสเตอร์ (MONSTER_RACES)
+    "Dragon": ["fire"],
+    "Unicon": ["light"],
+    "Slime": ["water"],
+    "Ogre": ["earth"],
+    "Orc": ["earth"],
+    "Goblins": ["wood"],
+    "Lich": ["dark"],
+    "Skeleton": ["dark"],
+    "Zombie": ["dark"],
+}
+
+# ตารางแพ้ทาง (ตามสเปก): ธาตุ → ธาตุที่ตีแรงขึ้น ×1.5
+ELEMENT_ADVANTAGE = {
+    "fire": ["wood"], "water": ["fire"], "earth": ["water"],
+    "wood": ["earth"], "wind": ["earth"],
+    "light": ["dark"], "dark": ["light"],   # แสง↔มืด สาดใส่กันแรงทั้งคู่
+}
+# ฝั่งรับ (ตามสเปก): ธาตุ → ธาตุที่รับดาเมจลดเหลือ ×0.75
+ELEMENT_RESIST = {
+    "fire": ["water"], "water": ["earth"], "earth": ["wood"],
+    "wood": ["fire"], "wind": ["fire"],
+}
+
+
+def resolve_player_elements(role_names):
+    """แปลงรายชื่อยศของผู้เล่น → รายการธาตุประจำตัว (ไม่ซ้ำ, ลำดับเสถียรตามตาราง)"""
+    elements = []
+    for keyword, elems in RACE_ELEMENTS.items():
+        if any(keyword in str(name) for name in role_names):
+            for element in elems:
+                if element not in elements:
+                    elements.append(element)
+    return elements
+
+
+def player_attack_element_mult(player_elements, monster_element):
+    """ตัวคูณดาเมจผู้เล่น→มอนตามธาตุ: ได้เปรียบ 1 ธาตุ = ×1.5, สองธาตุซ้อน = ×2.0 (cap ตามสเปก)"""
+    if not monster_element or not player_elements:
+        return 1.0
+    advantages = sum(1 for e in player_elements if monster_element in ELEMENT_ADVANTAGE.get(e, []))
+    if advantages >= 2:
+        return 2.0
+    if advantages == 1:
+        return 1.5
+    return 1.0
+
+
+def player_defense_element_mult(player_elements, monster_element):
+    """ตัวคูณดาเมจมอน→ผู้เล่น: ผู้เล่นต้านทานธาตุมอน = ×0.75, ถือธาตุคู่ปรับแสง↔มืด = ×1.5"""
+    if not monster_element or not player_elements:
+        return 1.0
+    if monster_element in ("light", "dark"):
+        opposite = "dark" if monster_element == "light" else "light"
+        if opposite in player_elements:
+            return 1.5
+    if any(monster_element in ELEMENT_RESIST.get(e, []) for e in player_elements):
+        return 0.75
+    return 1.0
+
+
 # ===== กติกาเต๋ารายวัน (ธีมเต๋าแห่งเทพี) =====
 # เปลี่ยนทุกวัน แบบ deterministic จากวันที่ (ทุกเซิร์ฟตรงกัน restart ไม่เปลี่ยน)
 

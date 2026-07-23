@@ -151,6 +151,10 @@ class MonsterEventView(View):
                 self.player_class = role.name
                 break
 
+        # ⚔️ ธาตุประจำตัวผู้เล่นจากยศเผ่า (dual-race ได้หลายธาตุ)
+        self.player_elements = game_modifiers.resolve_player_elements(
+            [getattr(r, "name", str(r)) for r in (self.member_roles or [])])
+
         self.add_skill_buttons()
 
     def add_skill_buttons(self):
@@ -358,7 +362,11 @@ class MonsterEventView(View):
                 goddess_mult = game_modifiers.dice_rule_bonus(goddess_rule, player_roll) if goddess_rule else 1.0
                 if goddess_mult > 1.0:
                     combat_log += f"🎲 **เทพีโปรดปราน!** เต๋าของคุณเข้ากติกาวันนี้ ดาเมจ ×{goddess_mult:g}!\n"
-                damage_to_monster = int((player_roll + curr_atk) * 5 * damage_multiplier * status_dmg_mult * goddess_mult)
+                # ⚔️ ธาตุผู้เล่นได้เปรียบธาตุมอน (dual-race ซ้อนได้เปรียบ = ×2.0 cap)
+                elem_adv_mult = game_modifiers.player_attack_element_mult(getattr(self, "player_elements", []), self.element)
+                if elem_adv_mult > 1.0:
+                    combat_log += f"⚔️✨ **ธาตุประจำตัวของคุณข่มธาตุศัตรู!** ดาเมจ ×{elem_adv_mult:g}\n"
+                damage_to_monster = int((player_roll + curr_atk) * 5 * damage_multiplier * status_dmg_mult * goddess_mult * elem_adv_mult)
 
                 # 🌗 คำสาปแต้มคี่/คู่: parity ของเต๋าตรงคำสาป = ผลโจมตีบิดเบี้ยว
                 curse_key = game_modifiers.status_curse_for_roll(self.statuses, player_roll)
@@ -386,7 +394,13 @@ class MonsterEventView(View):
                 goddess_penalty = game_modifiers.dice_rule_penalty(goddess_rule, player_roll) if goddess_rule else 1.0
                 if goddess_penalty > 1.0:
                     combat_log += "🎲 **เทพีเบือนหน้าหนี...** เต๋าตกโซนโทษ มอนสเตอร์ตีสวนแรงขึ้น!\n"
-                damage_to_player = round((random.randint(10, 25) + enrage_bonus) * self.mods.get("monster_dmg_mult", 1.0) * elem_dmg_mult * infusion_mult * goddess_penalty)
+                # 🛡️ ธาตุผู้เล่นต้านทาน/แพ้ทางธาตุมอนฝั่งรับ
+                elem_def_mult = game_modifiers.player_defense_element_mult(getattr(self, "player_elements", []), self.element)
+                if elem_def_mult < 1.0:
+                    combat_log += "🛡️ **ธาตุประจำตัวของคุณต้านทานพลังโจมตีนี้!**\n"
+                elif elem_def_mult > 1.0:
+                    combat_log += "☯️ **พลังแสง-มืดปะทะกันรุนแรง!** ดาเมจที่ได้รับหนักขึ้น!\n"
+                damage_to_player = round((random.randint(10, 25) + enrage_bonus) * self.mods.get("monster_dmg_mult", 1.0) * elem_dmg_mult * infusion_mult * goddess_penalty * elem_def_mult)
                 if elem_dmg_mult > 1.0:
                     combat_log += "🔥 **เพลิงธาตุลุกโหม!** การโจมตีของมอนสเตอร์รุนแรงขึ้นกว่าปกติ!\n"
                 if infusion_mult > 1.0:
