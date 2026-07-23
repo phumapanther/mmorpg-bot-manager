@@ -6,9 +6,11 @@ import pytest
 from bot import game_modifiers as gm
 
 
-def test_default_is_identity():
+def test_default_is_identity(monkeypatch):
+    monkeypatch.setattr(gm, "WEEKLY_THEMES", [])
     mods = gm.get_active_modifiers({"continent": "main"})
     assert mods["monster_hp_mult"] == 1.0
+    assert mods["monster_dmg_mult"] == 1.0
     assert mods["monster_gold_mult"] == 1.0
     assert mods["monster_exp_mult"] == 1.0
     assert mods["event_weight_mult"] == {}
@@ -80,8 +82,53 @@ def test_weekly_theme_deterministic(monkeypatch):
     assert gm.get_weekly_theme(next_week) is gm.get_weekly_theme(next_week)
 
 
-def test_weekly_theme_none_when_empty():
+def test_weekly_theme_none_when_empty(monkeypatch):
+    monkeypatch.setattr(gm, "WEEKLY_THEMES", [])
     assert gm.get_weekly_theme() is None
+
+
+# ===== ธีมจริง 2 ตัวแรก (ข้อ 5) =====
+
+VALID_RANKS = {"Common", "Mini-Boss", "Main-Boss", "Secret", "Unbeatable"}
+
+
+def test_real_themes_structure():
+    keys = [t["key"] for t in gm.WEEKLY_THEMES]
+    assert "palette" in keys and "zombie" in keys
+    for theme in gm.WEEKLY_THEMES:
+        assert theme["label"] and theme["description"]
+        assert set(theme["mods"].get("monster_pool", {})) <= VALID_RANKS
+
+
+def test_zombie_theme_numbers():
+    zombie = next(t for t in gm.WEEKLY_THEMES if t["key"] == "zombie")
+    mods = zombie["mods"]
+    assert mods["event_weight_mult"] == {"monster": 1.4}
+    assert mods["monster_hp_mult"] == 1.3
+    assert mods["monster_dmg_mult"] == 1.2
+    assert mods["monster_gold_mult"] == 2.0
+    assert mods["monster_exp_mult"] == 1.5
+    assert any("Zombie Titan" in n for n in mods["monster_pool"]["Mini-Boss"])
+
+
+def test_palette_theme_numbers():
+    palette = next(t for t in gm.WEEKLY_THEMES if t["key"] == "palette")
+    assert palette["mods"]["monster_gold_mult"] == 1.5
+    # มีหลายสีต่อแรงค์ให้สุ่มไม่ซ้ำ
+    assert len(palette["mods"]["monster_pool"]["Common"]) >= 3
+
+
+def test_demon_plus_zombie_stacking(monkeypatch):
+    zombie = next(t for t in gm.WEEKLY_THEMES if t["key"] == "zombie")
+    monkeypatch.setattr(gm, "WEEKLY_THEMES", [zombie])  # ธีมเดียว = สัปดาห์ไหนก็ได้ zombie
+    mods = gm.get_active_modifiers({"continent": "demon"})
+    assert mods["monster_hp_mult"] == pytest.approx(1.95)   # 1.5 × 1.3
+    assert mods["monster_dmg_mult"] == pytest.approx(1.56)  # 1.3 × 1.2
+    assert mods["monster_gold_mult"] == pytest.approx(4.0)  # 2.0 × 2.0
+    assert mods["monster_exp_mult"] == pytest.approx(2.25)  # 1.5 × 1.5
+    # ซอมบี้แทรกเข้า pool ควบคู่มอนสเตอร์ทวีป (ไม่แทนที่)
+    common = mods["monster_pool"]["Common"]
+    assert any("Imp" in n for n in common) and any("Zombie" in n for n in common)
 
 
 # ===== ระบบเดินทางข้ามทวีป (ข้อ 2) =====
@@ -117,10 +164,12 @@ def test_roll_destination_respects_zero_weight():
 
 # ===== ผลทวีปต่อเกมเพลย์ (ข้อ 3) =====
 
-def test_demon_continent_mods_match_approved_numbers():
+def test_demon_continent_mods_match_approved_numbers(monkeypatch):
+    monkeypatch.setattr(gm, "WEEKLY_THEMES", [])
     mods = gm.get_active_modifiers({"continent": "demon"})
     assert mods["event_weight_mult"] == {"monster": 1.5, "trap": 1.3, "village": 0.5}
     assert mods["monster_hp_mult"] == 1.5
+    assert mods["monster_dmg_mult"] == 1.3
     assert mods["monster_gold_mult"] == 2.0
     assert mods["monster_exp_mult"] == 1.5
     assert "Imp" in mods["monster_pool"]["Common"][0]
@@ -128,10 +177,12 @@ def test_demon_continent_mods_match_approved_numbers():
     assert "Demon Rift" in mods["theme_texts"]["trap"]
 
 
-def test_ocean_continent_mods_match_approved_numbers():
+def test_ocean_continent_mods_match_approved_numbers(monkeypatch):
+    monkeypatch.setattr(gm, "WEEKLY_THEMES", [])
     mods = gm.get_active_modifiers({"continent": "ocean"})
     assert mods["event_weight_mult"] == {"treasure": 1.6, "trap": 1.2}
     assert mods["monster_hp_mult"] == 1.2
+    assert mods["monster_dmg_mult"] == 1.0
     assert mods["monster_gold_mult"] == 1.5
     assert mods["monster_exp_mult"] == 1.0
     assert "Ghost Pirate" in mods["monster_pool"]["Common"][0]
@@ -139,7 +190,8 @@ def test_ocean_continent_mods_match_approved_numbers():
     assert "Treasure Island" in mods["theme_texts"]["treasure"]
 
 
-def test_pick_monster_name_themed_and_fallback():
+def test_pick_monster_name_themed_and_fallback(monkeypatch):
+    monkeypatch.setattr(gm, "WEEKLY_THEMES", [])
     demon_mods = gm.get_active_modifiers({"continent": "demon"})
     assert "Imp" in gm.pick_monster_name(demon_mods, "Common")
     assert "Demon Lord" in gm.pick_monster_name(demon_mods, "Main-Boss")

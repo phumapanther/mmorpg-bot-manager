@@ -12,6 +12,7 @@ import random
 DEFAULT_MODS = {
     "event_weight_mult": {},   # คูณน้ำหนักรายอีเวนต์ เช่น {"monster": 1.5} (ว่าง = ปกติ)
     "monster_hp_mult": 1.0,    # คูณ HP มอนสเตอร์ตอนเกิดใหม่
+    "monster_dmg_mult": 1.0,   # คูณดาเมจที่มอนสเตอร์ตีใส่ผู้เล่น
     "monster_gold_mult": 1.0,  # คูณทองรางวัลชนะมอนสเตอร์
     "monster_exp_mult": 1.0,   # คูณ EXP รางวัลชนะมอนสเตอร์
     "monster_pool": {},        # ชื่อมอนสเตอร์ธีมราย "แรงค์" เช่น {"Common": ["😈 อิมป์"]} (แรงค์ที่ไม่มี = ใช้ชื่อเดิม)
@@ -32,6 +33,7 @@ CONTINENTS = {
             # เสี่ยงสูง-รางวัลสูง: เจอมอน/กับดักถี่ขึ้น หมู่บ้านหายาก มอนอึดขึ้นแต่จ่ายหนัก
             "event_weight_mult": {"monster": 1.5, "trap": 1.3, "village": 0.5},
             "monster_hp_mult": 1.5,
+            "monster_dmg_mult": 1.3,
             "monster_gold_mult": 2.0,
             "monster_exp_mult": 1.5,
             "monster_pool": {
@@ -104,8 +106,55 @@ def roll_destination(vehicle_key, current_continent, rng=None):
     keys, weights = zip(*choices)
     return rng.choices(keys, weights=weights, k=1)[0]
 
-# ธีมรายสัปดาห์ — ข้อ 4-5 จะเติม palette/zombie
-WEEKLY_THEMES = []
+# ธีมรายสัปดาห์ — สุ่มจากเลขสัปดาห์ ISO (get_weekly_theme) เปลี่ยนทุกวันจันทร์
+# เพิ่มธีมใหม่ = เพิ่ม entry ที่นี่ (ต้องมี key/label/description/mods)
+WEEKLY_THEMES = [
+    {
+        "key": "palette",
+        "label": "🎨 จานสีมอนสเตอร์ (Monster Palette)",
+        "description": (
+            "สัปดาห์นี้มอนสเตอร์ทั้งแผ่นดินกลายร่างเป็นสีประหลาด! "
+            "เจอตัวไหนได้สีอะไรวัดดวงล้วนๆ — กำจัดได้รับทองเพิ่มเป็น 150%"
+        ),
+        "mods": {
+            "monster_gold_mult": 1.5,
+            "monster_pool": {
+                "Common": [
+                    "🔴 สไลม์เพลิงแดงเดือด (Crimson)",
+                    "🔵 ก็อบลินน้ำแข็งคราม (Azure)",
+                    "🟣 ค้างคาวพิษม่วง (Violet)",
+                    "🟡 หมาป่าทองคำ (Golden)",
+                ],
+                "Mini-Boss": [
+                    "🟠 โทรลล์ลาวาส้ม (Amber)",
+                    "🟢 อสูรป่ามรกต (Emerald)",
+                ],
+                "Main-Boss": [
+                    "🌈 จอมมารรุ้งสลับสี (Prismatic)",
+                ],
+            },
+        },
+    },
+    {
+        "key": "zombie",
+        "label": "🧟 ซอมบี้บุก (Zombie Invasion)",
+        "description": (
+            "ฝูงซอมบี้กลายพันธุ์ทะลักเข้าทุกทวีป! เจอมอนสเตอร์ถี่ขึ้น อึดขึ้น ตีเจ็บขึ้น — "
+            "แต่กำจัดได้รับทองเป็น 200% และ EXP 150%"
+        ),
+        "mods": {
+            "event_weight_mult": {"monster": 1.4},
+            "monster_hp_mult": 1.3,
+            "monster_dmg_mult": 1.2,
+            "monster_gold_mult": 2.0,
+            "monster_exp_mult": 1.5,
+            "monster_pool": {
+                "Common": ["🧟 ซอมบี้กลายพันธุ์ (Mutant Zombie)", "💥 ซอมบี้ระเบิด (Exploding Zombie)"],
+                "Mini-Boss": ["🧟‍♂️ ซอมบี้ไททัน (Zombie Titan)"],
+            },
+        },
+    },
+]
 
 
 def _merge(base, extra):

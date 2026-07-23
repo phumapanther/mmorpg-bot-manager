@@ -247,7 +247,8 @@ class MonsterEventView(View):
             
             # 👾 บอสทอยได้เต๋าชนะ
             else:
-                damage_to_player = random.randint(10, 25) + enrage_bonus
+                # ตัวคูณดาเมจมอนสเตอร์จากทวีป/ธีมสัปดาห์ (ปกติ = 1.0)
+                damage_to_player = round((random.randint(10, 25) + enrage_bonus) * self.mods.get("monster_dmg_mult", 1.0))
                 
                 if player.get("armor_dur", 0) > 0:
                     damage_to_armor = max(1, int(damage_to_player / 10))
