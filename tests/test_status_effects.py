@@ -71,6 +71,37 @@ def test_step_damage_within_range():
     assert gm.roll_step_damage({"numb": 2}, rng=rng) == (0, [])  # ชาไม่มีเลือดไหล
 
 
+def test_s2_status_table_and_helpers():
+    # โครงสถานะใหม่ 4 ตัว
+    assert gm.STATUS_EFFECTS["sealed_dice"]["seal_high_roll"] == 15
+    assert gm.STATUS_EFFECTS["fumble"]["fumble_chance"] == 30
+    assert gm.STATUS_EFFECTS["burn"]["combat_pct_damage"] == 0.05
+    assert gm.STATUS_EFFECTS["burn"]["tick"] == "fight"
+    assert gm.STATUS_EFFECTS["entangled"]["no_flee"] is True
+    assert gm.STATUS_EFFECTS["entangled"]["monster_dice_bonus"] == 2
+    # helpers
+    assert gm.status_seal_threshold({}) is None
+    assert gm.status_seal_threshold({"sealed_dice": 3}) == 15
+    assert gm.status_fumble_chance({"fumble": 2}) == 30
+    assert gm.status_fumble_chance({"poison": 5}) == 0
+    assert gm.status_pct_damage({"burn": 2}) == 0.05
+    assert gm.status_monster_dice_bonus({"entangled": 1}) == 2
+    assert gm.has_status_flag({"entangled": 1}, "no_flee") is True
+
+
+def test_s2_on_hit_bindings():
+    # ธาตุลม/ไฟ/ไม้ ตีติดสถานะตามสเปก
+    assert gm.ELEMENTS["wind"]["on_hit_status"] == {"key": "sealed_dice", "chance": 25}
+    assert gm.ELEMENTS["fire"]["on_hit_status"] == {"key": "burn", "chance": 25}
+    assert gm.ELEMENTS["wood"]["on_hit_status"] == {"key": "entangled", "chance": 25}
+    # ทวีปน้ำแข็ง: มอนตีติดเต๋าหลุดมือ
+    assert gm.CONTINENTS["frozen"]["mods"]["on_hit_status"] == {"key": "fumble", "chance": 20}
+    # ทุก on_hit ต้องชี้สถานะที่มีจริง
+    for elem in gm.ELEMENTS.values():
+        if "on_hit_status" in elem:
+            assert elem["on_hit_status"]["key"] in gm.STATUS_EFFECTS
+
+
 def test_format_status_line_units():
     line = gm.format_status_line({"poison": 12, "emp": 1})
     assert "☠️ พิษป่า (เหลือ 12 ก้าว)" in line

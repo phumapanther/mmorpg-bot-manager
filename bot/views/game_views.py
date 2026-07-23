@@ -239,6 +239,23 @@ class MonsterEventView(View):
                 monster_roll += dice_bonus
                 skill_log += f"{self.element_data['label']}: กระแสธาตุหนุนเต๋ามอนสเตอร์ `+{dice_bonus}` หน่วย!\n"
 
+            # ─── 🧬 สถานะติดตัวช่วงทอยเต๋า ───
+            # 🤲 เต๋าหลุดมือ: โอกาสลูกเต๋าร่วงจากมือ เสียจังหวะโจมตีเทิร์นนี้
+            fumble_chance = game_modifiers.status_fumble_chance(self.statuses)
+            if fumble_chance and random.randint(1, 100) <= fumble_chance:
+                player_roll = 0
+                skill_log += "🤲 **เต๋าหลุดมือ!** นิ้วที่แข็งชาทำลูกเต๋าร่วงพื้น — เสียจังหวะโจมตีเทิร์นนี้!\n"
+            # 🎲 เต๋าถูกผนึก: ทอยได้สูงถึงเพดานผนึก ถูกกดเหลือ 1
+            seal_at = game_modifiers.status_seal_threshold(self.statuses)
+            if seal_at and player_roll >= seal_at:
+                skill_log += f"🎲 **ตราผนึกทำงาน!** เต๋าของคุณออก `{player_roll}` แต่ถูกผนึกบีบเหลือ `1`!\n"
+                player_roll = 1
+            # 🌱 รากรัด/สถานะอื่น: โบนัสเต๋ามอนสเตอร์
+            status_dice_bonus = game_modifiers.status_monster_dice_bonus(self.statuses)
+            if status_dice_bonus:
+                monster_roll += status_dice_bonus
+                skill_log += f"🌱 ร่างที่ถูกพันธนาการขยับลำบาก — เต๋ามอนสเตอร์ `+{status_dice_bonus}` หน่วย!\n"
+
             damage_multiplier = 1
 
             # ─── ⚔️ ระบบคำนวณสกิลช่วงต้นเทิร์น ───
@@ -395,6 +412,13 @@ class MonsterEventView(View):
                 drain = random.randint(int(drain_range[0]), int(drain_range[1]))
                 player["hp"] = max(0, player.get("hp", 100) - drain)
                 combat_log += f"🩸 **แดนมรณะดูดกลืนชีวิต** `-{drain}` HP (เหลือ {player['hp']})\n"
+
+            # 🔥 สถานะเผาไหม้: เสียเลือดตาม % MaxHP ทุกเทิร์นที่สู้
+            burn_pct = game_modifiers.status_pct_damage(self.statuses)
+            if burn_pct:
+                burn_dmg = max(1, round(player.get("max_hp", 100) * burn_pct))
+                player["hp"] = max(0, player.get("hp", 100) - burn_dmg)
+                combat_log += f"🔥 **แผลแผดเผาลุกลาม** `-{burn_dmg}` HP (เหลือ {player['hp']})\n"
 
             # 6. 💾 คำนวณค่าทนทานใหม่
             new_w_dur = max(0, player.get("weapon_dur", 0) - durability_lost_w)
@@ -647,8 +671,14 @@ class MonsterEventView(View):
     async def fight_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.process_turn(interaction)
 
+    # 🌱 สถานะรากพันธนาการ (no_flee): บล็อกการหนีจนกว่าสถานะจะหมด — เช็คในตัว callback ด้านล่าง
     @discord.ui.button(label="🏃 วิ่งหนี!", style=discord.ButtonStyle.secondary, row=0)
     async def flee(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # 🌱 สถานะรากพันธนาการ: หนีไม่ได้จนกว่าสถานะจะหมด
+        if game_modifiers.has_status_flag(self.statuses, "no_flee"):
+            return await interaction.response.send_message(
+                "🌱 **รากไม้รัดขาแน่น!** คุณดิ้นเท่าไหร่ก็หนีไม่หลุด — ต้องสู้จนกว่าพันธนาการจะคลาย!", ephemeral=True)
+
         flee_roll = random.randint(1, 100)
         
         # ถ้าหนีสำเร็จ

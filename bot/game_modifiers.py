@@ -72,6 +72,8 @@ CONTINENTS = {
             "monster_gold_mult": 1.6,
             "monster_exp_mult": 1.3,
             "element_weights": {"water": 30, "wind": 20},
+            # ความหนาวทำมือแข็ง: มอนที่นี่ตีติด "เต๋าหลุดมือ" ได้
+            "on_hit_status": {"key": "fumble", "chance": 20},
             "monster_pool": {
                 "Common": ["🦣 เยติ (Yeti)", "🐺 หมาป่าหิมะ (Snow Wolf)"],
                 "Mini-Boss": ["⚔️ อัศวินน้ำแข็งโบราณ (Ancient Ice Knight)"],
@@ -351,11 +353,14 @@ CONTINENTS = {
 # (พารามิเตอร์ที่ไม่ใส่ = ไม่มีเอฟเฟกต์นั้น)
 
 ELEMENTS = {
-    "fire":  {"label": "🔥 ธาตุไฟ",  "dmg_mult": 1.5},                          # ตีแรงขึ้น 50%
+    "fire":  {"label": "🔥 ธาตุไฟ",  "dmg_mult": 1.5,                           # ตีแรงขึ้น 50%
+              "on_hit_status": {"key": "burn", "chance": 25}},                  # 25% ตีติดแผลแผดเผา
     "water": {"label": "💧 ธาตุน้ำ", "lifesteal": 0.35},                        # ดูดเลือด 35% ของดาเมจที่ตีโดน
     "earth": {"label": "🪨 ธาตุดิน", "hp_mult": 2.0},                           # เลือดหนา 2 เท่า
-    "wind":  {"label": "💨 ธาตุลม",  "dice_bonus": (2, 4)},                     # เต๋ามอน +2 ถึง +4
-    "wood":  {"label": "🌿 ธาตุไม้", "dice_bonus": (2, 4), "root_chance": 25},  # เต๋า+ และ 25% รากพันธนาการล็อกเต๋าผู้เล่น = 0
+    "wind":  {"label": "💨 ธาตุลม",  "dice_bonus": (2, 4),                      # เต๋ามอน +2 ถึง +4
+              "on_hit_status": {"key": "sealed_dice", "chance": 25}},           # 25% ตีติดเต๋าถูกผนึก
+    "wood":  {"label": "🌿 ธาตุไม้", "dice_bonus": (2, 4), "root_chance": 25,   # เต๋า+ และ 25% รากล็อกเต๋าผู้เล่น = 0
+              "on_hit_status": {"key": "entangled", "chance": 25}},             # 25% ตีติดรากพันธนาการ (ห้ามหนี)
     "dark":  {"label": "🌑 ธาตุมืด", "pre_enraged": True},                      # คลั่งตั้งแต่เทิร์นแรก
     "light": {"label": "✨ ธาตุแสง", "monster_flee_chance": 40, "gold_mult": 3.5},  # หนีเก่ง (แบบ Metal Slime) แต่ล้มได้ทองหนัก
 }
@@ -412,6 +417,23 @@ STATUS_EFFECTS = {
     "illegal_buff": {
         "label": "💪 ยาโด๊ปเถื่อน", "tick": "step", "default_turns": 15,
         "player_dmg_mult": 1.3,              # บัฟดาเมจผู้เล่น (สถานะบัฟตัวแรก — hook เดียวกับ "ชา")
+    },
+    "sealed_dice": {
+        "label": "🎲 เต๋าถูกผนึก", "tick": "step", "default_turns": 5,
+        "seal_high_roll": 15,                # ทอยได้ >= ค่านี้ ถูกกดเหลือ 1 (ช่วงเต๋าทองหายไป)
+    },
+    "fumble": {
+        "label": "🤲 เต๋าหลุดมือ", "tick": "step", "default_turns": 4,
+        "fumble_chance": 30,                 # ต่อเทิร์นสู้: เต๋าหลุดมือ = เต๋าเป็น 0 เสียจังหวะโจมตี
+    },
+    "burn": {
+        "label": "🔥 แผลแผดเผา", "tick": "fight", "default_turns": 3,
+        "combat_pct_damage": 0.05,           # เสียเลือด % ของ MaxHP ทุกเทิร์นที่สู้
+    },
+    "entangled": {
+        "label": "🌱 รากไม้พันธนาการ", "tick": "fight", "default_turns": 3,
+        "no_flee": True,                     # กดปุ่มวิ่งหนีไม่ได้
+        "monster_dice_bonus": 2,             # รากรัดขาขยับยาก — เต๋ามอนสเตอร์ +2
     },
 }
 
@@ -473,6 +495,27 @@ def status_combat_mult(statuses, param):
 def has_status_flag(statuses, param):
     """มีสถานะไหนที่เปิดธง param นี้ไหม (เช่น disable_skills)"""
     return any(STATUS_EFFECTS[key].get(param) for key in statuses)
+
+
+def status_seal_threshold(statuses):
+    """เพดานเต๋าจากสถานะผนึก — ทอยถึง/เกินค่านี้ถูกกดเหลือ 1 (ไม่มีสถานะ = None)"""
+    values = [STATUS_EFFECTS[k]["seal_high_roll"] for k in statuses if "seal_high_roll" in STATUS_EFFECTS[k]]
+    return min(values) if values else None
+
+
+def status_fumble_chance(statuses):
+    """โอกาสเต๋าหลุดมือสูงสุดจากสถานะที่ติด (%)"""
+    return max((STATUS_EFFECTS[k].get("fumble_chance", 0) for k in statuses), default=0)
+
+
+def status_pct_damage(statuses):
+    """% MaxHP ที่เสียต่อเทิร์นสู้ (รวมทุกสถานะเผาไหม้)"""
+    return sum(STATUS_EFFECTS[k].get("combat_pct_damage", 0) for k in statuses)
+
+
+def status_monster_dice_bonus(statuses):
+    """โบนัสเต๋ามอนสเตอร์รวมจากสถานะที่ติด (เช่น โดนรากรัด)"""
+    return sum(STATUS_EFFECTS[k].get("monster_dice_bonus", 0) for k in statuses)
 
 
 def roll_step_damage(statuses, rng=None):
