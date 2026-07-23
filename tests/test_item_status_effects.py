@@ -102,6 +102,21 @@ def test_warp_items_in_catalog():
     assert "เรือเหมาลำ" in items["53"]["name"]
 
 
+def test_bag_embed_survives_huge_inventory():
+    """กระเป๋า 200+ ชิ้น ต้องไม่ทะลุลิมิต Discord (field 1024 / embed รวม 6000)"""
+    inventory = [str(i) for i in range(1, 54)] * 4   # ทุกไอเทม ×4 แบบเคสจริง
+    player = {"inventory": inventory, "cash": 999999, "capacity": 0}
+    embed = pc.build_bag_embed("Tester", "https://example.com/a.png", player)
+    assert embed.fields, "ต้องมี field อย่างน้อย 1"
+    for field in embed.fields:
+        assert len(field.value) <= 1024, f"field ยาวเกิน: {len(field.value)}"
+    total = len(embed.title or "") + len(embed.description or "") + sum(
+        len(f.name) + len(f.value) for f in embed.fields)
+    assert total <= 6000, f"embed รวมยาวเกิน: {total}"
+    # เรียงตามเลขไอเทม: บรรทัดแรกต้องเป็น [1]
+    assert embed.fields[0].value.startswith("**[1]**")
+
+
 def test_on_hit_status_merge_and_default(monkeypatch):
     # ระดับทวีป/ธีมผ่าน mods (replace) + ระดับธาตุผ่าน element_overrides
     assert gm.DEFAULT_MODS["on_hit_status"] is None

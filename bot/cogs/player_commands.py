@@ -268,21 +268,36 @@ def build_bag_embed(display_name, avatar_url, player):
         )
     else:
         item_counts = Counter(inv_array)
-        bag_list_text = ""
         all_items = config_loader.get_all_items()
 
-        for item_id, count in item_counts.items():
-            if item_id in all_items:
-                item_name = all_items[item_id]["name"]
-                bag_list_text += f"**[{item_id}]** {item_name} x`{count}` ชิ้น\n"
-            else:
-                bag_list_text += f"**[{item_id}]** ❓ ไอเทมปริศนา x`{count}` ชิ้น\n"
+        def _sort_key(item_id):
+            return (0, int(item_id)) if str(item_id).isdigit() else (1, 0)
 
-        embed.add_field(
-            name=f"📦 ไอเทมในกระเป๋า ({len(inv_array)} / {'ไม่จำกัด' if capacity == 0 else capacity})",
-            value=bag_list_text,
-            inline=False
-        )
+        lines = []
+        for item_id in sorted(item_counts, key=_sort_key):
+            count = item_counts[item_id]
+            item_name = all_items[item_id]["name"] if item_id in all_items else "❓ ไอเทมปริศนา"
+            lines.append(f"**[{item_id}]** {item_name} x`{count}` ชิ้น")
+
+        # Discord จำกัด field ละ 1024 ตัวอักษร (และ embed รวม 6000) — ซอยรายการเป็นหลาย field
+        chunks = []
+        current = ""
+        for line in lines:
+            if len(current) + len(line) + 1 > 1024:
+                chunks.append(current)
+                current = ""
+            current += line + "\n"
+        if current:
+            chunks.append(current)
+
+        header = f"📦 ไอเทมในกระเป๋า ({len(inv_array)} / {'ไม่จำกัด' if capacity == 0 else capacity})"
+        for i, chunk in enumerate(chunks[:5]):
+            embed.add_field(name=header if i == 0 else "📦 (ต่อ)", value=chunk, inline=False)
+        if len(chunks) > 5:
+            embed.add_field(
+                name="⚠️ ของเยอะเกินจอ",
+                value="รายการที่เหลือแสดงไม่หมด แต่ยังใช้งานผ่าน `!use <เลขไอเทม>` ได้ปกติ",
+                inline=False)
 
     embed.set_thumbnail(url=avatar_url)
     return embed
