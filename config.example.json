@@ -143,7 +143,13 @@
       "32": {"name": "🏮 ตะเกียงมานาบริสุทธิ์", "buy": 3000, "sell": 600, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "warm"},
       "33": {"name": "💾 ชิปกันคลื่น EMP", "buy": 2500, "sell": 500, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "emp_shield"},
       "34": {"name": "📜 ม้วนคาถาขนนก", "buy": 5000, "sell": 1000, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "featherfall"},
-      "35": {"name": "💧 น้ำมนต์ชำระบาป", "buy": 3500, "sell": 700, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "holy_guard"}
+      "35": {"name": "💧 น้ำมนต์ชำระบาป", "buy": 3500, "sell": 700, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "holy_guard"},
+      "36": {"name": "🎲 ลูกเต๋าถ่วงน้ำหนัก", "buy": 6000, "sell": 1200, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "weighted_dice"},
+      "37": {"name": "🍀 เครื่องรางโคลเวอร์", "buy": 4000, "sell": 800, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "clover"},
+      "38": {"name": "🔍 แว่นส่องสัจจะ", "buy": 800, "sell": 150, "type": "junk", "purchasable": true},
+      "39": {"name": "🧭 เข็มทิศขบวนหลวง", "buy": 5000, "sell": 1000, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "convoy_compass"},
+      "40": {"name": "🌋 หินอัคนีเพลิง", "buy": 15000, "sell": 1500, "type": "use", "purchasable": false, "effect": "apply_status", "effect_value": "obsidian_edge"},
+      "41": {"name": "🎨 ผงสีรุ้ง", "buy": 25000, "sell": 2500, "type": "junk", "purchasable": false}
     },
     "armor_stats": {
       "None":      {"name": "👕 เสื้อผ้าธรรมดา", "hp": 0,   "eva": 85, "dur": 100, "vis": 1},

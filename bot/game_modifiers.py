@@ -167,7 +167,7 @@ CONTINENTS = {
                     "pass_roll": 12,
                     "success": {
                         "text": "🏃 คุณพุ่งตัวหลบเข้าซอกผาได้ทัน! และเถ้าถ่านที่ปลิวออกไปเผยให้เห็นอัญมณีฝังอยู่เต็มลานหิน",
-                        "items": {"id": "11", "qty": 10},
+                        "items": [{"id": "11", "qty": 10}, {"id": "40", "qty": 1}],
                         "exp": [15, 30],
                     },
                     "fail": {
@@ -482,6 +482,23 @@ STATUS_EFFECTS = {
         "label": "✝️ คุ้มครองศักดิ์สิทธิ์", "tick": "fight", "default_turns": 3,
         "block_hp_drain": True,              # กัน Life Drain (เนเธอร์) สนิท
     },
+    "weighted_dice": {
+        "label": "🎲 เต๋าถ่วงน้ำหนัก", "tick": "fight", "default_turns": 1,
+        "min_roll": 14,                      # การันตีแต้มขั้นต่ำ (ก่อนผลราก/เต๋าหลุดมือ)
+        "cleanse_on_apply": ["sealed_dice"], # ใช้แล้วล้างตราผนึกเต๋าทิ้ง
+    },
+    "clover": {
+        "label": "🍀 โคลเวอร์นำโชค", "tick": "fight", "default_turns": 1,
+        "block_root": True,                  # กันรากธาตุไม้ (เต๋า=0) หนึ่งครั้งแล้วสลาย
+    },
+    "convoy_compass": {
+        "label": "🧭 เข็มทิศขบวนหลวง", "tick": "step", "default_turns": 20,
+        "event_weight_mult": {"treasure": 2.0},  # เจอหีบสมบัติถี่ขึ้นสองเท่า
+    },
+    "obsidian_edge": {
+        "label": "🌋 คมอัคนีเพลิง", "tick": "fight", "default_turns": 1,
+        "player_dmg_mult": 1.2,              # อาบคมอาวุธด้วยหินภูเขาไฟ
+    },
 }
 
 
@@ -591,6 +608,20 @@ def status_pct_damage(statuses):
 def status_monster_dice_bonus(statuses):
     """โบนัสเต๋ามอนสเตอร์รวมจากสถานะที่ติด (เช่น โดนรากรัด)"""
     return sum(STATUS_EFFECTS[k].get("monster_dice_bonus", 0) for k in statuses)
+
+
+def status_min_roll(statuses):
+    """แต้มเต๋าขั้นต่ำการันตีจากสถานะ (เช่น เต๋าถ่วงน้ำหนัก) — ไม่มี = 0"""
+    return max((STATUS_EFFECTS[k].get("min_roll", 0) for k in statuses), default=0)
+
+
+def status_event_weight_mult(statuses):
+    """รวมตัวคูณน้ำหนักอีเวนต์จากสถานะที่ติด (เช่น เข็มทิศ ×2 หีบ) — คูณราย key"""
+    merged = {}
+    for key in statuses:
+        for evt, mult in STATUS_EFFECTS[key].get("event_weight_mult", {}).items():
+            merged[evt] = merged.get(evt, 1.0) * mult
+    return merged
 
 
 def status_curse_for_roll(statuses, roll):
@@ -798,6 +829,14 @@ WEEKLY_THEMES = [
                 "Main-Boss": [
                     "🌈 จอมมารรุ้งสลับสี (Prismatic)",
                 ],
+            },
+            # มอนบางตัวอาบสีเข้มข้น — ล้มได้ดรอปผงสีรุ้ง (ของสะสม/ขาย รอระบบย้อมสีในอนาคต)
+            "infusion": {
+                "chance": 30,
+                "badge": "🎨",
+                "label": "อาบสีเข้มข้น",
+                "dmg_mult": 1.0,
+                "drop_items": {"id": "41", "qty": 1},
             },
         },
     },

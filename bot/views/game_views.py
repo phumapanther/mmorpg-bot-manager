@@ -238,11 +238,27 @@ class MonsterEventView(View):
                 skill_log += f"😡 **{self.m_stats.get('name', 'บอส')} กำลังคลั่ง!** บอสสะสมความโกรธเพิ่มพลังโจมตีเด็ดขาด `+{enrage_bonus}` หน่วยในเทิร์นนี้!\n"
 
             # ─── 🧪 เอฟเฟกต์ธาตุช่วงทอยเต๋า ───
+            # 🎲 เต๋าถ่วงน้ำหนัก: การันตีแต้มขั้นต่ำ (ก่อนผลราก/เต๋าหลุดมือ — ของพวกนั้นทำเต๋าหลุดจากมือ ไม่ใช่แต้มไม่ดี)
+            weighted_min = game_modifiers.status_min_roll(self.statuses)
+            if weighted_min and player_roll < weighted_min:
+                skill_log += f"🎲 **เต๋าถ่วงน้ำหนักทำงาน!** แต้ม `{player_roll}` ถูกดันขึ้นเป็น `{weighted_min}`\n"
+                player_roll = weighted_min
+
             # 🌿 ไม้: รากพันธนาการ — โอกาสล็อกเต๋าผู้เล่นเหลือ 0 ในเทิร์นนี้
             root_chance = self.element_data.get("root_chance", 0)
             if root_chance and random.randint(1, 100) <= root_chance:
-                player_roll = 0
-                skill_log += "🌿 **รากพันธนาการ!** เถาวัลย์พุ่งขึ้นรัดแขนคุณแน่น เต๋าโจมตีถูกล็อกเหลือ `0` ในเทิร์นนี้!\n"
+                if game_modifiers.has_status_flag(self.statuses, "block_root"):
+                    # 🍀 โคลเวอร์นำโชค: กันรากหนึ่งครั้งแล้วสลาย
+                    self.statuses = {k: v for k, v in self.statuses.items()
+                                     if not game_modifiers.STATUS_EFFECTS[k].get("block_root")}
+                    fresh = game_modifiers.parse_statuses(player_model.get_player(self.user_id))
+                    fresh = {k: v for k, v in fresh.items()
+                             if not game_modifiers.STATUS_EFFECTS[k].get("block_root")}
+                    player_model.update_player_field(self.user_id, "status_effects", fresh)
+                    skill_log += "🍀 **โคลเวอร์นำโชคเปล่งแสง!** รากไม้เหี่ยวเฉาก่อนแตะตัวคุณ (เครื่องรางสลายไป)\n"
+                else:
+                    player_roll = 0
+                    skill_log += "🌿 **รากพันธนาการ!** เถาวัลย์พุ่งขึ้นรัดแขนคุณแน่น เต๋าโจมตีถูกล็อกเหลือ `0` ในเทิร์นนี้!\n"
             # 💨 ลม / 🌿 ไม้: โบนัสเต๋ามอนสเตอร์
             elem_dice = self.element_data.get("dice_bonus")
             if elem_dice:
@@ -1265,26 +1281,34 @@ class NpcEventView(View):
             view=next_view)
 
     async def inspect(self, interaction: discord.Interaction):
-        """🔍 จ่ายเงินตรวจตัวตน — จับตัวปลอมได้ก่อนโดนซุ่ม (สู้แบบไม่เสียเปรียบ)"""
+        """🔍 ตรวจตัวตน — มีแว่นส่องสัจจะ (id 38) ใช้แว่นฟรี ไม่มีก็จ่ายเงิน"""
         player = player_model.get_player(self.user_id)
         fee = self.masq_cfg.get("inspect_fee", 1500)
-        if player.get("cash", 0) < fee:
-            return await interaction.response.send_message(f"❌ เงินสดไม่พอค่าตรวจสอบ (`{fee:,}` ทอง)", ephemeral=True)
-        player_model.update_player_field(self.user_id, "cash", player["cash"] - fee)
+
+        inv = player_model.load_inventory(player.get("inventory", "[]"))
+        if "38" in inv:
+            inv.remove("38")
+            player_model.update_player_field(self.user_id, "inventory", inv)
+            paid_note = "🔍 คุณยกแว่นส่องสัจจะขึ้นส่องทะลุหน้ากาก... (ไม่เสียเงิน — เลนส์แตกสลายหลังใช้)"
+        elif player.get("cash", 0) < fee:
+            return await interaction.response.send_message(f"❌ เงินสดไม่พอค่าตรวจสอบ (`{fee:,}` ทอง) — หรือหาซื้อ 🔍 แว่นส่องสัจจะติดกระเป๋าไว้", ephemeral=True)
+        else:
+            player_model.update_player_field(self.user_id, "cash", player["cash"] - fee)
+            paid_note = f"🔍 คุณจ่าย `{fee:,}` ทองให้ผู้เชี่ยวชาญส่องหน้ากาก..."
 
         if self.disguised:
             player_model.update_player_field(self.user_id, "current_state", "fighting")
             next_view = MonsterEventView(self.user_id, interaction.user.roles)
             await interaction.response.edit_message(
                 content=(
-                    f"🔍 คุณจ่าย `{fee:,}` ทองให้ผู้เชี่ยวชาญส่องหน้ากาก...\n"
+                    f"{paid_note}\n"
                     f"🎭 **จับได้! มันคือมอนสเตอร์ปลอมตัวมา!** มันจนมุมก่อนได้ลงมือ — คุณเข้าปะทะแบบไม่เสียเปรียบ!"
                 ),
                 view=next_view)
         else:
             self.remove_item(next(c for c in self.children if getattr(c, "label", "").startswith("🔍")))
             await interaction.response.edit_message(
-                content=f"🔍 คุณจ่าย `{fee:,}` ทองตรวจสอบ... ผลออกมา: **เป็น NPC ตัวจริงเสียเงินฟรี!** คุยต่อได้ตามปกติ 🧓",
+                content=f"{paid_note}\nผลออกมา: **เป็น NPC ตัวจริง!** คุยต่อได้ตามปกติ 🧓",
                 view=self)
 
     # ==========================================
@@ -2017,6 +2041,10 @@ class AdventureView(View):
                     current_weights[1] = 0
                 # ตัวคูณน้ำหนักอีเวนต์จากทวีป/ธีมสัปดาห์ (mult ว่าง = น้ำหนักเดิมเป๊ะ)
                 current_weights = game_modifiers.apply_event_weights(current_weights, EVENT_LIST, mods)
+                # 🧭 ตัวคูณน้ำหนักจากสถานะติดตัว (เช่น เข็มทิศขบวนหลวง ×2 หีบ)
+                status_weight_mult = game_modifiers.status_event_weight_mult(statuses)
+                if status_weight_mult:
+                    current_weights = [w * status_weight_mult.get(evt, 1.0) for w, evt in zip(current_weights, EVENT_LIST)]
                 chosen_event = random.choices(EVENT_LIST, weights=current_weights, k=1)[0]
 
         summon_events = ["mini_summon", "main_summon", "unbeatable_summon"]

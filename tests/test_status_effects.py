@@ -1,6 +1,8 @@
 """ทดสอบระบบสถานะติดตัว (A2) — ฟังก์ชัน pure ใน game_modifiers (ส่วน view ทดสอบ manual)"""
 import random
 
+import pytest
+
 from bot import game_modifiers as gm
 
 
@@ -176,6 +178,30 @@ def test_t1_immunity_mechanics():
     # น้ำมนต์: ธง block_hp_drain / ขนนก: ธง fall_guard
     assert gm.has_status_flag({"holy_guard": 3}, "block_hp_drain") is True
     assert gm.has_status_flag({"featherfall": 30}, "fall_guard") is True
+
+
+def test_t2_dice_and_event_items():
+    # เต๋าถ่วงน้ำหนัก: ขั้นต่ำ 14 + ใช้แล้วล้างตราผนึก
+    s = gm.apply_status({"sealed_dice": 4}, "weighted_dice")
+    assert "sealed_dice" not in s and "weighted_dice" in s
+    assert gm.status_min_roll(s) == 14
+    assert gm.status_min_roll({}) == 0
+    # โคลเวอร์: ธง block_root
+    assert gm.has_status_flag({"clover": 1}, "block_root") is True
+    # เข็มทิศ: ตัวคูณน้ำหนักหีบ ×2
+    assert gm.status_event_weight_mult({"convoy_compass": 20}) == {"treasure": 2.0}
+    assert gm.status_event_weight_mult({"poison": 5}) == {}
+    # คมอัคนี: บัฟดาเมจทบกับยาโด๊ปได้
+    assert gm.status_combat_mult({"obsidian_edge": 1, "illegal_buff": 5}, "player_dmg_mult") == pytest.approx(1.2 * 1.3)
+
+
+def test_t2_drop_sources():
+    # ภูเขาไฟระเบิดแจกหินอัคนีคู่กับอัญมณี
+    eruption = gm.CONTINENTS["volcanic"]["mods"]["special_events"][0]
+    assert eruption["success"]["items"] == [{"id": "11", "qty": 10}, {"id": "40", "qty": 1}]
+    # ธีมจานสี: พาหะสีดรอปผงสีรุ้ง
+    palette = next(t for t in gm.WEEKLY_THEMES if t["key"] == "palette")
+    assert palette["mods"]["infusion"]["drop_items"] == {"id": "41", "qty": 1}
 
 
 def test_format_status_line_units():
