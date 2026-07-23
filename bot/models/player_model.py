@@ -327,9 +327,12 @@ def load_inventory(raw_inv):
     if not raw_inv or raw_inv in ["None", "null", ""]:
         return []
     
-    # 3. ลองอ่านแบบ JSON
+    # 3. ลองอ่านแบบ JSON — การันตีคืน list เสมอ (inventory ชิ้นเดียวเช่น "15" ต้องได้ ["15"] ไม่ใช่ int)
     try:
-        return json.loads(raw_inv)
+        parsed = json.loads(raw_inv)
+        if isinstance(parsed, list):
+            return [str(x) for x in parsed]
+        return [str(parsed)]
     except (json.JSONDecodeError, TypeError):
         # 4. ถ้าไม่ใช่ JSON ให้ใช้วิธีล้าง String แล้ว Split
         clean_inv = str(raw_inv).replace("[", "").replace("]", "").replace("'", "").replace('"', "").replace(" ", "")

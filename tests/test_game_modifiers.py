@@ -205,6 +205,17 @@ def test_absolute_zero_theme_numbers(monkeypatch):
     assert set(frost["cleanse_on"]) == {"village", "npc", "dungeon"}
 
 
+def test_blood_moon_theme_numbers():
+    moon = next(t for t in gm.WEEKLY_THEMES if t["key"] == "blood_moon")
+    mods = moon["mods"]
+    assert mods["monster_hp_mult"] == 1.5
+    assert mods["monster_dmg_mult"] == 1.25
+    assert mods["event_weight_mult"] == {"monster": 1.3}
+    infusion = mods["infusion"]
+    assert infusion["chance"] == 100 and infusion["dmg_mult"] == 1.0
+    assert len(infusion["drop_items"]["id_pool"]) == 10
+
+
 def test_demon_plus_zombie_stacking(monkeypatch):
     zombie = next(t for t in gm.WEEKLY_THEMES if t["key"] == "zombie")
     monkeypatch.setattr(gm, "WEEKLY_THEMES", [zombie])  # ธีมเดียว = สัปดาห์ไหนก็ได้ zombie

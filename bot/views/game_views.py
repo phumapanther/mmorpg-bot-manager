@@ -1462,7 +1462,8 @@ def execute_special_outcome(user_id, outcome, rng=None):
         catalog = config_loader.get_all_items()
         capacity = player.get("capacity", 10)
         for entry in item_entries:
-            item_id = str(entry["id"])
+            # id เดี่ยว หรือสุ่มจาก id_pool (เช่น ดรอปวัสดุคราฟสุ่มชนิด)
+            item_id = str(rng.choice(entry["id_pool"])) if "id_pool" in entry else str(entry["id"])
             qty = _roll_amount(entry.get("qty", 1), rng)
             item_cfg = catalog.get(item_id, {})
             name = item_cfg.get("name", f"ไอเทม #{item_id}")

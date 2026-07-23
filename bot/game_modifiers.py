@@ -693,6 +693,34 @@ WEEKLY_THEMES = [
         },
     },
     {
+        "key": "blood_moon",
+        "label": "🌕 ล่าจันทร์เลือด (Blood Moon Hunt)",
+        "description": (
+            "จันทร์เลือดลอยเด่นกลางฟ้า ฝูงอสูรป่าออกล่าทั่วทุกทวีป! หนังหนา ตีเจ็บ และมากันเป็นฝูง — "
+            "แต่ซากของพวกมันอุดมด้วยวัสดุ: ทุกการล่าดรอปวัสดุคราฟเพิ่ม 1 ชิ้น และทอง ×1.5"
+        ),
+        "mods": {
+            "event_weight_mult": {"monster": 1.3},
+            "monster_hp_mult": 1.5,
+            "monster_dmg_mult": 1.25,
+            "monster_gold_mult": 1.5,
+            "monster_pool": {
+                "Common": ["🐺 หมาป่าเวอร์วูล์ฟ (Werewolf)", "🐗 อสูรเขี้ยวโค้ง (Tusked Beast)"],
+                "Mini-Boss": ["🌕 จ่าฝูงจันทร์เลือด (Blood Moon Alpha)"],
+                "Main-Boss": ["🐺 ราชาหมาป่าจันทรา (Lunar Wolf King)"],
+            },
+            # ทุกตัวถือเป็น "สัตว์ล่าใต้จันทร์เลือด" — ไม่บัฟดาเมจเพิ่ม (ใช้ monster_dmg_mult แล้ว)
+            # แต่ดรอปวัสดุคราฟสุ่มชนิดเพิ่ม 1 ชิ้นทุกการฆ่า
+            "infusion": {
+                "chance": 100,
+                "badge": "🌕",
+                "label": "สัตว์ล่าใต้จันทร์เลือด",
+                "dmg_mult": 1.0,
+                "drop_items": {"id_pool": ["9", "10", "11", "12", "13", "14", "15", "16", "17", "18"], "qty": 1},
+            },
+        },
+    },
+    {
         "key": "zombie",
         "label": "🧟 ซอมบี้บุก (Zombie Invasion)",
         "description": (

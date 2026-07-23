@@ -102,6 +102,18 @@ def test_outcome_items_with_overflow_converts_to_gold(game_db, monkeypatch):
     assert any("กระเป๋าเต็ม" in l for l in lines)
 
 
+def test_outcome_items_id_pool_random_pick(game_db, monkeypatch):
+    uid = game_db
+    monkeypatch.setattr(gv.config_loader, "get_all_items",
+                        lambda: {str(i): {"name": f"วัสดุ{i}", "sell": 10} for i in range(9, 19)})
+    player_model.update_player_fields(uid, {"capacity": 0, "inventory": "[]"})
+    pool = [str(i) for i in range(9, 19)]
+    lines, died = gv.execute_special_outcome(uid, {"items": {"id_pool": pool, "qty": 1}})
+    assert not died
+    inv = player_model.load_inventory(player_model.get_player(uid)["inventory"])
+    assert len(inv) == 1 and inv[0] in pool
+
+
 def test_outcome_status_and_force_continent(game_db):
     uid = game_db
     gv.execute_special_outcome(uid, {"apply_status": {"key": "poison", "turns": 5}})
