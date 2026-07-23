@@ -357,6 +357,26 @@ def test_volcanic_continent_numbers(monkeypatch):
     assert "Light Dragon" in mods["monster_pool"]["Main-Boss"][0]
 
 
+def test_sylvan_continent_numbers(monkeypatch):
+    monkeypatch.setattr(gm, "WEEKLY_THEMES", [])
+    mods = gm.get_active_modifiers({"continent": "sylvan"})
+    assert mods["monster_hp_mult"] == 1.2
+    assert mods["monster_dmg_mult"] == 1.1
+    assert mods["monster_gold_mult"] == 1.5
+    assert mods["monster_exp_mult"] == 1.5
+    assert mods["element_weights"] == {"wood": 35, "earth": 15}
+    # Ferocious Flora: ไม้ root 50 + exp x2 (ธาตุอื่นไม่กระทบ)
+    wood = gm.get_element_data(mods, "wood")
+    assert wood["root_chance"] == 50 and wood["exp_mult"] == 2.0
+    assert wood["dice_bonus"] == (2, 4)
+    thicket = mods["special_events"][0]
+    assert thicket["key"] == "poison_thicket" and thicket["template"] == "choice"
+    assert thicket["choices"][0]["outcome"]["apply_status"]["key"] == "poison"
+    assert thicket["choices"][1]["outcome"]["gold"] == [-3000, -800]
+    assert "Ent" in mods["monster_pool"]["Mini-Boss"][0]
+    assert "Cursed Dryad" in mods["monster_pool"]["Main-Boss"][0]
+
+
 def test_pick_monster_name_themed_and_fallback(monkeypatch):
     monkeypatch.setattr(gm, "WEEKLY_THEMES", [])
     demon_mods = gm.get_active_modifiers({"continent": "demon"})
