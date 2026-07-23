@@ -39,7 +39,7 @@ MONSTER_RANKS = {
 # ==========================================================
 
 class MonsterEventView(View):
-    def __init__(self, user_id, member_roles, monster_rank=None, monster_hp=None, active_buffs=None, turn_count=1):
+    def __init__(self, user_id, member_roles, monster_rank=None, monster_hp=None, active_buffs=None, turn_count=1, monster_name=None):
         super().__init__(timeout=60)
         self.user_id = user_id
         self.member_roles = member_roles
@@ -91,19 +91,26 @@ class MonsterEventView(View):
                 
             # 3. สุ่มมอนสเตอร์ตามน้ำหนักที่ได้จากเงื่อนไขด้านบน
             self.monster_rank = random.choices(rank_keys, weights=spawn_weights, k=1)[0]
-            self.m_stats = MONSTER_RANKS[self.monster_rank]
+            self.m_stats = dict(MONSTER_RANKS[self.monster_rank])
             self.monster_hp = random.randint(self.m_stats["hp_range"][0], self.m_stats["hp_range"][1])
             # ตัวคูณ HP จากทวีป/ธีมสัปดาห์ — ใช้เฉพาะตอนเกิดใหม่ (เทิร์นต่อๆ ไปส่ง hp เดิมเข้ามา ไม่คูณซ้ำ)
             self.monster_hp = max(1, round(self.monster_hp * self.mods["monster_hp_mult"]))
+            # ชื่อมอนสเตอร์ธีมตามทวีป/ธีมสัปดาห์ (แรงค์ที่ไม่มีธีม = ชื่อเดิม)
+            themed_name = game_modifiers.pick_monster_name(self.mods, self.monster_rank)
+            if themed_name:
+                self.m_stats["name"] = themed_name
             
             # [ระบบเช็กไฟล์/แคช]
             # print(f"DEBUG: [มอนสเตอร์] เลเวล {player_level} -> ใช้เรท {spawn_weights} -> สุ่มได้ {self.monster_rank}")
             
         else:
             self.monster_rank = monster_rank
-            self.m_stats = MONSTER_RANKS[self.monster_rank]
+            self.m_stats = dict(MONSTER_RANKS[self.monster_rank])
             self.monster_hp = monster_hp
             self.mods = game_modifiers.get_active_modifiers(player_model.get_player(user_id))
+            if monster_name:
+                # รับชื่อธีมต่อจากเทิร์นก่อน ไม่สุ่มใหม่กลางไฟต์
+                self.m_stats["name"] = monster_name
 
         self.player_class = "Unknown"
         for role in self.member_roles:
@@ -485,9 +492,9 @@ class MonsterEventView(View):
                     next_msg = f"⚔️ **[เทิร์นที่ {self.turn_count}] การต่อสู้ทวีความรุนแรง!**\n👾 ศัตรู: **{self.m_stats.get('name','?')}** (🩸 HP คงเหลือ: **{self.monster_hp}**)\n❤️ เลือดร่างกายของคุณ: **{db_updates['hp']}/{player.get('max_hp',100)}**\n\n{skill_log}{combat_log}----------------------------------------\nบอสจะแกร่งขึ้นเรื่อยๆ เลือกแอคชั่นหรือสกิลที่จะใช้ถัดไป:"
                     
                     if not interaction.response.is_done():
-                        await interaction.response.edit_message(content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn))
+                        await interaction.response.edit_message(content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name")))
                     else:
-                        await interaction.followup.edit_message(message_id=interaction.message.id, content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn))
+                        await interaction.followup.edit_message(message_id=interaction.message.id, content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name")))
                 except Exception as e:
                     print(f"❌ [ERROR] การไปเทิร์นถัดไปพัง: {e}")
 
@@ -553,7 +560,7 @@ class MonsterEventView(View):
                 if new_armor_dur == 0 and player.get("armor_dur", 0) > 0:
                     msg += "\n🚨 **ชุดเกราะของคุณพังยับเยิน!**"
                     
-                await interaction.response.edit_message(content=msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn))
+                await interaction.response.edit_message(content=msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name")))
 
     async def skill_callback(self, interaction: discord.Interaction):
         if not await self.interaction_check(interaction): return
@@ -1443,6 +1450,8 @@ class AdventureView(View):
         # 1. ดึงข้อมูล
         dg_steps = player.get("dungeon_steps", 0)
         last_evt = player.get("last_event", "none")
+        # ชุดตัวคูณ/ธีมจากทวีป+อีเวนต์สัปดาห์ — ใช้ทั้งตอนสุ่มน้ำหนักและตอนแต่งข้อความอีเวนต์
+        mods = game_modifiers.get_active_modifiers(player)
 
         # 2. จัดลำดับความสำคัญ (Priority Order)
         
@@ -1493,7 +1502,6 @@ class AdventureView(View):
                 if current_cooldown > 0:
                     current_weights[1] = 0
                 # ตัวคูณน้ำหนักอีเวนต์จากทวีป/ธีมสัปดาห์ (mult ว่าง = น้ำหนักเดิมเป๊ะ)
-                mods = game_modifiers.get_active_modifiers(player)
                 current_weights = game_modifiers.apply_event_weights(current_weights, EVENT_LIST, mods)
                 chosen_event = random.choices(EVENT_LIST, weights=current_weights, k=1)[0]
 
@@ -1532,7 +1540,8 @@ class AdventureView(View):
             player_model.update_player_field(user_id, "current_state", "treasure_choice")
             
             next_view = TreasureEventView(user_id)
-            sent_msg = await interaction.followup.send(content=f"📦 คุณพบ **'หีบสมบัติปริศนาลงอักขระโบราณ'** เลือกแอคชั่นของคุณ: *(คูลดาวน์หมู่บ้านเหลือ: {current_cooldown} ตา)*", view=next_view, wait=True)
+            treasure_text = mods["theme_texts"].get("treasure", "📦 คุณพบ **'หีบสมบัติปริศนาลงอักขระโบราณ'**")
+            sent_msg = await interaction.followup.send(content=f"{treasure_text} เลือกแอคชั่นของคุณ: *(คูลดาวน์หมู่บ้านเหลือ: {current_cooldown} ตา)*", view=next_view, wait=True)
             next_view.message = sent_msg
 
         elif chosen_event == "npc":
@@ -1553,7 +1562,8 @@ class AdventureView(View):
             player_model.update_player_field(user_id, "current_state", "trap_defense")
 
             next_view = TrapEventView(user_id, interaction.user.roles)
-            sent_msg = await interaction.followup.send(content=f"⚠️ *แก๊ก!* คุณพลาดก้าวขาไปเกี่ยวสายสลิง **'กับดักโบราณ'** เข้าให้แล้ว! เตรียมรับมือแอคชั่นหลบหลีก: *(คูลดาวน์หมู่บ้านเหลือ: {current_cooldown} ตา)*", view=next_view, wait=True)
+            trap_text = mods["theme_texts"].get("trap", "⚠️ *แก๊ก!* คุณพลาดก้าวขาไปเกี่ยวสายสลิง **'กับดักโบราณ'** เข้าให้แล้ว!")
+            sent_msg = await interaction.followup.send(content=f"{trap_text} เตรียมรับมือแอคชั่นหลบหลีก: *(คูลดาวน์หมู่บ้านเหลือ: {current_cooldown} ตา)*", view=next_view, wait=True)
             next_view.message = sent_msg
 
         elif chosen_event == "travel":

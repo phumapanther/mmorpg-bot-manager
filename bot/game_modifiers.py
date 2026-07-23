@@ -14,8 +14,8 @@ DEFAULT_MODS = {
     "monster_hp_mult": 1.0,    # คูณ HP มอนสเตอร์ตอนเกิดใหม่
     "monster_gold_mult": 1.0,  # คูณทองรางวัลชนะมอนสเตอร์
     "monster_exp_mult": 1.0,   # คูณ EXP รางวัลชนะมอนสเตอร์
-    "monster_pool": [],        # ชื่อมอนสเตอร์เสริมตามทวีป/ธีม (ข้อ 3/5 ใช้)
-    "theme_texts": {},         # ข้อความ reskin อีเวนต์ (ข้อ 3/5 ใช้)
+    "monster_pool": {},        # ชื่อมอนสเตอร์ธีมราย "แรงค์" เช่น {"Common": ["😈 อิมป์"]} (แรงค์ที่ไม่มี = ใช้ชื่อเดิม)
+    "theme_texts": {},         # ข้อความ reskin อีเวนต์ เช่น {"treasure": "...", "trap": "..."} (ไม่มี = ข้อความเดิม)
 }
 
 # ทวีป — ตัวคูณเกมเพลย์ (mods) เติมในข้อ 3
@@ -28,12 +28,41 @@ CONTINENTS = {
     "demon": {
         "label": "😈 ทวีปปีศาจ",
         "arrival_text": "ท้องฟ้าสีเลือดทอดเงาทะมึน... คุณเหยียบแผ่นดินทวีปปีศาจแล้ว — ที่นี่อันตรายกว่า แต่รางวัลก็ล้ำค่ากว่า",
-        "mods": {},
+        "mods": {
+            # เสี่ยงสูง-รางวัลสูง: เจอมอน/กับดักถี่ขึ้น หมู่บ้านหายาก มอนอึดขึ้นแต่จ่ายหนัก
+            "event_weight_mult": {"monster": 1.5, "trap": 1.3, "village": 0.5},
+            "monster_hp_mult": 1.5,
+            "monster_gold_mult": 2.0,
+            "monster_exp_mult": 1.5,
+            "monster_pool": {
+                "Common":    ["😈 อิมป์ (Imp)"],
+                "Mini-Boss": ["🖤 อัศวินมืด (Dark Knight)"],
+                "Main-Boss": ["👿 จอมมารปีศาจ (Demon Lord)"],
+            },
+            "theme_texts": {
+                "treasure": "🕸️ คุณพบ **'หีบต้องคำสาป (Dark Curse)'** ออร่าดำมืดพวยพุ่งออกมาจากรอยแยกของฝา",
+                "trap":     "🌋 พื้นดินแตกร้าว! **'รอยแยกปีศาจ (Demon Rift)'** เปิดอ้าใต้ฝ่าเท้าคุณ!",
+            },
+        },
     },
     "ocean": {
         "label": "🌊 ทวีปมหาสมุทร",
         "arrival_text": "กลิ่นไอเกลือและเสียงคลื่นต้อนรับคุณสู่ทวีปมหาสมุทร ดินแดนแห่งโจรสลัดและสมบัติใต้ทะเล",
-        "mods": {},
+        "mods": {
+            # สายสมบัติ: เจอหีบถี่ขึ้น พายุ=กับดักถี่ขึ้นเล็กน้อย มอนแกร่งขึ้นนิดแต่ทองดี
+            "event_weight_mult": {"treasure": 1.6, "trap": 1.2},
+            "monster_hp_mult": 1.2,
+            "monster_gold_mult": 1.5,
+            "monster_pool": {
+                "Common":    ["🏴‍☠️ โจรสลัดผี (Ghost Pirate)"],
+                "Mini-Boss": ["🦈 ฉลามคลั่ง (Mad Shark)"],
+                "Main-Boss": ["🧜‍♀️ เงือกโบราณ (Ancient Mermaid)"],
+            },
+            "theme_texts": {
+                "treasure": "🏝️ คลื่นซัดคุณไปเกยหาด **'สมบัติเกาะร้าง (Treasure Island)'** ตรงหน้า",
+                "trap":     "🌀 **'พายุเขตร้อน (Tropical Storm)'** โหมกระหน่ำใส่คุณกลางเส้นทาง!",
+            },
+        },
     },
 }
 
@@ -90,7 +119,10 @@ def _merge(base, extra):
                 merged[evt] = merged.get(evt, 1.0) * mult
             out[key] = merged
         elif key == "monster_pool":
-            out[key] = list(out.get(key, [])) + list(value)
+            merged_pool = {rank: list(names) for rank, names in out.get(key, {}).items()}
+            for rank, names in value.items():
+                merged_pool[rank] = merged_pool.get(rank, []) + list(names)
+            out[key] = merged_pool
         elif key == "theme_texts":
             out[key] = {**out.get(key, {}), **value}
         elif key.endswith("_mult"):
@@ -121,6 +153,14 @@ def get_active_modifiers(player, when=None):
     if theme:
         mods = _merge(mods, theme.get("mods"))
     return mods
+
+
+def pick_monster_name(mods, rank, rng=None):
+    """สุ่มชื่อมอนสเตอร์ธีมของแรงค์นี้จากทวีป/ธีมสัปดาห์ — ไม่มีธีมสำหรับแรงค์นี้ = None (ใช้ชื่อเดิม)"""
+    pool = (mods.get("monster_pool") or {}).get(rank) or []
+    if not pool:
+        return None
+    return (rng or random).choice(pool)
 
 
 def apply_event_weights(weights, event_list, mods):

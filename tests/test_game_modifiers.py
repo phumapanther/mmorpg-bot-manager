@@ -12,7 +12,7 @@ def test_default_is_identity():
     assert mods["monster_gold_mult"] == 1.0
     assert mods["monster_exp_mult"] == 1.0
     assert mods["event_weight_mult"] == {}
-    assert mods["monster_pool"] == []
+    assert mods["monster_pool"] == {}
     assert mods["theme_texts"] == {}
 
 
@@ -38,7 +38,7 @@ def test_merge_rules(monkeypatch):
         "mods": {
             "monster_hp_mult": 2.0,
             "event_weight_mult": {"monster": 1.5},
-            "monster_pool": ["Imp"],
+            "monster_pool": {"Common": ["Imp"]},
             "theme_texts": {"treasure": "หีบทดสอบ"},
         },
     })
@@ -47,7 +47,7 @@ def test_merge_rules(monkeypatch):
         "mods": {
             "monster_hp_mult": 1.5,
             "event_weight_mult": {"monster": 2.0},
-            "monster_pool": ["Zombie"],
+            "monster_pool": {"Common": ["Zombie"], "Mini-Boss": ["Zombie Titan"]},
             "theme_texts": {"treasure": "หีบซอมบี้"},
         },
     }])
@@ -55,7 +55,8 @@ def test_merge_rules(monkeypatch):
     mods = gm.get_active_modifiers({"continent": "testland"})
     assert mods["monster_hp_mult"] == pytest.approx(3.0)          # 2.0 × 1.5
     assert mods["event_weight_mult"]["monster"] == pytest.approx(3.0)  # 1.5 × 2.0
-    assert mods["monster_pool"] == ["Imp", "Zombie"]              # ต่อกัน
+    assert mods["monster_pool"]["Common"] == ["Imp", "Zombie"]    # ต่อกันรายแรงค์
+    assert mods["monster_pool"]["Mini-Boss"] == ["Zombie Titan"]
     assert mods["theme_texts"]["treasure"] == "หีบซอมบี้"          # ธีมสัปดาห์ทับทวีป
     # ตัวอื่นยังเป็น identity
     assert mods["monster_gold_mult"] == 1.0
@@ -65,7 +66,7 @@ def test_merge_rules(monkeypatch):
 
     # DEFAULT_MODS ต้องไม่ถูกแก้ไขข้างเคียง
     assert gm.DEFAULT_MODS["monster_hp_mult"] == 1.0
-    assert gm.DEFAULT_MODS["monster_pool"] == []
+    assert gm.DEFAULT_MODS["monster_pool"] == {}
 
 
 def test_weekly_theme_deterministic(monkeypatch):
@@ -112,6 +113,39 @@ def test_roll_destination_respects_zero_weight():
             assert gm.roll_destination("ship", "main", rng=rng) == "ocean"
     finally:
         gm.VEHICLES["ship"]["dest_weights"] = original
+
+
+# ===== ผลทวีปต่อเกมเพลย์ (ข้อ 3) =====
+
+def test_demon_continent_mods_match_approved_numbers():
+    mods = gm.get_active_modifiers({"continent": "demon"})
+    assert mods["event_weight_mult"] == {"monster": 1.5, "trap": 1.3, "village": 0.5}
+    assert mods["monster_hp_mult"] == 1.5
+    assert mods["monster_gold_mult"] == 2.0
+    assert mods["monster_exp_mult"] == 1.5
+    assert "Imp" in mods["monster_pool"]["Common"][0]
+    assert "Dark Curse" in mods["theme_texts"]["treasure"]
+    assert "Demon Rift" in mods["theme_texts"]["trap"]
+
+
+def test_ocean_continent_mods_match_approved_numbers():
+    mods = gm.get_active_modifiers({"continent": "ocean"})
+    assert mods["event_weight_mult"] == {"treasure": 1.6, "trap": 1.2}
+    assert mods["monster_hp_mult"] == 1.2
+    assert mods["monster_gold_mult"] == 1.5
+    assert mods["monster_exp_mult"] == 1.0
+    assert "Ghost Pirate" in mods["monster_pool"]["Common"][0]
+    assert "Tropical Storm" in mods["theme_texts"]["trap"]
+    assert "Treasure Island" in mods["theme_texts"]["treasure"]
+
+
+def test_pick_monster_name_themed_and_fallback():
+    demon_mods = gm.get_active_modifiers({"continent": "demon"})
+    assert "Imp" in gm.pick_monster_name(demon_mods, "Common")
+    assert "Demon Lord" in gm.pick_monster_name(demon_mods, "Main-Boss")
+    # แรงค์ที่ไม่มีธีม + ทวีปหลัก = None (ใช้ชื่อเดิม)
+    assert gm.pick_monster_name(demon_mods, "Unbeatable") is None
+    assert gm.pick_monster_name(gm.get_active_modifiers({"continent": "main"}), "Common") is None
 
 
 def test_travel_chance_boundaries():
