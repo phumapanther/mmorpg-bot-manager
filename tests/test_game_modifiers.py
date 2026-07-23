@@ -339,6 +339,24 @@ def test_nether_continent_numbers(monkeypatch):
     assert len(blessings) == 3 and len(curses) == 3
 
 
+def test_volcanic_continent_numbers(monkeypatch):
+    monkeypatch.setattr(gm, "WEEKLY_THEMES", [])
+    mods = gm.get_active_modifiers({"continent": "volcanic"})
+    assert mods["monster_hp_mult"] == 1.25
+    assert mods["monster_dmg_mult"] == 1.15
+    assert mods["monster_gold_mult"] == 1.7
+    assert mods["monster_exp_mult"] == 1.35
+    assert mods["element_weights"] == {"fire": 35, "earth": 15}
+    # Searing Heat: ไฟที่นี่ตีแรง 1.8 (override จาก 1.5 มาตรฐาน) — ธาตุอื่นไม่กระทบ
+    assert gm.get_element_data(mods, "fire")["dmg_mult"] == 1.8
+    assert gm.get_element_data(mods, "water") == gm.ELEMENTS["water"]
+    eruption = mods["special_events"][0]
+    assert eruption["key"] == "volcanic_eruption" and eruption["pass_roll"] == 12
+    assert eruption["success"]["items"] == {"id": "11", "qty": 10}   # เศษอัญมณี id 11 ตามที่ตกลง
+    assert "Fire Salamander" in mods["monster_pool"]["Common"][0]
+    assert "Light Dragon" in mods["monster_pool"]["Main-Boss"][0]
+
+
 def test_pick_monster_name_themed_and_fallback(monkeypatch):
     monkeypatch.setattr(gm, "WEEKLY_THEMES", [])
     demon_mods = gm.get_active_modifiers({"continent": "demon"})
