@@ -39,7 +39,7 @@ MONSTER_RANKS = {
 # ==========================================================
 
 class MonsterEventView(View):
-    def __init__(self, user_id, member_roles, monster_rank=None, monster_hp=None, active_buffs=None, turn_count=1, monster_name=None, element=None, fight_statuses=None):
+    def __init__(self, user_id, member_roles, monster_rank=None, monster_hp=None, active_buffs=None, turn_count=1, monster_name=None, element=None, fight_statuses=None, infused=False):
         super().__init__(timeout=60)
         self.user_id = user_id
         self.member_roles = member_roles
@@ -115,6 +115,12 @@ class MonsterEventView(View):
             # ป้ายธาตุนำหน้าชื่อ — ผู้เล่นเห็นธาตุในทุกข้อความที่มีชื่อมอนสเตอร์
             self.m_stats["name"] = f"{self.element_data['label']} · {self.m_stats['name']}"
 
+            # ☄️ Infusion (ธีมเช่นฝนดาวตกมานา): โอกาสติดบัฟพิเศษตอนเกิด — ตีแรงขึ้นแต่ดรอปของ
+            infusion_cfg = self.mods.get("infusion")
+            self.infused = bool(infusion_cfg and random.randint(1, 100) <= infusion_cfg.get("chance", 0))
+            if self.infused:
+                self.m_stats["name"] = f"{infusion_cfg.get('badge', '☄️')} {self.m_stats['name']}"
+
             # tick สถานะแบบ "ต่อไฟต์" ตอนเริ่มไฟต์ใหม่ (สแนปช็อตข้างบนของไฟต์นี้ยังมีผลเต็ม)
             remaining, _ = game_modifiers.tick_statuses(self.statuses, "fight")
             if remaining != self.statuses:
@@ -137,6 +143,7 @@ class MonsterEventView(View):
             self.element_data = game_modifiers.get_element_data(self.mods, self.element)
             # รับสแนปช็อตสถานะต่อจากเทิร์นก่อน (สถานะแบบ fight ถูก tick ไปแล้วตอนไฟต์เริ่ม)
             self.statuses = fight_statuses if fight_statuses is not None else game_modifiers.parse_statuses(player)
+            self.infused = infused
 
         self.player_class = "Unknown"
         for role in self.member_roles:
@@ -309,11 +316,14 @@ class MonsterEventView(View):
             
             # 👾 บอสทอยได้เต๋าชนะ
             else:
-                # ตัวคูณดาเมจมอนสเตอร์จากทวีป/ธีมสัปดาห์ × ธาตุ (🔥 ไฟ = ×1.5)
+                # ตัวคูณดาเมจมอนสเตอร์จากทวีป/ธีมสัปดาห์ × ธาตุ (🔥 ไฟ = ×1.5) × infusion (☄️ ×2)
                 elem_dmg_mult = self.element_data.get("dmg_mult", 1.0)
-                damage_to_player = round((random.randint(10, 25) + enrage_bonus) * self.mods.get("monster_dmg_mult", 1.0) * elem_dmg_mult)
+                infusion_mult = (self.mods.get("infusion") or {}).get("dmg_mult", 1.0) if getattr(self, "infused", False) else 1.0
+                damage_to_player = round((random.randint(10, 25) + enrage_bonus) * self.mods.get("monster_dmg_mult", 1.0) * elem_dmg_mult * infusion_mult)
                 if elem_dmg_mult > 1.0:
                     combat_log += "🔥 **เพลิงธาตุลุกโหม!** การโจมตีของมอนสเตอร์รุนแรงขึ้นกว่าปกติ!\n"
+                if infusion_mult > 1.0:
+                    combat_log += "☄️ **พลังอุกกาบาตปะทุ!** แรงโจมตีทวีคูณอย่างน่ากลัว!\n"
                 
                 if player.get("armor_dur", 0) > 0:
                     damage_to_armor = max(1, int(damage_to_player / 10))
@@ -528,6 +538,16 @@ class MonsterEventView(View):
                 except Exception as e:
                     print(f"❌ [ERROR] ระบบแรงค์พัง: {e}")
 
+                # ☄️ มอนอาบพลังพิเศษ: ดรอปไอเทมของธีม (เขียนหลัง db_updates เพื่อไม่ชนกัน)
+                if getattr(self, "infused", False):
+                    drop_cfg = (self.mods.get("infusion") or {}).get("drop_items")
+                    if drop_cfg:
+                        try:
+                            infusion_lines, _ = execute_special_outcome(self.user_id, {"items": dict(drop_cfg)})
+                            dropped_item_msg += "\n☄️ **พลังอุกกาบาตตกผลึก!** " + " · ".join(infusion_lines)
+                        except Exception as e:
+                            print(f"❌ [ERROR] ดรอปไอเทม infusion พัง: {e}")
+
                 # -----------------------------------------------------------------
                 # 📩 จบการทำงาน (ส่งข้อความชนะแบบต้นฉบับ 100%)
                 # -----------------------------------------------------------------
@@ -578,9 +598,9 @@ class MonsterEventView(View):
                     next_msg = f"⚔️ **[เทิร์นที่ {self.turn_count}] การต่อสู้ทวีความรุนแรง!**\n👾 ศัตรู: **{self.m_stats.get('name','?')}** (🩸 HP คงเหลือ: **{self.monster_hp}**)\n❤️ เลือดร่างกายของคุณ: **{db_updates['hp']}/{player.get('max_hp',100)}**\n\n{skill_log}{combat_log}----------------------------------------\nบอสจะแกร่งขึ้นเรื่อยๆ เลือกแอคชั่นหรือสกิลที่จะใช้ถัดไป:"
                     
                     if not interaction.response.is_done():
-                        await interaction.response.edit_message(content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses))
+                        await interaction.response.edit_message(content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses, infused=getattr(self, "infused", False)))
                     else:
-                        await interaction.followup.edit_message(message_id=interaction.message.id, content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses))
+                        await interaction.followup.edit_message(message_id=interaction.message.id, content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses, infused=getattr(self, "infused", False)))
                 except Exception as e:
                     print(f"❌ [ERROR] การไปเทิร์นถัดไปพัง: {e}")
 
@@ -646,7 +666,7 @@ class MonsterEventView(View):
                 if new_armor_dur == 0 and player.get("armor_dur", 0) > 0:
                     msg += "\n🚨 **ชุดเกราะของคุณพังยับเยิน!**"
                     
-                await interaction.response.edit_message(content=msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses))
+                await interaction.response.edit_message(content=msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses, infused=getattr(self, "infused", False)))
 
     async def skill_callback(self, interaction: discord.Interaction):
         if not await self.interaction_check(interaction): return

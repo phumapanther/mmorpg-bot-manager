@@ -23,6 +23,7 @@ DEFAULT_MODS = {
     "element_overrides": {},   # ปรับพารามิเตอร์ธาตุเฉพาะถิ่น เช่น {"wood": {"root_chance": 50}} — ทับรายพารามิเตอร์
     "special_events": [],      # อีเวนต์สุ่มประจำทวีป/ธีม (ต่อกัน) — ดู SpecialEventView ใน game_views
     "combat_hp_drain": None,   # [lo, hi] เลือดผู้เล่นไหลทุกเทิร์นที่สู้ (เช่น เนเธอร์) — None = ไม่มี
+    "infusion": None,          # มอนติดบัฟพิเศษตอนเกิด {chance, badge, dmg_mult, drop_items} — None = ไม่มี
 }
 
 # ทวีป — ตัวคูณเกมเพลย์ (mods) เติมในข้อ 3
@@ -652,6 +653,23 @@ WEEKLY_THEMES = [
         },
     },
     {
+        "key": "mana_meteor",
+        "label": "☄️ ฝนดาวตกมานา (Mana Meteor Shower)",
+        "description": (
+            "อุกกาบาตมานาโปรยปรายทั่วฟ้า! มอนสเตอร์ครึ่งหนึ่งอาบพลังอุกกาบาตจนตีแรงขึ้นสองเท่า — "
+            "แต่ล้มมันได้จะทิ้ง 🔮 มานาคริสตัลบริสุทธิ์ วัตถุดิบคราฟ 🗡️ อาวุธในตำนาน (คริสตัล ×5)!"
+        ),
+        "mods": {
+            "infusion": {
+                "chance": 50,
+                "badge": "☄️",
+                "label": "อาบพลังอุกกาบาต",
+                "dmg_mult": 2.0,
+                "drop_items": {"id": "29", "qty": [1, 2]},
+            },
+        },
+    },
+    {
         "key": "zombie",
         "label": "🧟 ซอมบี้บุก (Zombie Invasion)",
         "description": (
@@ -698,7 +716,7 @@ def _merge(base, extra):
             out[key] = merged_ov
         elif key == "special_events":
             out[key] = list(out.get(key, [])) + list(value)
-        elif key == "combat_hp_drain":
+        elif key in ("combat_hp_drain", "infusion"):
             out[key] = value  # แทนที่ (ธีมทับทวีป)
         elif key.endswith("_mult"):
             out[key] = out.get(key, 1.0) * value

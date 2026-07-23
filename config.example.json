@@ -136,7 +136,8 @@
       "25": {"name": "📃ใบเชิญบอสหลัก", "buy": 35000, "sell": 1, "type": "drop", "purchasable": false, "effect": "set_state", "effect_value": "main_summon"},
       "26": {"name": "📃ใบเชิญบอสไร้พ่าย", "buy": 80000, "sell": 1, "type": "drop", "purchasable": false, "effect": "set_state", "effect_value": "unbeatable_summon"},
       "27": {"name": "📡เรดาร์สแกนกล่องสมบัติ", "buy": 3000, "sell": 300, "type": "drop", "purchasable": false, "effect": "set_state", "effect_value": "scan_box"},
-      "28": {"name": "💌ใบชุบชีวิต", "buy": 5000, "sell": 500, "type": "drop", "purchasable": false, "effect": "revive"}
+      "28": {"name": "💌ใบชุบชีวิต", "buy": 5000, "sell": 500, "type": "drop", "purchasable": false, "effect": "revive"},
+      "29": {"name": "🔮 มานาคริสตัลบริสุทธิ์", "buy": 50000, "sell": 5000, "type": "junk", "purchasable": false}
     },
     "armor_stats": {
       "None":      {"name": "👕 เสื้อผ้าธรรมดา", "hp": 0,   "eva": 85, "dur": 100, "vis": 1},
@@ -167,7 +168,8 @@
       "25": {"recipe": {"11": 3, "7": 1, "14": 5}, "fail_rate": 0.4},
       "26": {"recipe": {"11": 5, "6": 1, "27": 1}, "fail_rate": 0.6},
       "27": {"recipe": {"14": 3, "12": 5}, "fail_rate": 0.2},
-      "28": {"recipe": {"9": 10, "11": 2}, "fail_rate": 0.3}
+      "28": {"recipe": {"9": 10, "11": 2}, "fail_rate": 0.3},
+      "8": {"recipe": {"29": 5}, "fail_rate": 0.25}
     }
   }
 }

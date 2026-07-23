@@ -170,6 +170,27 @@ def test_solar_eclipse_theme_numbers(monkeypatch):
     assert merged["rank_weight_mult"]["Secret"] == pytest.approx(6.0)
 
 
+def test_mana_meteor_theme_and_catalog():
+    meteor = next(t for t in gm.WEEKLY_THEMES if t["key"] == "mana_meteor")
+    infusion = meteor["mods"]["infusion"]
+    assert infusion["chance"] == 50
+    assert infusion["dmg_mult"] == 2.0
+    assert infusion["drop_items"] == {"id": "29", "qty": [1, 2]}
+    # ไอเทมคริสตัล + สูตรคราฟอาวุธในตำนานต้องอยู่ใน config.example.json
+    import json
+    catalog = json.load(open("config.example.json", encoding="utf-8"))["item_catalog"]
+    assert "มานาคริสตัล" in catalog["items"]["29"]["name"]
+    assert catalog["crafting_recipes"]["8"] == {"recipe": {"29": 5}, "fail_rate": 0.25}
+
+
+def test_infusion_merge_replace(monkeypatch):
+    meteor = next(t for t in gm.WEEKLY_THEMES if t["key"] == "mana_meteor")
+    monkeypatch.setattr(gm, "WEEKLY_THEMES", [meteor])
+    mods = gm.get_active_modifiers({"continent": "demon"})
+    assert mods["infusion"]["chance"] == 50    # ธีมส่งผ่าน merge ครบ
+    assert gm.DEFAULT_MODS["infusion"] is None # ค่าตั้งต้นไม่ถูกแตะ
+
+
 def test_demon_plus_zombie_stacking(monkeypatch):
     zombie = next(t for t in gm.WEEKLY_THEMES if t["key"] == "zombie")
     monkeypatch.setattr(gm, "WEEKLY_THEMES", [zombie])  # ธีมเดียว = สัปดาห์ไหนก็ได้ zombie
