@@ -207,14 +207,25 @@ class MonsterEventView(View):
             # 2. 🛡️ คำนวณพลังโจมตี (ถ้าความทนทานเป็น 0 พลังโจมตีหาย)
             curr_atk = w_stat.get("atk", 0) if player.get("weapon_dur", 0) > 0 else 0
             
+            # ⚡ ไฟฟ้าสถิต: สกิลอาจลัดวงจรก่อนออกท่า (กลายเป็นโจมตีธรรมดา + ช็อกตัวเอง)
+            shock_note = ""
+            if skill_used:
+                shock_failed, shock_dmg = game_modifiers.status_skill_shock(self.statuses)
+                if shock_failed:
+                    skill_used = None
+                    player["hp"] = max(0, player.get("hp", 100) - shock_dmg)
+                    shock_note = f"⚡ **สกิลลัดวงจร!** กระแสไฟฟ้าสถิตช็อกร่างคุณ `-{shock_dmg}` HP (เหลือ {player['hp']}) — ท่ากลายเป็นการโจมตีธรรมดา!\n"
+
             # 3. 🛠️ กำหนดค่าความทนทานเริ่มต้นเป็น 0 เพื่อป้องกันบั๊ก
-            durability_lost_w = 3 if skill_used else 1 
+            durability_lost_w = 3 if skill_used else 1
             damage_to_armor = 0 
             
             player_roll = random.randint(1, 20)
             monster_roll = sum(random.randint(1, 20) for _ in range(self.m_stats.get("dice_count", 1)))
             
             skill_log = ""
+            if shock_note:
+                skill_log += shock_note
             combat_log = ""
             db_updates = {}
             
@@ -332,6 +343,20 @@ class MonsterEventView(View):
                 if goddess_mult > 1.0:
                     combat_log += f"🎲 **เทพีโปรดปราน!** เต๋าของคุณเข้ากติกาวันนี้ ดาเมจ ×{goddess_mult:g}!\n"
                 damage_to_monster = int((player_roll + curr_atk) * 5 * damage_multiplier * status_dmg_mult * goddess_mult)
+
+                # 🌗 คำสาปแต้มคี่/คู่: parity ของเต๋าตรงคำสาป = ผลโจมตีบิดเบี้ยว
+                curse_key = game_modifiers.status_curse_for_roll(self.statuses, player_roll)
+                if curse_key:
+                    curse_cfg = game_modifiers.STATUS_EFFECTS[curse_key]
+                    if curse_cfg.get("curse_parity") == "odd":
+                        reflect = max(1, round(damage_to_monster * curse_cfg.get("reflect_pct", 0.2)))
+                        player["hp"] = max(0, player.get("hp", 100) - reflect)
+                        combat_log += f"🌑 **คำสาปแต้มคี่ทำงาน!** เต๋าออก `{player_roll}` การโจมตีแป้กสนิท แถมแรงสาปสะท้อน `-{reflect}` HP ใส่ตัวคุณ (เหลือ {player['hp']})\n"
+                    else:
+                        self.monster_hp += damage_to_monster
+                        combat_log += f"🌕 **คำสาปแต้มคู่ทำงาน!** เต๋าออก `{player_roll}` พลังโจมตีทั้งหมดไหลย้อนไป**ฮีลมอนสเตอร์** `+{damage_to_monster}` HP!\n"
+                    damage_to_monster = 0
+
                 self.monster_hp = max(0, self.monster_hp - damage_to_monster)
                 if status_dmg_mult < 1.0:
                     combat_log += "🥶 ร่างกายชาเย็นจนขยับช้า แรงโจมตีอ่อนลงกว่าปกติ!\n"

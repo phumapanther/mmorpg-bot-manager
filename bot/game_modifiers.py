@@ -110,6 +110,8 @@ CONTINENTS = {
             "monster_exp_mult": 1.4,
             "element_weights": {"dark": 30, "water": 15},
             "combat_hp_drain": [2, 5],
+            # แดนวิญญาณ: มอนตีติดคำสาปแต้มคี่ได้
+            "on_hit_status": {"key": "odd_curse", "chance": 18},
             "monster_pool": {
                 "Common": ["👻 แบนชี (Banshee)", "🧟 กูล (Ghoul)"],
                 "Mini-Boss": ["💀 ลิช (Lich)"],
@@ -233,6 +235,8 @@ CONTINENTS = {
             "monster_gold_mult": 1.9,
             "monster_exp_mult": 1.3,
             "element_weights": {"earth": 25, "fire": 20, "wind": 15},
+            # เครื่องจักรปล่อยไฟฟ้าสถิต: มอนตีติดช็อกได้ (สกิลเสี่ยงลัดวงจร)
+            "on_hit_status": {"key": "shock", "chance": 20},
             "monster_pool": {
                 "Common": ["🤖 หุ่นเชิดไอน้ำ (Steam Puppet)", "🕷️ แมงมุมเฟืองเลเซอร์ (Laser Gear Spider)"],
                 "Mini-Boss": ["⚙️ โกเลมลานไก (Clockwork Golem)"],
@@ -435,6 +439,20 @@ STATUS_EFFECTS = {
         "no_flee": True,                     # กดปุ่มวิ่งหนีไม่ได้
         "monster_dice_bonus": 2,             # รากรัดขาขยับยาก — เต๋ามอนสเตอร์ +2
     },
+    "odd_curse": {
+        "label": "🌑 คำสาปแต้มคี่", "tick": "step", "default_turns": 8,
+        "curse_parity": "odd",               # ทอยได้เลขคี่ = โจมตีแป้ก + สะท้อนดาเมจใส่ตัวเอง
+        "reflect_pct": 0.2,
+    },
+    "even_curse": {
+        "label": "🌕 คำสาปแต้มคู่", "tick": "step", "default_turns": 8,
+        "curse_parity": "even",              # ทอยได้เลขคู่ = ดาเมจกลายเป็นฮีลให้มอนสเตอร์
+    },
+    "shock": {
+        "label": "⚡ ไฟฟ้าสถิต", "tick": "fight", "default_turns": 2,
+        "skill_fail_chance": 50,             # กดสกิลมีโอกาสลัดวงจร (กลายเป็นโจมตีธรรมดา)
+        "shock_damage": (5, 12),             # + ช็อกตัวเอง
+    },
 }
 
 
@@ -516,6 +534,28 @@ def status_pct_damage(statuses):
 def status_monster_dice_bonus(statuses):
     """โบนัสเต๋ามอนสเตอร์รวมจากสถานะที่ติด (เช่น โดนรากรัด)"""
     return sum(STATUS_EFFECTS[k].get("monster_dice_bonus", 0) for k in statuses)
+
+
+def status_curse_for_roll(statuses, roll):
+    """คืน key คำสาปที่ทำงานกับเต๋าค่านี้ (parity ตรง) — ไม่เข้าเงื่อนไข = None"""
+    for key in statuses:
+        parity = STATUS_EFFECTS[key].get("curse_parity")
+        if parity == "odd" and roll % 2 == 1:
+            return key
+        if parity == "even" and roll > 0 and roll % 2 == 0:
+            return key
+    return None
+
+
+def status_skill_shock(statuses, rng=None):
+    """เช็คสกิลลัดวงจรจากไฟฟ้าสถิต — คืน (ล้มเหลว?, ดาเมจช็อกตัวเอง)"""
+    rng = rng or random
+    for key in statuses:
+        chance = STATUS_EFFECTS[key].get("skill_fail_chance")
+        if chance and rng.randint(1, 100) <= chance:
+            lo, hi = STATUS_EFFECTS[key].get("shock_damage", (5, 12))
+            return True, rng.randint(lo, hi)
+    return False, 0
 
 
 def roll_step_damage(statuses, rng=None):
@@ -819,6 +859,8 @@ WEEKLY_THEMES = [
             "dice_rules": True,
             "monster_exp_mult": 1.5,
             "monster_gold_mult": 1.5,
+            # เทพีขี้เล่น: มอนตีติดคำสาปแต้มคู่ได้
+            "on_hit_status": {"key": "even_curse", "chance": 18},
         },
     },
     {

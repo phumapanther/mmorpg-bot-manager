@@ -102,6 +102,39 @@ def test_s2_on_hit_bindings():
             assert elem["on_hit_status"]["key"] in gm.STATUS_EFFECTS
 
 
+def test_s3_curses_and_shock():
+    # ตารางสถานะ
+    assert gm.STATUS_EFFECTS["odd_curse"]["curse_parity"] == "odd"
+    assert gm.STATUS_EFFECTS["even_curse"]["curse_parity"] == "even"
+    assert gm.STATUS_EFFECTS["shock"]["skill_fail_chance"] == 50
+    # curse_for_roll: parity ตรงเท่านั้นที่ทำงาน, เต๋า 0 ไม่นับเป็นคู่
+    assert gm.status_curse_for_roll({"odd_curse": 5}, 7) == "odd_curse"
+    assert gm.status_curse_for_roll({"odd_curse": 5}, 8) is None
+    assert gm.status_curse_for_roll({"even_curse": 5}, 8) == "even_curse"
+    assert gm.status_curse_for_roll({"even_curse": 5}, 0) is None
+    assert gm.status_curse_for_roll({}, 7) is None
+    # shock: deterministic ด้วย FakeRng
+    class FakeRng:
+        def __init__(self, rolls):
+            self.rolls = list(rolls)
+
+        def randint(self, lo, hi):
+            return self.rolls.pop(0)
+
+    failed, dmg = gm.status_skill_shock({"shock": 2}, rng=FakeRng([50, 9]))
+    assert failed and dmg == 9
+    failed, dmg = gm.status_skill_shock({"shock": 2}, rng=FakeRng([51]))
+    assert not failed and dmg == 0
+    assert gm.status_skill_shock({"poison": 5}) == (False, 0)
+
+
+def test_s3_on_hit_bindings():
+    assert gm.CONTINENTS["nether"]["mods"]["on_hit_status"] == {"key": "odd_curse", "chance": 18}
+    assert gm.CONTINENTS["mechanized"]["mods"]["on_hit_status"] == {"key": "shock", "chance": 20}
+    goddess = next(t for t in gm.WEEKLY_THEMES if t["key"] == "goddess_dice")
+    assert goddess["mods"]["on_hit_status"] == {"key": "even_curse", "chance": 18}
+
+
 def test_format_status_line_units():
     line = gm.format_status_line({"poison": 12, "emp": 1})
     assert "☠️ พิษป่า (เหลือ 12 ก้าว)" in line
