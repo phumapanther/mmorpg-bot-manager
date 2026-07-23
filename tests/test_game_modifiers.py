@@ -94,10 +94,24 @@ VALID_RANKS = {"Common", "Mini-Boss", "Main-Boss", "Secret", "Unbeatable"}
 
 def test_real_themes_structure():
     keys = [t["key"] for t in gm.WEEKLY_THEMES]
-    assert "palette" in keys and "zombie" in keys
+    assert "normal" in keys and "palette" in keys and "zombie" in keys
     for theme in gm.WEEKLY_THEMES:
         assert theme["label"] and theme["description"]
         assert set(theme["mods"].get("monster_pool", {})) <= VALID_RANKS
+
+
+def test_normal_theme_is_identity_and_most_common():
+    normal = next(t for t in gm.WEEKLY_THEMES if t["key"] == "normal")
+    assert normal["mods"] == {}
+    # สัปดาห์สงบสุขได้ mods เท่ากับไม่มีธีมเป๊ะ
+    counts = {}
+    day = datetime.date(2026, 1, 5)
+    for i in range(120):
+        theme = gm.get_weekly_theme(day + datetime.timedelta(weeks=i))
+        counts[theme["key"]] = counts.get(theme["key"], 0) + 1
+    # weight 2 ต้องทำให้สัปดาห์ปกติโผล่บ่อยกว่าธีมพิเศษแต่ละตัว
+    assert counts["normal"] > counts.get("palette", 0)
+    assert counts["normal"] > counts.get("zombie", 0)
 
 
 def test_zombie_theme_numbers():

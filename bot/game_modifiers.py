@@ -159,8 +159,15 @@ def roll_destination(vehicle_key, current_continent, rng=None):
     return rng.choices(keys, weights=weights, k=1)[0]
 
 # ธีมรายสัปดาห์ — สุ่มจากเลขสัปดาห์ ISO (get_weekly_theme) เปลี่ยนทุกวันจันทร์
-# เพิ่มธีมใหม่ = เพิ่ม entry ที่นี่ (ต้องมี key/label/description/mods)
+# เพิ่มธีมใหม่ = เพิ่ม entry ที่นี่ (ต้องมี key/label/description/mods; weight = โอกาสเทียบกัน ไม่ใส่ = 1)
 WEEKLY_THEMES = [
+    {
+        "key": "normal",
+        "label": "🕊️ สัปดาห์สงบสุข",
+        "description": "สัปดาห์นี้โลกดำเนินไปตามปกติ ไม่มีเหตุการณ์พิเศษใดๆ — ออกผจญภัยได้อย่างสบายใจ",
+        "weight": 2,  # โผล่บ่อยกว่าธีมพิเศษ (~ครึ่งหนึ่งของสัปดาห์ทั้งหมด)
+        "mods": {},
+    },
     {
         "key": "palette",
         "label": "🎨 จานสีมอนสเตอร์ (Monster Palette)",
@@ -244,7 +251,8 @@ def get_weekly_theme(when=None):
         return None
     day = when or datetime.date.today()
     year, week, _ = day.isocalendar()
-    return random.Random(f"{year}-W{week}").choice(WEEKLY_THEMES)
+    weights = [theme.get("weight", 1) for theme in WEEKLY_THEMES]
+    return random.Random(f"{year}-W{week}").choices(WEEKLY_THEMES, weights=weights, k=1)[0]
 
 
 def get_active_modifiers(player, when=None):
