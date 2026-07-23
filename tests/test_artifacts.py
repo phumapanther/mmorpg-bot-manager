@@ -1,0 +1,104 @@
+"""ทดสอบ V1: ระบบอาร์ติแฟกต์ช่องเดียว (สถานะถาวร + สวมทับทำลาย + ผลถาวร)"""
+import pytest
+
+import bot.models.player_model as player_model
+from bot import game_modifiers as gm
+from bot.cogs import player_commands as pc
+from bot.views import game_views as gv
+
+
+@pytest.fixture
+def game_db(tmp_path, monkeypatch):
+    monkeypatch.setattr(player_model, "DB_NAME", str(tmp_path / "game.db"))
+    player_model.init_db()
+    uid = 999
+    player_model.get_player(uid)
+    return uid
+
+
+def _give(uid, item_id):
+    inv = player_model.load_inventory(player_model.get_player(uid)["inventory"])
+    inv.append(str(item_id))
+    player_model.update_player_field(uid, "inventory", inv)
+
+
+ARTIFACT_ITEMS = {
+    "42": {"name": "🧤 ถุงมือกันคลื่น EMP", "type": "use", "effect": "equip_artifact", "effect_value": "art_emp_gauntlet"},
+    "43": {"name": "🥾 รองเท้าขนนกวายุ", "type": "use", "effect": "equip_artifact", "effect_value": "art_gale_boots"},
+}
+
+
+def test_artifact_table_structure():
+    for key in ("art_emp_gauntlet", "art_gale_boots", "art_sylvan_cloak", "art_fire_ring"):
+        cfg = gm.STATUS_EFFECTS[key]
+        assert cfg["artifact"] is True and cfg["no_tick"] is True
+    # ไม่ tick หมดเอง
+    ticked, expired = gm.tick_statuses({"art_fire_ring": 1}, "step")
+    assert ticked == {"art_fire_ring": 1} and expired == []
+    # แสดงเป็น ∞
+    assert "(∞)" in gm.format_status_line({"art_fire_ring": 1})
+
+
+def test_equip_and_overwrite_destroys(game_db, monkeypatch):
+    uid = game_db
+    monkeypatch.setattr(pc.config_loader, "get_item_config", lambda iid: ARTIFACT_ITEMS.get(str(iid)))
+    _give(uid, "42")
+    ok, msg = pc.apply_item_effect(uid, "42")
+    assert ok and "art_emp_gauntlet" in gm.parse_statuses(player_model.get_player(uid))
+    # สวมชิ้นใหม่ทับ → ของเก่าถูกทำลาย เหลือชิ้นเดียว
+    _give(uid, "43")
+    ok, msg = pc.apply_item_effect(uid, "43")
+    assert ok and "แตกสลาย" in msg
+    statuses = gm.parse_statuses(player_model.get_player(uid))
+    assert "art_gale_boots" in statuses and "art_emp_gauntlet" not in statuses
+
+
+def test_artifact_survives_cleansing(game_db):
+    uid = game_db
+    player_model.update_player_field(uid, "status_effects", {"art_fire_ring": 1, "poison": 10})
+    # cleanse_all จากงานเลี้ยง/พร — อาร์ติแฟกต์ต้องรอด
+    lines, died = gv.execute_special_outcome(uid, {"cleanse_all": True})
+    statuses = gm.parse_statuses(player_model.get_player(uid))
+    assert "art_fire_ring" in statuses and "poison" not in statuses
+
+
+def test_artifact_passive_helpers():
+    boots = {"art_gale_boots": 1}
+    assert gm.status_reroll_vs(boots, "wind") == 40
+    assert gm.status_reroll_vs(boots, "fire") == 0
+    assert gm.status_fall_damage_mult(boots) == 0.5
+    ring = {"art_fire_ring": 1}
+    assert gm.status_reflect_vs(ring, "fire") == 0.2
+    assert gm.status_reflect_vs(ring, "water") == 0
+    cloak = {"art_sylvan_cloak": 1}
+    assert gm.has_status_flag(cloak, "block_root") is True
+    # เสื้อคลุมหารเลือดไหลพิษเหลือ ~20%
+    import random as _r
+    total, details = gm.roll_step_damage({"poison": 10, "art_sylvan_cloak": 1}, rng=_r.Random(1))
+    assert 1 <= total <= 2
+    # ถุงมือกัน EMP ติดไม่เข้า
+    s = gm.apply_status({"art_emp_gauntlet": 1}, "emp")
+    assert "emp" not in s
+
+
+def test_item_drop_chance_gate(game_db, monkeypatch):
+    uid = game_db
+    monkeypatch.setattr(gv.config_loader, "get_all_items", lambda: {"42": {"name": "ถุงมือ", "sell": 5000}})
+    player_model.update_player_fields(uid, {"capacity": 0, "inventory": "[]"})
+
+    class FakeRng:
+        def __init__(self, rolls):
+            self.rolls = list(rolls)
+
+        def randint(self, lo, hi):
+            return self.rolls.pop(0) if self.rolls else hi
+
+        def choice(self, seq):
+            return seq[0]
+
+    # ทอยเกิน chance = ไม่ดรอป
+    gv.execute_special_outcome(uid, {"items": [{"id": "42", "qty": 1, "chance": 8}]}, rng=FakeRng([9]))
+    assert player_model.load_inventory(player_model.get_player(uid)["inventory"]) == []
+    # ทอยเข้า chance = ดรอป
+    gv.execute_special_outcome(uid, {"items": [{"id": "42", "qty": 1, "chance": 8}]}, rng=FakeRng([8]))
+    assert player_model.load_inventory(player_model.get_player(uid)["inventory"]) == ["42"]

@@ -149,7 +149,11 @@
       "38": {"name": "🔍 แว่นส่องสัจจะ", "buy": 800, "sell": 150, "type": "junk", "purchasable": true},
       "39": {"name": "🧭 เข็มทิศขบวนหลวง", "buy": 5000, "sell": 1000, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "convoy_compass"},
       "40": {"name": "🌋 หินอัคนีเพลิง", "buy": 15000, "sell": 1500, "type": "use", "purchasable": false, "effect": "apply_status", "effect_value": "obsidian_edge"},
-      "41": {"name": "🎨 ผงสีรุ้ง", "buy": 25000, "sell": 2500, "type": "junk", "purchasable": false}
+      "41": {"name": "🎨 ผงสีรุ้ง", "buy": 25000, "sell": 2500, "type": "junk", "purchasable": false},
+      "42": {"name": "🧤 ถุงมือกันคลื่น EMP", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_emp_gauntlet"},
+      "43": {"name": "🥾 รองเท้าขนนกวายุ", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_gale_boots"},
+      "44": {"name": "🧥 เสื้อคลุมเปลือกไม้", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_sylvan_cloak"},
+      "45": {"name": "💍 แหวนหินอัคนี", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_fire_ring"}
     },
     "armor_stats": {
       "None":      {"name": "👕 เสื้อผ้าธรรมดา", "hp": 0,   "eva": 85, "dur": 100, "vis": 1},

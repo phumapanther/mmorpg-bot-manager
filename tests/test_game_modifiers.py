@@ -512,7 +512,7 @@ def test_volcanic_continent_numbers(monkeypatch):
     assert gm.get_element_data(mods, "water") == gm.ELEMENTS["water"]
     eruption = mods["special_events"][0]
     assert eruption["key"] == "volcanic_eruption" and eruption["pass_roll"] == 12
-    assert eruption["success"]["items"] == [{"id": "11", "qty": 10}, {"id": "40", "qty": 1}]  # อัญมณี + หินอัคนี (T2)
+    assert eruption["success"]["items"][:2] == [{"id": "11", "qty": 10}, {"id": "40", "qty": 1}]  # อัญมณี + หินอัคนี (T2; แหวนแรร์เช็คที่ test_t2_drop_sources)
     assert "Fire Salamander" in mods["monster_pool"]["Common"][0]
     assert "Light Dragon" in mods["monster_pool"]["Main-Boss"][0]
 

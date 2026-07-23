@@ -252,14 +252,18 @@ class MonsterEventView(View):
             root_chance = self.element_data.get("root_chance", 0)
             if root_chance and random.randint(1, 100) <= root_chance:
                 if game_modifiers.has_status_flag(self.statuses, "block_root"):
-                    # 🍀 โคลเวอร์นำโชค: กันรากหนึ่งครั้งแล้วสลาย
-                    self.statuses = {k: v for k, v in self.statuses.items()
-                                     if not game_modifiers.STATUS_EFFECTS[k].get("block_root")}
-                    fresh = game_modifiers.parse_statuses(player_model.get_player(self.user_id))
-                    fresh = {k: v for k, v in fresh.items()
-                             if not game_modifiers.STATUS_EFFECTS[k].get("block_root")}
-                    player_model.update_player_field(self.user_id, "status_effects", fresh)
-                    skill_log += "🍀 **โคลเวอร์นำโชคเปล่งแสง!** รากไม้เหี่ยวเฉาก่อนแตะตัวคุณ (เครื่องรางสลายไป)\n"
+                    # กันราก: อาร์ติแฟกต์ (เสื้อคลุมเปลือกไม้) กันถาวร / โคลเวอร์กันครั้งเดียวแล้วสลาย
+                    consumed = [k for k in self.statuses
+                                if game_modifiers.STATUS_EFFECTS[k].get("block_root")
+                                and not game_modifiers.STATUS_EFFECTS[k].get("artifact")]
+                    if consumed:
+                        self.statuses = {k: v for k, v in self.statuses.items() if k not in consumed}
+                        fresh = game_modifiers.parse_statuses(player_model.get_player(self.user_id))
+                        fresh = {k: v for k, v in fresh.items() if k not in consumed}
+                        player_model.update_player_field(self.user_id, "status_effects", fresh)
+                        skill_log += "🍀 **โคลเวอร์นำโชคเปล่งแสง!** รากไม้เหี่ยวเฉาก่อนแตะตัวคุณ (เครื่องรางสลายไป)\n"
+                    else:
+                        skill_log += "🧥 **เสื้อคลุมเปลือกไม้สั่นไหว** — รากไม้จำต้นตระกูลตัวเองได้ ถอยหนีไปเอง!\n"
                 else:
                     player_roll = 0
                     skill_log += "🌿 **รากพันธนาการ!** เถาวัลย์พุ่งขึ้นรัดแขนคุณแน่น เต๋าโจมตีถูกล็อกเหลือ `0` ในเทิร์นนี้!\n"
@@ -352,6 +356,13 @@ class MonsterEventView(View):
                     self.active_buffs["fireball"] -= 1
                 except Exception as e: pass
 
+            # 🥾 รองเท้าขนนกวายุ: แพ้เต๋าให้มอนธาตุลม → โอกาสขอทอยใหม่หนึ่งครั้ง
+            reroll_chance = game_modifiers.status_reroll_vs(self.statuses, self.element)
+            if reroll_chance and player_roll < monster_roll and random.randint(1, 100) <= reroll_chance:
+                new_roll = random.randint(1, 20)
+                skill_log += f"🥾 **รองเท้าขนนกวายุพัดหวน!** ขอทอยใหม่: `{player_roll}` ➔ `{new_roll}`\n"
+                player_roll = new_roll
+
             # 🎲 กติกาเต๋าประจำวัน (ธีมเต๋าแห่งเทพี)
             goddess_rule = game_modifiers.get_daily_dice_rule() if self.mods.get("dice_rules") else None
 
@@ -438,6 +449,13 @@ class MonsterEventView(View):
                 if damage_to_player > 0:
                     player["hp"] = max(0, player.get("hp", 100) - damage_to_player)
                     combat_log += f"⚔️ คุณทอยได้ **🎲 {player_roll}/บอส({monster_roll})** 💥 บอสโจมตีสวน! เสีย HP `- {damage_to_player}` (เกราะเสื่อมสภาพ `- {damage_to_armor}`)\n"
+
+                    # 💍 แหวนหินอัคนี: สะท้อนดาเมจกลับใส่มอนธาตุที่ระบุ (ไฟ)
+                    reflect_pct = game_modifiers.status_reflect_vs(self.statuses, self.element)
+                    if reflect_pct:
+                        reflected = max(1, round(damage_to_player * reflect_pct))
+                        self.monster_hp = max(0, self.monster_hp - reflected)
+                        combat_log += f"💍 **แหวนหินอัคนีลุกโชน!** สะท้อนเพลิง `-{reflected}` กลับใส่ศัตรู (บอสเหลือ HP: {self.monster_hp})\n"
                     # 💧 ธาตุน้ำ: ดูดเลือดจากดาเมจสุทธิที่ตีโดนจริง
                     lifesteal = self.element_data.get("lifesteal", 0)
                     if lifesteal:
@@ -1656,6 +1674,9 @@ def execute_special_outcome(user_id, outcome, rng=None):
         catalog = config_loader.get_all_items()
         capacity = player.get("capacity", 10)
         for entry in item_entries:
+            # โอกาสดรอปรายชิ้น (ไม่ระบุ = ได้แน่นอน) — ใช้กับของแรร์เช่นอาร์ติแฟกต์
+            if "chance" in entry and rng.randint(1, 100) > entry["chance"]:
+                continue
             # id เดี่ยว หรือสุ่มจาก id_pool (เช่น ดรอปวัสดุคราฟสุ่มชนิด)
             item_id = str(rng.choice(entry["id_pool"])) if "id_pool" in entry else str(entry["id"])
             qty = _roll_amount(entry.get("qty", 1), rng)
@@ -1687,6 +1708,12 @@ def execute_special_outcome(user_id, outcome, rng=None):
 
     if "damage" in outcome:
         dmg = _roll_amount(outcome["damage"], rng)
+        # 🥾 รองเท้าวายุ: ดาเมจการร่วง/ถูกดีดข้ามทวีปลดตามตัวคูณถาวร
+        if "force_continent" in outcome:
+            fall_mult = game_modifiers.status_fall_damage_mult(statuses)
+            if fall_mult < 1.0:
+                dmg = max(1, round(dmg * fall_mult))
+                lines.append("🥾 **รองเท้าขนนกวายุพยุงร่าง** — แรงกระแทกเบาลงมาก!")
         # 🪶 ขนนก: การร่วง/ถูกดีดข้ามทวีปเหลือดาเมจขั้นต่ำ รอดเสมอ (ใช้แล้วหมดไป)
         if "force_continent" in outcome and game_modifiers.has_status_flag(statuses, "fall_guard"):
             dmg = min(dmg, 5)
@@ -1710,13 +1737,14 @@ def execute_special_outcome(user_id, outcome, rng=None):
             label = game_modifiers.STATUS_EFFECTS.get(entry["key"], {}).get("label", entry["key"])
             lines.append(f"🧬 ติดสถานะ {label}!")
         status_changed = True
-    if outcome.get("cleanse_all") and statuses:
-        names = " ".join(game_modifiers.STATUS_EFFECTS[k]["label"] for k in statuses)
+    cleansable = [k for k in statuses if not game_modifiers.STATUS_EFFECTS[k].get("artifact")]
+    if outcome.get("cleanse_all") and cleansable:
+        names = " ".join(game_modifiers.STATUS_EFFECTS[k]["label"] for k in cleansable)
         lines.append(f"✨ สถานะทั้งหมดถูกชำระล้าง: {names}")
-        statuses = {}
+        statuses = {k: v for k, v in statuses.items() if k not in cleansable}
         status_changed = True
-    if outcome.get("cleanse_random") and statuses:
-        removed = rng.choice(list(statuses))
+    if outcome.get("cleanse_random") and cleansable:
+        removed = rng.choice(cleansable)
         statuses = {k: v for k, v in statuses.items() if k != removed}
         lines.append(f"✨ {game_modifiers.STATUS_EFFECTS[removed]['label']} ถูกชำระล้างออกไป")
         status_changed = True

@@ -196,9 +196,10 @@ def test_t2_dice_and_event_items():
 
 
 def test_t2_drop_sources():
-    # ภูเขาไฟระเบิดแจกหินอัคนีคู่กับอัญมณี
+    # ภูเขาไฟระเบิดแจกอัญมณี + หินอัคนี + แหวนแรร์ (V1)
     eruption = gm.CONTINENTS["volcanic"]["mods"]["special_events"][0]
-    assert eruption["success"]["items"] == [{"id": "11", "qty": 10}, {"id": "40", "qty": 1}]
+    assert eruption["success"]["items"] == [{"id": "11", "qty": 10}, {"id": "40", "qty": 1},
+                                            {"id": "45", "qty": 1, "chance": 8}]
     # ธีมจานสี: พาหะสีดรอปผงสีรุ้ง
     palette = next(t for t in gm.WEEKLY_THEMES if t["key"] == "palette")
     assert palette["mods"]["infusion"]["drop_items"] == {"id": "41", "qty": 1}

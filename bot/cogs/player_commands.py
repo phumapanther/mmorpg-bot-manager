@@ -155,7 +155,11 @@ def apply_item_effect(user_id, item_id):
     elif item_info.get("effect") == "cure_status":
         statuses = game_modifiers.parse_statuses(player)
         target = str(item_info.get("effect_value", "all"))
-        to_remove = list(statuses) if target == "all" else ([target] if target in statuses else [])
+        if target == "all":
+            # ล้างทุกสถานะ ยกเว้นอาร์ติแฟกต์ที่สวมอยู่
+            to_remove = [k for k in statuses if not game_modifiers.STATUS_EFFECTS[k].get("artifact")]
+        else:
+            to_remove = [target] if target in statuses else []
         if not to_remove:
             return False, f"❌ ตอนนี้คุณไม่มีสถานะที่ **{item_name}** รักษาได้"
         names = " ".join(game_modifiers.STATUS_EFFECTS.get(k, {}).get("label", k) for k in to_remove)
@@ -186,6 +190,23 @@ def apply_item_effect(user_id, item_id):
             player_model.update_player_field(user_id, "status_effects", statuses)
             cured_note = " และล้างเชื้อซอมบี้ออกจากร่างกายจนหมดจด!"
         msg = f"🥫 คุณกิน **{item_name}** ฟื้นพลังชีวิต ➔ `{new_hp}/{max_hp}`{cured_note}"
+
+    # 🏺 กรณี: สวมอาร์ติแฟกต์ (effect: "equip_artifact" — ช่องเดียว สวมทับ = ของเก่าถูกทำลายถาวร)
+    elif item_info.get("effect") == "equip_artifact":
+        art_key = str(item_info.get("effect_value", ""))
+        art_cfg = game_modifiers.STATUS_EFFECTS.get(art_key)
+        if not art_cfg or not art_cfg.get("artifact"):
+            return False, "❌ ไอเทมนี้ตั้งค่าอาร์ติแฟกต์ไว้ไม่ถูกต้อง (แจ้งแอดมินตรวจ config)"
+        statuses = game_modifiers.parse_statuses(player)
+        destroyed = [k for k in statuses if game_modifiers.STATUS_EFFECTS[k].get("artifact")]
+        statuses = {k: v for k, v in statuses.items() if k not in destroyed}
+        statuses = game_modifiers.apply_status(statuses, art_key)
+        player_model.update_player_field(user_id, "status_effects", statuses)
+        destroy_note = ""
+        if destroyed:
+            names = " ".join(game_modifiers.STATUS_EFFECTS[k]["label"] for k in destroyed)
+            destroy_note = f"\n💥 **{names} ที่สวมอยู่แตกสลายเป็นผุยผง!** (สวมทับแล้วไม่มีวันได้คืน)"
+        msg = f"🏺 คุณสวม **{item_name}** เข้าช่องอาร์ติแฟกต์ — พลังถาวรไหลเวียนทั่วร่าง!{destroy_note}"
 
     else:
         return False, f"❌ ไอเทม **{item_name}** ยังไม่สามารถกดใช้งานได้ในตอนนี้"

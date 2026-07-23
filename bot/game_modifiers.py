@@ -167,7 +167,8 @@ CONTINENTS = {
                     "pass_roll": 12,
                     "success": {
                         "text": "🏃 คุณพุ่งตัวหลบเข้าซอกผาได้ทัน! และเถ้าถ่านที่ปลิวออกไปเผยให้เห็นอัญมณีฝังอยู่เต็มลานหิน",
-                        "items": [{"id": "11", "qty": 10}, {"id": "40", "qty": 1}],
+                        "items": [{"id": "11", "qty": 10}, {"id": "40", "qty": 1},
+                                  {"id": "45", "qty": 1, "chance": 8}],  # 💍 แหวนหินอัคนี (แรร์)
                         "exp": [15, 30],
                     },
                     "fail": {
@@ -211,6 +212,7 @@ CONTINENTS = {
                             "outcome": {
                                 "text": "คุณกัดฟันมุดฝ่าดงหนาม... หนามพิษข่วนตามแขนขาจนแสบร้อนไปทั้งตัว",
                                 "apply_status": {"key": "poison"},
+                                "items": [{"id": "44", "qty": 1, "chance": 8}],  # 🧥 เสื้อคลุมเปลือกไม้ (แรร์ — รางวัลคนกล้า)
                             },
                         },
                         {
@@ -278,6 +280,7 @@ CONTINENTS = {
                         "text": "🔓 *คลิก!* กลไกทุกชั้นปลดล็อกพร้อมกัน — ข้างในอัดแน่นด้วยสมบัติสองเท่าของหีบปกติ!",
                         "gold": [1500, 4000],
                         "exp": [20, 40],
+                        "items": [{"id": "42", "qty": 1, "chance": 8}],  # 🧤 ถุงมือกันคลื่น (แรร์)
                     },
                     "fail": {
                         "text": "💥 ไขพลาด! กระแสไฟฟ้าแล่นเข้าใส่มือคุณเต็มเปา!",
@@ -317,6 +320,7 @@ CONTINENTS = {
                     "pass_roll": 12,
                     "success": {
                         "text": "🪂 คุณกระโดดคว้าปีกเมฆร่อนลงอย่างหวุดหวิด บาดเจ็บเพียงเล็กน้อย",
+                        "items": [{"id": "43", "qty": 1, "chance": 10}],  # 🥾 รองเท้าวายุ (แรร์ — รางวัลนักรอด)
                         "damage": [5, 15],
                         "force_continent": "main",
                     },
@@ -499,6 +503,29 @@ STATUS_EFFECTS = {
         "label": "🌋 คมอัคนีเพลิง", "tick": "fight", "default_turns": 1,
         "player_dmg_mult": 1.2,              # อาบคมอาวุธด้วยหินภูเขาไฟ
     },
+    # ── อาร์ติแฟกต์ (สถานะถาวรช่องเดียว — สวมทับ = ของเก่าถูกทำลายถาวรตามสเปก) ──
+    "art_emp_gauntlet": {
+        "label": "🧤 ถุงมือกันคลื่น EMP", "tick": "step", "default_turns": 1,
+        "artifact": True, "no_tick": True,
+        "blocks": ["emp"], "cleanse_on_apply": ["emp"],
+    },
+    "art_gale_boots": {
+        "label": "🥾 รองเท้าขนนกวายุ", "tick": "step", "default_turns": 1,
+        "artifact": True, "no_tick": True,
+        "reroll_vs_element": {"element": "wind", "chance": 40},  # แพ้เต๋าให้มอนลม → ขอทอยใหม่
+        "fall_damage_mult": 0.5,                                 # ดาเมจการร่วงลดครึ่ง
+    },
+    "art_sylvan_cloak": {
+        "label": "🧥 เสื้อคลุมเปลือกไม้", "tick": "step", "default_turns": 1,
+        "artifact": True, "no_tick": True,
+        "step_damage_mult": 0.2,             # เลือดไหลจากพิษ/สถานะเหลือ 20%
+        "block_root": True,                  # กันรากธาตุไม้ถาวร (ไม่สลายแบบโคลเวอร์)
+    },
+    "art_fire_ring": {
+        "label": "💍 แหวนหินอัคนี", "tick": "step", "default_turns": 1,
+        "artifact": True, "no_tick": True,
+        "reflect_vs_element": {"element": "fire", "pct": 0.2},   # สะท้อนดาเมจมอนไฟ 20%
+    },
 }
 
 
@@ -624,6 +651,32 @@ def status_event_weight_mult(statuses):
     return merged
 
 
+def status_reroll_vs(statuses, monster_element):
+    """โอกาสขอทอยใหม่เมื่อแพ้เต๋าให้มอนธาตุที่ระบุ (%) — เช่น รองเท้าวายุ vs ลม"""
+    for key in statuses:
+        cfg = STATUS_EFFECTS[key].get("reroll_vs_element")
+        if cfg and cfg.get("element") == monster_element:
+            return cfg.get("chance", 0)
+    return 0
+
+
+def status_reflect_vs(statuses, monster_element):
+    """สัดส่วนสะท้อนดาเมจกลับใส่มอนธาตุที่ระบุ — เช่น แหวนอัคนี vs ไฟ"""
+    for key in statuses:
+        cfg = STATUS_EFFECTS[key].get("reflect_vs_element")
+        if cfg and cfg.get("element") == monster_element:
+            return cfg.get("pct", 0)
+    return 0
+
+
+def status_fall_damage_mult(statuses):
+    """ตัวคูณดาเมจการร่วง/ถูกดีดข้ามทวีป (รองเท้าวายุ = ×0.5)"""
+    mult = 1.0
+    for key in statuses:
+        mult *= STATUS_EFFECTS[key].get("fall_damage_mult", 1.0)
+    return mult
+
+
 def status_curse_for_roll(statuses, roll):
     """คืน key คำสาปที่ทำงานกับเต๋าค่านี้ (parity ตรง) — ไม่เข้าเงื่อนไข = None"""
     for key in statuses:
@@ -647,13 +700,17 @@ def status_skill_shock(statuses, rng=None):
 
 
 def roll_step_damage(statuses, rng=None):
-    """รวมเลือดไหลต่อก้าวเดินจากทุกสถานะ — คืน (ดาเมจรวม, [(label, dmg), ...])"""
+    """รวมเลือดไหลต่อก้าวเดินจากทุกสถานะ — คืน (ดาเมจรวม, [(label, dmg), ...])
+    สถานะ/อาร์ติแฟกต์ที่มี step_damage_mult (เช่น เสื้อคลุมเปลือกไม้) ช่วยหารเบาลง"""
     rng = rng or random
+    mult = 1.0
+    for key in statuses:
+        mult *= STATUS_EFFECTS[key].get("step_damage_mult", 1.0)
     total, details = 0, []
     for key in statuses:
         dmg_range = STATUS_EFFECTS[key].get("step_damage")
         if dmg_range:
-            dmg = rng.randint(dmg_range[0], dmg_range[1])
+            dmg = max(1, round(rng.randint(dmg_range[0], dmg_range[1]) * mult))
             total += dmg
             details.append((STATUS_EFFECTS[key]["label"], dmg))
     return total, details
@@ -664,6 +721,9 @@ def format_status_line(statuses):
     parts = []
     for key, turns in statuses.items():
         cfg = STATUS_EFFECTS[key]
+        if cfg.get("artifact"):
+            parts.append(f"{cfg['label']} (∞)")
+            continue
         if cfg.get("stacking"):
             parts.append(f"{cfg['label']} ({turns}/{cfg.get('transform_at', '?')} สแตก)")
             continue
