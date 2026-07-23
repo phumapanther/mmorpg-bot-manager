@@ -91,6 +91,11 @@ class MonsterEventView(View):
                     # กรณีเลเวล 0 ถึง 9 (เจอมอนสเตอร์ระดับต่ำสุด)
                     spawn_weights = [95, 2, 1, 1, 1]
                 
+            # ตัวคูณน้ำหนักแรงค์จากทวีป/ธีม (เช่น Eclipse ดัน Secret ×3) — แรงค์ที่ถูกล็อก 100% จากใบเรียกไม่กระทบ
+            rank_mult = self.mods.get("rank_weight_mult") or {}
+            if rank_mult:
+                spawn_weights = [w * rank_mult.get(rank, 1.0) for w, rank in zip(spawn_weights, rank_keys)]
+
             # 3. สุ่มมอนสเตอร์ตามน้ำหนักที่ได้จากเงื่อนไขด้านบน
             self.monster_rank = random.choices(rank_keys, weights=spawn_weights, k=1)[0]
             self.m_stats = dict(MONSTER_RANKS[self.monster_rank])

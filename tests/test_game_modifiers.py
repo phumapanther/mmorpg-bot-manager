@@ -14,6 +14,7 @@ def test_default_is_identity(monkeypatch):
     assert mods["monster_gold_mult"] == 1.0
     assert mods["monster_exp_mult"] == 1.0
     assert mods["event_weight_mult"] == {}
+    assert mods["rank_weight_mult"] == {}
     assert mods["monster_pool"] == {}
     assert mods["theme_texts"] == {}
     assert mods["element_overrides"] == {}
@@ -149,6 +150,24 @@ def test_dragon_nesting_theme_numbers():
     assert mods["monster_dmg_mult"] == 1.2
     assert mods["monster_gold_mult"] == 1.8
     assert all(rank in mods["monster_pool"] for rank in ("Common", "Mini-Boss", "Main-Boss"))
+
+
+def test_solar_eclipse_theme_numbers(monkeypatch):
+    eclipse = next(t for t in gm.WEEKLY_THEMES if t["key"] == "solar_eclipse")
+    monkeypatch.setattr(gm, "WEEKLY_THEMES", [eclipse])
+    mods = gm.get_active_modifiers({"continent": "main"})
+    assert mods["element_weights"] == {"dark": 40}
+    assert mods["rank_weight_mult"] == {"Secret": 3.0}
+    assert mods["monster_exp_mult"] == 1.3
+    dark = gm.get_element_data(mods, "dark")
+    assert dark["hp_mult"] == 1.5 and dark["dice_bonus"] == [2, 4]
+    assert dark["pre_enraged"] is True     # ของเดิมของธาตุมืดยังอยู่
+    # rank_weight_mult ทบกับทวีปได้ราย key
+    monkeypatch.setitem(gm.CONTINENTS, "testland", {
+        "label": "t", "mods": {"rank_weight_mult": {"Secret": 2.0}},
+    })
+    merged = gm.get_active_modifiers({"continent": "testland"})
+    assert merged["rank_weight_mult"]["Secret"] == pytest.approx(6.0)
 
 
 def test_demon_plus_zombie_stacking(monkeypatch):

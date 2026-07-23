@@ -12,6 +12,7 @@ import random
 # ชุดตัวคูณมาตรฐาน (identity) — ทุกค่าเท่านี้ = เกมทำงานเหมือนไม่มีระบบนี้อยู่
 DEFAULT_MODS = {
     "event_weight_mult": {},   # คูณน้ำหนักรายอีเวนต์ เช่น {"monster": 1.5} (ว่าง = ปกติ)
+    "rank_weight_mult": {},    # คูณน้ำหนักสุ่มแรงค์มอนสเตอร์ เช่น {"Secret": 3.0} (ว่าง = ปกติ)
     "monster_hp_mult": 1.0,    # คูณ HP มอนสเตอร์ตอนเกิดใหม่
     "monster_dmg_mult": 1.0,   # คูณดาเมจที่มอนสเตอร์ตีใส่ผู้เล่น
     "monster_gold_mult": 1.0,  # คูณทองรางวัลชนะมอนสเตอร์
@@ -637,6 +638,20 @@ WEEKLY_THEMES = [
         },
     },
     {
+        "key": "solar_eclipse",
+        "label": "🌑 สุริยุปราคามืดมิด (Solar Eclipse)",
+        "description": (
+            "เงาจันทร์กลืนดวงอาทิตย์ ความมืดปกคลุมทุกทวีป! มอนสเตอร์ธาตุมืดแข็งแกร่งและชุกชุมผิดปกติ — "
+            "และประตูดันเจี้ยนลับเปิดออก มอนสเตอร์ลับ (Secret) โผล่บ่อยขึ้น 3 เท่า ล่าให้ทันก่อนแสงกลับมา!"
+        ),
+        "mods": {
+            "element_weights": {"dark": 40},
+            "element_overrides": {"dark": {"hp_mult": 1.5, "dice_bonus": [2, 4]}},
+            "rank_weight_mult": {"Secret": 3.0},
+            "monster_exp_mult": 1.3,
+        },
+    },
+    {
         "key": "zombie",
         "label": "🧟 ซอมบี้บุก (Zombie Invasion)",
         "description": (
@@ -663,7 +678,7 @@ def _merge(base, extra):
     monster_pool = ต่อกัน, theme_texts = extra ทับ base"""
     out = dict(base)
     for key, value in (extra or {}).items():
-        if key == "event_weight_mult":
+        if key in ("event_weight_mult", "rank_weight_mult"):
             merged = dict(out.get(key, {}))
             for evt, mult in value.items():
                 merged[evt] = merged.get(evt, 1.0) * mult
