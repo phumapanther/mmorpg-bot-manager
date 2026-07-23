@@ -131,6 +131,53 @@ def test_demon_plus_zombie_stacking(monkeypatch):
     assert any("Imp" in n for n in common) and any("Zombie" in n for n in common)
 
 
+# ===== ระบบธาตุมอนสเตอร์ =====
+
+def test_elements_table_structure():
+    assert set(gm.ELEMENTS) == {"fire", "water", "earth", "wind", "wood", "dark", "light"}
+    for element in gm.ELEMENTS.values():
+        assert element["label"]
+    # พารามิเตอร์ตามสเปก
+    assert gm.ELEMENTS["fire"]["dmg_mult"] == 1.5
+    assert gm.ELEMENTS["water"]["lifesteal"] == 0.35
+    assert gm.ELEMENTS["earth"]["hp_mult"] == 2.0
+    assert gm.ELEMENTS["wind"]["dice_bonus"] == (2, 4)
+    assert gm.ELEMENTS["wood"]["dice_bonus"] == (2, 4)
+    assert gm.ELEMENTS["wood"]["root_chance"] == 25
+    assert gm.ELEMENTS["dark"]["pre_enraged"] is True
+    assert gm.ELEMENTS["light"]["monster_flee_chance"] == 40
+    assert gm.ELEMENTS["light"]["gold_mult"] == 3.5
+
+
+def test_continent_element_weights(monkeypatch):
+    monkeypatch.setattr(gm, "WEEKLY_THEMES", [])
+    demon = gm.get_active_modifiers({"continent": "demon"})["element_weights"]
+    assert demon == {"dark": 35, "fire": 20}
+    ocean = gm.get_active_modifiers({"continent": "ocean"})["element_weights"]
+    assert ocean == {"water": 35, "wind": 20}
+    main = gm.get_active_modifiers({"continent": "main"})["element_weights"]
+    assert main == {}
+
+
+def test_roll_element_valid_and_respects_weights():
+    rng = __import__("random").Random(9)
+    # เรทว่าง = สุ่มจากทุกธาตุ
+    for _ in range(20):
+        assert gm.roll_element(gm.DEFAULT_MODS, rng=rng) in gm.ELEMENTS
+    # บังคับเรทเหลือธาตุเดียว → ต้องได้ธาตุนั้นเสมอ
+    forced = {"element_weights": {k: 0 for k in gm.ELEMENTS} | {"water": 5}}
+    for _ in range(20):
+        assert gm.roll_element(forced, rng=rng) == "water"
+
+
+def test_element_weights_merge_theme_over_continent(monkeypatch):
+    monkeypatch.setattr(gm, "WEEKLY_THEMES", [{
+        "key": "t", "mods": {"element_weights": {"dark": 50}},
+    }])
+    merged = gm.get_active_modifiers({"continent": "demon"})["element_weights"]
+    assert merged == {"dark": 50, "fire": 20}  # ธีมทับทวีปราย key
+
+
 # ===== ระบบเดินทางข้ามทวีป (ข้อ 2) =====
 
 def test_travel_encounter_fare_within_cash():

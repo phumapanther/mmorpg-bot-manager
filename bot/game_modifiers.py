@@ -17,6 +17,7 @@ DEFAULT_MODS = {
     "monster_exp_mult": 1.0,   # คูณ EXP รางวัลชนะมอนสเตอร์
     "monster_pool": {},        # ชื่อมอนสเตอร์ธีมราย "แรงค์" เช่น {"Common": ["😈 อิมป์"]} (แรงค์ที่ไม่มี = ใช้ชื่อเดิม)
     "theme_texts": {},         # ข้อความ reskin อีเวนต์ เช่น {"treasure": "...", "trap": "..."} (ไม่มี = ข้อความเดิม)
+    "element_weights": {},     # เรทธาตุทับค่ามาตรฐานราย key เช่น {"dark": 35} (ว่าง = เรทสมดุล)
 }
 
 # ทวีป — ตัวคูณเกมเพลย์ (mods) เติมในข้อ 3
@@ -45,6 +46,8 @@ CONTINENTS = {
                 "treasure": "🕸️ คุณพบ **'หีบต้องคำสาป (Dark Curse)'** ออร่าดำมืดพวยพุ่งออกมาจากรอยแยกของฝา",
                 "trap":     "🌋 พื้นดินแตกร้าว! **'รอยแยกปีศาจ (Demon Rift)'** เปิดอ้าใต้ฝ่าเท้าคุณ!",
             },
+            # แดนปีศาจ: ธาตุมืดชุก ไฟรองลงมา (ธาตุอื่นเรทมาตรฐาน 10)
+            "element_weights": {"dark": 35, "fire": 20},
         },
     },
     "ocean": {
@@ -64,9 +67,36 @@ CONTINENTS = {
                 "treasure": "🏝️ คลื่นซัดคุณไปเกยหาด **'สมบัติเกาะร้าง (Treasure Island)'** ตรงหน้า",
                 "trap":     "🌀 **'พายุเขตร้อน (Tropical Storm)'** โหมกระหน่ำใส่คุณกลางเส้นทาง!",
             },
+            # แดนทะเล: ธาตุน้ำชุก ลมรองลงมา (ธาตุอื่นเรทมาตรฐาน 10)
+            "element_weights": {"water": 35, "wind": 20},
         },
     },
 }
+
+# ===== ระบบธาตุมอนสเตอร์ (Elements) =====
+# ธาตุ = ข้อมูล + พารามิเตอร์เอฟเฟกต์ที่จุดต่อสู้อ่านไปใช้ — เพิ่มธาตุใหม่ = เพิ่ม entry ที่นี่
+# (พารามิเตอร์ที่ไม่ใส่ = ไม่มีเอฟเฟกต์นั้น)
+
+ELEMENTS = {
+    "fire":  {"label": "🔥 ธาตุไฟ",  "dmg_mult": 1.5},                          # ตีแรงขึ้น 50%
+    "water": {"label": "💧 ธาตุน้ำ", "lifesteal": 0.35},                        # ดูดเลือด 35% ของดาเมจที่ตีโดน
+    "earth": {"label": "🪨 ธาตุดิน", "hp_mult": 2.0},                           # เลือดหนา 2 เท่า
+    "wind":  {"label": "💨 ธาตุลม",  "dice_bonus": (2, 4)},                     # เต๋ามอน +2 ถึง +4
+    "wood":  {"label": "🌿 ธาตุไม้", "dice_bonus": (2, 4), "root_chance": 25},  # เต๋า+ และ 25% รากพันธนาการล็อกเต๋าผู้เล่น = 0
+    "dark":  {"label": "🌑 ธาตุมืด", "pre_enraged": True},                      # คลั่งตั้งแต่เทิร์นแรก
+    "light": {"label": "✨ ธาตุแสง", "monster_flee_chance": 40, "gold_mult": 3.5},  # หนีเก่ง (แบบ Metal Slime) แต่ล้มได้ทองหนัก
+}
+
+# เรทสุ่มธาตุมาตรฐาน (ทวีปหลัก) — สมดุลทุกธาตุ; ทวีป/ธีมทับรายธาตุผ่าน mods["element_weights"]
+DEFAULT_ELEMENT_WEIGHTS = {key: 10 for key in ELEMENTS}
+
+
+def roll_element(mods, rng=None):
+    """สุ่มธาตุมอนสเตอร์ตามเรทของทวีป/ธีมสัปดาห์ (overlay ทับเรทมาตรฐานราย key)"""
+    weights = {**DEFAULT_ELEMENT_WEIGHTS, **(mods.get("element_weights") or {})}
+    keys = list(weights)
+    return (rng or random).choices(keys, weights=[weights[k] for k in keys], k=1)[0]
+
 
 # ===== ระบบเดินทางข้ามทวีป (สุ่มเจอระหว่างผจญภัย ไม่มีคำสั่งเรียกเอง) =====
 
@@ -172,7 +202,7 @@ def _merge(base, extra):
             for rank, names in value.items():
                 merged_pool[rank] = merged_pool.get(rank, []) + list(names)
             out[key] = merged_pool
-        elif key == "theme_texts":
+        elif key in ("theme_texts", "element_weights"):
             out[key] = {**out.get(key, {}), **value}
         elif key.endswith("_mult"):
             out[key] = out.get(key, 1.0) * value
