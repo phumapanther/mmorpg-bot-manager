@@ -619,6 +619,24 @@ WEEKLY_THEMES = [
         },
     },
     {
+        "key": "dragon_nesting",
+        "label": "🐉 ฤดูมังกรทำรัง (Dragon Nesting Season)",
+        "description": (
+            "ฝูงมังกรบินลงมาทำรังทั่วทุกทวีป! มังกรช่วงหวงรังตื่นตัวและดุร้ายกว่าปกติ — "
+            "แต่ผู้กล้าที่ล้มมันได้จะได้ทองมหาศาลจากกองสมบัติในรัง"
+        ),
+        "mods": {
+            "event_weight_mult": {"monster": 1.2},
+            "monster_dmg_mult": 1.2,
+            "monster_gold_mult": 1.8,
+            "monster_pool": {
+                "Common": ["🐲 ลูกมังกรเพลิง (Dragon Whelp)"],
+                "Mini-Boss": ["🐉 มังกรหนุ่มเขี้ยวเพชร (Young Drake)"],
+                "Main-Boss": ["🐲 มังกรราชันเวหา (Sky Dragon King)"],
+            },
+        },
+    },
+    {
         "key": "zombie",
         "label": "🧟 ซอมบี้บุก (Zombie Invasion)",
         "description": (

@@ -140,6 +140,15 @@ def test_royal_convoy_theme_numbers():
     assert "หีบราชสมบัติ" in convoy["mods"]["theme_texts"]["treasure"]
 
 
+def test_dragon_nesting_theme_numbers():
+    dragon = next(t for t in gm.WEEKLY_THEMES if t["key"] == "dragon_nesting")
+    mods = dragon["mods"]
+    assert mods["event_weight_mult"] == {"monster": 1.2}
+    assert mods["monster_dmg_mult"] == 1.2
+    assert mods["monster_gold_mult"] == 1.8
+    assert all(rank in mods["monster_pool"] for rank in ("Common", "Mini-Boss", "Main-Boss"))
+
+
 def test_demon_plus_zombie_stacking(monkeypatch):
     zombie = next(t for t in gm.WEEKLY_THEMES if t["key"] == "zombie")
     monkeypatch.setattr(gm, "WEEKLY_THEMES", [zombie])  # ธีมเดียว = สัปดาห์ไหนก็ได้ zombie
