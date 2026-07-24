@@ -138,7 +138,7 @@
       "27": {"name": "📡เรดาร์สแกนกล่องสมบัติ", "buy": 3000, "sell": 300, "type": "drop", "purchasable": false, "effect": "set_state", "effect_value": "scan_box"},
       "28": {"name": "💌ใบชุบชีวิต", "buy": 5000, "sell": 500, "type": "drop", "purchasable": false, "effect": "revive"},
       "29": {"name": "🔮 มานาคริสตัลบริสุทธิ์", "buy": 50000, "sell": 5000, "type": "junk", "purchasable": false},
-      "30": {"name": "🌿 ยาถอนพิษพงไพร", "buy": 1500, "sell": 300, "type": "use", "purchasable": true, "effect": "cure_status", "effect_value": "poison"},
+      "30": {"name": "🌿 ยาถอนพิษพงไพร", "buy": 1500, "sell": 300, "type": "use", "purchasable": true, "effect": "cure_status", "effect_value": ["poison", "entangled"]},
       "31": {"name": "🥫 กล่องเสบียงฉุกเฉิน", "buy": 4000, "sell": 800, "type": "use", "purchasable": false, "effect": "emergency_ration"},
       "32": {"name": "🏮 ตะเกียงมานาบริสุทธิ์", "buy": 3000, "sell": 600, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "warm"},
       "33": {"name": "💾 ชิปกันคลื่น EMP", "buy": 2500, "sell": 500, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "emp_shield"},
@@ -161,7 +161,8 @@
       "50": {"name": "🎭 แว่นเดี่ยวหน้ากาก", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_masquerade_monocle"},
       "51": {"name": "👝 ถุงเต๋าเทพี", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_goddess_dicebag"},
       "52": {"name": "🌀 ประตูวาร์ปมิติ", "buy": 40000, "sell": 4000, "type": "use", "purchasable": false, "effect": "random_continent"},
-      "53": {"name": "🎫 ตั๋วเรือเหมาลำ", "buy": 25000, "sell": 2500, "type": "use", "purchasable": false, "effect": "choose_continent"}
+      "53": {"name": "🎫 ตั๋วเรือเหมาลำ", "buy": 25000, "sell": 2500, "type": "use", "purchasable": false, "effect": "choose_continent"},
+      "54": {"name": "🗡️ มีดตัดเถาวัลย์", "buy": 2000, "sell": 400, "type": "use", "purchasable": true, "effect": "cure_status", "effect_value": "entangled"}
     },
     "armor_stats": {
       "None":      {"name": "👕 เสื้อผ้าธรรมดา", "hp": 0,   "eva": 85, "dur": 100, "vis": 1},

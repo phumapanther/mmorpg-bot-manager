@@ -151,15 +151,16 @@ def apply_item_effect(user_id, item_id):
         else:
             return False, f"❌ ไอเทม **{item_name}** ยังไม่สามารถกดใช้งานได้ในตอนนี้ (ยังไม่ได้ตั้งค่า effect ให้ถูกต้อง)"
 
-    # ✨ กรณี: ไอเทมแก้สถานะ (effect: "cure_status" + effect_value: key เดียว หรือ "all")
+    # ✨ กรณี: ไอเทมแก้สถานะ (effect: "cure_status" + effect_value: key เดียว, ลิสต์หลาย key, หรือ "all")
     elif item_info.get("effect") == "cure_status":
         statuses = game_modifiers.parse_statuses(player)
-        target = str(item_info.get("effect_value", "all"))
-        if target == "all":
+        target = item_info.get("effect_value", "all")
+        targets = target if isinstance(target, list) else [target]
+        if "all" in targets:
             # ล้างทุกสถานะ ยกเว้นอาร์ติแฟกต์ที่สวมอยู่
             to_remove = [k for k in statuses if not game_modifiers.STATUS_EFFECTS[k].get("artifact")]
         else:
-            to_remove = [target] if target in statuses else []
+            to_remove = [k for k in targets if k in statuses]
         if not to_remove:
             return False, f"❌ ตอนนี้คุณไม่มีสถานะที่ **{item_name}** รักษาได้"
         names = " ".join(game_modifiers.STATUS_EFFECTS.get(k, {}).get("label", k) for k in to_remove)

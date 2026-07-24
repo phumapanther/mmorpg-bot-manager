@@ -45,6 +45,32 @@ def test_cure_status_item(game_db, monkeypatch):
     assert "30" in player_model.load_inventory(player_model.get_player(uid)["inventory"])
 
 
+def test_cure_status_multi_key(game_db, monkeypatch):
+    """ยาถอนพิษเวอร์ชันใหม่: effect_value เป็นลิสต์ ล้างได้ทั้งพิษและพันธนาการ"""
+    _mock_catalog(monkeypatch, {"30": {"name": "🌿 ยาถอนพิษพงไพร", "type": "use",
+                                        "effect": "cure_status", "effect_value": ["poison", "entangled"]}})
+    uid = game_db
+    # ติดพันธนาการอย่างเดียว → ล้างได้
+    player_model.update_player_field(uid, "status_effects", {"entangled": 3})
+    _give(uid, "30")
+    ok, msg = pc.apply_item_effect(uid, "30")
+    assert ok and "entangled" not in gm.parse_statuses(player_model.get_player(uid))
+    # ติดทั้งคู่ → ล้างทั้งคู่ในขวดเดียว (สถานะอื่นไม่โดน)
+    player_model.update_player_field(uid, "status_effects", {"poison": 10, "entangled": 2, "numb": 4})
+    _give(uid, "30")
+    ok, msg = pc.apply_item_effect(uid, "30")
+    st = gm.parse_statuses(player_model.get_player(uid))
+    assert ok and st == {"numb": 4}
+
+
+def test_vine_cutter_in_catalog():
+    import json
+    items = json.load(open("config.example.json", encoding="utf-8"))["item_catalog"]["items"]
+    assert items["54"]["effect"] == "cure_status" and items["54"]["effect_value"] == "entangled"
+    assert items["54"]["purchasable"] is True
+    assert items["30"]["effect_value"] == ["poison", "entangled"]
+
+
 def test_apply_status_item(game_db, monkeypatch):
     uid = game_db
     _mock_catalog(monkeypatch, {"40": {"name": "ยาโด๊ปทดสอบ", "type": "use",
