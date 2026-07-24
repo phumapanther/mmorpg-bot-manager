@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 config.json
 game_data.db
+backups/
 LICENSE_SERVER_URL.txt
 build/
 dist/

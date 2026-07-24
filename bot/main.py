@@ -137,6 +137,9 @@ def create_bot(bot_type: str):
                 await bot.load_extension("bot.cogs.world_admin")
                 print("🛠️[World Admin] โหลดคำสั่งแอดมินควบคุมโลกสำเร็จ!")
 
+                await bot.load_extension("bot.cogs.db_backup")
+                print("💾[DB Backup] โหลดระบบสำรองฐานข้อมูลรายวันสำเร็จ!")
+
             elif bot_type == "chat":
                 await bot.load_extension("bot.cogs.voice_chat_tracker")
                 print("🎙️ [Chat/Voice Bot] โหลดระบบลูปห้องเสียงและฟาร์มแชทสำเร็จ!")
