@@ -661,8 +661,15 @@ class PlayerCommands(commands.Cog):
     # --- คำสั่ง !use <เลขไอเทม> ---
     @commands.command(name="use")
     async def use_item(self, ctx, item_id: str):
-        # 🎨 ผงสีรุ้ง: เปิดเมนูเลือกสีย้อมโปรไฟล์ (ผงถูกหักตอนยืนยันใน view)
         item_cfg = config_loader.get_item_config(item_id)
+
+        # 🧪 ยาพลิกธาตุ: ต้องมีธาตุประจำเผ่าก่อน (เช็คจากยศ — ทำได้เฉพาะตรงนี้ที่เห็น roles)
+        if item_cfg and item_cfg.get("effect") == "apply_status" and item_cfg.get("effect_value") == "element_flux":
+            player_elements = game_modifiers.resolve_player_elements([r.name for r in ctx.author.roles])
+            if not player_elements:
+                return await ctx.send("❌ **ยาพลิกธาตุต้องอาศัยพลังธาตุประจำเผ่า!** คุณยังไม่มียศเผ่า — รับยศเผ่าก่อนแล้วค่อยใช้ (ยายังอยู่ในกระเป๋า)")
+
+        # 🎨 ผงสีรุ้ง: เปิดเมนูเลือกสีย้อมโปรไฟล์ (ผงถูกหักตอนยืนยันใน view)
         if item_cfg and item_cfg.get("effect") == "dye_profile":
             player = player_model.get_player(ctx.author.id)
             inv = player_model.load_inventory(player.get("inventory", ""))

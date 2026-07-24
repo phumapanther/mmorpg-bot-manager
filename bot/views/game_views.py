@@ -108,7 +108,12 @@ class MonsterEventView(View):
                 self.m_stats["name"] = themed_name
 
             # 🧪 สุ่มธาตุประจำตัว (เรทตามทวีป/ธีม) — เกิดครั้งเดียว คงเดิมตลอดไฟต์
-            self.element = game_modifiers.roll_element(self.mods)
+            # ยาพลิกธาตุ (element_flux): บังคับมอนเกิดเป็นธาตุที่เผ่าผู้เล่นข่มแทนการสุ่มปกติ
+            flux_elems = game_modifiers.resolve_player_elements(
+                [getattr(r, "name", str(r)) for r in (member_roles or [])])
+            self.element = game_modifiers.forced_weak_element(self.statuses, flux_elems)
+            if self.element is None:
+                self.element = game_modifiers.roll_element(self.mods)
             self.element_data = game_modifiers.get_element_data(self.mods, self.element)
             # 🪨 ธาตุดิน: เลือดหนาขึ้นตามสเปกธาตุ (คูณทบกับตัวคูณทวีป/ธีมที่ใส่ไปแล้ว)
             self.monster_hp = max(1, round(self.monster_hp * self.element_data.get("hp_mult", 1.0)))

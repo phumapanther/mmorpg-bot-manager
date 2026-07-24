@@ -162,7 +162,8 @@
       "51": {"name": "👝 ถุงเต๋าเทพี", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_goddess_dicebag"},
       "52": {"name": "🌀 ประตูวาร์ปมิติ", "buy": 40000, "sell": 4000, "type": "use", "purchasable": false, "effect": "random_continent"},
       "53": {"name": "🎫 ตั๋วเรือเหมาลำ", "buy": 25000, "sell": 2500, "type": "use", "purchasable": false, "effect": "choose_continent"},
-      "54": {"name": "🗡️ มีดตัดเถาวัลย์", "buy": 800, "sell": 160, "type": "use", "purchasable": true, "effect": "cure_status", "effect_value": "entangled"}
+      "54": {"name": "🗡️ มีดตัดเถาวัลย์", "buy": 800, "sell": 160, "type": "use", "purchasable": true, "effect": "cure_status", "effect_value": "entangled"},
+      "55": {"name": "🧪 ยาพลิกธาตุ", "buy": 30000, "sell": 3000, "type": "use", "purchasable": false, "effect": "apply_status", "effect_value": "element_flux"}
     },
     "armor_stats": {
       "None":      {"name": "👕 เสื้อผ้าธรรมดา", "hp": 0,   "eva": 85, "dur": 100, "vis": 1},

@@ -40,6 +40,34 @@ def test_defense_resist_and_lightdark():
     assert gm.player_defense_element_mult([], "fire") == 1.0
 
 
+def test_element_flux_forced_weak_element():
+    flux = {"element_flux": 1}
+    # มังกร (ไฟ) → มอนถูกบังคับเป็นไม้ (ธาตุเดียวที่ไฟข่ม)
+    assert gm.forced_weak_element(flux, ["fire"]) == "wood"
+    # เงือก (น้ำ) → ไฟ
+    assert gm.forced_weak_element(flux, ["water"]) == "fire"
+    # dual มังกร+เงือก → สุ่มจาก {wood, fire}
+    rng = __import__("random").Random(4)
+    picks = {gm.forced_weak_element(flux, ["fire", "water"], rng=rng) for _ in range(30)}
+    assert picks == {"wood", "fire"}
+    # ไม่มีสถานะ / ไม่มีธาตุเผ่า = None (สุ่มปกติ)
+    assert gm.forced_weak_element({}, ["fire"]) is None
+    assert gm.forced_weak_element(flux, []) is None
+    # สถานะเป็นแบบ fight 1 เทิร์น — หมดหลังไฟต์เดียว
+    assert gm.STATUS_EFFECTS["element_flux"]["tick"] == "fight"
+    assert gm.STATUS_EFFECTS["element_flux"]["default_turns"] == 1
+
+
+def test_element_flux_drop_sources_and_catalog():
+    import json
+    items = json.load(open("config.example.json", encoding="utf-8"))["item_catalog"]["items"]
+    assert items["55"]["effect_value"] == "element_flux" and items["55"]["purchasable"] is False
+    goddess = next(t for t in gm.WEEKLY_THEMES if t["key"] == "goddess_dice")
+    assert {"id": "55", "qty": 1, "chance": 20} in goddess["mods"]["special_events"][0]["success"]["items"]
+    dig = next(e for e in gm.CONTINENTS["mechanized"]["mods"]["special_events"] if e["key"] == "ancient_excavation")
+    assert {"id": "55", "qty": 1, "chance": 10} in dig["success"]["items"]
+
+
 def test_matrix_integrity():
     valid = set(gm.ELEMENTS)
     for source, targets in {**gm.ELEMENT_ADVANTAGE, **gm.ELEMENT_RESIST}.items():

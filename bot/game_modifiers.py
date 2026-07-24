@@ -285,8 +285,9 @@ CONTINENTS = {
                         "text": "🔓 *คลิก!* กลไกทุกชั้นปลดล็อกพร้อมกัน — ข้างในอัดแน่นด้วยสมบัติสองเท่าของหีบปกติ!",
                         "gold": [1500, 4000],
                         "exp": [20, 40],
-                        "items": [{"id": "42", "qty": 1, "chance": 8},   # 🧤 ถุงมือกันคลื่น (แรร์)
-                                  {"id": "48", "qty": 1, "chance": 8}],  # ⚔️ ดาบคู่แฝด (แรร์)
+                        "items": [{"id": "42", "qty": 1, "chance": 8},    # 🧤 ถุงมือกันคลื่น (แรร์)
+                                  {"id": "48", "qty": 1, "chance": 8},    # ⚔️ ดาบคู่แฝด (แรร์)
+                                  {"id": "55", "qty": 1, "chance": 10}],  # 🧪 ยาพลิกธาตุ
                     },
                     "fail": {
                         "text": "💥 ไขพลาด! กระแสไฟฟ้าแล่นเข้าใส่มือคุณเต็มเปา!",
@@ -472,6 +473,10 @@ STATUS_EFFECTS = {
     "zombie_frenzy": {
         "label": "🧟 คลั่งซอมบี้", "tick": "step", "default_turns": 5,
         "seal_high_roll": 2,                 # เต๋าทุกลูกถูกกดเหลือ 1 (ใช้กลไกผนึกเดิม)
+    },
+    "element_flux": {
+        "label": "🧪 ธาตุวิปริต", "tick": "fight", "default_turns": 1,
+        "force_weak_element": True,          # ไฟต์ถัดไป: มอนถูกบังคับเกิดเป็นธาตุที่เผ่าผู้เล่นข่ม
     },
     # ── สถานะภูมิคุ้มกันจากไอเทม (เฟส T) ──
     "warm": {
@@ -836,6 +841,14 @@ def player_attack_element_mult(player_elements, monster_element):
     return 1.0
 
 
+def forced_weak_element(statuses, player_elements, rng=None):
+    """🧪 ยาพลิกธาตุ: คืนธาตุ (สุ่ม) ที่เผ่าผู้เล่นข่ม เมื่อสถานะ force_weak_element ทำงาน — ไม่เข้าเงื่อนไข = None"""
+    if not has_status_flag(statuses, "force_weak_element") or not player_elements:
+        return None
+    pool = sorted({target for e in player_elements for target in ELEMENT_ADVANTAGE.get(e, [])})
+    return (rng or random).choice(pool) if pool else None
+
+
 def player_defense_element_mult(player_elements, monster_element):
     """ตัวคูณดาเมจมอน→ผู้เล่น: ผู้เล่นต้านทานธาตุมอน = ×0.75, ถือธาตุคู่ปรับแสง↔มืด = ×1.5"""
     if not monster_element or not player_elements:
@@ -1145,7 +1158,8 @@ WEEKLY_THEMES = [
                     "success": {
                         "text": "🎉 เทพีปรบมือหัวเราะร่วน! 'เจ้ามีดวงของนักพนัน... รับรางวัลไปเถอะ'",
                         "gold": [2000, 6000],
-                        "items": [{"id": "51", "qty": 1, "chance": 8}],  # 👝 ถุงเต๋าเทพี (แรร์)
+                        "items": [{"id": "51", "qty": 1, "chance": 8},    # 👝 ถุงเต๋าเทพี (แรร์)
+                                  {"id": "55", "qty": 1, "chance": 20}],  # 🧪 ยาพลิกธาตุ
                     },
                     "fail": {
                         "text": "😏 เทพีเก็บเต๋าพร้อมรอยยิ้มเจ้าเล่ห์ — 'ค่าเล่นตามระเบียบนะจ๊ะ'",
