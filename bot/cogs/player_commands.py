@@ -211,6 +211,10 @@ def apply_item_effect(user_id, item_id):
     elif item_info.get("effect") == "choose_continent":
         return False, "🗺️ ไอเทมนี้ใช้ผ่านคำสั่ง `!use` ในห้องแชทเท่านั้น — จะมีเมนูให้เลือกทวีปปลายทาง"
 
+    # 🎨 กรณี: ผงสีย้อมโปรไฟล์ — ต้องใช้ผ่าน !use เพื่อเปิดเมนูเลือกสี (ผงถูกหักตอนยืนยันใน view)
+    elif item_info.get("effect") == "dye_profile":
+        return False, "🎨 ไอเทมนี้ใช้ผ่านคำสั่ง `!use` ในห้องแชทเท่านั้น — จะมีเมนูให้เลือกสีย้อมโปรไฟล์"
+
     # 🏺 กรณี: สวมอาร์ติแฟกต์ (effect: "equip_artifact" — ช่องเดียว สวมทับ = ของเก่าถูกทำลายถาวร)
     elif item_info.get("effect") == "equip_artifact":
         art_key = str(item_info.get("effect_value", ""))
@@ -254,7 +258,7 @@ def build_bag_embed(display_name, avatar_url, player):
     embed = discord.Embed(
         title=f"🎒 กระเป๋าเดินทางของ {display_name}",
         description=f"💰 **เงินสดกลาง:** {player.get('cash', 0):,} ทอง",
-        color=discord.Color.blue()
+        color=discord.Color(player.get("profile_color") or 0x3498DB)  # 🎨 สีย้อมส่วนตัว (ไม่เคยย้อม = ฟ้าเดิม)
     )
 
     capacity = player.get("capacity", 10)
@@ -657,8 +661,19 @@ class PlayerCommands(commands.Cog):
     # --- คำสั่ง !use <เลขไอเทม> ---
     @commands.command(name="use")
     async def use_item(self, ctx, item_id: str):
-        # 🎫 ตั๋วเรือเหมาลำ: เปิดเมนูเลือกทวีป (ตั๋วถูกหักตอนยืนยันใน view ไม่ใช่ตอนนี้)
+        # 🎨 ผงสีรุ้ง: เปิดเมนูเลือกสีย้อมโปรไฟล์ (ผงถูกหักตอนยืนยันใน view)
         item_cfg = config_loader.get_item_config(item_id)
+        if item_cfg and item_cfg.get("effect") == "dye_profile":
+            player = player_model.get_player(ctx.author.id)
+            inv = player_model.load_inventory(player.get("inventory", ""))
+            if str(item_id) not in inv:
+                return await ctx.send(f"❌ คุณไม่มีไอเทมหมายเลข `{item_id}` ในกระเป๋า! (พิมพ์ `!bag` เพื่อเช็ก)")
+            from bot.views.game_views import ProfileDyeView
+            view = ProfileDyeView(ctx.author.id, item_id)
+            view.message = await ctx.send("🎨 **เทผงสีรุ้งลงจานผสม** — เลือกสีที่จะย้อมโปรไฟล์ (ผงถูกใช้เมื่อยืนยัน):", view=view)
+            return
+
+        # 🎫 ตั๋วเรือเหมาลำ: เปิดเมนูเลือกทวีป (ตั๋วถูกหักตอนยืนยันใน view ไม่ใช่ตอนนี้)
         if item_cfg and item_cfg.get("effect") == "choose_continent":
             player = player_model.get_player(ctx.author.id)
             inv = player_model.load_inventory(player.get("inventory", ""))

@@ -32,7 +32,8 @@ NEW_PLAYER_DEFAULTS = {
     "sanity": 100,
     "last_reward_claim": 0,
     "continent": "main",
-    "status_effects": "{}"
+    "status_effects": "{}",
+    "profile_color": 0
 }
     
 def init_db():

@@ -1872,6 +1872,70 @@ class SpecialEventView(View):
                 view=AdventureView(author_id=self.user_id))
 
 
+# 🎨 สีย้อมโปรไฟล์ (ผงสีรุ้ง) — "rainbow" = สุ่มสีทั้งสเปกตรัม
+DYE_COLORS = [
+    ("❤️ แดงเดือด", 0xE74C3C),
+    ("💙 ฟ้าใส", 0x3498DB),
+    ("💛 ทองอร่าม", 0xF1C40F),
+    ("💜 ม่วงลึกลับ", 0x9B59B6),
+    ("💚 เขียวมรกต", 0x2ECC71),
+    ("🩷 ชมพูหวาน", 0xFF6FB5),
+    ("🤍 ขาวบริสุทธิ์", 0xECF0F1),
+    ("🌈 สุ่มสีรุ้ง (วัดดวง)", "rainbow"),
+]
+
+
+class ProfileDyeView(View):
+    """🎨 เมนูย้อมสีโปรไฟล์ — ผงสีถูกหักตอนยืนยันสีเท่านั้น (หมดเวลา/เปลี่ยนใจ = ผงอยู่ครบ)"""
+
+    def __init__(self, user_id, item_id):
+        super().__init__(timeout=60)
+        self.user_id = user_id
+        self.item_id = str(item_id)
+        self.message = None
+
+        select = discord.ui.Select(placeholder="🎨 เลือกสีที่จะย้อมโปรไฟล์...")
+        for idx, (label, _color) in enumerate(DYE_COLORS):
+            select.add_option(label=label, value=str(idx))
+        select.callback = self.pick
+        self.add_item(select)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ นี่ไม่ใช่ผงสีของคุณ!", ephemeral=True)
+            return False
+        return True
+
+    async def on_timeout(self):
+        if self.message:
+            try:
+                await self.message.edit(content="⏳ ผงสีถูกเก็บกลับเข้ากระเป๋า... (ยังไม่ถูกใช้ ใช้ใหม่ได้)", view=None)
+            except Exception:
+                pass
+
+    async def pick(self, interaction: discord.Interaction):
+        label, color = DYE_COLORS[int(interaction.data["values"][0])]
+        if color == "rainbow":
+            color = random.randint(0, 0xFFFFFF)
+
+        player = player_model.get_player(self.user_id)
+        inv = player_model.load_inventory(player.get("inventory", "[]"))
+        if self.item_id not in inv:
+            self.stop()
+            return await interaction.response.edit_message(content="❌ ผงสีไม่อยู่ในกระเป๋าแล้ว!", view=None)
+
+        inv.remove(self.item_id)
+        player_model.update_player_fields(self.user_id, {"inventory": inv, "profile_color": color})
+        self.stop()
+
+        embed = discord.Embed(
+            title="🎨 ย้อมสีสำเร็จ!",
+            description=f"โปรไฟล์ของคุณเปล่งประกายสีใหม่: **{label}** (`#{color:06X}`)\nลองพิมพ์ `!profile` ดูเลย!",
+            color=color,
+        )
+        await interaction.response.edit_message(content=None, embed=embed, view=None)
+
+
 class ContinentWarpView(View):
     """🎫 ตั๋วเรือเหมาลำ: เมนูเลือกทวีปปลายทางเอง — ตั๋วถูกหักตอนยืนยันเลือกเท่านั้น (ยกเลิก/หมดเวลา = ตั๋วอยู่ครบ)"""
 

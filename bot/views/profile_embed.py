@@ -101,7 +101,9 @@ def create_profile_embed(target_member, player_data):
     skills = CLASS_SKILLS.get(detected_class, CLASS_SKILLS["Unknown"])
     skills_text = "\n".join(skills)
 
-    embed = discord.Embed(title=f"👤 ข้อมูลตัวละคร: {target_member.display_name}", color=0x9b59b6)
+    # 🎨 สีโปรไฟล์ส่วนตัว (ย้อมด้วยผงสีรุ้ง) — ไม่เคยย้อม = สีม่วงมาตรฐาน
+    profile_color = player_data.get("profile_color") or 0x9b59b6
+    embed = discord.Embed(title=f"👤 ข้อมูลตัวละคร: {target_member.display_name}", color=profile_color)
     embed.set_thumbnail(url=target_member.display_avatar.url)
     
     # 📊 สเตตัสหลัก

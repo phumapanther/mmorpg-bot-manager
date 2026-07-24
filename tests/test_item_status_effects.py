@@ -120,6 +120,33 @@ def test_choose_continent_ticket_not_consumed_via_apply(game_db, monkeypatch):
     assert "53" in player_model.load_inventory(player_model.get_player(uid)["inventory"])
 
 
+def test_dye_profile_item(game_db, monkeypatch):
+    uid = game_db
+    _mock_catalog(monkeypatch, {"41": {"name": "🎨 ผงสีรุ้ง", "type": "use", "effect": "dye_profile"}})
+    _give(uid, "41")
+    # ใช้ผ่าน apply ตรงๆ (เมนูปุ่ม) = ปฏิเสธพร้อมคำแนะนำ และผงไม่หาย
+    ok, msg = pc.apply_item_effect(uid, "41")
+    assert not ok and "!use" in msg
+    assert "41" in player_model.load_inventory(player_model.get_player(uid)["inventory"])
+    # field สีโปรไฟล์มีใน schema (default 0 = ยังไม่ย้อม)
+    assert player_model.get_player(uid).get("profile_color") == 0
+    # ตารางสีครบ 8 และค่าใช้งานได้
+    from bot.views.game_views import DYE_COLORS
+    assert len(DYE_COLORS) == 8
+    for label, color in DYE_COLORS:
+        assert color == "rainbow" or (isinstance(color, int) and 0 <= color <= 0xFFFFFF)
+
+
+def test_bag_embed_uses_profile_color():
+    inventory = ["1"]
+    player = {"inventory": inventory, "cash": 100, "capacity": 10, "profile_color": 0xE74C3C}
+    embed = pc.build_bag_embed("Tester", "https://example.com/a.png", player)
+    assert embed.color.value == 0xE74C3C
+    # ไม่เคยย้อม = สีฟ้าเดิม
+    embed = pc.build_bag_embed("Tester", "https://example.com/a.png", {"inventory": [], "cash": 0, "capacity": 10})
+    assert embed.color.value == 0x3498DB
+
+
 def test_warp_items_in_catalog():
     import json
     items = json.load(open("config.example.json", encoding="utf-8"))["item_catalog"]["items"]
