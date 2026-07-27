@@ -185,3 +185,29 @@ def test_on_hit_status_merge_and_default(monkeypatch):
     assert mods["on_hit_status"] == {"key": "numb", "chance": 30}
     assert gm.get_element_data(mods, "fire")["on_hit_status"] == {"key": "poison", "chance": 25}
     assert "on_hit_status" not in gm.get_element_data(mods, "water")
+
+
+def test_all_cure_items_reference_real_statuses():
+    """ทุกไอเทม cure_status ต้องชี้ key ที่มีจริงใน STATUS_EFFECTS (กัน typo ใน config)"""
+    import json
+    items = json.load(open("config.example.json", encoding="utf-8"))["item_catalog"]["items"]
+    for iid, it in items.items():
+        if it.get("effect") != "cure_status":
+            continue
+        val = it.get("effect_value", "all")
+        keys = val if isinstance(val, list) else [val]
+        for k in keys:
+            assert k == "all" or k in gm.STATUS_EFFECTS, f"item {iid} อ้างสถานะไม่มีจริง: {k}"
+
+
+def test_new_cure_items_56_to_60():
+    import json
+    items = json.load(open("config.example.json", encoding="utf-8"))["item_catalog"]["items"]
+    assert items["57"]["effect_value"] == ["numb", "fumble"]
+    assert items["59"]["effect_value"] == ["odd_curse", "even_curse"]
+    panacea = set(items["60"]["effect_value"])
+    negatives = {"poison", "numb", "emp", "frostbite", "sealed_dice", "fumble", "burn",
+                 "entangled", "odd_curse", "even_curse", "shock", "zombie_parasite", "zombie_frenzy"}
+    assert panacea == negatives
+    # ยาครอบจักรวาลต้องไม่แตะบัฟดี/อาร์ติแฟกต์
+    assert not any(gm.STATUS_EFFECTS[k].get("artifact") for k in panacea)

@@ -163,7 +163,12 @@
       "52": {"name": "🌀 ประตูวาร์ปมิติ", "buy": 40000, "sell": 4000, "type": "use", "purchasable": false, "effect": "random_continent"},
       "53": {"name": "🎫 ตั๋วเรือเหมาลำ", "buy": 25000, "sell": 2500, "type": "use", "purchasable": false, "effect": "choose_continent"},
       "54": {"name": "🗡️ มีดตัดเถาวัลย์", "buy": 800, "sell": 160, "type": "use", "purchasable": true, "effect": "cure_status", "effect_value": "entangled"},
-      "55": {"name": "🧪 ยาพลิกธาตุ", "buy": 30000, "sell": 3000, "type": "use", "purchasable": false, "effect": "apply_status", "effect_value": "element_flux"}
+      "55": {"name": "🧪 ยาพลิกธาตุ", "buy": 30000, "sell": 3000, "type": "use", "purchasable": false, "effect": "apply_status", "effect_value": "element_flux"},
+      "56": {"name": "🧴 ครีมว่านเย็น", "buy": 2000, "sell": 400, "type": "use", "purchasable": true, "effect": "cure_status", "effect_value": "burn"},
+      "57": {"name": "☕ ชาสมุนไพรร้อน", "buy": 2500, "sell": 500, "type": "use", "purchasable": true, "effect": "cure_status", "effect_value": ["numb", "fumble"]},
+      "58": {"name": "⚡ สายดินพกพา", "buy": 2000, "sell": 400, "type": "use", "purchasable": true, "effect": "cure_status", "effect_value": "shock"},
+      "59": {"name": "🕯️ เทียนไล่คำสาป", "buy": 4000, "sell": 800, "type": "use", "purchasable": true, "effect": "cure_status", "effect_value": ["odd_curse", "even_curse"]},
+      "60": {"name": "💊 ยาครอบจักรวาล", "buy": 25000, "sell": 5000, "type": "use", "purchasable": true, "effect": "cure_status", "effect_value": ["poison", "numb", "emp", "frostbite", "sealed_dice", "fumble", "burn", "entangled", "odd_curse", "even_curse", "shock", "zombie_parasite", "zombie_frenzy"]}
     },
     "armor_stats": {
       "None":      {"name": "👕 เสื้อผ้าธรรมดา", "hp": 0,   "eva": 85, "dur": 100, "vis": 1},
