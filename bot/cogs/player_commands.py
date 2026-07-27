@@ -41,6 +41,9 @@ def _item_effect_desc(it):
         cfg = game_modifiers.STATUS_EFFECTS.get(str(val), {})
         unit = "ก้าว" if cfg.get("tick") == "step" else "ไฟต์"
         return f"ติดบัฟ {cfg.get('label', val)} ({cfg.get('default_turns', 1)} {unit})"
+    if eff == "gamble_status":
+        chance = it.get("effect_amount", 50)
+        return f"เสี่ยงดวง {chance}/{100 - chance}: สุ่มบัฟดี 1 ตัว หรือสุ่มสถานะร้าย 1 ตัว"
     if eff == "emergency_ration":
         return "ฟื้น 50% MaxHP + ล้างเชื้อซอมบี้"
     if eff == "dye_profile":
@@ -281,6 +284,27 @@ def apply_item_effect(user_id, item_id):
         statuses = game_modifiers.apply_status(game_modifiers.parse_statuses(player), key, item_info.get("effect_amount"))
         player_model.update_player_field(user_id, "status_effects", statuses)
         msg = f"🧬 คุณใช้ **{item_name}** — ได้รับสถานะ {cfg['label']} (`{statuses[key]}` เทิร์น)!"
+
+    # 🧪 กรณี: ยาสุ่มของแม่มด (effect: "gamble_status" + effect_value: {good: [...], bad: [...]}
+    #    + effect_amount: % โอกาสออกดี, ไม่ตั้ง = 50) — พนันสถานะ 1 ตัวจาก pool
+    elif item_info.get("effect") == "gamble_status":
+        pool_cfg = item_info.get("effect_value") or {}
+        good = [k for k in pool_cfg.get("good", []) if k in game_modifiers.STATUS_EFFECTS]
+        bad = [k for k in pool_cfg.get("bad", []) if k in game_modifiers.STATUS_EFFECTS]
+        if not good or not bad:
+            return False, "❌ ไอเทมนี้ตั้งค่า pool สถานะไว้ไม่ถูกต้อง (แจ้งแอดมินตรวจ config)"
+        good_chance = item_info.get("effect_amount", 50)
+        if random.randint(1, 100) <= good_chance:
+            key, flavor = random.choice(good), "✨ **ยาเรืองประกายสีทองอร่าม!** โชคเข้าข้างคุณ"
+        else:
+            key, flavor = random.choice(bad), "💀 **ยาขุ่นดำกลายเป็นสีม่วงเน่า...** แม่มดหัวเราะแหลมลั่น"
+        statuses = game_modifiers.apply_status(game_modifiers.parse_statuses(player), key)
+        player_model.update_player_field(user_id, "status_effects", statuses)
+        label = game_modifiers.STATUS_EFFECTS[key]["label"]
+        if key in statuses:
+            msg = f"🧪 คุณกรอกยาสุ่มของแม่มดลงคอ... {flavor} — ได้รับสถานะ {label}!"
+        else:
+            msg = f"🧪 คุณกรอกยาสุ่มของแม่มดลงคอ... {flavor} — แต่ร่างกายคุณต้านทาน {label} ไว้ได้!"
 
     # 🥫 กรณี: เสบียงฉุกเฉิน (effect: "emergency_ration" — ฮีล 50% MaxHP + ล้างเชื้อซอมบี้)
     elif item_info.get("effect") == "emergency_ration":

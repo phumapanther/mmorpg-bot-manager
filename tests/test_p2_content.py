@@ -48,3 +48,40 @@ def test_sylvan_inflicts_spores_and_antidote_cures():
     assert mods["on_hit_status"] == {"key": "spores", "chance": 20}
     it = json.load(open("config.example.json", encoding="utf-8"))["item_catalog"]["items"]["30"]
     assert "spores" in it["effect_value"]
+
+
+# ── P2 ชุด 3: ยาสุ่มของแม่มด ──
+
+def _witch_setup(monkeypatch):
+    import bot.cogs.player_commands as pc
+    players = {1: {"inventory": "62", "status_effects": "{}", "hp": 100, "max_hp": 100}}
+    updates = {}
+    monkeypatch.setattr(pc.player_model, "get_player", lambda uid: players.get(uid))
+    monkeypatch.setattr(pc.player_model, "load_inventory", lambda s: ["62"])
+    monkeypatch.setattr(pc.player_model, "update_player_field",
+                        lambda uid, field, value: updates.__setitem__(field, value))
+    return pc, updates
+
+
+def test_witch_brew_good_roll(monkeypatch):
+    pc, updates = _witch_setup(monkeypatch)
+    monkeypatch.setattr(pc.random, "randint", lambda a, b: 1)      # ออกดีเสมอ
+    monkeypatch.setattr(pc.random, "choice", lambda seq: seq[0])   # exp_blessing
+    ok, msg = pc.apply_item_effect(1, "62")
+    assert ok and "exp_blessing" in updates["status_effects"]
+    assert "โชคเข้าข้าง" in msg
+
+
+def test_witch_brew_bad_roll(monkeypatch):
+    pc, updates = _witch_setup(monkeypatch)
+    monkeypatch.setattr(pc.random, "randint", lambda a, b: 100)    # ออกร้ายเสมอ
+    monkeypatch.setattr(pc.random, "choice", lambda seq: seq[0])   # poison
+    ok, msg = pc.apply_item_effect(1, "62")
+    assert ok and "poison" in updates["status_effects"]
+    assert "แม่มดหัวเราะ" in msg
+
+
+def test_witch_brew_catalog():
+    it = json.load(open("config.example.json", encoding="utf-8"))["item_catalog"]["items"]["62"]
+    assert it["effect"] == "gamble_status" and it["buy"] == 500 and it["purchasable"] is True
+    assert len(it["effect_value"]["good"]) == 5 and len(it["effect_value"]["bad"]) == 5

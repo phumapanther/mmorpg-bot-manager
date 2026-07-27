@@ -13,6 +13,9 @@ def _isolate_example_path(tmp_path, monkeypatch):
     empty_example.write_text("{}", encoding="utf-8")
     monkeypatch.setattr(config_loader, "EXAMPLE_PATH", str(empty_example))
     config_loader.reload_config()
+    yield
+    # ล้าง cache หลังจบ — ไม่งั้น config ปลอมจาก tmp ค้างให้เทสไฟล์อื่นที่รันต่อ (เคยทำ witch brew test พังทั้งที่โค้ดถูก)
+    config_loader.reload_config()
 
 def test_get_channel_id_returns_int(tmp_path, monkeypatch):
     cfg = {"channels": {"bank": {"label": "x", "channel_id": 123}}}

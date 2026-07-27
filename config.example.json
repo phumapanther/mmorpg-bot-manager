@@ -891,6 +891,31 @@
         "purchasable": true,
         "effect": "cure_status",
         "effect_value": "bleed"
+      },
+      "62": {
+        "name": "🧪 ยาสุ่มของแม่มด",
+        "buy": 500,
+        "sell": 50,
+        "type": "use",
+        "purchasable": true,
+        "effect": "gamble_status",
+        "effect_amount": 50,
+        "effect_value": {
+          "good": [
+            "exp_blessing",
+            "weighted_dice",
+            "clover",
+            "warm",
+            "holy_guard"
+          ],
+          "bad": [
+            "poison",
+            "numb",
+            "fumble",
+            "burn",
+            "shock"
+          ]
+        }
       }
     },
     "armor_stats": {
