@@ -85,3 +85,26 @@ def test_witch_brew_catalog():
     it = json.load(open("config.example.json", encoding="utf-8"))["item_catalog"]["items"]["62"]
     assert it["effect"] == "gamble_status" and it["buy"] == 500 and it["purchasable"] is True
     assert len(it["effect_value"]["good"]) == 5 and len(it["effect_value"]["bad"]) == 5
+
+
+# ── P2 ชุด 4: เหยื่อล่อ + ธูปไล่มอน ──
+
+def test_lure_and_ward_weights():
+    assert gm.status_event_weight_mult({"monster_lure": 15}) == {"monster": 2.0}
+    assert gm.status_event_weight_mult({"monster_ward": 15}) == {"monster": 0.5}
+
+
+def test_lure_ward_mutually_exclusive():
+    s = gm.apply_status({}, "monster_lure")
+    s = gm.apply_status(s, "monster_ward")   # จุดธูป → กลิ่นเหยื่อหาย
+    assert "monster_lure" not in s and s.get("monster_ward") == 15
+    s = gm.apply_status(s, "monster_lure")   # วางเหยื่อ → ควันธูปหาย
+    assert "monster_ward" not in s and s.get("monster_lure") == 15
+
+
+def test_lure_ward_items_in_catalog():
+    items = json.load(open("config.example.json", encoding="utf-8"))["item_catalog"]["items"]
+    for iid, status in (("63", "monster_lure"), ("64", "monster_ward")):
+        it = items[iid]
+        assert it["effect"] == "apply_status" and it["effect_value"] == status
+        assert it["buy"] == 1200 and it["purchasable"] is True

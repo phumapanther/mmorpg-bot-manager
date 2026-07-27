@@ -916,6 +916,24 @@
             "shock"
           ]
         }
+      },
+      "63": {
+        "name": "🥩 เหยื่อล่อมอนสเตอร์",
+        "buy": 1200,
+        "sell": 240,
+        "type": "use",
+        "purchasable": true,
+        "effect": "apply_status",
+        "effect_value": "monster_lure"
+      },
+      "64": {
+        "name": "🕯️ ธูปไล่มอนสเตอร์",
+        "buy": 1200,
+        "sell": 240,
+        "type": "use",
+        "purchasable": true,
+        "effect": "apply_status",
+        "effect_value": "monster_ward"
       }
     },
     "armor_stats": {

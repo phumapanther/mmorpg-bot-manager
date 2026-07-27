@@ -549,6 +549,16 @@ STATUS_EFFECTS = {
         "label": "🧭 เข็มทิศขบวนหลวง", "tick": "step", "default_turns": 20,
         "event_weight_mult": {"treasure": 2.0},  # เจอหีบสมบัติถี่ขึ้นสองเท่า
     },
+    "monster_lure": {
+        "label": "🥩 กลิ่นเหยื่อล่อ", "tick": "step", "default_turns": 15,
+        "event_weight_mult": {"monster": 2.0},   # กลิ่นคาวเรียกมอน ×2 (สายฟาร์ม) (P2 ชุด 4)
+        "cleanse_on_apply": ["monster_ward"],    # กลิ่นเหยื่อกลบควันธูป — ใช้ทับกันไม่ได้
+    },
+    "monster_ward": {
+        "label": "🕯️ ควันธูปไล่มอน", "tick": "step", "default_turns": 15,
+        "event_weight_mult": {"monster": 0.5},   # ควันศักดิ์สิทธิ์ไล่มอน ×0.5 (สายเก็บของ/หนีตาย)
+        "cleanse_on_apply": ["monster_lure"],    # ควันธูปดับกลิ่นเหยื่อ
+    },
     "obsidian_edge": {
         "label": "🌋 คมอัคนีเพลิง", "tick": "fight", "default_turns": 1,
         "player_dmg_mult": 1.2,              # อาบคมอาวุธด้วยหินภูเขาไฟ
