@@ -412,6 +412,169 @@ def build_bag_embed(display_name, avatar_url, player):
     return embed
 
 
+def build_codex_embed(topic=""):
+    """สร้าง embed คู่มือรายหัวข้อ — ใช้ร่วมกันระหว่าง !codex และปุ่ม 📖 ในเมนู"""
+    topic = (topic or "").strip().lower()
+
+    if topic in ("ธาตุ", "element", "elements"):
+        embed = discord.Embed(
+            title="📖 Codex — ธาตุทั้ง 7", color=0x9b59b6,
+            description="ธาตุประจำตัวมาจาก **ยศเผ่า** — ถือหลายเผ่าได้หลายธาตุ, สองธาตุข่มเป้าเดียวกัน = ดาเมจ ×2.0")
+        for key, data in game_modifiers.ELEMENTS.items():
+            prey = [game_modifiers.ELEMENTS[t]["label"] for t in game_modifiers.ELEMENT_ADVANTAGE.get(key, [])]
+            resist = [game_modifiers.ELEMENTS[t]["label"] for t in game_modifiers.ELEMENT_RESIST.get(key, [])]
+            lines = [f"👤 ติดตัวผู้เล่น: {data['player']['desc']}",
+                     f"👹 ฝั่งมอนสเตอร์: {_monster_element_desc(data)}"]
+            if prey:
+                lines.append(f"⚔️ ข่ม (×1.5): {', '.join(prey)}")
+            if resist:
+                lines.append(f"🛡️ รับเบา (×0.75): {', '.join(resist)}")
+            embed.add_field(name=data["label"], value="\n".join(lines), inline=False)
+        return embed
+
+    if topic in ("วิธีเล่น", "เริ่มเล่น", "howto", "guide"):
+        embed = discord.Embed(
+            title="📖 Codex — วิธีเล่นฉบับเริ่มต้น", color=0x9b59b6,
+            description="โลกนี้เดินด้วย **ลูกเต๋า** — ทุกการผจญภัยคือการทอยวัดดวงกับโชคชะตา")
+        embed.add_field(name="1️⃣ เกิดใหม่ในโลกนี้", inline=False, value=(
+            "รับ **ยศเผ่า** และ **ยศคลาสอาชีพ** จากเซิร์ฟก่อน (เผ่ากำหนดธาตุประจำตัว ดู `!codex ธาตุ`)\n"
+            "พิมพ์ `!adv` สร้างห้องผจญภัยส่วนตัว แล้ว `!play` เพื่อออกเดินทาง"))
+        embed.add_field(name="2️⃣ ออกเดินทาง", inline=False, value=(
+            "กดปุ่ม **ไปต่อ** เพื่อเดินทีละก้าว — สุ่มเจอมอนสเตอร์ กับดัก สมบัติ หมู่บ้าน NPC "
+            "หรือพาหนะข้ามทวีป (ทางเดียวที่จะไปทวีปอื่น!)\n"
+            "เจอมอน = ทอยเต๋าสู้กันเป็นเทิร์น ชนะได้ทอง+EXP แพ้เต๋า = โดนสวน"))
+        embed.add_field(name="3️⃣ ของติดตัวคือชีวิต", inline=False, value=(
+            "`!bag` ดูกระเป๋า / `!use <เลขไอเทม>` ใช้ของ / `!craft` คราฟ\n"
+            "พกยาแก้สถานะให้ตรงทวีป (ดู `!codex สถานะ`) และหา **อาร์ติแฟกต์** มาสวม "
+            "(มีช่องเดียว — สวมทับแล้วของเก่าถูกทำลายถาวร คิดก่อนสวม!)"))
+        embed.add_field(name="4️⃣ เงินและเมือง", inline=False, value=(
+            "ทองที่ถือตายแล้วหาย — ฝากธนาคารด้วย `!deposit` ไว้ก่อน\n"
+            "`!shop` ซื้อของ / คาสิโนมี `!bj` `!hilo` `!slots` เสี่ยงดวงเพิ่ม (หรือหมดตัว)"))
+        embed.add_field(name="5️⃣ โลกที่หมุนเอง", inline=False, value=(
+            "ทุกสัปดาห์มี **ธีมโลก** สุ่มใหม่ (ประกาศวันจันทร์) เปลี่ยนมอน/เรท/อีเวนต์ทั้งเซิร์ฟ\n"
+            "แต่ละทวีปมีธาตุ สถานะ และบอสประจำถิ่น — `!codex ทวีป` ก่อนออกเดิน"))
+        return embed
+
+    if topic in ("คำสั่ง", "commands", "cmd"):
+        embed = discord.Embed(
+            title="📖 Codex — คำสั่งผู้เล่นทั้งหมด", color=0x9b59b6,
+            description="พิมพ์ในห้องที่เซิร์ฟกำหนดไว้ (บางคำสั่งจำกัดห้อง) — `!menu` มีปุ่มลัดของที่ใช้บ่อย")
+        embed.add_field(name="🗺️ ผจญภัย", inline=False, value=(
+            "`!adv` สร้างห้องผจญภัยส่วนตัว • `!play` เริ่มออกเดินทาง\n"
+            "`!profile` (`!info`) โปรไฟล์+ธาตุ+อาร์ติแฟกต์ • `!scan @คน` ส่องข้อมูลคนอื่น\n"
+            "`!codex <หมวด>` สารานุกรมกติกา • `!reward` รับรางวัลประจำยศ"))
+        embed.add_field(name="🎒 กระเป๋า & ไอเทม", inline=False, value=(
+            "`!bag` ดูกระเป๋า • `!use <เลข>` ใช้ไอเทม • `!drop <เลข>` ทิ้ง\n"
+            "`!give @คน <เลข>` ส่งของให้เพื่อน • `!recipes` สูตรคราฟ • `!craft <เลข>` คราฟของ"))
+        embed.add_field(name="💰 เงิน & ธนาคาร", inline=False, value=(
+            "`!bank` ยอดธนาคาร • `!deposit <จำนวน>` ฝาก • `!withdraw <จำนวน>` ถอน\n"
+            "`!transfer @คน <จำนวน>` โอน • `!beg` ขอทาน • `!rob @คน` ปล้น (เสี่ยงติดคุก!)\n"
+            "`!rich` `!toplvl` `!mytext` `!toptext` `!mytime` `!toptime` อันดับ/แต้มกิจกรรม"))
+        embed.add_field(name="🎰 คาสิโน & PvP", inline=False, value=(
+            "`!bj <เงินเดิมพัน>` แบล็กแจ็ก • `!hilo` ไฮโล • `!slots` สล็อต\n"
+            "`!att @คน` เปิดฉากปล้นกลางเมือง (ต้องอยู่ห้องเสียง) • `!challenge @คน` ท้าดวล PvP"))
+        embed.add_field(name="🏪 ร้านค้า & อื่น ๆ", inline=False, value=(
+            "`!shop` ร้านไอเทม • `!darkshop` / `!lightshop` ร้านยศสองฝ่าย\n"
+            "`!rent` เช่าห้องส่วนตัว (`!extend` ต่ออายุ, `!set_room` ตั้งค่า)\n"
+            "`!payment` เติมเงิน • `!my_orders` เช็คคำสั่งซื้อ • `!menu` เมนูปุ่มลัด"))
+        return embed
+
+    if topic in ("สถานะ", "status"):
+        cures, guards, cure_all = {}, {}, []
+        for iid, it in config_loader.get_all_items().items():
+            name, eff, val = it.get("name", f"#{iid}"), it.get("effect"), it.get("effect_value")
+            if eff == "cure_status":
+                if val == "all":
+                    cure_all.append(name)
+                else:
+                    for k in (val if isinstance(val, list) else [val]):
+                        cures.setdefault(k, []).append(name)
+            elif eff in ("apply_status", "equip_artifact"):
+                for k in game_modifiers.STATUS_EFFECTS.get(str(val), {}).get("blocks", []):
+                    guards.setdefault(k, []).append(name)
+        lines = []
+        for key, cfg in game_modifiers.STATUS_EFFECTS.items():
+            if cfg.get("artifact"):
+                continue
+            extra = []
+            if key in cures:
+                extra.append("แก้: " + ", ".join(cures[key]))
+            if key in guards:
+                extra.append("กัน: " + ", ".join(guards[key]))
+            unit = "ก้าว" if cfg.get("tick") == "step" else "ไฟต์"
+            lines.append(f"{cfg['label']} `{cfg.get('default_turns', 1)} {unit}`"
+                         + (" — " + " / ".join(extra) if extra else ""))
+        desc = "สถานะหมดเองเมื่อครบเวลา (นับเป็นก้าวเดิน/ไฟต์)"
+        if cure_all:
+            desc += f"\n💊 ล้างได้ทุกสถานะ: {', '.join(cure_all)}"
+        embed = discord.Embed(title="📖 Codex — สถานะติดตัว", color=0x9b59b6, description=desc)
+        chunk = ""
+        for line in lines:  # ตัดลง field ละ ≤1024 ตัวอักษร (ลิมิต Discord — บทเรียนจาก !bag)
+            if len(chunk) + len(line) + 1 > 1024:
+                embed.add_field(name="​", value=chunk, inline=False)
+                chunk = ""
+            chunk += line + "\n"
+        if chunk:
+            embed.add_field(name="​", value=chunk, inline=False)
+        return embed
+
+    if topic in ("ไอเทม", "ของ", "item", "items"):
+        groups = {"use": [], "artifact": [], "equip": [], "material": []}
+        for iid, it in sorted(config_loader.get_all_items().items(), key=lambda kv: int(kv[0])):
+            name, eff = it.get("name", f"#{iid}"), it.get("effect")
+            desc = _item_effect_desc(it)
+            if str(iid) == "38":  # แว่นส่องสัจจะ: ไม่มี effect ใน config — ถูกหักอัตโนมัติตอนกดปุ่มตรวจ NPC (game_views อ้าง id 38 ตรง ๆ)
+                desc = "พกไว้เฉย ๆ — ใช้เองอัตโนมัติตอนตรวจตัวตน NPC งานหน้ากาก (ฟรี, เลนส์แตกหลังใช้)"
+            price = f"💰{it['buy']:,}" if it.get("purchasable", True) and it.get("buy") else "ดรอป/คราฟเท่านั้น"
+            if eff == "equip_artifact":
+                groups["artifact"].append(f"`{iid}` {name} — {desc}")
+            elif desc:
+                groups["use"].append(f"`{iid}` {name} — {desc} ({price})")
+            elif it.get("equip_key"):
+                groups["equip"].append(f"`{iid}` {name} ({price})")
+            else:
+                groups["material"].append(f"`{iid}` {name} (ขายร้าน 💰{it.get('sell', 0):,})")
+        embed = discord.Embed(
+            title="📖 Codex — ไอเทมทั้งหมด", color=0x9b59b6,
+            description="ใช้ของด้วย `!use <เลข>` — เลขไอเทมคือตัวหน้าแต่ละบรรทัด\n"
+                        "รายละเอียดว่าบัฟแต่ละตัวกัน/ทำอะไร → `!codex สถานะ`")
+        sections = [("💊 ของใช้", groups["use"]), ("🏺 อาร์ติแฟกต์ (มีช่องเดียว — สวมทับ ของเก่าถูกทำลายถาวร!)", groups["artifact"]),
+                    ("⚔️ อุปกรณ์สวมใส่", groups["equip"]), ("🧱 วัสดุคราฟ/ของขายร้าน", groups["material"])]
+        for title, lines in sections:
+            chunk, first = "", True
+            for line in lines:  # ตัดท่อนละ ≤1024 (ลิมิต Discord)
+                if len(chunk) + len(line) + 1 > 1024:
+                    embed.add_field(name=title if first else "​", value=chunk, inline=False)
+                    chunk, first = "", False
+                chunk += line + "\n"
+            if chunk:
+                embed.add_field(name=title if first else "​", value=chunk, inline=False)
+        return embed
+
+    if topic in ("ทวีป", "continent", "continents"):
+        embed = discord.Embed(
+            title="📖 Codex — ทวีปทั้ง 9", color=0x9b59b6,
+            description="การข้ามทวีปมีทางเดียว: **สุ่มเจอพาหนะ** ระหว่างผจญภัย (รู้ปลายทางเมื่อไปถึง)")
+        for key, c in game_modifiers.CONTINENTS.items():
+            weights = (c.get("mods") or {}).get("element_weights") or {}
+            top = sorted(weights, key=weights.get, reverse=True)[:2]
+            elem_txt = " ".join(game_modifiers.ELEMENTS[t]["label"] for t in top if t in game_modifiers.ELEMENTS) or "สมดุลทุกธาตุ"
+            embed.add_field(name=c["label"], value=f"ธาตุชุกชุม: {elem_txt}", inline=True)
+        return embed
+
+    embed = discord.Embed(
+        title="📖 Codex — สารานุกรมนักผจญภัย", color=0x9b59b6,
+        description=("เลือกหมวดที่อยากอ่าน:\n"
+                     "`!codex วิธีเล่น` — ไกด์เริ่มต้นตั้งแต่เกิดจนออกผจญภัย\n"
+                     "`!codex คำสั่ง` — คำสั่งผู้เล่นทั้งหมดแยกหมวด\n"
+                     "`!codex ธาตุ` — ธาตุทั้ง 7, ตารางข่ม, passive ประจำเผ่า\n"
+                     "`!codex สถานะ` — สถานะทั้งหมด + ไอเทมที่ใช้แก้/กัน\n"
+                     "`!codex ไอเทม` — ไอเทมทุกชิ้น ใช้ทำอะไร ราคาเท่าไหร่\n"
+                     "`!codex ทวีป` — ทวีปทั้ง 9 และธาตุประจำถิ่น"))
+    return embed
+
+
+
 class PlayerCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -686,167 +849,10 @@ class PlayerCommands(commands.Cog):
             lines.append(f"📦 {name} x`{amount}`")
         await ctx.send("\n".join(lines))
 
-    # --- 📖 !codex: สารานุกรมกติกา (ธาตุ/สถานะ/ทวีป) — สร้างจาก data ใน game_modifiers/config เสมอ ไม่ต้องอัปเดตมือ ---
+    # --- 📖 !codex: สารานุกรมกติกา — เนื้อหาจริงอยู่ใน build_codex_embed (แชร์กับปุ่มเมนู) ---
     @commands.command(name="codex")
     async def codex(self, ctx, *, topic: str = ""):
-        topic = topic.strip().lower()
-
-        if topic in ("ธาตุ", "element", "elements"):
-            embed = discord.Embed(
-                title="📖 Codex — ธาตุทั้ง 7", color=0x9b59b6,
-                description="ธาตุประจำตัวมาจาก **ยศเผ่า** — ถือหลายเผ่าได้หลายธาตุ, สองธาตุข่มเป้าเดียวกัน = ดาเมจ ×2.0")
-            for key, data in game_modifiers.ELEMENTS.items():
-                prey = [game_modifiers.ELEMENTS[t]["label"] for t in game_modifiers.ELEMENT_ADVANTAGE.get(key, [])]
-                resist = [game_modifiers.ELEMENTS[t]["label"] for t in game_modifiers.ELEMENT_RESIST.get(key, [])]
-                lines = [f"👤 ติดตัวผู้เล่น: {data['player']['desc']}",
-                         f"👹 ฝั่งมอนสเตอร์: {_monster_element_desc(data)}"]
-                if prey:
-                    lines.append(f"⚔️ ข่ม (×1.5): {', '.join(prey)}")
-                if resist:
-                    lines.append(f"🛡️ รับเบา (×0.75): {', '.join(resist)}")
-                embed.add_field(name=data["label"], value="\n".join(lines), inline=False)
-            return await ctx.send(embed=embed)
-
-        if topic in ("วิธีเล่น", "เริ่มเล่น", "howto", "guide"):
-            embed = discord.Embed(
-                title="📖 Codex — วิธีเล่นฉบับเริ่มต้น", color=0x9b59b6,
-                description="โลกนี้เดินด้วย **ลูกเต๋า** — ทุกการผจญภัยคือการทอยวัดดวงกับโชคชะตา")
-            embed.add_field(name="1️⃣ เกิดใหม่ในโลกนี้", inline=False, value=(
-                "รับ **ยศเผ่า** และ **ยศคลาสอาชีพ** จากเซิร์ฟก่อน (เผ่ากำหนดธาตุประจำตัว ดู `!codex ธาตุ`)\n"
-                "พิมพ์ `!adv` สร้างห้องผจญภัยส่วนตัว แล้ว `!play` เพื่อออกเดินทาง"))
-            embed.add_field(name="2️⃣ ออกเดินทาง", inline=False, value=(
-                "กดปุ่ม **ไปต่อ** เพื่อเดินทีละก้าว — สุ่มเจอมอนสเตอร์ กับดัก สมบัติ หมู่บ้าน NPC "
-                "หรือพาหนะข้ามทวีป (ทางเดียวที่จะไปทวีปอื่น!)\n"
-                "เจอมอน = ทอยเต๋าสู้กันเป็นเทิร์น ชนะได้ทอง+EXP แพ้เต๋า = โดนสวน"))
-            embed.add_field(name="3️⃣ ของติดตัวคือชีวิต", inline=False, value=(
-                "`!bag` ดูกระเป๋า / `!use <เลขไอเทม>` ใช้ของ / `!craft` คราฟ\n"
-                "พกยาแก้สถานะให้ตรงทวีป (ดู `!codex สถานะ`) และหา **อาร์ติแฟกต์** มาสวม "
-                "(มีช่องเดียว — สวมทับแล้วของเก่าถูกทำลายถาวร คิดก่อนสวม!)"))
-            embed.add_field(name="4️⃣ เงินและเมือง", inline=False, value=(
-                "ทองที่ถือตายแล้วหาย — ฝากธนาคารด้วย `!deposit` ไว้ก่อน\n"
-                "`!shop` ซื้อของ / คาสิโนมี `!bj` `!hilo` `!slots` เสี่ยงดวงเพิ่ม (หรือหมดตัว)"))
-            embed.add_field(name="5️⃣ โลกที่หมุนเอง", inline=False, value=(
-                "ทุกสัปดาห์มี **ธีมโลก** สุ่มใหม่ (ประกาศวันจันทร์) เปลี่ยนมอน/เรท/อีเวนต์ทั้งเซิร์ฟ\n"
-                "แต่ละทวีปมีธาตุ สถานะ และบอสประจำถิ่น — `!codex ทวีป` ก่อนออกเดิน"))
-            return await ctx.send(embed=embed)
-
-        if topic in ("คำสั่ง", "commands", "cmd"):
-            embed = discord.Embed(
-                title="📖 Codex — คำสั่งผู้เล่นทั้งหมด", color=0x9b59b6,
-                description="พิมพ์ในห้องที่เซิร์ฟกำหนดไว้ (บางคำสั่งจำกัดห้อง) — `!menu` มีปุ่มลัดของที่ใช้บ่อย")
-            embed.add_field(name="🗺️ ผจญภัย", inline=False, value=(
-                "`!adv` สร้างห้องผจญภัยส่วนตัว • `!play` เริ่มออกเดินทาง\n"
-                "`!profile` (`!info`) โปรไฟล์+ธาตุ+อาร์ติแฟกต์ • `!scan @คน` ส่องข้อมูลคนอื่น\n"
-                "`!codex <หมวด>` สารานุกรมกติกา • `!reward` รับรางวัลประจำยศ"))
-            embed.add_field(name="🎒 กระเป๋า & ไอเทม", inline=False, value=(
-                "`!bag` ดูกระเป๋า • `!use <เลข>` ใช้ไอเทม • `!drop <เลข>` ทิ้ง\n"
-                "`!give @คน <เลข>` ส่งของให้เพื่อน • `!recipes` สูตรคราฟ • `!craft <เลข>` คราฟของ"))
-            embed.add_field(name="💰 เงิน & ธนาคาร", inline=False, value=(
-                "`!bank` ยอดธนาคาร • `!deposit <จำนวน>` ฝาก • `!withdraw <จำนวน>` ถอน\n"
-                "`!transfer @คน <จำนวน>` โอน • `!beg` ขอทาน • `!rob @คน` ปล้น (เสี่ยงติดคุก!)\n"
-                "`!rich` `!toplvl` `!mytext` `!toptext` `!mytime` `!toptime` อันดับ/แต้มกิจกรรม"))
-            embed.add_field(name="🎰 คาสิโน & PvP", inline=False, value=(
-                "`!bj <เงินเดิมพัน>` แบล็กแจ็ก • `!hilo` ไฮโล • `!slots` สล็อต\n"
-                "`!att @คน` เปิดฉากปล้นกลางเมือง (ต้องอยู่ห้องเสียง) • `!challenge @คน` ท้าดวล PvP"))
-            embed.add_field(name="🏪 ร้านค้า & อื่น ๆ", inline=False, value=(
-                "`!shop` ร้านไอเทม • `!darkshop` / `!lightshop` ร้านยศสองฝ่าย\n"
-                "`!rent` เช่าห้องส่วนตัว (`!extend` ต่ออายุ, `!set_room` ตั้งค่า)\n"
-                "`!payment` เติมเงิน • `!my_orders` เช็คคำสั่งซื้อ • `!menu` เมนูปุ่มลัด"))
-            return await ctx.send(embed=embed)
-
-        if topic in ("สถานะ", "status"):
-            cures, guards, cure_all = {}, {}, []
-            for iid, it in config_loader.get_all_items().items():
-                name, eff, val = it.get("name", f"#{iid}"), it.get("effect"), it.get("effect_value")
-                if eff == "cure_status":
-                    if val == "all":
-                        cure_all.append(name)
-                    else:
-                        for k in (val if isinstance(val, list) else [val]):
-                            cures.setdefault(k, []).append(name)
-                elif eff in ("apply_status", "equip_artifact"):
-                    for k in game_modifiers.STATUS_EFFECTS.get(str(val), {}).get("blocks", []):
-                        guards.setdefault(k, []).append(name)
-            lines = []
-            for key, cfg in game_modifiers.STATUS_EFFECTS.items():
-                if cfg.get("artifact"):
-                    continue
-                extra = []
-                if key in cures:
-                    extra.append("แก้: " + ", ".join(cures[key]))
-                if key in guards:
-                    extra.append("กัน: " + ", ".join(guards[key]))
-                unit = "ก้าว" if cfg.get("tick") == "step" else "ไฟต์"
-                lines.append(f"{cfg['label']} `{cfg.get('default_turns', 1)} {unit}`"
-                             + (" — " + " / ".join(extra) if extra else ""))
-            desc = "สถานะหมดเองเมื่อครบเวลา (นับเป็นก้าวเดิน/ไฟต์)"
-            if cure_all:
-                desc += f"\n💊 ล้างได้ทุกสถานะ: {', '.join(cure_all)}"
-            embed = discord.Embed(title="📖 Codex — สถานะติดตัว", color=0x9b59b6, description=desc)
-            chunk = ""
-            for line in lines:  # ตัดลง field ละ ≤1024 ตัวอักษร (ลิมิต Discord — บทเรียนจาก !bag)
-                if len(chunk) + len(line) + 1 > 1024:
-                    embed.add_field(name="​", value=chunk, inline=False)
-                    chunk = ""
-                chunk += line + "\n"
-            if chunk:
-                embed.add_field(name="​", value=chunk, inline=False)
-            return await ctx.send(embed=embed)
-
-        if topic in ("ไอเทม", "ของ", "item", "items"):
-            groups = {"use": [], "artifact": [], "equip": [], "material": []}
-            for iid, it in sorted(config_loader.get_all_items().items(), key=lambda kv: int(kv[0])):
-                name, eff = it.get("name", f"#{iid}"), it.get("effect")
-                desc = _item_effect_desc(it)
-                if str(iid) == "38":  # แว่นส่องสัจจะ: ไม่มี effect ใน config — ถูกหักอัตโนมัติตอนกดปุ่มตรวจ NPC (game_views อ้าง id 38 ตรง ๆ)
-                    desc = "พกไว้เฉย ๆ — ใช้เองอัตโนมัติตอนตรวจตัวตน NPC งานหน้ากาก (ฟรี, เลนส์แตกหลังใช้)"
-                price = f"💰{it['buy']:,}" if it.get("purchasable", True) and it.get("buy") else "ดรอป/คราฟเท่านั้น"
-                if eff == "equip_artifact":
-                    groups["artifact"].append(f"`{iid}` {name} — {desc}")
-                elif desc:
-                    groups["use"].append(f"`{iid}` {name} — {desc} ({price})")
-                elif it.get("equip_key"):
-                    groups["equip"].append(f"`{iid}` {name} ({price})")
-                else:
-                    groups["material"].append(f"`{iid}` {name} (ขายร้าน 💰{it.get('sell', 0):,})")
-            embed = discord.Embed(
-                title="📖 Codex — ไอเทมทั้งหมด", color=0x9b59b6,
-                description="ใช้ของด้วย `!use <เลข>` — เลขไอเทมคือตัวหน้าแต่ละบรรทัด\n"
-                            "รายละเอียดว่าบัฟแต่ละตัวกัน/ทำอะไร → `!codex สถานะ`")
-            sections = [("💊 ของใช้", groups["use"]), ("🏺 อาร์ติแฟกต์ (มีช่องเดียว — สวมทับ ของเก่าถูกทำลายถาวร!)", groups["artifact"]),
-                        ("⚔️ อุปกรณ์สวมใส่", groups["equip"]), ("🧱 วัสดุคราฟ/ของขายร้าน", groups["material"])]
-            for title, lines in sections:
-                chunk, first = "", True
-                for line in lines:  # ตัดท่อนละ ≤1024 (ลิมิต Discord)
-                    if len(chunk) + len(line) + 1 > 1024:
-                        embed.add_field(name=title if first else "​", value=chunk, inline=False)
-                        chunk, first = "", False
-                    chunk += line + "\n"
-                if chunk:
-                    embed.add_field(name=title if first else "​", value=chunk, inline=False)
-            return await ctx.send(embed=embed)
-
-        if topic in ("ทวีป", "continent", "continents"):
-            embed = discord.Embed(
-                title="📖 Codex — ทวีปทั้ง 9", color=0x9b59b6,
-                description="การข้ามทวีปมีทางเดียว: **สุ่มเจอพาหนะ** ระหว่างผจญภัย (รู้ปลายทางเมื่อไปถึง)")
-            for key, c in game_modifiers.CONTINENTS.items():
-                weights = (c.get("mods") or {}).get("element_weights") or {}
-                top = sorted(weights, key=weights.get, reverse=True)[:2]
-                elem_txt = " ".join(game_modifiers.ELEMENTS[t]["label"] for t in top if t in game_modifiers.ELEMENTS) or "สมดุลทุกธาตุ"
-                embed.add_field(name=c["label"], value=f"ธาตุชุกชุม: {elem_txt}", inline=True)
-            return await ctx.send(embed=embed)
-
-        embed = discord.Embed(
-            title="📖 Codex — สารานุกรมนักผจญภัย", color=0x9b59b6,
-            description=("เลือกหมวดที่อยากอ่าน:\n"
-                         "`!codex วิธีเล่น` — ไกด์เริ่มต้นตั้งแต่เกิดจนออกผจญภัย\n"
-                         "`!codex คำสั่ง` — คำสั่งผู้เล่นทั้งหมดแยกหมวด\n"
-                         "`!codex ธาตุ` — ธาตุทั้ง 7, ตารางข่ม, passive ประจำเผ่า\n"
-                         "`!codex สถานะ` — สถานะทั้งหมด + ไอเทมที่ใช้แก้/กัน\n"
-                         "`!codex ไอเทม` — ไอเทมทุกชิ้น ใช้ทำอะไร ราคาเท่าไหร่\n"
-                         "`!codex ทวีป` — ทวีปทั้ง 9 และธาตุประจำถิ่น"))
-        await ctx.send(embed=embed)
+        await ctx.send(embed=build_codex_embed(topic))
 
     # --- โค้ดคำสั่ง !bag ---
     @commands.command(name="bag")

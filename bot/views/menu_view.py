@@ -3,8 +3,33 @@ from collections import Counter
 
 import bot.models.player_model as player_model
 from bot import config_loader
-from bot.cogs.player_commands import apply_item_effect, bank_action, build_bag_embed, build_bank_embed
+from bot.cogs.player_commands import apply_item_effect, bank_action, build_bag_embed, build_bank_embed, build_codex_embed
 from bot.views.profile_embed import create_profile_embed
+
+# หัวข้อคู่มือในปุ่ม 📖 — ค่า value ตรงกับ topic ของ !codex เป๊ะ
+CODEX_TOPICS = [
+    ("📘 วิธีเล่น (เริ่มต้นที่นี่)", "วิธีเล่น"),
+    ("⌨️ คำสั่งทั้งหมด", "คำสั่ง"),
+    ("🧬 ธาตุทั้ง 7", "ธาตุ"),
+    ("🩸 สถานะติดตัว + ของแก้", "สถานะ"),
+    ("🎒 ไอเทมทุกชิ้น", "ไอเทม"),
+    ("🗺️ ทวีปทั้ง 9", "ทวีป"),
+]
+
+
+class CodexSelect(discord.ui.Select):
+    def __init__(self):
+        options = [discord.SelectOption(label=label, value=value) for label, value in CODEX_TOPICS]
+        super().__init__(placeholder="เลือกหัวข้อคู่มือที่อยากอ่าน...", options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message(embed=build_codex_embed(self.values[0]), ephemeral=True)
+
+
+class CodexView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=120)
+        self.add_item(CodexSelect())
 
 
 class BankAmountModal(discord.ui.Modal):
@@ -111,6 +136,11 @@ class GameMenuView(discord.ui.View):
             return await interaction.response.send_message("❌ ไม่พบข้อมูลตัวละครของคุณ! พิมพ์ `!play` ก่อนนะ", ephemeral=True)
         embed = create_profile_embed(interaction.user, player)
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="📖 คู่มือ", style=discord.ButtonStyle.secondary, custom_id="game_menu:codex")
+    async def codex_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message(
+            "📖 **คู่มือนักผจญภัย** — เลือกหัวข้อ:", view=CodexView(), ephemeral=True)
 
     @discord.ui.button(label="🧪 ใช้ไอเทม", style=discord.ButtonStyle.danger, custom_id="game_menu:use_item")
     async def use_item_button(self, interaction: discord.Interaction, button: discord.ui.Button):
