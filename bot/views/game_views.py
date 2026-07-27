@@ -1118,38 +1118,48 @@ class ShopEventView(ActionView):
         await interaction.response.edit_message(content="คุณเดินกลับไปยังจุดพักแรม...", view=VillageEventView(self.user_id))
 
 # --- ระบบซื้อ ---
+class BuyItemSelect(discord.ui.Select):
+    """เมนูเลือกซื้อ (25 ชิ้น/อัน) — แก้บั๊กเฟส D: ปุ่มรายชิ้นชนลิมิต 25 ปุ่มของ Discord
+    ทำให้ไอเทมเกิน (เลข 60+) กับปุ่มกลับหายจากหน้าร้าน"""
+    def __init__(self, parent, items, page):
+        options = [discord.SelectOption(label=f"เลข {iid} · {d['name']}"[:100],
+                                        description=f"{d['buy']:,} ทอง", value=str(iid))
+                   for iid, d in items]
+        super().__init__(placeholder=f"🛒 เลือกซื้อไอเทม (ชุดที่ {page})...", options=options)
+        self.parent_view = parent
+
+    async def callback(self, interaction: discord.Interaction):
+        await self.parent_view.buy_item(interaction, self.values[0])
+
+
 class BuySelectView(View):
     def __init__(self, user_id):
         super().__init__(timeout=60)
         self.user_id = user_id
         ITEM_CONFIG = config_loader.get_all_items()
 
-        # [ระบบเช็กไฟล์/แคช]
-        # print(f"DEBUG: [ร้านค้า] กำลังโหลดหน้า ซื้อไอเทม ให้ User ID: {user_id}")
-
         try:
-            for item_id, data in ITEM_CONFIG.items():
-                # 🛠️ สร้างปุ่มเฉพาะของที่อนุญาตให้ซื้อ
-                if data.get("purchasable", True):
-                    btn = discord.ui.Button(label=f"เลข {item_id}", custom_id=item_id)
-                    btn.callback = self.buy_callback
-                    self.add_item(btn)
-            
-            # 🚨 จุดที่แก้ไข: ต้องสร้างปุ่มก่อน แล้วค่อยผูกฟังก์ชัน callback 
+            purchasable = [(iid, d) for iid, d in ITEM_CONFIG.items() if d.get("purchasable", True)]
+            # ponytail: Select 4 อัน (25 ชิ้น/อัน) + แถวปุ่มกลับ = เพดาน 100 ชิ้น — เกินค่อยทำแบ่งหน้า
+            if len(purchasable) > 100:
+                print(f"⚠️ [ร้านค้า] ของซื้อได้ {len(purchasable)} ชิ้น เกินเพดานแสดง 100 ชิ้นแรก")
+            for page, i in enumerate(range(0, min(len(purchasable), 100), 25), start=1):
+                self.add_item(BuyItemSelect(self, purchasable[i:i + 25], page))
+
             back_btn = discord.ui.Button(label="🔙 ย้อนกลับ", style=discord.ButtonStyle.secondary)
             back_btn.callback = self.back_callback
             self.add_item(back_btn)
-            
+
         except Exception as e:
             print(f"ERROR: [ร้านค้า] โหลดหน้าซื้อล้มเหลว: {e}")
 
-    # 🛒 แก้ไขระบบซื้อ
-    async def buy_callback(self, interaction: discord.Interaction):
+    # 🛒 ซื้อไอเทม — เรียกจาก BuyItemSelect
+    async def buy_item(self, interaction: discord.Interaction, item_id):
         ITEM_CONFIG = config_loader.get_all_items()
-        # 🛡️ 1. สั่ง Defer ทันทีที่กดปุ่ม
+        # 🛡️ 1. สั่ง Defer ทันทีที่เลือก
         await interaction.response.defer()
 
-        item_id = str(interaction.data["custom_id"])
+        item_id = str(item_id)
         player = player_model.get_player(self.user_id)
         item_data = ITEM_CONFIG.get(item_id)
         
@@ -1205,6 +1215,19 @@ class BuySelectView(View):
         await interaction.response.edit_message(view=ShopEventView(self.user_id))
 
 # --- ระบบขาย ---
+class SellItemSelect(discord.ui.Select):
+    """เมนูเลือกขาย (25 ชนิด/อัน) — คู่แฝดของ BuyItemSelect"""
+    def __init__(self, parent, items, page):
+        options = [discord.SelectOption(label=f"{d['name']} x{count}"[:100],
+                                        description=f"ขายได้ {d.get('sell', 0):,} ทอง/ชิ้น", value=str(iid))
+                   for iid, d, count in items]
+        super().__init__(placeholder=f"📦 เลือกขายไอเทม (ชุดที่ {page})...", options=options)
+        self.parent_view = parent
+
+    async def callback(self, interaction: discord.Interaction):
+        await self.parent_view.sell_item(interaction, self.values[0])
+
+
 class SellSelectView(View):
     def __init__(self, user_id):
         super().__init__(timeout=None)
@@ -1221,28 +1244,28 @@ class SellSelectView(View):
                 
             inv = clean_inv.split(",") if clean_inv and clean_inv not in ["None", "null"] else []
             
-            unique_items = set(inv)
-            
-            for item_id in unique_items:
-                if item_id in ITEM_CONFIG:
-                    btn = discord.ui.Button(label=ITEM_CONFIG[item_id]["name"], custom_id=str(item_id))
-                    btn.callback = self.sell_callback
-                    self.add_item(btn)
-                    
+            # 🛠️ Select แทนปุ่มรายชิ้น (แก้บั๊กเฟส D: ของเกิน 24 ชนิด ปุ่ม+ปุ่มกลับหลุดลิมิต 25)
+            unique_items = sorted({i for i in inv if i in ITEM_CONFIG}, key=lambda x: int(x) if x.isdigit() else 0)
+            sellable = [(iid, ITEM_CONFIG[iid], inv.count(iid)) for iid in unique_items]
+            if len(sellable) > 100:
+                print(f"⚠️ [ร้านค้า] ของขายได้ {len(sellable)} ชนิด เกินเพดานแสดง 100 ชนิดแรก")
+            for page, i in enumerate(range(0, min(len(sellable), 100), 25), start=1):
+                self.add_item(SellItemSelect(self, sellable[i:i + 25], page))
+
             back_btn = discord.ui.Button(label="🔙 ย้อนกลับ", style=discord.ButtonStyle.secondary)
             back_btn.callback = self.back_callback
             self.add_item(back_btn)
-            
+
         except Exception as e:
             print(f"ERROR: [ร้านค้า] โหลดหน้าขายล้มเหลว: {e}")
 
-    # 💰 แก้ไขระบบขาย
-    async def sell_callback(self, interaction: discord.Interaction):
+    # 💰 ขายไอเทม — เรียกจาก SellItemSelect
+    async def sell_item(self, interaction: discord.Interaction, item_id):
         ITEM_CONFIG = config_loader.get_all_items()
-        # 🛡️ 1. สั่ง Defer ทันทีที่กดปุ่ม
+        # 🛡️ 1. สั่ง Defer ทันทีที่เลือก
         await interaction.response.defer()
 
-        item_id = str(interaction.data["custom_id"])
+        item_id = str(item_id)
         player = player_model.get_player(self.user_id)
 
         raw_inv = player.get("inventory", "")
