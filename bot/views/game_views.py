@@ -71,7 +71,7 @@ class ActionView(View):
 
 
 class MonsterEventView(ActionView):
-    def __init__(self, user_id, member_roles, monster_rank=None, monster_hp=None, active_buffs=None, turn_count=1, monster_name=None, element=None, fight_statuses=None, infused=False, faction_war_side=None):
+    def __init__(self, user_id, member_roles, monster_rank=None, monster_hp=None, active_buffs=None, turn_count=1, monster_name=None, element=None, fight_statuses=None, infused=False, faction_war_side=None, fight_grace=None):
         super().__init__(timeout=60)
         self.user_id = user_id
         self.member_roles = member_roles
@@ -175,7 +175,9 @@ class MonsterEventView(ActionView):
                 self.m_stats["name"] = f"{infusion_cfg.get('badge', '☄️')} {self.m_stats['name']}"
 
             # tick สถานะแบบ "ต่อไฟต์" ตอนเริ่มไฟต์ใหม่ (สแนปช็อตข้างบนของไฟต์นี้ยังมีผลเต็ม)
-            remaining, _ = game_modifiers.tick_statuses(self.statuses, "fight")
+            remaining, expired_now = game_modifiers.tick_statuses(self.statuses, "fight")
+            # สถานะที่หมดอายุด้วย tick ต้นไฟต์นี้ = ยังคุ้มครองจนจบไฟต์ (ไม่ใช่ของที่ถูกรักษาทิ้งกลางไฟต์)
+            self.fight_grace = set(expired_now)
             if remaining != self.statuses:
                 player_model.update_player_field(user_id, "status_effects", remaining)
             
@@ -198,6 +200,8 @@ class MonsterEventView(ActionView):
             self.statuses = fight_statuses if fight_statuses is not None else game_modifiers.parse_statuses(player)
             self.infused = infused
             self.faction_war_side = faction_war_side  # ธงแชมเปี้ยนส่งต่อข้ามเทิร์น
+            self.fight_grace = set(fight_grace or ())
+            self._resync_statuses(player)  # รักษา/บัฟระหว่างเทิร์น → สะท้อนทันที (รวมปลดล็อกปุ่มสกิลจาก EMP)
 
         self.player_class = "Unknown"
         for role in self.member_roles:
@@ -210,6 +214,18 @@ class MonsterEventView(ActionView):
             [getattr(r, "name", str(r)) for r in (self.member_roles or [])])
 
         self.add_skill_buttons()
+
+    def _resync_statuses(self, player):
+        """ซิงก์สแนปช็อตไฟต์กับ DB สด (บั๊กเฟส D #2-#3):
+        - สถานะที่ถูก "รักษากลางไฟต์" (มีดตัดเถา/ครีมว่านเย็น/ชา/สายดิน/เทียน ฯลฯ) หลุดจากไฟต์ทันที
+        - บัฟที่ "เพิ่งกดใช้กลางไฟต์" (ชิป EMP/น้ำมนต์/เต๋าถ่วง ฯลฯ) มีผลทันที
+        - ยกเว้น fight_grace: สถานะที่หมดอายุด้วย tick ต้นไฟต์ ยังคุ้มครองจนจบไฟต์ตามดีไซน์เดิม"""
+        fresh = game_modifiers.parse_statuses(player)
+        grace = getattr(self, "fight_grace", set()) or set()
+        synced = {k: v for k, v in self.statuses.items() if k in fresh or k in grace}
+        for k, v in fresh.items():
+            synced.setdefault(k, v)
+        self.statuses = synced
 
     def add_skill_buttons(self):
         # ⚡ สถานะ EMP: ปิดปุ่มสกิลทั้งไฟต์ (เหลือปุ่มโจมตี/หนีปกติ)
@@ -240,6 +256,9 @@ class MonsterEventView(ActionView):
             player = player_model.get_player(self.user_id)
             if not player:
                 return await interaction.response.send_message("❌ ไม่พบข้อมูลตัวละครของคุณในระบบ!", ephemeral=True)
+
+            # 🔄 ซิงก์สถานะกับ DB สดก่อนคำนวณเทิร์น — ไอเทมรักษา/บัฟที่กดใช้ระหว่างรอเทิร์นมีผลทันที
+            self._resync_statuses(player)
 
             p_lvl = player.get("level", 1)
 
@@ -902,9 +921,9 @@ class MonsterEventView(ActionView):
                     next_msg = f"⚔️ **[เทิร์นที่ {self.turn_count}] การต่อสู้ทวีความรุนแรง!**\n👾 ศัตรู: **{self.m_stats.get('name','?')}** (🩸 HP คงเหลือ: **{self.monster_hp}**)\n❤️ เลือดร่างกายของคุณ: **{db_updates['hp']}/{player.get('max_hp',100)}**\n\n{skill_log}{combat_log}----------------------------------------\nบอสจะแกร่งขึ้นเรื่อยๆ เลือกแอคชั่นหรือสกิลที่จะใช้ถัดไป:"
                     
                     if not interaction.response.is_done():
-                        await interaction.response.edit_message(content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses, infused=getattr(self, "infused", False), faction_war_side=getattr(self, "faction_war_side", None)))
+                        await interaction.response.edit_message(content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses, infused=getattr(self, "infused", False), faction_war_side=getattr(self, "faction_war_side", None), fight_grace=getattr(self, "fight_grace", None)))
                     else:
-                        await interaction.followup.edit_message(message_id=interaction.message.id, content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses, infused=getattr(self, "infused", False), faction_war_side=getattr(self, "faction_war_side", None)))
+                        await interaction.followup.edit_message(message_id=interaction.message.id, content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses, infused=getattr(self, "infused", False), faction_war_side=getattr(self, "faction_war_side", None), fight_grace=getattr(self, "fight_grace", None)))
                 except Exception as e:
                     print(f"❌ [ERROR] การไปเทิร์นถัดไปพัง: {e}")
 
@@ -930,15 +949,13 @@ class MonsterEventView(ActionView):
     @discord.ui.button(label="🏃 วิ่งหนี!", style=discord.ButtonStyle.secondary, row=0)
     async def flee(self, interaction: discord.Interaction, button: discord.ui.Button):
         # 🌱 สถานะรากพันธนาการ: หนีไม่ได้จนกว่าสถานะจะหมด
-        # (บั๊กเฟส D #2: เช็คซ้ำกับ DB สดด้วย — ใช้ 🗡️ มีดตัดเถากลางไฟต์แล้วต้องหนีได้ทันที ไม่ติดสแนปช็อตไฟต์)
+        # (บั๊กเฟส D #2: ซิงก์กับ DB สดก่อนเช็ค — ใช้ 🗡️ มีดตัดเถากลางไฟต์แล้วต้องหนีได้ทันที)
+        player = player_model.get_player(self.user_id)
+        if player:
+            self._resync_statuses(player)
         if game_modifiers.has_status_flag(self.statuses, "no_flee"):
-            fresh = game_modifiers.parse_statuses(player_model.get_player(self.user_id))
-            if game_modifiers.has_status_flag(fresh, "no_flee"):
-                return await interaction.response.send_message(
-                    "🌱 **รากไม้รัดขาแน่น!** คุณดิ้นเท่าไหร่ก็หนีไม่หลุด — ต้องสู้จนกว่าพันธนาการจะคลาย (หรือใช้ 🗡️ มีดตัดเถาวัลย์/🌿 ยาถอนพิษ)!", ephemeral=True)
-            # เพิ่งตัดเถา/ล้างสถานะไป — เอาธงห้ามหนีออกจากสแนปช็อตไฟต์ให้ตรงความจริง
-            self.statuses = {k: v for k, v in self.statuses.items()
-                             if not game_modifiers.STATUS_EFFECTS[k].get("no_flee")}
+            return await interaction.response.send_message(
+                "🌱 **รากไม้รัดขาแน่น!** คุณดิ้นเท่าไหร่ก็หนีไม่หลุด — ต้องสู้จนกว่าพันธนาการจะคลาย (หรือใช้ 🗡️ มีดตัดเถาวัลย์/🌿 ยาถอนพิษ)!", ephemeral=True)
 
         flee_roll = random.randint(1, 100)
         
@@ -982,7 +999,7 @@ class MonsterEventView(ActionView):
                 if new_armor_dur == 0 and player.get("armor_dur", 0) > 0:
                     msg += "\n🚨 **ชุดเกราะของคุณพังยับเยิน!**"
                     
-                await interaction.response.edit_message(content=msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses, infused=getattr(self, "infused", False), faction_war_side=getattr(self, "faction_war_side", None)))
+                await interaction.response.edit_message(content=msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses, infused=getattr(self, "infused", False), faction_war_side=getattr(self, "faction_war_side", None), fight_grace=getattr(self, "fight_grace", None)))
 
     async def skill_callback(self, interaction: discord.Interaction):
         if not await self.interaction_check(interaction): return

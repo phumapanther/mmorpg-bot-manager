@@ -43,3 +43,33 @@ def test_flee_allowed_after_vine_cutter(monkeypatch):
     asyncio.run(gv.MonsterEventView.flee(v, itx, None))
     assert "send" not in calls or "รากไม้" not in str(calls.get("send"))
     assert "entangled" not in v.statuses                        # สแนปช็อตถูกล้างตาม
+
+
+def _bare_view(monkeypatch, db_statuses, snapshot, grace=()):
+    monkeypatch.setattr(gv.player_model, "get_player",
+                        lambda uid: {"status_effects": db_statuses, "hp": 100, "max_hp": 100})
+    monkeypatch.setattr(gv.player_model, "update_player_field", lambda *a, **k: None)
+    v = gv.MonsterEventView(user_id=1, member_roles=[], monster_rank="Common", monster_hp=50,
+                            fight_statuses=dict(snapshot), fight_grace=set(grace))
+    return v
+
+
+def test_resync_drops_cured_statuses(monkeypatch):
+    """รักษากลางไฟต์ (ชา/ไฟลวก) → สแนปช็อตต้องหลุดตาม DB"""
+    v = _bare_view(monkeypatch, "{}", {"burn": 2, "numb": 1})
+    v._resync_statuses(gv.player_model.get_player(1))
+    assert v.statuses == {}
+
+
+def test_resync_keeps_fight_grace(monkeypatch):
+    """บัฟที่หมดอายุด้วย tick ต้นไฟต์ (เช่น น้ำมนต์ไฟต์สุดท้าย) ยังคุ้มครองจนจบไฟต์"""
+    v = _bare_view(monkeypatch, "{}", {"holy_guard": 1}, grace={"holy_guard"})
+    v._resync_statuses(gv.player_model.get_player(1))
+    assert "holy_guard" in v.statuses
+
+
+def test_resync_adds_midfight_buffs(monkeypatch):
+    """กดใช้บัฟกลางไฟต์ (ชิป EMP) → มีผลทันทีในไฟต์นี้"""
+    v = _bare_view(monkeypatch, '{"emp_shield": 1}', {})
+    v._resync_statuses(gv.player_model.get_player(1))
+    assert "emp_shield" in v.statuses
