@@ -15,6 +15,22 @@ GUILD_ICON = "🏰"  # ไอคอนกลาง — ผู้ใช้ตั�
 # (เซิร์ฟอื่นไม่มียศนี้ = ข้ามการจัดตำแหน่งเฉย ๆ ไม่พัง)
 GUILD_ROLE_DIVIDER_ID = 1160555382977081415
 GUILD_RENAME_COST = 100_000_000  # ค่าเปลี่ยนชื่อกิลด์ (เงินสดหัวหน้า)
+# ยศ "หัวหน้ากิลด์" ในเซิร์ฟหลัก — แจกตอนก่อตั้ง ถอดตอนยุบ (เซิร์ฟไม่มียศนี้ = ข้ามเฉย ๆ)
+GUILD_LEADER_ROLE_ID = 1148195663222411357
+
+
+async def _sync_leader_role(member, is_leader):
+    """ให้/ถอดยศหัวหน้ากิลด์ตามสถานะจริง — DB คือความจริงหลัก ยศคือป้ายแสดง"""
+    role = member.guild.get_role(GUILD_LEADER_ROLE_ID)
+    if not role:
+        return
+    try:
+        if is_leader and role not in member.roles:
+            await member.add_roles(role, reason="ก่อตั้งกิลด์ — รับตำแหน่งหัวหน้า")
+        elif not is_leader and role in member.roles:
+            await member.remove_roles(role, reason="พ้นตำแหน่งหัวหน้ากิลด์")
+    except (discord.Forbidden, discord.HTTPException):
+        pass
 
 # ตรรกะเช็คห้องเดียวกับคำสั่งอื่น (config channels.guild — ตั้งได้ในแท็บ Channels ของ panel)
 _guild_channel_check = allowed_channel("guild").predicate
@@ -128,6 +144,7 @@ class GuildCog(commands.Cog):
 
         player_model.update_player_field(ctx.author.id, "cash", player["cash"] - GUILD_CREATE_COST)
         await ctx.author.add_roles(role, reason="หัวหน้ากิลด์")
+        await _sync_leader_role(ctx.author, True)  # แจกยศหัวหน้ากิลด์ (id กลางของเซิร์ฟ)
         await ctx.send(embed=discord.Embed(
             title=f"🏰 ก่อตั้งกิลด์ {name} สำเร็จ!", color=role.colour,
             description=(f"👑 หัวหน้ากิลด์: {ctx.author.mention}\n"
@@ -202,6 +219,7 @@ class GuildCog(commands.Cog):
         except discord.Forbidden:
             pass
         player_model.delete_guild(g["guild_id"])
+        await _sync_leader_role(ctx.author, False)  # ถอดยศหัวหน้ากิลด์
         await ctx.send(f"💥 กิลด์ **{g['icon']} {g['name']}** ถูกยุบแล้ว — คลัง `{treasury:,}` ทองคืนเข้าธนาคารหัวหน้า")
 
     @guild.command(name="deposit")
