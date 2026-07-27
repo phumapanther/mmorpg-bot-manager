@@ -15,6 +15,31 @@ import json
 import traceback # อย่าลืม import อันนี้ที่ด้านบนสุดของไฟล์นะครับ
 
 
+def _monster_element_desc(data):
+    """สรุปความสามารถธาตุฝั่งมอนเป็นข้อความ — อ่านจาก ELEMENTS ตรง ๆ เพิ่มธาตุใหม่แล้วขึ้นเอง"""
+    parts = []
+    if data.get("dmg_mult", 1.0) > 1.0:
+        parts.append(f"ตีแรง ×{data['dmg_mult']:g}")
+    if data.get("lifesteal"):
+        parts.append(f"ดูดเลือด {int(data['lifesteal'] * 100)}%")
+    if data.get("hp_mult", 1.0) > 1.0:
+        parts.append(f"เลือดหนา ×{data['hp_mult']:g}")
+    if data.get("dice_bonus"):
+        parts.append(f"เต๋ามอน +{data['dice_bonus'][0]}-{data['dice_bonus'][1]}")
+    if data.get("root_chance"):
+        parts.append(f"{data['root_chance']}% รากล็อกเต๋าคุณ = 0")
+    on_hit = data.get("on_hit_status")
+    if on_hit:
+        parts.append(f"{on_hit['chance']}% ตีติด {game_modifiers.STATUS_EFFECTS[on_hit['key']]['label']}")
+    if data.get("pre_enraged"):
+        parts.append("คลั่งตั้งแต่เทิร์นแรก")
+    if data.get("monster_flee_chance"):
+        parts.append(f"หนีเก่ง {data['monster_flee_chance']}%")
+    if data.get("gold_mult", 1.0) > 1.0:
+        parts.append(f"ล้มได้ทอง ×{data['gold_mult']:g}")
+    return ", ".join(parts) or "-"
+
+
 def apply_item_effect(user_id, item_id):
     """ใช้ไอเทมตาม effect ที่ตั้งค่าไว้ใน config — คืนค่า (success: bool, message: str)
     ดึงออกมาเป็นฟังก์ชันระดับโมดูล เพื่อให้ทั้งคำสั่ง !use และปุ่มเมนู (game_views) เรียกใช้ตรรกะเดียวกันได้
@@ -604,6 +629,85 @@ class PlayerCommands(commands.Cog):
             name = all_items.get(item_id, {}).get("name", f"ไอเทม {item_id}")
             lines.append(f"📦 {name} x`{amount}`")
         await ctx.send("\n".join(lines))
+
+    # --- 📖 !codex: สารานุกรมกติกา (ธาตุ/สถานะ/ทวีป) — สร้างจาก data ใน game_modifiers/config เสมอ ไม่ต้องอัปเดตมือ ---
+    @commands.command(name="codex")
+    async def codex(self, ctx, *, topic: str = ""):
+        topic = topic.strip().lower()
+
+        if topic in ("ธาตุ", "element", "elements"):
+            embed = discord.Embed(
+                title="📖 Codex — ธาตุทั้ง 7", color=0x9b59b6,
+                description="ธาตุประจำตัวมาจาก **ยศเผ่า** — ถือหลายเผ่าได้หลายธาตุ, สองธาตุข่มเป้าเดียวกัน = ดาเมจ ×2.0")
+            for key, data in game_modifiers.ELEMENTS.items():
+                prey = [game_modifiers.ELEMENTS[t]["label"] for t in game_modifiers.ELEMENT_ADVANTAGE.get(key, [])]
+                resist = [game_modifiers.ELEMENTS[t]["label"] for t in game_modifiers.ELEMENT_RESIST.get(key, [])]
+                lines = [f"👤 ติดตัวผู้เล่น: {data['player']['desc']}",
+                         f"👹 ฝั่งมอนสเตอร์: {_monster_element_desc(data)}"]
+                if prey:
+                    lines.append(f"⚔️ ข่ม (×1.5): {', '.join(prey)}")
+                if resist:
+                    lines.append(f"🛡️ รับเบา (×0.75): {', '.join(resist)}")
+                embed.add_field(name=data["label"], value="\n".join(lines), inline=False)
+            return await ctx.send(embed=embed)
+
+        if topic in ("สถานะ", "status"):
+            cures, guards, cure_all = {}, {}, []
+            for iid, it in config_loader.get_all_items().items():
+                name, eff, val = it.get("name", f"#{iid}"), it.get("effect"), it.get("effect_value")
+                if eff == "cure_status":
+                    if val == "all":
+                        cure_all.append(name)
+                    else:
+                        for k in (val if isinstance(val, list) else [val]):
+                            cures.setdefault(k, []).append(name)
+                elif eff in ("apply_status", "equip_artifact"):
+                    for k in game_modifiers.STATUS_EFFECTS.get(str(val), {}).get("blocks", []):
+                        guards.setdefault(k, []).append(name)
+            lines = []
+            for key, cfg in game_modifiers.STATUS_EFFECTS.items():
+                if cfg.get("artifact"):
+                    continue
+                extra = []
+                if key in cures:
+                    extra.append("แก้: " + ", ".join(cures[key]))
+                if key in guards:
+                    extra.append("กัน: " + ", ".join(guards[key]))
+                unit = "ก้าว" if cfg.get("tick") == "step" else "ไฟต์"
+                lines.append(f"{cfg['label']} `{cfg.get('default_turns', 1)} {unit}`"
+                             + (" — " + " / ".join(extra) if extra else ""))
+            desc = "สถานะหมดเองเมื่อครบเวลา (นับเป็นก้าวเดิน/ไฟต์)"
+            if cure_all:
+                desc += f"\n💊 ล้างได้ทุกสถานะ: {', '.join(cure_all)}"
+            embed = discord.Embed(title="📖 Codex — สถานะติดตัว", color=0x9b59b6, description=desc)
+            chunk = ""
+            for line in lines:  # ตัดลง field ละ ≤1024 ตัวอักษร (ลิมิต Discord — บทเรียนจาก !bag)
+                if len(chunk) + len(line) + 1 > 1024:
+                    embed.add_field(name="​", value=chunk, inline=False)
+                    chunk = ""
+                chunk += line + "\n"
+            if chunk:
+                embed.add_field(name="​", value=chunk, inline=False)
+            return await ctx.send(embed=embed)
+
+        if topic in ("ทวีป", "continent", "continents"):
+            embed = discord.Embed(
+                title="📖 Codex — ทวีปทั้ง 9", color=0x9b59b6,
+                description="การข้ามทวีปมีทางเดียว: **สุ่มเจอพาหนะ** ระหว่างผจญภัย (รู้ปลายทางเมื่อไปถึง)")
+            for key, c in game_modifiers.CONTINENTS.items():
+                weights = (c.get("mods") or {}).get("element_weights") or {}
+                top = sorted(weights, key=weights.get, reverse=True)[:2]
+                elem_txt = " ".join(game_modifiers.ELEMENTS[t]["label"] for t in top if t in game_modifiers.ELEMENTS) or "สมดุลทุกธาตุ"
+                embed.add_field(name=c["label"], value=f"ธาตุชุกชุม: {elem_txt}", inline=True)
+            return await ctx.send(embed=embed)
+
+        embed = discord.Embed(
+            title="📖 Codex — สารานุกรมนักผจญภัย", color=0x9b59b6,
+            description=("เลือกหมวดที่อยากอ่าน:\n"
+                         "`!codex ธาตุ` — ธาตุทั้ง 7, ตารางข่ม, passive ประจำเผ่า\n"
+                         "`!codex สถานะ` — สถานะทั้งหมด + ไอเทมที่ใช้แก้/กัน\n"
+                         "`!codex ทวีป` — ทวีปทั้ง 9 และธาตุประจำถิ่น"))
+        await ctx.send(embed=embed)
 
     # --- โค้ดคำสั่ง !bag ---
     @commands.command(name="bag")
