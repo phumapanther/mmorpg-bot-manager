@@ -688,6 +688,33 @@ class MonsterEventView(ActionView):
                 except Exception as e:
                     print(f"❌ [ERROR] ระบบดรอปไอเทมพัง: {e}")
 
+                # 📕 สมุดสะสมมอน (Bestiary): จดแต้ม + แจกโบนัสครั้งเดียวเมื่อครบชุด — พังต้องไม่ล้มไฟต์
+                try:
+                    cont_key = player.get("continent") or "main"
+                    player_model.record_bestiary_kill(self.user_id, cont_key, self.monster_rank)
+                    book = player_model.get_bestiary(self.user_id)
+                    cont_label = game_modifiers.CONTINENTS.get(cont_key, game_modifiers.CONTINENTS["main"])["label"]
+                    if self.monster_rank == "Unbeatable":
+                        if player_model.claim_bestiary_reward(self.user_id, f"star:{cont_key}"):
+                            db_updates["cash"] += game_modifiers.BESTIARY_REWARD_STAR
+                            dropped_item_msg += f"\n⭐ **ดาวไร้พ่ายประดับสมุดล่า!** พิชิตไร้พ่ายแห่ง {cont_label} — โบนัส `+{game_modifiers.BESTIARY_REWARD_STAR:,}` ทอง"
+                    elif game_modifiers.bestiary_continent_done(book, cont_key):
+                        if player_model.claim_bestiary_reward(self.user_id, f"continent:{cont_key}"):
+                            db_updates["cash"] += game_modifiers.BESTIARY_REWARD_CONTINENT
+                            dropped_item_msg += f"\n📕 **สมุดล่า {cont_label} ครบชุด!** โบนัส `+{game_modifiers.BESTIARY_REWARD_CONTINENT:,}` ทอง (ดูสมุด: `!bestiary`)"
+                    if game_modifiers.bestiary_complete(book) and player_model.claim_bestiary_reward(self.user_id, "complete"):
+                        db_updates["cash"] += game_modifiers.BESTIARY_REWARD_COMPLETE
+                        import json as _json
+                        if db_updates.get("inventory") is not None:
+                            final_inv = _json.loads(db_updates["inventory"])
+                        else:
+                            final_inv = player_model.load_inventory(player.get("inventory", ""))
+                        final_inv.append(game_modifiers.BESTIARY_COMPLETE_ITEM)  # รางวัลใหญ่ ไม่เช็คความจุ
+                        db_updates["inventory"] = _json.dumps(final_inv)
+                        dropped_item_msg += f"\n🏆 **สมุดล่าสมบูรณ์ทั้ง 9 ทวีป!** ตำนานนักล่าจารึกชื่อคุณ — `+{game_modifiers.BESTIARY_REWARD_COMPLETE:,}` ทอง + 💊 ยาครอบจักรวาล!"
+                except Exception as e:
+                    print(f"❌ [ERROR] ระบบสมุดล่าพัง: {e}")
+
                 if player.get("current_state") == "dungeon_choice" or player.get("dungeon_steps", 0) > 0:
                     next_view = AdventureView(author_id=self.user_id) 
                     battle_end_log = f"\n⚔️ มอนสเตอร์ในชั้นนี้ถูกกำจัดแล้ว! เตรียมตัวเดินทางลึกเข้าไปในดันเจี้ยนขั้นถัดไป..."

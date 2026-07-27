@@ -1361,6 +1361,24 @@ def _merge(base, extra):
     return out
 
 
+# ===== 📕 สมุดสะสมมอนสเตอร์ (Bestiary) — P3 =====
+BESTIARY_RANKS = ["Common", "Mini-Boss", "Main-Boss", "Secret"]  # ครบ 4 นี้ = จบทวีป (ไร้พ่าย = ⭐ โบนัส)
+BESTIARY_REWARD_CONTINENT = 100_000
+BESTIARY_REWARD_STAR = 200_000
+BESTIARY_REWARD_COMPLETE = 1_000_000
+BESTIARY_COMPLETE_ITEM = "60"  # 💊 ยาครอบจักรวาล
+
+
+def bestiary_continent_done(book, continent):
+    """ทวีปนี้เก็บครบ 4 แรงค์หลักหรือยัง — book = {(continent, rank): kills}"""
+    return all((continent, r) in book for r in BESTIARY_RANKS)
+
+
+def bestiary_complete(book):
+    """สมุดสมบูรณ์ = ครบ 4 แรงค์หลักในทุกทวีป"""
+    return all(bestiary_continent_done(book, c) for c in CONTINENTS)
+
+
 def get_continent(player):
     """ทวีปปัจจุบันของผู้เล่น — ไม่มี field/ค่าเพี้ยน = ทวีปหลักเสมอ (ปลอดภัยกับผู้เล่นเก่า)"""
     key = (player or {}).get("continent") or "main"

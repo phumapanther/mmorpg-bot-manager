@@ -338,3 +338,50 @@ def load_inventory(raw_inv):
         # 4. ถ้าไม่ใช่ JSON ให้ใช้วิธีล้าง String แล้ว Split
         clean_inv = str(raw_inv).replace("[", "").replace("]", "").replace("'", "").replace('"', "").replace(" ", "")
         return [x for x in clean_inv.split(",") if x]
+
+# ===== 📕 สมุดสะสมมอนสเตอร์ (Bestiary) =====
+
+def _ensure_bestiary(cursor):
+    """สร้างตารางสมุดล่าถ้ายังไม่มี — เรียกซ้ำได้ปลอดภัย (IF NOT EXISTS)"""
+    cursor.execute("""CREATE TABLE IF NOT EXISTS bestiary (
+        user_id INTEGER, continent TEXT, rank TEXT, kills INTEGER DEFAULT 0,
+        PRIMARY KEY (user_id, continent, rank))""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS bestiary_rewards (
+        user_id INTEGER, reward_key TEXT,
+        PRIMARY KEY (user_id, reward_key))""")
+
+
+def record_bestiary_kill(user_id, continent, rank):
+    """จดมอนที่ล้มลงสมุด — ช่อง (ทวีป, แรงค์) ละแถว นับจำนวนสะสม"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_bestiary(cursor)
+    cursor.execute("""INSERT INTO bestiary (user_id, continent, rank, kills) VALUES (?, ?, ?, 1)
+                      ON CONFLICT(user_id, continent, rank) DO UPDATE SET kills = kills + 1""",
+                   (user_id, continent, rank))
+    conn.commit()
+    conn.close()
+
+
+def get_bestiary(user_id):
+    """คืนสมุดทั้งเล่ม: {(continent, rank): kills}"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_bestiary(cursor)
+    cursor.execute("SELECT continent, rank, kills FROM bestiary WHERE user_id = ?", (user_id,))
+    rows = {(c, r): k for c, r, k in cursor.fetchall()}
+    conn.close()
+    return rows
+
+
+def claim_bestiary_reward(user_id, reward_key):
+    """จองรางวัลครั้งเดียวต่อ key — True = เพิ่งได้สิทธิ์ (ยังไม่เคยรับ), False = รับไปแล้ว"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_bestiary(cursor)
+    cursor.execute("INSERT OR IGNORE INTO bestiary_rewards (user_id, reward_key) VALUES (?, ?)",
+                   (user_id, reward_key))
+    is_new = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return is_new

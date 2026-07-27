@@ -486,7 +486,8 @@ def build_codex_embed(topic=""):
         embed.add_field(name="🗺️ ผจญภัย", inline=False, value=(
             "`!adv` สร้างห้องผจญภัยส่วนตัว • `!play` เริ่มออกเดินทาง\n"
             "`!profile` (`!info`) โปรไฟล์+ธาตุ+อาร์ติแฟกต์ • `!scan @คน` ส่องข้อมูลคนอื่น\n"
-            "`!codex <หมวด>` สารานุกรมกติกา • `!reward` รับรางวัลประจำยศ"))
+            "`!codex <หมวด>` สารานุกรมกติกา • `!reward` รับรางวัลประจำยศ\n"
+            "`!bestiary` สมุดสะสมมอนสเตอร์ (ล่าครบมีโบนัสทอง)"))
         embed.add_field(name="🎒 กระเป๋า & ไอเทม", inline=False, value=(
             "`!bag` ดูกระเป๋า • `!use <เลข>` ใช้ไอเทม • `!drop <เลข>` ทิ้ง\n"
             "`!give @คน <เลข>` ส่งของให้เพื่อน • `!recipes` สูตรคราฟ • `!craft <เลข>` คราฟของ"))
@@ -877,6 +878,34 @@ class PlayerCommands(commands.Cog):
     @commands.command(name="codex")
     async def codex(self, ctx, *, topic: str = ""):
         await ctx.send(embed=build_codex_embed(topic))
+
+    # --- 📕 !bestiary: สมุดสะสมมอนสเตอร์ (ทวีป × แรงค์) ---
+    @commands.command(name="bestiary", aliases=["สมุดมอน"])
+    async def bestiary(self, ctx):
+        book = player_model.get_bestiary(ctx.author.id)
+        embed = discord.Embed(
+            title=f"📕 สมุดสะสมมอนสเตอร์ — {ctx.author.display_name}", color=0x8d6e63,
+            description=("ล้มมอนแรงค์ไหนในทวีปไหน ช่องนั้นติ๊ก ✅\n"
+                         "ครบ 4 แรงค์/ทวีป `+100,000` • ⭐ ไร้พ่าย `+200,000` • ครบทั้งสมุด `+1,000,000` + 💊"))
+        rank_icons = [("Common", "🟢"), ("Mini-Boss", "🟡"), ("Main-Boss", "🔴"), ("Secret", "🟣")]
+        done_slots, stars, total_kills = 0, 0, 0
+        for key, c in game_modifiers.CONTINENTS.items():
+            marks = []
+            for rank, icon in rank_icons:
+                have = (key, rank) in book
+                done_slots += 1 if have else 0
+                marks.append(f"{icon}{'✅' if have else '▫️'}")
+            star = (key, "Unbeatable") in book
+            stars += 1 if star else 0
+            kills = sum(v for (c2, _r), v in book.items() if c2 == key)
+            total_kills += kills
+            line = " ".join(marks) + (" ⭐" if star else "") + (f" — ล้มสะสม `{kills:,}`" if kills else "")
+            embed.add_field(name=c["label"], value=line, inline=False)
+        embed.add_field(name="📊 ความคืบหน้า",
+                        value=f"ช่องสมุด `{done_slots}/36` | ดาวไร้พ่าย `{stars}/9` | ล้มรวมทั้งหมด `{total_kills:,}` ตัว",
+                        inline=False)
+        embed.set_thumbnail(url=ctx.author.display_avatar.url)
+        await ctx.send(embed=embed)
 
     # --- โค้ดคำสั่ง !bag ---
     @commands.command(name="bag")
