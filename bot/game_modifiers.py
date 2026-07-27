@@ -61,7 +61,7 @@ CONTINENTS = {
             # แดนปีศาจ: ธาตุมืดชุก ไฟรองลงมา (ธาตุอื่นเรทมาตรฐาน 10)
             "element_weights": {"dark": 35, "fire": 20},
             # เขี้ยวคมปีศาจ: โดนตีมีลุ้นแผลเลือดไหล (P2 ชุด 1)
-            "on_hit_status": {"key": "bleed", "chance": 15},
+            "on_hit_status": {"key": "bleed", "chance": 10},
         },
     },
     "frozen": {
@@ -75,7 +75,7 @@ CONTINENTS = {
             "monster_exp_mult": 1.3,
             "element_weights": {"water": 30, "wind": 20},
             # ความหนาวทำมือแข็ง: มอนที่นี่ตีติด "เต๋าหลุดมือ" ได้
-            "on_hit_status": {"key": "fumble", "chance": 20},
+            "on_hit_status": {"key": "fumble", "chance": 12},
             "monster_pool": {
                 "Common": ["🦣 เยติ (Yeti)", "🐺 หมาป่าหิมะ (Snow Wolf)"],
                 "Mini-Boss": ["⚔️ อัศวินน้ำแข็งโบราณ (Ancient Ice Knight)"],
@@ -116,7 +116,7 @@ CONTINENTS = {
             "element_weights": {"dark": 30, "water": 15},
             "combat_hp_drain": [2, 5],
             # แดนวิญญาณ: มอนตีติดคำสาปแต้มคี่ได้
-            "on_hit_status": {"key": "odd_curse", "chance": 18},
+            "on_hit_status": {"key": "odd_curse", "chance": 12},
             "monster_pool": {
                 "Common": ["👻 แบนชี (Banshee)", "🧟 กูล (Ghoul)"],
                 "Mini-Boss": ["💀 ลิช (Lich)"],
@@ -197,7 +197,7 @@ CONTINENTS = {
             "element_weights": {"wood": 35, "earth": 15},
             "element_overrides": {"wood": {"root_chance": 50, "exp_mult": 2.0}},
             # ป่ามีชีวิต: โดนตีมีลุ้นสปอร์เกาะ (สะสมครบ 3 = เห็ดบาน) (P2 ชุด 2)
-            "on_hit_status": {"key": "spores", "chance": 20},
+            "on_hit_status": {"key": "spores", "chance": 10},
             "monster_pool": {
                 "Common": ["🧝 เอลฟ์ป่าเถื่อน (Savage Forest Elf)", "🪴 พืชกินคนกลายพันธุ์ (Mutant Carnivorous Plant)"],
                 "Mini-Boss": ["🌳 เอนท์ ต้นไม้ยักษ์ (Ent)"],
@@ -247,7 +247,7 @@ CONTINENTS = {
             "monster_exp_mult": 1.3,
             "element_weights": {"earth": 25, "fire": 20, "wind": 15},
             # เครื่องจักรปล่อยไฟฟ้าสถิต: มอนตีติดช็อกได้ (สกิลเสี่ยงลัดวงจร)
-            "on_hit_status": {"key": "shock", "chance": 20},
+            "on_hit_status": {"key": "shock", "chance": 12},
             "monster_pool": {
                 "Common": ["🤖 หุ่นเชิดไอน้ำ (Steam Puppet)", "🕷️ แมงมุมเฟืองเลเซอร์ (Laser Gear Spider)"],
                 "Mini-Boss": ["⚙️ โกเลมลานไก (Clockwork Golem)"],
@@ -374,17 +374,17 @@ CONTINENTS = {
 ELEMENTS = {
     # key "player" = passive ประจำธาตุฝั่ง "ผู้เล่น" (จากยศเผ่า, ถือหลายธาตุ = ได้ทุก passive อิสระต่อกัน)
     "fire":  {"label": "🔥 ธาตุไฟ",  "dmg_mult": 1.5,                           # ตีแรงขึ้น 50%
-              "on_hit_status": {"key": "burn", "chance": 25},                   # 25% ตีติดแผลแผดเผา
+              "on_hit_status": {"key": "burn", "chance": 15},                   # 25% ตีติดแผลแผดเผา
               "player": {"dmg_mult": 1.15, "desc": "ตี +15%"}},                                    # ผู้เล่น: ดาเมจ +15%
     "water": {"label": "💧 ธาตุน้ำ", "lifesteal": 0.35,                         # ดูดเลือด 35% ของดาเมจที่ตีโดน
               "player": {"lifesteal": 0.15, "desc": "ดูดเลือด 15%"}},                                   # ผู้เล่น: ดูดเลือด 15%
     "earth": {"label": "🪨 ธาตุดิน", "hp_mult": 2.0,                            # เลือดหนา 2 เท่า
               "player": {"def_mult": 0.9, "desc": "รับดาเมจ -10%"}},                                     # ผู้เล่น: รับดาเมจ -10%
     "wind":  {"label": "💨 ธาตุลม",  "dice_bonus": (2, 4),                      # เต๋ามอน +2 ถึง +4
-              "on_hit_status": {"key": "sealed_dice", "chance": 25},            # 25% ตีติดเต๋าถูกผนึก
+              "on_hit_status": {"key": "sealed_dice", "chance": 15},            # 25% ตีติดเต๋าถูกผนึก
               "player": {"roll_bonus": 1, "desc": "เต๋า +1"}},                                     # ผู้เล่น: เต๋า +1 ทุกเทิร์น
     "wood":  {"label": "🌿 ธาตุไม้", "dice_bonus": (2, 4), "root_chance": 25,   # เต๋า+ และ 25% รากล็อกเต๋าผู้เล่น = 0
-              "on_hit_status": {"key": "entangled", "chance": 25},              # 25% ตีติดรากพันธนาการ (ห้ามหนี)
+              "on_hit_status": {"key": "entangled", "chance": 15},              # 25% ตีติดรากพันธนาการ (ห้ามหนี)
               "player": {"step_regen": 0.02, "desc": "ฟื้น 2% MaxHP/ก้าว"}},                                  # ผู้เล่น: สังเคราะห์แสง ฟื้น 2% MaxHP/ก้าว
     "dark":  {"label": "🌑 ธาตุมืด", "pre_enraged": True,                       # คลั่งตั้งแต่เทิร์นแรก
               "player": {"dmg_mult": 1.25, "def_mult": 1.1, "desc": "ตี +25% แต่รับ +10%"}},                   # ผู้เล่น: กระหายเลือด ตี +25% แต่รับ +10%
@@ -1229,7 +1229,7 @@ WEEKLY_THEMES = [
             "monster_exp_mult": 1.5,
             "monster_gold_mult": 1.5,
             # เทพีขี้เล่น: มอนตีติดคำสาปแต้มคู่ได้
-            "on_hit_status": {"key": "even_curse", "chance": 18},
+            "on_hit_status": {"key": "even_curse", "chance": 12},
             "special_events": [
                 {
                     "key": "goddess_gamble", "chance": 10, "template": "dice_check",
@@ -1331,7 +1331,7 @@ WEEKLY_THEMES = [
                 "Mini-Boss": ["🧟‍♂️ ซอมบี้ไททัน (Zombie Titan)"],
             },
             # กัดแล้วติดเชื้อสะสม (ครบ 3 สแตก = คลั่ง) — แก้ด้วยกล่องเสบียงฉุกเฉินที่พาหะดรอป
-            "on_hit_status": {"key": "zombie_parasite", "chance": 35},
+            "on_hit_status": {"key": "zombie_parasite", "chance": 25},
             "infusion": {
                 "chance": 25,
                 "badge": "🦠",

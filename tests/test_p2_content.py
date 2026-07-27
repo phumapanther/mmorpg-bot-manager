@@ -14,7 +14,7 @@ def test_bleed_status():
 
 def test_demon_inflicts_bleed():
     mods = gm.get_active_modifiers({"continent": "demon"})
-    assert mods["on_hit_status"] == {"key": "bleed", "chance": 15}
+    assert mods["on_hit_status"] == {"key": "bleed", "chance": 10}
 
 
 def test_bandage_item_cures_bleed():
@@ -45,7 +45,7 @@ def test_bloom_pct_damage_and_roll_penalty():
 
 def test_sylvan_inflicts_spores_and_antidote_cures():
     mods = gm.get_active_modifiers({"continent": "sylvan"})
-    assert mods["on_hit_status"] == {"key": "spores", "chance": 20}
+    assert mods["on_hit_status"] == {"key": "spores", "chance": 10}
     it = json.load(open("config.example.json", encoding="utf-8"))["item_catalog"]["items"]["30"]
     assert "spores" in it["effect_value"]
 

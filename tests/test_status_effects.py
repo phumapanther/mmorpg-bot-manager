@@ -93,11 +93,11 @@ def test_s2_status_table_and_helpers():
 
 def test_s2_on_hit_bindings():
     # ธาตุลม/ไฟ/ไม้ ตีติดสถานะตามสเปก
-    assert gm.ELEMENTS["wind"]["on_hit_status"] == {"key": "sealed_dice", "chance": 25}
-    assert gm.ELEMENTS["fire"]["on_hit_status"] == {"key": "burn", "chance": 25}
-    assert gm.ELEMENTS["wood"]["on_hit_status"] == {"key": "entangled", "chance": 25}
+    assert gm.ELEMENTS["wind"]["on_hit_status"] == {"key": "sealed_dice", "chance": 15}
+    assert gm.ELEMENTS["fire"]["on_hit_status"] == {"key": "burn", "chance": 15}
+    assert gm.ELEMENTS["wood"]["on_hit_status"] == {"key": "entangled", "chance": 15}
     # ทวีปน้ำแข็ง: มอนตีติดเต๋าหลุดมือ
-    assert gm.CONTINENTS["frozen"]["mods"]["on_hit_status"] == {"key": "fumble", "chance": 20}
+    assert gm.CONTINENTS["frozen"]["mods"]["on_hit_status"] == {"key": "fumble", "chance": 12}
     # ทุก on_hit ต้องชี้สถานะที่มีจริง
     for elem in gm.ELEMENTS.values():
         if "on_hit_status" in elem:
@@ -131,10 +131,10 @@ def test_s3_curses_and_shock():
 
 
 def test_s3_on_hit_bindings():
-    assert gm.CONTINENTS["nether"]["mods"]["on_hit_status"] == {"key": "odd_curse", "chance": 18}
-    assert gm.CONTINENTS["mechanized"]["mods"]["on_hit_status"] == {"key": "shock", "chance": 20}
+    assert gm.CONTINENTS["nether"]["mods"]["on_hit_status"] == {"key": "odd_curse", "chance": 12}
+    assert gm.CONTINENTS["mechanized"]["mods"]["on_hit_status"] == {"key": "shock", "chance": 12}
     goddess = next(t for t in gm.WEEKLY_THEMES if t["key"] == "goddess_dice")
-    assert goddess["mods"]["on_hit_status"] == {"key": "even_curse", "chance": 18}
+    assert goddess["mods"]["on_hit_status"] == {"key": "even_curse", "chance": 12}
 
 
 def test_s4_zombie_parasite_stacking():
@@ -160,7 +160,7 @@ def test_s4_zombie_parasite_stacking():
 
 def test_s4_zombie_theme_bindings():
     zombie = next(t for t in gm.WEEKLY_THEMES if t["key"] == "zombie")
-    assert zombie["mods"]["on_hit_status"] == {"key": "zombie_parasite", "chance": 35}
+    assert zombie["mods"]["on_hit_status"] == {"key": "zombie_parasite", "chance": 25}
     infusion = zombie["mods"]["infusion"]
     assert infusion["drop_items"] == {"id": "31", "qty": 1}   # พาหะดรอปเสบียงแก้
 
