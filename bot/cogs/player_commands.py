@@ -15,6 +15,45 @@ import json
 import traceback # อย่าลืม import อันนี้ที่ด้านบนสุดของไฟล์นะครับ
 
 
+_SET_STATE_DESC = {
+    "warp_village": "วาปกลับหมู่บ้านทันที", "warp_dungeon": "วาปเข้าดันเจี้ยน",
+    "mini_summon": "เรียกมินิบอสมาสู้", "main_summon": "เรียกบอสหลักมาสู้",
+    "unbeatable_summon": "เรียกบอสไร้พ่าย (คิดดี ๆ)", "scan_box": "สแกนหากล่องสมบัติรอบตัว",
+}
+
+
+def _item_effect_desc(it):
+    """สรุปผลไอเทมเป็นข้อความ — อ่านจาก effect ใน item_catalog + STATUS_EFFECTS"""
+    eff, val = it.get("effect"), it.get("effect_value")
+    if eff == "heal":
+        return f"ฟื้น HP +{it.get('effect_amount', 0)}"
+    if eff == "repair":
+        return "ซ่อมความทนทานอาวุธ/เกราะ"
+    if eff == "revive":
+        return "ชุบชีวิตเมื่อตาย"
+    if eff == "set_state":
+        return _SET_STATE_DESC.get(val, str(val))
+    if eff == "cure_status":
+        keys = val if isinstance(val, list) else [val]
+        labels = [game_modifiers.STATUS_EFFECTS[k]["label"] for k in keys if k in game_modifiers.STATUS_EFFECTS]
+        return "ล้างสถานะ: " + ", ".join(labels) if labels else "ล้างสถานะ"
+    if eff == "apply_status":
+        cfg = game_modifiers.STATUS_EFFECTS.get(str(val), {})
+        unit = "ก้าว" if cfg.get("tick") == "step" else "ไฟต์"
+        return f"ติดบัฟ {cfg.get('label', val)} ({cfg.get('default_turns', 1)} {unit})"
+    if eff == "emergency_ration":
+        return "ฟื้น 50% MaxHP + ล้างเชื้อซอมบี้"
+    if eff == "dye_profile":
+        return "ย้อมสี embed โปรไฟล์/กระเป๋า"
+    if eff == "equip_artifact":
+        return game_modifiers.STATUS_EFFECTS.get(str(val), {}).get("desc", "อาร์ติแฟกต์ถาวร")
+    if eff == "random_continent":
+        return "วาร์ปสุ่มทวีป (ไม่รู้ปลายทาง!)"
+    if eff == "choose_continent":
+        return "เลือกทวีปปลายทางได้เอง"
+    return None
+
+
 def _monster_element_desc(data):
     """สรุปความสามารถธาตุฝั่งมอนเป็นข้อความ — อ่านจาก ELEMENTS ตรง ๆ เพิ่มธาตุใหม่แล้วขึ้นเอง"""
     parts = []
@@ -737,6 +776,38 @@ class PlayerCommands(commands.Cog):
                 embed.add_field(name="​", value=chunk, inline=False)
             return await ctx.send(embed=embed)
 
+        if topic in ("ไอเทม", "ของ", "item", "items"):
+            groups = {"use": [], "artifact": [], "equip": [], "material": []}
+            for iid, it in sorted(config_loader.get_all_items().items(), key=lambda kv: int(kv[0])):
+                name, eff = it.get("name", f"#{iid}"), it.get("effect")
+                desc = _item_effect_desc(it)
+                if str(iid) == "38":  # แว่นส่องสัจจะ: ไม่มี effect ใน config — ถูกหักอัตโนมัติตอนกดปุ่มตรวจ NPC (game_views อ้าง id 38 ตรง ๆ)
+                    desc = "พกไว้เฉย ๆ — ใช้เองอัตโนมัติตอนตรวจตัวตน NPC งานหน้ากาก (ฟรี, เลนส์แตกหลังใช้)"
+                price = f"💰{it['buy']:,}" if it.get("purchasable", True) and it.get("buy") else "ดรอป/คราฟเท่านั้น"
+                if eff == "equip_artifact":
+                    groups["artifact"].append(f"`{iid}` {name} — {desc}")
+                elif desc:
+                    groups["use"].append(f"`{iid}` {name} — {desc} ({price})")
+                elif it.get("equip_key"):
+                    groups["equip"].append(f"`{iid}` {name} ({price})")
+                else:
+                    groups["material"].append(f"`{iid}` {name} (ขายร้าน 💰{it.get('sell', 0):,})")
+            embed = discord.Embed(
+                title="📖 Codex — ไอเทมทั้งหมด", color=0x9b59b6,
+                description="ใช้ของด้วย `!use <เลข>` — เลขไอเทมคือตัวหน้าแต่ละบรรทัด")
+            sections = [("💊 ของใช้", groups["use"]), ("🏺 อาร์ติแฟกต์ (มีช่องเดียว — สวมทับ ของเก่าถูกทำลายถาวร!)", groups["artifact"]),
+                        ("⚔️ อุปกรณ์สวมใส่", groups["equip"]), ("🧱 วัสดุคราฟ/ของขายร้าน", groups["material"])]
+            for title, lines in sections:
+                chunk, first = "", True
+                for line in lines:  # ตัดท่อนละ ≤1024 (ลิมิต Discord)
+                    if len(chunk) + len(line) + 1 > 1024:
+                        embed.add_field(name=title if first else "​", value=chunk, inline=False)
+                        chunk, first = "", False
+                    chunk += line + "\n"
+                if chunk:
+                    embed.add_field(name=title if first else "​", value=chunk, inline=False)
+            return await ctx.send(embed=embed)
+
         if topic in ("ทวีป", "continent", "continents"):
             embed = discord.Embed(
                 title="📖 Codex — ทวีปทั้ง 9", color=0x9b59b6,
@@ -755,6 +826,7 @@ class PlayerCommands(commands.Cog):
                          "`!codex คำสั่ง` — คำสั่งผู้เล่นทั้งหมดแยกหมวด\n"
                          "`!codex ธาตุ` — ธาตุทั้ง 7, ตารางข่ม, passive ประจำเผ่า\n"
                          "`!codex สถานะ` — สถานะทั้งหมด + ไอเทมที่ใช้แก้/กัน\n"
+                         "`!codex ไอเทม` — ไอเทมทุกชิ้น ใช้ทำอะไร ราคาเท่าไหร่\n"
                          "`!codex ทวีป` — ทวีปทั้ง 9 และธาตุประจำถิ่น"))
         await ctx.send(embed=embed)
 

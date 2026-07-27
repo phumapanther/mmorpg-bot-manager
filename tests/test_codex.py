@@ -17,7 +17,7 @@ def run_codex(topic):
 
 
 def test_codex_embeds_fit_discord_limits():
-    for topic in ("", "ธาตุ", "สถานะ", "ทวีป", "วิธีเล่น", "คำสั่ง"):
+    for topic in ("", "ธาตุ", "สถานะ", "ทวีป", "วิธีเล่น", "คำสั่ง", "ไอเทม"):
         embed = run_codex(topic)
         assert embed is not None, topic
         assert len(embed.fields) <= 25

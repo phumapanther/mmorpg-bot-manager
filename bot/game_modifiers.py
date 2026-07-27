@@ -538,54 +538,64 @@ STATUS_EFFECTS = {
     # ── อาร์ติแฟกต์ (สถานะถาวรช่องเดียว — สวมทับ = ของเก่าถูกทำลายถาวรตามสเปก) ──
     "art_emp_gauntlet": {
         "label": "🧤 ถุงมือกันคลื่น EMP", "tick": "step", "default_turns": 1,
+        "desc": "กันคลื่น EMP ถาวร",
         "artifact": True, "no_tick": True,
         "blocks": ["emp"], "cleanse_on_apply": ["emp"],
     },
     "art_gale_boots": {
         "label": "🥾 รองเท้าขนนกวายุ", "tick": "step", "default_turns": 1,
+        "desc": "แพ้เต๋ามอนลมมีลุ้นทอยใหม่ 40% + ดาเมจการร่วงลดครึ่ง",
         "artifact": True, "no_tick": True,
         "reroll_vs_element": {"element": "wind", "chance": 40},  # แพ้เต๋าให้มอนลม → ขอทอยใหม่
         "fall_damage_mult": 0.5,                                 # ดาเมจการร่วงลดครึ่ง
     },
     "art_sylvan_cloak": {
         "label": "🧥 เสื้อคลุมเปลือกไม้", "tick": "step", "default_turns": 1,
+        "desc": "พิษ/เลือดไหลรายก้าวเหลือ 20% + กันรากไม้ถาวร",
         "artifact": True, "no_tick": True,
         "step_damage_mult": 0.2,             # เลือดไหลจากพิษ/สถานะเหลือ 20%
         "block_root": True,                  # กันรากธาตุไม้ถาวร (ไม่สลายแบบโคลเวอร์)
     },
     "art_fire_ring": {
         "label": "💍 แหวนหินอัคนี", "tick": "step", "default_turns": 1,
+        "desc": "สะท้อนดาเมจมอนไฟ 20%",
         "artifact": True, "no_tick": True,
         "reflect_vs_element": {"element": "fire", "pct": 0.2},   # สะท้อนดาเมจมอนไฟ 20%
     },
     "art_frostward_mail": {
         "label": "🧊 เกราะเกล็ดน้ำแข็ง", "tick": "step", "default_turns": 1,
+        "desc": "กันชา + เต๋าหลุดมือถาวร",
         "artifact": True, "no_tick": True,
         "blocks": ["numb", "fumble"], "cleanse_on_apply": ["numb", "fumble"],  # ภูมิคุ้มกันความหนาวครบชุด
     },
     "art_nether_amulet": {
         "label": "📿 สร้อยวิญญาณเนเธอร์", "tick": "step", "default_turns": 1,
+        "desc": "แปลง Life Drain เป็นฮีล 3%/เทิร์น + กันสาปคี่",
         "artifact": True, "no_tick": True,
         "hp_drain_heal": 0.03,                                   # แปลง Life Drain เป็นฮีล +3% MaxHP/เทิร์น (ตามสเปก)
         "blocks": ["odd_curse"], "cleanse_on_apply": ["odd_curse"],
     },
     "art_twin_blade": {
         "label": "⚔️ ดาบคู่แฝด", "tick": "step", "default_turns": 1,
+        "desc": "ดาเมจ +15% ถาวร",
         "artifact": True, "no_tick": True,
         "player_dmg_mult": 1.15,                                 # ดาเมจถาวร +15%
     },
     "art_celestial_staff": {
         "label": "🌟 คทาไม้เทวา", "tick": "step", "default_turns": 1,
+        "desc": "EXP +25% ถาวร",
         "artifact": True, "no_tick": True,
         "exp_mult": 1.25,                                        # EXP ถาวร +25%
     },
     "art_masquerade_monocle": {
         "label": "🎭 แว่นเดี่ยวหน้ากาก", "tick": "step", "default_turns": 1,
+        "desc": "ตรวจสอบ NPC ฟรีตลอดกาล",
         "artifact": True, "no_tick": True,
         "free_inspect": True,                                    # ตรวจสอบ NPC ฟรีตลอดกาล
     },
     "art_goddess_dicebag": {
         "label": "👝 ถุงเต๋าเทพี", "tick": "step", "default_turns": 1,
+        "desc": "เต๋า +1 ทุกเทิร์นถาวร",
         "artifact": True, "no_tick": True,
         "roll_bonus": 1,                                         # เต๋าผู้เล่น +1 ทุกเทิร์นถาวร
     },
