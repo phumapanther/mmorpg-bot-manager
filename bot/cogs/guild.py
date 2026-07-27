@@ -11,6 +11,9 @@ GUILD_CREATE_COST = 3_000_000_000
 # หมวดหมู่ห้องกิลด์ — ใช้ตัวที่มีอยู่แล้วในเซิร์ฟ (ชื่อต้องตรงเป๊ะ) ไม่มีค่อยสร้างใหม่
 GUILD_CATEGORY = "⌈🏛⌋ ▏▬▬ ห้องกิลด์ส่วนตัว ▬▬▕"
 GUILD_ICON = "🏰"  # ไอคอนกลาง — ผู้ใช้ตัดพารามิเตอร์ไอคอนออก (มีปัญหา) เหลือชื่ออย่างเดียว
+# ยศคั่น "╔══❖═══ยศกิลด์═══❖══╗" ในเซิร์ฟหลัก — ยศกิลด์ใหม่ต้องเรียงใต้ยศนี้เสมอ
+# (เซิร์ฟอื่นไม่มียศนี้ = ข้ามการจัดตำแหน่งเฉย ๆ ไม่พัง)
+GUILD_ROLE_DIVIDER_ID = 1160555382977081415
 
 # ตรรกะเช็คห้องเดียวกับคำสั่งอื่น (config channels.guild — ตั้งได้ในแท็บ Channels ของ panel)
 _guild_channel_check = allowed_channel("guild").predicate
@@ -97,6 +100,13 @@ class GuildCog(commands.Cog):
             role = await ctx.guild.create_role(
                 name=name, colour=discord.Colour(_r.randint(0x111111, 0xffffff)),
                 mentionable=True, reason=f"ก่อตั้งกิลด์โดย {ctx.author.display_name}")
+            # 📌 จัดตำแหน่งยศ: ต้องอยู่ใต้ยศคั่น ╔══❖═══ยศกิลด์═══❖══╗ เสมอ
+            divider = ctx.guild.get_role(GUILD_ROLE_DIVIDER_ID)
+            if divider:
+                try:
+                    await role.edit(position=max(1, divider.position - 1))
+                except (discord.Forbidden, discord.HTTPException):
+                    pass  # ยศบอทอยู่ต่ำกว่ายศคั่น = จัดไม่ได้ แต่กิลด์ยังใช้งานได้
             category = discord.utils.get(ctx.guild.categories, name=GUILD_CATEGORY)
             if category is None:
                 category = await ctx.guild.create_category(GUILD_CATEGORY)
