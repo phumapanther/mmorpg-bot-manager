@@ -600,6 +600,34 @@ def build_codex_embed(topic=""):
 
 
 
+def build_bestiary_embed(user_id, display_name, avatar_url):
+    """สมุดสะสมมอนสเตอร์รายคน — ใช้ร่วมกันระหว่าง !bestiary และปุ่ม 📕 ในเมนู"""
+    book = player_model.get_bestiary(user_id)
+    embed = discord.Embed(
+        title=f"📕 สมุดสะสมมอนสเตอร์ — {display_name}", color=0x8d6e63,
+        description=("ล้มมอนแรงค์ไหนในทวีปไหน ช่องนั้นติ๊ก ✅\n"
+                     "ครบ 4 แรงค์/ทวีป `+100,000` • ⭐ ไร้พ่าย `+200,000` • ครบทั้งสมุด `+1,000,000` + 💊"))
+    rank_icons = [("Common", "🟢"), ("Mini-Boss", "🟡"), ("Main-Boss", "🔴"), ("Secret", "🟣")]
+    done_slots, stars, total_kills = 0, 0, 0
+    for key, c in game_modifiers.CONTINENTS.items():
+        marks = []
+        for rank, icon in rank_icons:
+            have = (key, rank) in book
+            done_slots += 1 if have else 0
+            marks.append(f"{icon}{'✅' if have else '▫️'}")
+        star = (key, "Unbeatable") in book
+        stars += 1 if star else 0
+        kills = sum(v for (c2, _r), v in book.items() if c2 == key)
+        total_kills += kills
+        line = " ".join(marks) + (" ⭐" if star else "") + (f" — ล้มสะสม `{kills:,}`" if kills else "")
+        embed.add_field(name=c["label"], value=line, inline=False)
+    embed.add_field(name="📊 ความคืบหน้า",
+                    value=f"ช่องสมุด `{done_slots}/36` | ดาวไร้พ่าย `{stars}/9` | ล้มรวมทั้งหมด `{total_kills:,}` ตัว",
+                    inline=False)
+    embed.set_thumbnail(url=avatar_url)
+    return embed
+
+
 class PlayerCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -879,33 +907,11 @@ class PlayerCommands(commands.Cog):
     async def codex(self, ctx, *, topic: str = ""):
         await ctx.send(embed=build_codex_embed(topic))
 
-    # --- 📕 !bestiary: สมุดสะสมมอนสเตอร์ (ทวีป × แรงค์) ---
+    # --- 📕 !bestiary: สมุดสะสมมอนสเตอร์ — เนื้อหาจริงอยู่ใน build_bestiary_embed (แชร์กับปุ่มเมนู) ---
     @commands.command(name="bestiary", aliases=["สมุดมอน"])
     async def bestiary(self, ctx):
-        book = player_model.get_bestiary(ctx.author.id)
-        embed = discord.Embed(
-            title=f"📕 สมุดสะสมมอนสเตอร์ — {ctx.author.display_name}", color=0x8d6e63,
-            description=("ล้มมอนแรงค์ไหนในทวีปไหน ช่องนั้นติ๊ก ✅\n"
-                         "ครบ 4 แรงค์/ทวีป `+100,000` • ⭐ ไร้พ่าย `+200,000` • ครบทั้งสมุด `+1,000,000` + 💊"))
-        rank_icons = [("Common", "🟢"), ("Mini-Boss", "🟡"), ("Main-Boss", "🔴"), ("Secret", "🟣")]
-        done_slots, stars, total_kills = 0, 0, 0
-        for key, c in game_modifiers.CONTINENTS.items():
-            marks = []
-            for rank, icon in rank_icons:
-                have = (key, rank) in book
-                done_slots += 1 if have else 0
-                marks.append(f"{icon}{'✅' if have else '▫️'}")
-            star = (key, "Unbeatable") in book
-            stars += 1 if star else 0
-            kills = sum(v for (c2, _r), v in book.items() if c2 == key)
-            total_kills += kills
-            line = " ".join(marks) + (" ⭐" if star else "") + (f" — ล้มสะสม `{kills:,}`" if kills else "")
-            embed.add_field(name=c["label"], value=line, inline=False)
-        embed.add_field(name="📊 ความคืบหน้า",
-                        value=f"ช่องสมุด `{done_slots}/36` | ดาวไร้พ่าย `{stars}/9` | ล้มรวมทั้งหมด `{total_kills:,}` ตัว",
-                        inline=False)
-        embed.set_thumbnail(url=ctx.author.display_avatar.url)
-        await ctx.send(embed=embed)
+        await ctx.send(embed=build_bestiary_embed(
+            ctx.author.id, ctx.author.display_name, ctx.author.display_avatar.url))
 
     # --- โค้ดคำสั่ง !bag ---
     @commands.command(name="bag")

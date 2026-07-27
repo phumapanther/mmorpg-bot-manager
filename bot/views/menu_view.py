@@ -3,7 +3,8 @@ from collections import Counter
 
 import bot.models.player_model as player_model
 from bot import config_loader
-from bot.cogs.player_commands import apply_item_effect, bank_action, build_bag_embed, build_bank_embed, build_codex_embed
+from bot.cogs.player_commands import (apply_item_effect, bank_action, build_bag_embed,
+                                      build_bank_embed, build_bestiary_embed, build_codex_embed)
 from bot.views.profile_embed import create_profile_embed
 
 # หัวข้อคู่มือในปุ่ม 📖 — ค่า value ตรงกับ topic ของ !codex เป๊ะ
@@ -135,6 +136,12 @@ class GameMenuView(discord.ui.View):
         if not player:
             return await interaction.response.send_message("❌ ไม่พบข้อมูลตัวละครของคุณ! พิมพ์ `!play` ก่อนนะ", ephemeral=True)
         embed = create_profile_embed(interaction.user, player)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="📕 สมุดมอน", style=discord.ButtonStyle.secondary, custom_id="game_menu:bestiary")
+    async def bestiary_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = build_bestiary_embed(
+            interaction.user.id, interaction.user.display_name, interaction.user.display_avatar.url)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @discord.ui.button(label="📖 คู่มือ", style=discord.ButtonStyle.secondary, custom_id="game_menu:codex")

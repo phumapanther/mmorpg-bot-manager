@@ -57,3 +57,8 @@ def test_bestiary_embed(tmp_path, monkeypatch):
     demon_field = [f for f in embed.fields if "ปีศาจ" in f.name][0]
     assert "✅" in demon_field.value and "⭐" in demon_field.value
     assert "1/36" in embed.fields[-1].value and "1/9" in embed.fields[-1].value
+
+
+def test_bestiary_menu_button():
+    from bot.views.menu_view import GameMenuView
+    assert any(getattr(c, "custom_id", "") == "game_menu:bestiary" for c in GameMenuView().children)
