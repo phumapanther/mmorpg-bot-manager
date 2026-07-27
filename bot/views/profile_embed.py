@@ -2,6 +2,7 @@
 import discord
 import bot.models.player_model as player_model
 from bot import config_loader
+from bot import game_modifiers
 
 # ─── 🧬 คลังข้อมูลเผ่าพันธุ์ (สลักชื่อตรงตามยศในเซิร์ฟเวอร์ดิสคอร์ด 100%) ───
 GAME_RACES = [
@@ -132,7 +133,29 @@ def create_profile_embed(target_member, player_data):
     
     # 🔥 สกิล
     embed.add_field(name="🔥 สกิลประจำคลาส", value=f"```\n{skills_text}\n```", inline=False)
-    
-    return embed
-    
+
+    # ─── 🌍 โลก & ธาตุ & ของติดตัว (ระบบขยายใหญ่) ───
+    continent_label = game_modifiers.get_continent(player_data)["label"]
+
+    role_names = [getattr(r, "name", str(r)) for r in getattr(target_member, "roles", [])]
+    player_elements = game_modifiers.resolve_player_elements(role_names)
+    if player_elements:
+        element_labels = " ".join(game_modifiers.ELEMENTS[e]["label"] for e in player_elements)
+        prey = sorted({t for e in player_elements for t in game_modifiers.ELEMENT_ADVANTAGE.get(e, [])})
+        prey_labels = ", ".join(game_modifiers.ELEMENTS[t]["label"] for t in prey) if prey else "-"
+        element_text = f"{element_labels}\n⚔️ ข่ม: {prey_labels}"
+    else:
+        element_text = "— ยังไม่มี (รับยศเผ่าเพื่อปลดล็อกธาตุ)"
+
+    statuses = game_modifiers.parse_statuses(player_data)
+    artifact_keys = [k for k in statuses if game_modifiers.STATUS_EFFECTS[k].get("artifact")]
+    normal_statuses = {k: v for k, v in statuses.items() if k not in artifact_keys}
+    artifact_text = game_modifiers.STATUS_EFFECTS[artifact_keys[0]]["label"] if artifact_keys else "- ว่าง -"
+
+    embed.add_field(name="🗺️ ทวีปปัจจุบัน", value=continent_label, inline=True)
+    embed.add_field(name="🧬 ธาตุประจำตัว", value=element_text, inline=True)
+    embed.add_field(name="🏺 อาร์ติแฟกต์", value=artifact_text, inline=True)
+    if normal_statuses:
+        embed.add_field(name="🩸 สถานะติดตัว", value=game_modifiers.format_status_line(normal_statuses), inline=False)
+
     return embed
