@@ -248,6 +248,31 @@ class GuildCog(commands.Cog):
         player_model.update_player_field(member.id, "bank", target.get("bank", 0) + amount)
         await ctx.send(f"💸 หัวหน้าแจกจ่าย `{amount:,}` ทองให้ {member.mention} (เข้าธนาคาร) — คลังเหลือ `{total:,}`")
 
+    @guild.command(name="rename")
+    async def rename(self, ctx, *, new_name: str = None):
+        g = _is_leader(ctx.author.id)
+        if not g:
+            return await ctx.send("❌ เปลี่ยนชื่อกิลด์ได้เฉพาะหัวหน้ากิลด์เท่านั้น!")
+        if not new_name:
+            return await ctx.send("❓ วิธีใช้: `!guild rename <ชื่อใหม่>`")
+        new_name = new_name.strip()
+        if player_model.get_guild_by_name(new_name):
+            return await ctx.send(f"❌ ชื่อ **{new_name}** ถูกใช้ไปแล้ว")
+        old_name = g["name"]
+        if not player_model.rename_guild(g["guild_id"], new_name):
+            return await ctx.send("❌ เปลี่ยนชื่อไม่สำเร็จ ลองใหม่อีกครั้ง")
+        # เปลี่ยนชื่อยศ + ห้องเสียงให้ตรงกัน (พลาดตรงไหนก็ไม่ล้มคำสั่ง — DB คือความจริงหลัก)
+        role = ctx.guild.get_role(g["role_id"])
+        channel = ctx.guild.get_channel(g["channel_id"])
+        try:
+            if role:
+                await role.edit(name=new_name, reason="เปลี่ยนชื่อกิลด์")
+            if channel:
+                await channel.edit(name=f"{GUILD_ICON}︱{new_name}", reason="เปลี่ยนชื่อกิลด์")
+        except (discord.Forbidden, discord.HTTPException):
+            pass
+        await ctx.send(f"✏️ เปลี่ยนชื่อกิลด์ **{old_name}** → **{new_name}** เรียบร้อย! (ยศ+ห้องเปลี่ยนตามแล้ว)")
+
     @guild.command(name="bank")
     async def bank(self, ctx):
         g = player_model.get_guild_of(ctx.author.id)

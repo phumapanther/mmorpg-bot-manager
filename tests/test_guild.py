@@ -77,3 +77,13 @@ def test_guild_channel_in_config():
     import json
     ch = json.load(open("config.example.json", encoding="utf-8"))["channels"]
     assert ch["guild"]["channel_id"] is None and "กิลด์" in ch["guild"]["label"]
+
+
+def test_rename_guild(tmp_path, monkeypatch):
+    _db(tmp_path, monkeypatch)
+    g1 = pm.create_guild("ชื่อเก่า", "🏰", 1, 10, 20)
+    pm.create_guild("ชื่อชนกัน", "🏰", 2, 11, 21)
+    assert pm.rename_guild(g1, "ชื่อใหม่") is True
+    assert pm.get_guild_of(1)["name"] == "ชื่อใหม่"
+    assert pm.rename_guild(g1, "ชื่อชนกัน") is False          # ชื่อซ้ำกิลด์อื่น = ปฏิเสธ
+    assert pm.get_guild_of(1)["name"] == "ชื่อใหม่"           # ชื่อเดิมไม่ถูกแตะ

@@ -603,3 +603,18 @@ def pop_all_war_stakes():
     conn.commit()
     conn.close()
     return rows
+
+
+def rename_guild(guild_id, new_name):
+    """เปลี่ยนชื่อกิลด์ — False ถ้าชื่อใหม่ซ้ำกับกิลด์อื่น"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_guild_tables(cursor)
+    try:
+        cursor.execute("UPDATE guilds SET name = ? WHERE guild_id = ?", (new_name, guild_id))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
