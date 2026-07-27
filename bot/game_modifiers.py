@@ -60,6 +60,8 @@ CONTINENTS = {
             },
             # แดนปีศาจ: ธาตุมืดชุก ไฟรองลงมา (ธาตุอื่นเรทมาตรฐาน 10)
             "element_weights": {"dark": 35, "fire": 20},
+            # เขี้ยวคมปีศาจ: โดนตีมีลุ้นแผลเลือดไหล (P2 ชุด 1)
+            "on_hit_status": {"key": "bleed", "chance": 15},
         },
     },
     "frozen": {
@@ -444,6 +446,10 @@ STATUS_EFFECTS = {
     "exp_blessing": {
         "label": "🌟 พรบรรพชน", "tick": "step", "default_turns": 10,
         "exp_mult": 1.5,                     # EXP จากมอนสเตอร์คูณระหว่างติด
+    },
+    "bleed": {
+        "label": "🩸 เลือดไหล", "tick": "step", "default_turns": 5,
+        "step_damage": (4, 8),               # แผลเขี้ยวปีศาจ — แรงกว่าพิษแต่หายไวกว่า (P2 ชุด 1)
     },
     "frostbite": {
         "label": "🥶 หนาวกัดกระดูก", "tick": "step", "default_turns": 999,

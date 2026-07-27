@@ -881,6 +881,15 @@
           "zombie_parasite",
           "zombie_frenzy"
         ]
+      },
+      "61": {
+        "name": "🩹 ผ้าพันแผล",
+        "buy": 800,
+        "sell": 160,
+        "type": "use",
+        "purchasable": true,
+        "effect": "cure_status",
+        "effect_value": "bleed"
       }
     },
     "armor_stats": {
