@@ -617,3 +617,23 @@ def test_calm_event_chance_and_texts():
     rng = __import__("random").Random(3)
     for _ in range(10):
         assert gm.pick_calm_text(rng) in gm.CALM_TEXTS
+
+
+def test_player_element_passives():
+    """Passive ธาตุผู้เล่น: ทุกธาตุต้องมี player dict + desc, helper คูณ/บวกถูกต้อง"""
+    for key, data in gm.ELEMENTS.items():
+        assert data.get("player", {}).get("desc"), f"{key} ไม่มี player passive/desc"
+    # คูณทบ: คนแคระ (ดิน+ไฟ) / มืดเดี่ยว / ไม่มีธาตุ
+    assert gm.player_passive_mult(["fire", "dark"], "dmg_mult") == 1.15 * 1.25
+    assert round(gm.player_passive_mult(["earth", "dark"], "def_mult"), 4) == round(0.9 * 1.1, 4)
+    assert gm.player_passive_mult([], "dmg_mult") == 1.0
+    assert gm.player_passive_mult(["water"], "dmg_mult") == 1.0
+    # ผลรวม: ลมเต๋า+1, น้ำดูดเลือด 15%, ไม้ฟื้น 2%, แสงรางวัล ×1.1
+    assert gm.player_passive_sum(["wind"], "roll_bonus") == 1
+    assert gm.player_passive_sum(["water"], "lifesteal") == 0.15
+    assert gm.player_passive_sum(["wood"], "step_regen") == 0.02
+    assert gm.player_passive_mult(["light"], "reward_mult") == 1.1
+    # มนุษย์ (แสง+ลม): ได้ทั้งสอง passive อิสระต่อกัน
+    human = gm.resolve_player_elements(["มนุษย์"])
+    assert gm.player_passive_sum(human, "roll_bonus") == 1
+    assert gm.player_passive_mult(human, "reward_mult") == 1.1

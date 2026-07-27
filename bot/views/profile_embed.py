@@ -143,7 +143,12 @@ def create_profile_embed(target_member, player_data):
         element_labels = " ".join(game_modifiers.ELEMENTS[e]["label"] for e in player_elements)
         prey = sorted({t for e in player_elements for t in game_modifiers.ELEMENT_ADVANTAGE.get(e, [])})
         prey_labels = ", ".join(game_modifiers.ELEMENTS[t]["label"] for t in prey) if prey else "-"
+        passives = " / ".join(
+            game_modifiers.ELEMENTS[e]["player"]["desc"] for e in player_elements
+            if game_modifiers.ELEMENTS[e].get("player", {}).get("desc"))
         element_text = f"{element_labels}\n⚔️ ข่ม: {prey_labels}"
+        if passives:
+            element_text += f"\n✨ ติดตัว: {passives}"
     else:
         element_text = "— ยังไม่มี (รับยศเผ่าเพื่อปลดล็อกธาตุ)"
 

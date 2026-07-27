@@ -368,17 +368,38 @@ CONTINENTS = {
 # (พารามิเตอร์ที่ไม่ใส่ = ไม่มีเอฟเฟกต์นั้น)
 
 ELEMENTS = {
+    # key "player" = passive ประจำธาตุฝั่ง "ผู้เล่น" (จากยศเผ่า, ถือหลายธาตุ = ได้ทุก passive อิสระต่อกัน)
     "fire":  {"label": "🔥 ธาตุไฟ",  "dmg_mult": 1.5,                           # ตีแรงขึ้น 50%
-              "on_hit_status": {"key": "burn", "chance": 25}},                  # 25% ตีติดแผลแผดเผา
-    "water": {"label": "💧 ธาตุน้ำ", "lifesteal": 0.35},                        # ดูดเลือด 35% ของดาเมจที่ตีโดน
-    "earth": {"label": "🪨 ธาตุดิน", "hp_mult": 2.0},                           # เลือดหนา 2 เท่า
+              "on_hit_status": {"key": "burn", "chance": 25},                   # 25% ตีติดแผลแผดเผา
+              "player": {"dmg_mult": 1.15, "desc": "ตี +15%"}},                                    # ผู้เล่น: ดาเมจ +15%
+    "water": {"label": "💧 ธาตุน้ำ", "lifesteal": 0.35,                         # ดูดเลือด 35% ของดาเมจที่ตีโดน
+              "player": {"lifesteal": 0.15, "desc": "ดูดเลือด 15%"}},                                   # ผู้เล่น: ดูดเลือด 15%
+    "earth": {"label": "🪨 ธาตุดิน", "hp_mult": 2.0,                            # เลือดหนา 2 เท่า
+              "player": {"def_mult": 0.9, "desc": "รับดาเมจ -10%"}},                                     # ผู้เล่น: รับดาเมจ -10%
     "wind":  {"label": "💨 ธาตุลม",  "dice_bonus": (2, 4),                      # เต๋ามอน +2 ถึง +4
-              "on_hit_status": {"key": "sealed_dice", "chance": 25}},           # 25% ตีติดเต๋าถูกผนึก
+              "on_hit_status": {"key": "sealed_dice", "chance": 25},            # 25% ตีติดเต๋าถูกผนึก
+              "player": {"roll_bonus": 1, "desc": "เต๋า +1"}},                                     # ผู้เล่น: เต๋า +1 ทุกเทิร์น
     "wood":  {"label": "🌿 ธาตุไม้", "dice_bonus": (2, 4), "root_chance": 25,   # เต๋า+ และ 25% รากล็อกเต๋าผู้เล่น = 0
-              "on_hit_status": {"key": "entangled", "chance": 25}},             # 25% ตีติดรากพันธนาการ (ห้ามหนี)
-    "dark":  {"label": "🌑 ธาตุมืด", "pre_enraged": True},                      # คลั่งตั้งแต่เทิร์นแรก
-    "light": {"label": "✨ ธาตุแสง", "monster_flee_chance": 40, "gold_mult": 3.5},  # หนีเก่ง (แบบ Metal Slime) แต่ล้มได้ทองหนัก
+              "on_hit_status": {"key": "entangled", "chance": 25},              # 25% ตีติดรากพันธนาการ (ห้ามหนี)
+              "player": {"step_regen": 0.02, "desc": "ฟื้น 2% MaxHP/ก้าว"}},                                  # ผู้เล่น: สังเคราะห์แสง ฟื้น 2% MaxHP/ก้าว
+    "dark":  {"label": "🌑 ธาตุมืด", "pre_enraged": True,                       # คลั่งตั้งแต่เทิร์นแรก
+              "player": {"dmg_mult": 1.25, "def_mult": 1.1, "desc": "ตี +25% แต่รับ +10%"}},                   # ผู้เล่น: กระหายเลือด ตี +25% แต่รับ +10%
+    "light": {"label": "✨ ธาตุแสง", "monster_flee_chance": 40, "gold_mult": 3.5,  # หนีเก่ง (แบบ Metal Slime) แต่ล้มได้ทองหนัก
+              "player": {"reward_mult": 1.1, "desc": "ทอง/EXP +10%"}},                                  # ผู้เล่น: ทอง+EXP ที่ได้ +10%
 }
+
+
+def player_passive_mult(player_elements, param):
+    """ผลคูณ passive ธาตุผู้เล่น (dmg_mult/def_mult/reward_mult) — ไม่มีธาตุ/พารามิเตอร์ = 1.0"""
+    mult = 1.0
+    for e in player_elements or []:
+        mult *= ELEMENTS.get(e, {}).get("player", {}).get(param, 1.0)
+    return mult
+
+
+def player_passive_sum(player_elements, param):
+    """ผลรวม passive ธาตุผู้เล่น (roll_bonus/lifesteal/step_regen) — ไม่มี = 0"""
+    return sum(ELEMENTS.get(e, {}).get("player", {}).get(param, 0) for e in player_elements or [])
 
 # เรทสุ่มธาตุมาตรฐาน (ทวีปหลัก) — สมดุลทุกธาตุ; ทวีป/ธีมทับรายธาตุผ่าน mods["element_weights"]
 DEFAULT_ELEMENT_WEIGHTS = {key: 10 for key in ELEMENTS}

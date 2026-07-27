@@ -253,6 +253,12 @@ class MonsterEventView(View):
                 player_roll += roll_bonus
                 skill_log += f"👝 **ถุงเต๋าเทพีสั่นกรุ๋งกริ๋ง** เต๋า `+{roll_bonus}` (รวม {player_roll})\n"
 
+            # 💨 Passive ธาตุลมของผู้เล่น: เต๋า +1 ทุกเทิร์น
+            wind_bonus = game_modifiers.player_passive_sum(getattr(self, "player_elements", []), "roll_bonus")
+            if wind_bonus:
+                player_roll += wind_bonus
+                skill_log += f"💨 **สายลมประจำตัวหนุนลูกเต๋า** `+{wind_bonus}` (รวม {player_roll})\n"
+
             # 🎲 เต๋าถ่วงน้ำหนัก: การันตีแต้มขั้นต่ำ (ก่อนผลราก/เต๋าหลุดมือ — ของพวกนั้นทำเต๋าหลุดจากมือ ไม่ใช่แต้มไม่ดี)
             weighted_min = game_modifiers.status_min_roll(self.statuses)
             if weighted_min and player_roll < weighted_min:
@@ -388,7 +394,11 @@ class MonsterEventView(View):
                 elem_adv_mult = game_modifiers.player_attack_element_mult(getattr(self, "player_elements", []), self.element)
                 if elem_adv_mult > 1.0:
                     combat_log += f"⚔️✨ **ธาตุประจำตัวของคุณข่มธาตุศัตรู!** ดาเมจ ×{elem_adv_mult:g}\n"
-                damage_to_monster = int((player_roll + curr_atk) * 5 * damage_multiplier * status_dmg_mult * goddess_mult * elem_adv_mult)
+                # 🔥🌑 Passive ธาตุผู้เล่น: โบนัสดาเมจถาวร (ไฟ ×1.15, มืด ×1.25 — ถือหลายธาตุคูณทบกัน)
+                passive_dmg_mult = game_modifiers.player_passive_mult(getattr(self, "player_elements", []), "dmg_mult")
+                if passive_dmg_mult > 1.0:
+                    combat_log += f"🩸 **พลังธาตุประจำตัวเสริมคมอาวุธ** ดาเมจ ×{passive_dmg_mult:g}\n"
+                damage_to_monster = int((player_roll + curr_atk) * 5 * damage_multiplier * status_dmg_mult * goddess_mult * elem_adv_mult * passive_dmg_mult)
 
                 # 🌗 คำสาปแต้มคี่/คู่: parity ของเต๋าตรงคำสาป = ผลโจมตีบิดเบี้ยว
                 curse_key = game_modifiers.status_curse_for_roll(self.statuses, player_roll)
@@ -404,6 +414,16 @@ class MonsterEventView(View):
                     damage_to_monster = 0
 
                 self.monster_hp = max(0, self.monster_hp - damage_to_monster)
+
+                # 💧 Passive ธาตุน้ำของผู้เล่น: ดูดเลือดตามดาเมจที่ตีโดนจริง
+                ls_pct = game_modifiers.player_passive_sum(getattr(self, "player_elements", []), "lifesteal")
+                if ls_pct and damage_to_monster > 0:
+                    max_hp = player.get("max_hp", 100)
+                    healed = min(max_hp, player.get("hp", 100) + max(1, round(damage_to_monster * ls_pct))) - player.get("hp", 100)
+                    if healed > 0:
+                        player["hp"] += healed
+                        combat_log += f"💧 **สายธารชีวิตดูดกลืนพลังศัตรู** `+{healed}` HP (เหลือ {player['hp']})\n"
+
                 if status_dmg_mult < 1.0:
                     combat_log += "🥶 ร่างกายชาเย็นจนขยับช้า แรงโจมตีอ่อนลงกว่าปกติ!\n"
                 combat_log += f"⚔️ คุณทอยได้ **🎲 {player_roll}/บอส({monster_roll})** (+{curr_atk} ดาบ) สร้างความเสียหายใส่บอส `- {damage_to_monster}` หน่วย\n"
@@ -422,7 +442,13 @@ class MonsterEventView(View):
                     combat_log += "🛡️ **ธาตุประจำตัวของคุณต้านทานพลังโจมตีนี้!**\n"
                 elif elem_def_mult > 1.0:
                     combat_log += "☯️ **พลังแสง-มืดปะทะกันรุนแรง!** ดาเมจที่ได้รับหนักขึ้น!\n"
-                damage_to_player = round((random.randint(10, 25) + enrage_bonus) * self.mods.get("monster_dmg_mult", 1.0) * elem_dmg_mult * infusion_mult * goddess_penalty * elem_def_mult)
+                # 🪨🌑 Passive ธาตุผู้เล่นฝั่งรับ: ดินหนังเหนียว ×0.9, มืดเปราะบาง ×1.1
+                passive_def_mult = game_modifiers.player_passive_mult(getattr(self, "player_elements", []), "def_mult")
+                if passive_def_mult < 1.0:
+                    combat_log += "🪨 **ผิวศิลาดูดซับแรงกระแทก!**\n"
+                elif passive_def_mult > 1.0:
+                    combat_log += "🌑 **ร่างที่กระหายเลือดเปราะบางต่อการโจมตี!**\n"
+                damage_to_player = round((random.randint(10, 25) + enrage_bonus) * self.mods.get("monster_dmg_mult", 1.0) * elem_dmg_mult * infusion_mult * goddess_penalty * elem_def_mult * passive_def_mult)
                 if elem_dmg_mult > 1.0:
                     combat_log += "🔥 **เพลิงธาตุลุกโหม!** การโจมตีของมอนสเตอร์รุนแรงขึ้นกว่าปกติ!\n"
                 if infusion_mult > 1.0:
@@ -551,9 +577,11 @@ class MonsterEventView(View):
             if self.monster_hp <= 0:
                 # รางวัล = ฐานสุ่ม × แรงค์ × ทวีป/ธีม × ธาตุ (✨ แสง = ทอง ×3.5)
                 elem_gold_mult = self.element_data.get("gold_mult", 1.0)
-                reward = int(random.randint(1, 25) * self.m_stats.get("gold_mult", 1.0) * self.mods.get("monster_gold_mult", 1.0) * elem_gold_mult)
+                # ✨ Passive ธาตุแสงของผู้เล่น: ทอง+EXP ที่ได้ ×1.1
+                passive_reward_mult = game_modifiers.player_passive_mult(getattr(self, "player_elements", []), "reward_mult")
+                reward = int(random.randint(1, 25) * self.m_stats.get("gold_mult", 1.0) * self.mods.get("monster_gold_mult", 1.0) * elem_gold_mult * passive_reward_mult)
                 status_exp_mult = game_modifiers.status_combat_mult(self.statuses, "exp_mult")
-                gained_exp = int((self.m_stats.get("exp_reward", 10) + random.randint(5, 15)) * self.mods.get("monster_exp_mult", 1.0) * self.element_data.get("exp_mult", 1.0) * status_exp_mult)
+                gained_exp = int((self.m_stats.get("exp_reward", 10) + random.randint(5, 15)) * self.mods.get("monster_exp_mult", 1.0) * self.element_data.get("exp_mult", 1.0) * status_exp_mult * passive_reward_mult)
                 if elem_gold_mult > 1.0:
                     combat_log += "✨ **พรแห่งแสง!** ร่างมอนสเตอร์สลายเป็นกองทองคำมูลค่าพิเศษ!\n"
                 if status_exp_mult > 1.0:
@@ -2186,6 +2214,17 @@ class AdventureView(View):
                 status_notes.append(f"⏳ {game_modifiers.STATUS_EFFECTS[key]['label']} หมดฤทธิ์แล้ว")
             if status_notes:
                 await interaction.followup.send("\n".join(status_notes))
+
+        # 🌿 Passive ธาตุไม้ (สังเคราะห์แสง): ฟื้น % MaxHP ทุกก้าว — เงียบ ๆ ไม่สแปมข้อความ เห็นผลที่ตัวเลข HP
+        walker_elements = game_modifiers.resolve_player_elements(
+            [getattr(r, "name", str(r)) for r in getattr(interaction.user, "roles", [])])
+        regen_pct = game_modifiers.player_passive_sum(walker_elements, "step_regen")
+        if regen_pct:
+            max_hp = player.get("max_hp", 100)
+            if 0 < player.get("hp", 100) < max_hp:
+                new_hp = min(max_hp, player.get("hp", 100) + max(1, round(max_hp * regen_pct)))
+                player["hp"] = new_hp
+                player_model.update_player_field(user_id, "hp", new_hp)
 
         # 2. จัดลำดับความสำคัญ (Priority Order)
         
