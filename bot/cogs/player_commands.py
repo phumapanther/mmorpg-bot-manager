@@ -54,6 +54,46 @@ def _item_effect_desc(it):
     return None
 
 
+def bank_action(user_id, action, amount, target_id=None):
+    """ฝาก/ถอน/โอน — ตรรกะกลางที่ทั้งคำสั่งพิมพ์ (!deposit/!withdraw/!transfer) และปุ่มเมนูเรียกใช้
+    คืน (สำเร็จ: bool, ข้อความ: str) — เช็คติดคุกในนี้ด้วย เพราะปุ่มไม่ผ่าน decorator @not_arrested"""
+    player = player_model.get_player(user_id)
+    if not player:
+        return False, "❌ ไม่พบข้อมูลตัวละครของคุณ! พิมพ์ `!play` ก่อนนะ"
+    if player.get("current_state") == "arrested" and time.time() < int(player.get("arrest_until", 0) or 0):
+        return False, "❌ คุณติดคุกอยู่ ทำธุรกรรมไม่ได้! รอพ้นโทษก่อนนะ"
+    if amount <= 0:
+        return False, "❌ จำนวนเงินต้องมากกว่า 0!"
+
+    if action == "deposit":
+        if player.get("cash", 0) < amount:
+            return False, "❌ เงินสดไม่พอฝาก!"
+        player_model.update_player_field(user_id, "cash", player["cash"] - amount)
+        player_model.update_player_field(user_id, "bank", player.get("bank", 0) + amount)
+        return True, f"💰 ฝากเงินเข้าธนาคารเรียบร้อย: `{amount:,}` ทอง"
+
+    if action == "withdraw":
+        if player.get("bank", 0) < amount:
+            return False, "❌ เงินในธนาคารไม่พอถอนครับ!"
+        player_model.update_player_field(user_id, "bank", player["bank"] - amount)
+        player_model.update_player_field(user_id, "cash", player.get("cash", 0) + amount)
+        return True, f"💸 ถอนเงินออกจากธนาคารเรียบร้อย: `{amount:,}` ทอง"
+
+    if action == "transfer":
+        if target_id == user_id:
+            return False, "❌ โอนให้ตัวเองไม่ได้นะ!"
+        if player.get("bank", 0) < amount:
+            return False, "❌ เงินในธนาคารไม่พอโอน!"
+        target = player_model.get_player(target_id)
+        if not target:
+            return False, "❌ ไม่พบข้อมูลผู้เล่นปลายทาง"
+        player_model.update_player_field(user_id, "bank", player["bank"] - amount)
+        player_model.update_player_field(target_id, "bank", target.get("bank", 0) + amount)
+        return True, f"💸 โอนเงิน `{amount:,}` ทอง ให้ <@{target_id}> สำเร็จ!"
+
+    return False, "❌ ไม่รู้จักธุรกรรมนี้"
+
+
 def _monster_element_desc(data):
     """สรุปความสามารถธาตุฝั่งมอนเป็นข้อความ — อ่านจาก ELEMENTS ตรง ๆ เพิ่มธาตุใหม่แล้วขึ้นเอง"""
     parts = []
@@ -399,46 +439,23 @@ class PlayerCommands(commands.Cog):
     @commands.command(name="deposit")
     @allowed_channel("bank")
     async def deposit(self, ctx, amount: int):
-        player = player_model.get_player(ctx.author.id)
-        if amount <= 0 or player["cash"] < amount:
-            return await ctx.send("❌ เงินไม่พอหรือจำนวนไม่ถูกต้อง!")
-        
-        player_model.update_player_field(ctx.author.id, "cash", player["cash"] - amount)
-        player_model.update_player_field(ctx.author.id, "bank", player.get("bank", 0) + amount)
-        await ctx.send(f"💰 ฝากเงินเข้าธนาคารเรียบร้อย: `{amount}` ทอง")
+        _, msg = bank_action(ctx.author.id, "deposit", amount)
+        await ctx.send(msg)
         
     @not_arrested() 
     @commands.command(name="withdraw")
     @allowed_channel("bank")
     async def withdraw(self, ctx, amount: int):
-        player = player_model.get_player(ctx.author.id)
-        
-        if amount <= 0:
-            return await ctx.send("❌ จำนวนเงินต้องมากกว่า 0!")
-        
-        if player.get("bank", 0) < amount:
-            return await ctx.send("❌ เงินในธนาคารไม่พอถอนครับ!")
-        
-        player_model.update_player_field(ctx.author.id, "bank", player["bank"] - amount)
-        player_model.update_player_field(ctx.author.id, "cash", player["cash"] + amount)
-        
-        await ctx.send(f"💸 ถอนเงินออกจากธนาคารเรียบร้อย: `{amount:,}` ทอง")
+        _, msg = bank_action(ctx.author.id, "withdraw", amount)
+        await ctx.send(msg)
     
     # 2. โอนเงิน: โอนจาก Bank -> ผู้เล่นอื่น
     @not_arrested() 
     @commands.command(name="transfer")
     @allowed_channel("bank")
     async def transfer(self, ctx, member: discord.Member, amount: int):
-        sender = player_model.get_player(ctx.author.id)
-        if sender.get("bank", 0) < amount:
-            return await ctx.send("❌ เงินในธนาคารไม่พอโอน!")
-        
-        target = player_model.get_player(member.id)
-        if not target: return await ctx.send("❌ ไม่พบข้อมูลผู้เล่นปลายทาง")
-
-        player_model.update_player_field(ctx.author.id, "bank", sender["bank"] - amount)
-        player_model.update_player_field(member.id, "bank", target.get("bank", 0) + amount)
-        await ctx.send(f"💸 โอนเงิน `{amount}` ทอง ให้ {member.mention} สำเร็จ!")
+        _, msg = bank_action(ctx.author.id, "transfer", amount, target_id=member.id)
+        await ctx.send(msg)
 
     # 3. ขอเงิน (Beg)
     @not_arrested() 

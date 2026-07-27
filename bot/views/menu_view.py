@@ -3,8 +3,57 @@ from collections import Counter
 
 import bot.models.player_model as player_model
 from bot import config_loader
-from bot.cogs.player_commands import apply_item_effect, build_bag_embed, build_bank_embed
+from bot.cogs.player_commands import apply_item_effect, bank_action, build_bag_embed, build_bank_embed
 from bot.views.profile_embed import create_profile_embed
+
+
+class BankAmountModal(discord.ui.Modal):
+    """ฟอร์มกรอกธุรกรรมธนาคาร — โอนมีช่องผู้รับเพิ่ม (รับ @เมนชั่น หรือไอดีตัวเลข)"""
+    def __init__(self, action):
+        titles = {"deposit": "💰 ฝากเงินเข้าธนาคาร", "withdraw": "💸 ถอนเงินจากธนาคาร", "transfer": "💸 โอนเงินให้ผู้เล่นอื่น"}
+        super().__init__(title=titles[action])
+        self.action = action
+        if action == "transfer":
+            self.target = discord.ui.TextInput(label="ผู้รับ (@เมนชั่น หรือไอดีตัวเลข)", placeholder="เช่น @Panther หรือ 123456789012345678")
+            self.add_item(self.target)
+        self.amount = discord.ui.TextInput(label="จำนวนเงิน (ตัวเลข)", placeholder="เช่น 5000")
+        self.add_item(self.amount)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            amount = int(str(self.amount.value).replace(",", "").strip())
+        except ValueError:
+            return await interaction.response.send_message("❌ จำนวนเงินต้องเป็นตัวเลขล้วน!", ephemeral=True)
+        target_id = None
+        if self.action == "transfer":
+            digits = "".join(ch for ch in str(self.target.value) if ch.isdigit())
+            if not digits:
+                return await interaction.response.send_message("❌ ระบุผู้รับเป็น @เมนชั่น หรือไอดีตัวเลขเท่านั้น!", ephemeral=True)
+            target_id = int(digits)
+        _, msg = bank_action(interaction.user.id, self.action, amount, target_id=target_id)
+        # แนบยอดล่าสุดต่อท้ายให้เห็นทันทีโดยไม่ต้องกดธนาคารซ้ำ
+        player = player_model.get_player(interaction.user.id)
+        if player:
+            msg += f"\n💵 เงินสด `{player.get('cash', 0):,}` | 🏦 ธนาคาร `{player.get('bank', 0):,}`"
+        await interaction.response.send_message(msg, ephemeral=True)
+
+
+class BankActionView(discord.ui.View):
+    """ปุ่มธุรกรรมใต้ยอดธนาคาร — ส่งแบบ ephemeral เห็นคนเดียว จึงไม่ต้อง persistent"""
+    def __init__(self):
+        super().__init__(timeout=120)
+
+    @discord.ui.button(label="💰 ฝาก", style=discord.ButtonStyle.success)
+    async def deposit_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(BankAmountModal("deposit"))
+
+    @discord.ui.button(label="💸 ถอน", style=discord.ButtonStyle.primary)
+    async def withdraw_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(BankAmountModal("withdraw"))
+
+    @discord.ui.button(label="🤝 โอน", style=discord.ButtonStyle.secondary)
+    async def transfer_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(BankAmountModal("transfer"))
 
 
 class ItemUseSelect(discord.ui.Select):
@@ -52,7 +101,8 @@ class GameMenuView(discord.ui.View):
         player = player_model.get_player(interaction.user.id)
         if not player:
             return await interaction.response.send_message("❌ ไม่พบข้อมูลตัวละครของคุณ! พิมพ์ `!play` ก่อนนะ", ephemeral=True)
-        await interaction.response.send_message(embed=build_bank_embed(player), ephemeral=True)
+        await interaction.response.send_message(
+            embed=build_bank_embed(player), view=BankActionView(), ephemeral=True)
 
     @discord.ui.button(label="🪪 โปรไฟล์", style=discord.ButtonStyle.secondary, custom_id="game_menu:profile")
     async def profile_button(self, interaction: discord.Interaction, button: discord.ui.Button):
