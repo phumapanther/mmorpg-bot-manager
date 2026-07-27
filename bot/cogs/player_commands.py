@@ -269,7 +269,10 @@ def apply_item_effect(user_id, item_id):
         else:
             to_remove = [k for k in targets if k in statuses]
         if not to_remove:
-            return False, f"❌ ตอนนี้คุณไม่มีสถานะที่ **{item_name}** รักษาได้"
+            # โชว์สถานะที่มีจริงตอนนี้ — กันงงกรณี "ราก" สองชนิด (รากล็อกเต๋าชั่วขณะไม่ใช่สถานะ รักษาไม่ได้/ไม่ต้องรักษา)
+            now = " ".join(game_modifiers.STATUS_EFFECTS[k]["label"] for k in statuses) or "ไม่มีสถานะติดตัวเลย"
+            return False, (f"❌ ตอนนี้คุณไม่มีสถานะที่ **{item_name}** รักษาได้ (ไอเทมไม่ถูกใช้)\n"
+                           f"🔎 สถานะปัจจุบันของคุณ: {now}")
         names = " ".join(game_modifiers.STATUS_EFFECTS.get(k, {}).get("label", k) for k in to_remove)
         statuses = {k: v for k, v in statuses.items() if k not in to_remove}
         player_model.update_player_field(user_id, "status_effects", statuses)

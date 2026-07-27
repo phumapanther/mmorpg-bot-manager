@@ -954,8 +954,11 @@ class MonsterEventView(ActionView):
         if player:
             self._resync_statuses(player)
         if game_modifiers.has_status_flag(self.statuses, "no_flee"):
+            root_turns = next((v for k, v in self.statuses.items()
+                               if game_modifiers.STATUS_EFFECTS[k].get("no_flee")), "?")
             return await interaction.response.send_message(
-                "🌱 **รากไม้รัดขาแน่น!** คุณดิ้นเท่าไหร่ก็หนีไม่หลุด — ต้องสู้จนกว่าพันธนาการจะคลาย (หรือใช้ 🗡️ มีดตัดเถาวัลย์/🌿 ยาถอนพิษ)!", ephemeral=True)
+                f"🌱 **รากไม้รัดขาแน่น!** (สถานะพันธนาการเหลือ `{root_turns}` ก้าว) คุณดิ้นเท่าไหร่ก็หนีไม่หลุด — "
+                f"ใช้ 🗡️ มีดตัดเถาวัลย์/🌿 ยาถอนพิษ ผ่านปุ่ม 🕹️ เมนู แล้วกดหนีใหม่ได้ทันที!", ephemeral=True)
 
         flee_roll = random.randint(1, 100)
         
