@@ -8,7 +8,9 @@ from bot import game_modifiers
 from bot.utils import allowed_channel
 
 GUILD_CREATE_COST = 3_000_000_000
-GUILD_CATEGORY = "🏰 กิลด์"
+# หมวดหมู่ห้องกิลด์ — ใช้ตัวที่มีอยู่แล้วในเซิร์ฟ (ชื่อต้องตรงเป๊ะ) ไม่มีค่อยสร้างใหม่
+GUILD_CATEGORY = "⌈🏛⌋ ▏▬▬ ห้องกิลด์ส่วนตัว ▬▬▕"
+GUILD_ICON = "🏰"  # ไอคอนกลาง — ผู้ใช้ตัดพารามิเตอร์ไอคอนออก (มีปัญหา) เหลือชื่ออย่างเดียว
 
 # ตรรกะเช็คห้องเดียวกับคำสั่งอื่น (config channels.guild — ตั้งได้ในแท็บ Channels ของ panel)
 _guild_channel_check = allowed_channel("guild").predicate
@@ -76,9 +78,10 @@ class GuildCog(commands.Cog):
                          "หัวหน้า: `invite @คน` / `kick @คน` / `withdraw` / `pay @คน <จำนวน>` / `disband`")))
 
     @guild.command(name="create")
-    async def create(self, ctx, name: str = None, icon: str = "🏰"):
+    async def create(self, ctx, *, name: str = None):
         if not name:
-            return await ctx.send("❓ วิธีใช้: `!guild create <ชื่อกิลด์> <ไอคอน emoji>` เช่น `!guild create มังกรทมิฬ 🐲`")
+            return await ctx.send("❓ วิธีใช้: `!guild create <ชื่อกิลด์>` เช่น `!guild create มังกรทมิฬ`")
+        name = name.strip()
         if player_model.get_guild_of(ctx.author.id):
             return await ctx.send("❌ คุณมีกิลด์อยู่แล้ว! ออกจากกิลด์เดิมก่อน")
         if player_model.get_guild_by_name(name):
@@ -88,25 +91,25 @@ class GuildCog(commands.Cog):
             return await ctx.send(f"❌ ต้องถือ **เงินสด** `{GUILD_CREATE_COST:,}` ทองเพื่อก่อตั้งกิลด์! "
                                   f"(ตอนนี้มี `{(player or {}).get('cash', 0):,}`)")
 
-        # สร้างยศ + ห้องบ้านกิลด์ (ห้องปิด เห็นเฉพาะยศกิลด์)
+        # สร้างยศ + บ้านกิลด์เป็น "ห้องเสียงส่วนตัว" ใต้หมวดหมู่ห้องกิลด์ที่มีอยู่แล้วในเซิร์ฟ
         try:
             import random as _r
             role = await ctx.guild.create_role(
-                name=f"{icon} {name}", colour=discord.Colour(_r.randint(0x111111, 0xffffff)),
+                name=name, colour=discord.Colour(_r.randint(0x111111, 0xffffff)),
                 mentionable=True, reason=f"ก่อตั้งกิลด์โดย {ctx.author.display_name}")
             category = discord.utils.get(ctx.guild.categories, name=GUILD_CATEGORY)
             if category is None:
                 category = await ctx.guild.create_category(GUILD_CATEGORY)
             overwrites = {
                 ctx.guild.default_role: discord.PermissionOverwrite(view_channel=False),
-                role: discord.PermissionOverwrite(view_channel=True, send_messages=True),
-                ctx.guild.me: discord.PermissionOverwrite(view_channel=True),
+                role: discord.PermissionOverwrite(view_channel=True, connect=True, speak=True, send_messages=True),
+                ctx.guild.me: discord.PermissionOverwrite(view_channel=True, connect=True),
             }
-            channel = await ctx.guild.create_text_channel(f"{icon}︱{name}", category=category, overwrites=overwrites)
+            channel = await ctx.guild.create_voice_channel(f"{GUILD_ICON}︱{name}", category=category, overwrites=overwrites)
         except discord.Forbidden:
             return await ctx.send("❌ บอทไม่มีสิทธิ์สร้างยศ/ห้อง (ต้องการ Manage Roles + Manage Channels)")
 
-        gid = player_model.create_guild(name, icon, ctx.author.id, role.id, channel.id)
+        gid = player_model.create_guild(name, GUILD_ICON, ctx.author.id, role.id, channel.id)
         if gid is None:  # กันชนกันเสี้ยววินาที — ถอยของที่สร้างไป
             await role.delete()
             await channel.delete()
@@ -115,9 +118,9 @@ class GuildCog(commands.Cog):
         player_model.update_player_field(ctx.author.id, "cash", player["cash"] - GUILD_CREATE_COST)
         await ctx.author.add_roles(role, reason="หัวหน้ากิลด์")
         await ctx.send(embed=discord.Embed(
-            title=f"🏰 ก่อตั้งกิลด์ {icon} {name} สำเร็จ!", color=role.colour,
+            title=f"🏰 ก่อตั้งกิลด์ {name} สำเร็จ!", color=role.colour,
             description=(f"👑 หัวหน้ากิลด์: {ctx.author.mention}\n"
-                         f"🏠 บ้านกิลด์: {channel.mention} (เฉพาะสมาชิก)\n"
+                         f"🔊 บ้านกิลด์ (ห้องเสียงส่วนตัว): {channel.mention} — เฉพาะสมาชิก\n"
                          f"💸 ค่าก่อตั้ง: `{GUILD_CREATE_COST:,}` ทอง\n\n"
                          f"เชิญสมาชิกด้วย `!guild invite @คน`")))
 
