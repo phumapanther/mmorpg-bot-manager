@@ -439,3 +439,124 @@ def get_faction_war_scores(week=None):
     scores.update(dict(cursor.fetchall()))
     conn.close()
     return scores
+
+
+# ===== 🏰 ระบบกิลด์ (Guild) — P6 =====
+
+def _ensure_guild_tables(cursor):
+    cursor.execute("""CREATE TABLE IF NOT EXISTS guilds (
+        guild_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE, icon TEXT,
+        leader_id INTEGER UNIQUE,
+        role_id INTEGER, channel_id INTEGER,
+        treasury INTEGER DEFAULT 0)""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS guild_members (
+        user_id INTEGER PRIMARY KEY,   -- 1 คนอยู่ได้กิลด์เดียว บังคับที่ PK
+        guild_id INTEGER)""")
+
+
+def create_guild(name, icon, leader_id, role_id, channel_id):
+    """สร้างกิลด์ + หัวหน้าเข้าเป็นสมาชิกแถวแรก — คืน guild_id หรือ None ถ้าชื่อ/หัวหน้าซ้ำ"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_guild_tables(cursor)
+    try:
+        cursor.execute("INSERT INTO guilds (name, icon, leader_id, role_id, channel_id) VALUES (?, ?, ?, ?, ?)",
+                       (name, icon, leader_id, role_id, channel_id))
+        gid = cursor.lastrowid
+        cursor.execute("INSERT OR REPLACE INTO guild_members (user_id, guild_id) VALUES (?, ?)", (leader_id, gid))
+        conn.commit()
+        return gid
+    except sqlite3.IntegrityError:
+        return None
+    finally:
+        conn.close()
+
+
+def _guild_row_to_dict(row):
+    if not row:
+        return None
+    keys = ("guild_id", "name", "icon", "leader_id", "role_id", "channel_id", "treasury")
+    return dict(zip(keys, row))
+
+
+def get_guild_of(user_id):
+    """กิลด์ที่ผู้เล่นสังกัด — ไม่มี = None"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_guild_tables(cursor)
+    cursor.execute("""SELECT g.guild_id, g.name, g.icon, g.leader_id, g.role_id, g.channel_id, g.treasury
+                      FROM guilds g JOIN guild_members m ON m.guild_id = g.guild_id
+                      WHERE m.user_id = ?""", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return _guild_row_to_dict(row)
+
+
+def get_guild_by_name(name):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_guild_tables(cursor)
+    cursor.execute("""SELECT guild_id, name, icon, leader_id, role_id, channel_id, treasury
+                      FROM guilds WHERE name = ?""", (name,))
+    row = cursor.fetchone()
+    conn.close()
+    return _guild_row_to_dict(row)
+
+
+def add_guild_member(user_id, guild_id):
+    """เพิ่มสมาชิก — False ถ้าเขาอยู่กิลด์อื่นแล้ว"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_guild_tables(cursor)
+    cursor.execute("INSERT OR IGNORE INTO guild_members (user_id, guild_id) VALUES (?, ?)", (user_id, guild_id))
+    ok = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return ok
+
+
+def remove_guild_member(user_id):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_guild_tables(cursor)
+    cursor.execute("DELETE FROM guild_members WHERE user_id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+
+
+def get_guild_members(guild_id):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_guild_tables(cursor)
+    cursor.execute("SELECT user_id FROM guild_members WHERE guild_id = ?", (guild_id,))
+    rows = [r[0] for r in cursor.fetchall()]
+    conn.close()
+    return rows
+
+
+def guild_add_treasury(guild_id, delta):
+    """บวก/ลบคลังกิลด์ — คืนยอดใหม่ หรือ None ถ้าจะติดลบ (ห้ามถอนเกิน)"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_guild_tables(cursor)
+    cursor.execute("SELECT treasury FROM guilds WHERE guild_id = ?", (guild_id,))
+    row = cursor.fetchone()
+    if row is None or row[0] + delta < 0:
+        conn.close()
+        return None
+    new_total = row[0] + delta
+    cursor.execute("UPDATE guilds SET treasury = ? WHERE guild_id = ?", (new_total, guild_id))
+    conn.commit()
+    conn.close()
+    return new_total
+
+
+def delete_guild(guild_id):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_guild_tables(cursor)
+    cursor.execute("DELETE FROM guild_members WHERE guild_id = ?", (guild_id,))
+    cursor.execute("DELETE FROM guilds WHERE guild_id = ?", (guild_id,))
+    conn.commit()
+    conn.close()

@@ -140,6 +140,9 @@ def create_bot(bot_type: str):
                 await bot.load_extension("bot.cogs.db_backup")
                 print("💾[DB Backup] โหลดระบบสำรองฐานข้อมูลรายวันสำเร็จ!")
 
+                await bot.load_extension("bot.cogs.guild")
+                print("🏰[Guild] โหลดระบบกิลด์สำเร็จ!")
+
             elif bot_type == "chat":
                 await bot.load_extension("bot.cogs.voice_chat_tracker")
                 print("🎙️ [Chat/Voice Bot] โหลดระบบลูปห้องเสียงและฟาร์มแชทสำเร็จ!")
