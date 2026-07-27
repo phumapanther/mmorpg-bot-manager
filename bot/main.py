@@ -146,6 +146,9 @@ def create_bot(bot_type: str):
                 await bot.load_extension("bot.cogs.server_status")
                 print("📡[Server Status] โหลดระบบแจ้งเตือนเปิด-ปิดเซิร์ฟสำเร็จ!")
 
+                await bot.load_extension("bot.cogs.guild_war")
+                print("⚔️[Guild War] โหลดระบบกิลด์วอร์สำเร็จ!")
+
             elif bot_type == "chat":
                 await bot.load_extension("bot.cogs.voice_chat_tracker")
                 print("🎙️ [Chat/Voice Bot] โหลดระบบลูปห้องเสียงและฟาร์มแชทสำเร็จ!")

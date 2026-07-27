@@ -560,3 +560,46 @@ def delete_guild(guild_id):
     cursor.execute("DELETE FROM guilds WHERE guild_id = ?", (guild_id,))
     conn.commit()
     conn.close()
+
+
+# ===== ⚔️ เดิมพันกิลด์วอร์ (P7) — จดลง DB กันเงินหายถ้าบอทรีสตาร์ทกลางศึก =====
+
+def _ensure_war_stakes(cursor):
+    cursor.execute("""CREATE TABLE IF NOT EXISTS guild_war_stakes (
+        channel_id INTEGER PRIMARY KEY, guild_a INTEGER, guild_b INTEGER, stake INTEGER)""")
+
+
+def record_war_stake(channel_id, guild_a, guild_b, stake):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_war_stakes(cursor)
+    cursor.execute("INSERT OR REPLACE INTO guild_war_stakes VALUES (?, ?, ?, ?)",
+                   (channel_id, guild_a, guild_b, stake))
+    conn.commit()
+    conn.close()
+
+
+def pop_war_stake(channel_id):
+    """ดึง+ลบเดิมพันของศึกนี้ — คืน (guild_a, guild_b, stake) หรือ None"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_war_stakes(cursor)
+    cursor.execute("SELECT guild_a, guild_b, stake FROM guild_war_stakes WHERE channel_id = ?", (channel_id,))
+    row = cursor.fetchone()
+    cursor.execute("DELETE FROM guild_war_stakes WHERE channel_id = ?", (channel_id,))
+    conn.commit()
+    conn.close()
+    return row
+
+
+def pop_all_war_stakes():
+    """ดึง+ลบเดิมพันค้างทั้งหมด (ศึกที่ตายเพราะรีสตาร์ท) — [(channel_id, guild_a, guild_b, stake), ...]"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_war_stakes(cursor)
+    cursor.execute("SELECT channel_id, guild_a, guild_b, stake FROM guild_war_stakes")
+    rows = cursor.fetchall()
+    cursor.execute("DELETE FROM guild_war_stakes")
+    conn.commit()
+    conn.close()
+    return rows
