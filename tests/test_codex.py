@@ -17,7 +17,7 @@ def run_codex(topic):
 
 
 def test_codex_embeds_fit_discord_limits():
-    for topic in ("", "ธาตุ", "สถานะ", "ทวีป", "วิธีเล่น", "คำสั่ง", "ไอเทม"):
+    for topic in ("", "ธาตุ", "สถานะ", "ทวีป", "วิธีเล่น", "คำสั่ง", "ไอเทม", "กิลด์"):
         embed = run_codex(topic)
         assert embed is not None, topic
         assert len(embed.fields) <= 25
@@ -39,7 +39,7 @@ def test_codex_menu_button_and_select():
     from bot.views.menu_view import CODEX_TOPICS, CodexView, GameMenuView
 
     select = CodexView().children[0]
-    assert len(select.options) == 6
+    assert len(select.options) == 7
     for _, value in CODEX_TOPICS:
         embed = build_codex_embed(value)
         assert embed is not None and embed.title
