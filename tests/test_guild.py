@@ -49,3 +49,31 @@ def test_delete_guild(tmp_path, monkeypatch):
     pm.delete_guild(gid)
     assert pm.get_guild_of(1) is None and pm.get_guild_of(2) is None
     assert pm.create_guild("A", "🏰", 1, 10, 20) is not None  # ชื่อ/หัวหน้าว่างให้ใช้ใหม่
+
+
+def test_guild_channel_lock(monkeypatch):
+    """คำสั่งกิลด์ล็อกห้องตาม channels.guild — ไม่ตั้ง = ผ่าน, ตั้งแล้วผิดห้อง = บล็อก"""
+    import asyncio
+    from types import SimpleNamespace
+    import bot.cogs.guild as gc
+    from bot import config_loader
+
+    cog = gc.GuildCog.__new__(gc.GuildCog)  # ไม่เรียก __init__ (ไม่ต้องมี bot)
+
+    async def _noop(*a, **k):
+        return SimpleNamespace(delete=lambda: None)
+
+    ctx = SimpleNamespace(channel=SimpleNamespace(id=111),
+                          send=_noop, message=SimpleNamespace(delete=_noop))
+    monkeypatch.setattr(config_loader, "get_channel_id", lambda key: None)
+    assert asyncio.run(cog.cog_check(ctx)) is True          # ยังไม่ผูกห้อง = ใช้ได้ทุกห้อง
+    monkeypatch.setattr(config_loader, "get_channel_id", lambda key: 111)
+    assert asyncio.run(cog.cog_check(ctx)) is True          # ห้องตรง
+    monkeypatch.setattr(config_loader, "get_channel_id", lambda key: 999)
+    assert asyncio.run(cog.cog_check(ctx)) is False         # ผิดห้อง
+
+
+def test_guild_channel_in_config():
+    import json
+    ch = json.load(open("config.example.json", encoding="utf-8"))["channels"]
+    assert ch["guild"]["channel_id"] is None and "กิลด์" in ch["guild"]["label"]

@@ -56,6 +56,10 @@
     "weekly_event": {
       "label": "ประกาศอีเวนต์ประจำสัปดาห์",
       "channel_id": null
+    },
+    "guild": {
+      "label": "กิลด์ (สร้าง/จัดการกิลด์)",
+      "channel_id": null
     }
   },
   "permission_groups": {

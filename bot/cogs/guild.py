@@ -5,9 +5,13 @@ from discord.ext import commands
 
 import bot.models.player_model as player_model
 from bot import game_modifiers
+from bot.utils import allowed_channel
 
 GUILD_CREATE_COST = 3_000_000_000
 GUILD_CATEGORY = "🏰 กิลด์"
+
+# ตรรกะเช็คห้องเดียวกับคำสั่งอื่น (config channels.guild — ตั้งได้ในแท็บ Channels ของ panel)
+_guild_channel_check = allowed_channel("guild").predicate
 
 
 def _is_leader(user_id):
@@ -53,6 +57,10 @@ class GuildCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         print("[LOG] [LOAD_COG] โหลดโมดูลระบบกิลด์เรียบร้อยแล้ว")
+
+    async def cog_check(self, ctx):
+        """ทุกคำสั่ง !guild ใช้ได้เฉพาะห้องที่ตั้งใน channels.guild — ไม่ตั้ง = ใช้ได้ทุกห้อง"""
+        return await _guild_channel_check(ctx)
 
     @commands.group(name="guild", aliases=["กิลด์"], invoke_without_command=True)
     async def guild(self, ctx):
