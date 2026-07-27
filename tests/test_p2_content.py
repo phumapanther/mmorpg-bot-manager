@@ -21,3 +21,30 @@ def test_bandage_item_cures_bleed():
     it = json.load(open("config.example.json", encoding="utf-8"))["item_catalog"]["items"]["61"]
     assert it["effect"] == "cure_status" and it["effect_value"] == "bleed"
     assert it["purchasable"] is True and it["buy"] == 800
+
+
+# ── P2 ชุด 2: เห็ดราซิลวาน ──
+
+def test_spores_stack_then_bloom():
+    s = gm.apply_status({}, "spores")
+    s = gm.apply_status(s, "spores")
+    assert s.get("spores") == 2 and "mushroom_bloom" not in s
+    s = gm.apply_status(s, "spores")  # ครบ 3 → เห็ดบาน
+    assert "spores" not in s
+    assert s.get("mushroom_bloom") == gm.STATUS_EFFECTS["mushroom_bloom"]["default_turns"]
+
+
+def test_bloom_pct_damage_and_roll_penalty():
+    total, details = gm.roll_step_damage({"mushroom_bloom": 6}, rng=random.Random(1), max_hp=200)
+    assert total == 10  # 5% ของ 200
+    # เสื้อคลุมเปลือกไม้หารเบา: 10 × 0.2 = 2
+    total2, _ = gm.roll_step_damage({"mushroom_bloom": 6, "art_sylvan_cloak": 1}, rng=random.Random(1), max_hp=200)
+    assert total2 == 2
+    assert gm.status_roll_bonus({"mushroom_bloom": 6}) == -1
+
+
+def test_sylvan_inflicts_spores_and_antidote_cures():
+    mods = gm.get_active_modifiers({"continent": "sylvan"})
+    assert mods["on_hit_status"] == {"key": "spores", "chance": 20}
+    it = json.load(open("config.example.json", encoding="utf-8"))["item_catalog"]["items"]["30"]
+    assert "spores" in it["effect_value"]

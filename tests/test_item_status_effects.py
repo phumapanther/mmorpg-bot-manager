@@ -68,7 +68,7 @@ def test_vine_cutter_in_catalog():
     items = json.load(open("config.example.json", encoding="utf-8"))["item_catalog"]["items"]
     assert items["54"]["effect"] == "cure_status" and items["54"]["effect_value"] == "entangled"
     assert items["54"]["purchasable"] is True
-    assert items["30"]["effect_value"] == ["poison", "entangled"]
+    assert items["30"]["effect_value"] == ["poison", "entangled", "spores"]  # P2 ชุด 2: ล้างสปอร์ได้ด้วย
 
 
 def test_apply_status_item(game_db, monkeypatch):

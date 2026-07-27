@@ -595,7 +595,8 @@
         "effect": "cure_status",
         "effect_value": [
           "poison",
-          "entangled"
+          "entangled",
+          "spores"
         ]
       },
       "31": {

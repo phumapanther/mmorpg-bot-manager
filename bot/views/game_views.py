@@ -267,9 +267,13 @@ class MonsterEventView(ActionView):
             # ─── 🧪 เอฟเฟกต์ธาตุช่วงทอยเต๋า ───
             # 👝 ถุงเต๋าเทพี: โบนัสเต๋าถาวร
             roll_bonus = game_modifiers.status_roll_bonus(self.statuses)
-            if roll_bonus:
+            if roll_bonus > 0:
                 player_roll += roll_bonus
                 skill_log += f"👝 **ถุงเต๋าเทพีสั่นกรุ๋งกริ๋ง** เต๋า `+{roll_bonus}` (รวม {player_roll})\n"
+            elif roll_bonus < 0:
+                # 🍄 สถานะถ่วงเต๋า (เช่น เห็ดงอกทั่วร่าง) — กดต่ำสุดที่ 1 ไม่ทับกลไกราก (เต๋า=0)
+                player_roll = max(1, player_roll + roll_bonus)
+                skill_log += f"🍄 **ร่างกายหนักอึ้ง** เต๋า `{roll_bonus}` (เหลือ {player_roll})\n"
 
             # 💨 Passive ธาตุลมของผู้เล่น: เต๋า +1 ทุกเทิร์น
             wind_bonus = game_modifiers.player_passive_sum(getattr(self, "player_elements", []), "roll_bonus")
@@ -2218,7 +2222,7 @@ class AdventureView(ActionView):
                 )
 
         if statuses:
-            step_dmg, dmg_details = game_modifiers.roll_step_damage(statuses)
+            step_dmg, dmg_details = game_modifiers.roll_step_damage(statuses, max_hp=player.get("max_hp", 100))
             statuses, expired = game_modifiers.tick_statuses(statuses, "step")
             player_model.update_player_field(user_id, "status_effects", statuses)
 

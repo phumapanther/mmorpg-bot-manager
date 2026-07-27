@@ -196,6 +196,8 @@ CONTINENTS = {
             "monster_exp_mult": 1.5,
             "element_weights": {"wood": 35, "earth": 15},
             "element_overrides": {"wood": {"root_chance": 50, "exp_mult": 2.0}},
+            # ป่ามีชีวิต: โดนตีมีลุ้นสปอร์เกาะ (สะสมครบ 3 = เห็ดบาน) (P2 ชุด 2)
+            "on_hit_status": {"key": "spores", "chance": 20},
             "monster_pool": {
                 "Common": ["🧝 เอลฟ์ป่าเถื่อน (Savage Forest Elf)", "🪴 พืชกินคนกลายพันธุ์ (Mutant Carnivorous Plant)"],
                 "Mini-Boss": ["🌳 เอนท์ ต้นไม้ยักษ์ (Ent)"],
@@ -491,6 +493,16 @@ STATUS_EFFECTS = {
         "skill_fail_chance": 50,             # กดสกิลมีโอกาสลัดวงจร (กลายเป็นโจมตีธรรมดา)
         "shock_damage": (5, 12),             # + ช็อกตัวเอง
     },
+    "spores": {
+        "label": "🍄 สปอร์เห็ดรา", "tick": "step", "default_turns": 1,
+        "stacking": True, "no_tick": True,   # สะสมเงียบ ๆ ไม่เจ็บสักนิด... จนครบ 3 (P2 ชุด 2)
+        "transform_at": 3, "transform_to": "mushroom_bloom",
+    },
+    "mushroom_bloom": {
+        "label": "🍄 เห็ดงอกทั่วร่าง", "tick": "step", "default_turns": 6,
+        "step_damage_pct": 0.05,             # รากเห็ดสูบเลือด 5% MaxHP ทุกก้าว
+        "roll_bonus": -1,                    # น้ำหนักเห็ดถ่วงร่าง เต๋า -1
+    },
     "zombie_parasite": {
         "label": "🧟 เชื้อซอมบี้", "tick": "step", "default_turns": 1,
         "stacking": True, "no_tick": True,   # ค่าที่เก็บ = จำนวนสแตก (ไม่ลดเอง — แก้ด้วยเสบียง/ล้างสถานะ)
@@ -783,8 +795,9 @@ def status_skill_shock(statuses, rng=None):
     return False, 0
 
 
-def roll_step_damage(statuses, rng=None):
+def roll_step_damage(statuses, rng=None, max_hp=100):
     """รวมเลือดไหลต่อก้าวเดินจากทุกสถานะ — คืน (ดาเมจรวม, [(label, dmg), ...])
+    รองรับทั้งช่วงคงที่ (step_damage) และสัดส่วน MaxHP (step_damage_pct เช่น เห็ดบาน 5%)
     สถานะ/อาร์ติแฟกต์ที่มี step_damage_mult (เช่น เสื้อคลุมเปลือกไม้) ช่วยหารเบาลง"""
     rng = rng or random
     mult = 1.0
@@ -792,11 +805,16 @@ def roll_step_damage(statuses, rng=None):
         mult *= STATUS_EFFECTS[key].get("step_damage_mult", 1.0)
     total, details = 0, []
     for key in statuses:
-        dmg_range = STATUS_EFFECTS[key].get("step_damage")
-        if dmg_range:
-            dmg = max(1, round(rng.randint(dmg_range[0], dmg_range[1]) * mult))
+        cfg = STATUS_EFFECTS[key]
+        dmg = 0
+        if cfg.get("step_damage"):
+            dmg += rng.randint(cfg["step_damage"][0], cfg["step_damage"][1])
+        if cfg.get("step_damage_pct"):
+            dmg += round(max_hp * cfg["step_damage_pct"])
+        if dmg:
+            dmg = max(1, round(dmg * mult))
             total += dmg
-            details.append((STATUS_EFFECTS[key]["label"], dmg))
+            details.append((cfg["label"], dmg))
     return total, details
 
 
