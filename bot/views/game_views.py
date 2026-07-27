@@ -335,7 +335,13 @@ class MonsterEventView(ActionView):
                     chance = w_cfg["chance_base"] + (p_lvl * w_cfg["chance_lvl_scale"])
                     if random.randint(1, 100) <= chance:
                         damage_multiplier = w_cfg["damage_multiplier"]
-                        skill_log += f"✨ **Heavy Strike สำเร็จ!** การโจมตีในเทิร์นนี้จะแรงขึ้น {damage_multiplier} เท่า!\n"
+                        # 💥 คริ: เต๋าถึงเกณฑ์ (18+) ตอนใช้สกิล = ตัวคูณพุ่งเป็นระดับคริ (config เก่าไม่มี key = ไม่มีคริ)
+                        crit_min = w_cfg.get("crit_roll_min")
+                        if crit_min and player_roll >= crit_min:
+                            damage_multiplier = w_cfg.get("crit_multiplier", damage_multiplier)
+                            skill_log += f"💥 **Heavy Strike ติดคริติคอล!** เต๋า `{player_roll}` เข้าจังหวะมรณะ ดาเมจ ×{damage_multiplier} เท่า!\n"
+                        else:
+                            skill_log += f"✨ **Heavy Strike สำเร็จ!** การโจมตีในเทิร์นนี้จะแรงขึ้น {damage_multiplier} เท่า!\n"
                     else:
                         skill_log += "💨 **Heavy Strike ล้มเหลว!** ทอยเต๋าพลาดสมาธิหลุด\n"
 
@@ -497,8 +503,15 @@ class MonsterEventView(ActionView):
                     elif self.active_buffs.get("shield_bash", 0) > 0:
                         s_b_cfg = config_loader.get_skill_config("Warrior", "shield_bash")
                         reduction = s_b_cfg["reduction_base"] + (p_lvl * s_b_cfg["reduction_lvl_scale"])
+                        incoming = damage_to_player
                         damage_to_player = int(damage_to_player * (1 - min(0.9, reduction)))
                         combat_log += f"🛡️ *Shield Bash บล็อก:* ดาเมจลดลงครอบคลุมเกราะ (โดนแค่ `- {damage_to_player}`)\n"
+                        # 🛡️⚔️ สวนกลับ: สะท้อนดาเมจตามสัดส่วนของแรงปะทะเดิม (config เก่าไม่มี key = ไม่สะท้อน)
+                        reflect_pct = s_b_cfg.get("reflect_pct", 0)
+                        if reflect_pct:
+                            reflected = max(1, int(incoming * reflect_pct))
+                            self.monster_hp = max(0, self.monster_hp - reflected)
+                            combat_log += f"🛡️⚔️ *โล่กระแทกสวนกลับ!* แรงปะทะสะท้อนใส่ศัตรู `- {reflected}` หน่วย (บอสเหลือ HP: {self.monster_hp})\n"
                 except Exception: pass
 
                 if damage_to_player > 0:

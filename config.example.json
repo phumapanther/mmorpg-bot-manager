@@ -3,204 +3,1045 @@
   "license_key": "",
   "guild_id": null,
   "panel_port": 8770,
-
   "channels": {
-    "bank":         { "label": "ธนาคาร / เศรษฐกิจ", "channel_id": null },
-    "arena":        { "label": "ลานประลอง (pvp/att/scan)", "channel_id": null },
-    "role_shop":    { "label": "ซื้อยศออโต้", "channel_id": null },
-    "profile":      { "label": "เช็คโปรไฟล์", "channel_id": null },
-    "adventure":    { "label": "เริ่มเกม/ผจญภัย", "channel_id": null },
-    "rent":         { "label": "สัญญาเช่าห้อง", "channel_id": null },
-    "police":       { "label": "ห้องแจ้งความ (arrest/fine)", "channel_id": null },
-    "casino_hilo":  { "label": "Hi-Lo", "channel_id": null },
-    "casino_slots": { "label": "สล็อต", "channel_id": null },
-    "casino_bj":    { "label": "Blackjack", "channel_id": null },
-    "levelup_announce": { "label": "ห้องประกาศเลเวลอัพ (Voice EXP)", "channel_id": null, "mention_player": false },
-    "payment": { "label": "เติมเงิน (Topup)", "channel_id": null },
-    "weekly_event": { "label": "ประกาศอีเวนต์ประจำสัปดาห์", "channel_id": null }
+    "bank": {
+      "label": "ธนาคาร / เศรษฐกิจ",
+      "channel_id": null
+    },
+    "arena": {
+      "label": "ลานประลอง (pvp/att/scan)",
+      "channel_id": null
+    },
+    "role_shop": {
+      "label": "ซื้อยศออโต้",
+      "channel_id": null
+    },
+    "profile": {
+      "label": "เช็คโปรไฟล์",
+      "channel_id": null
+    },
+    "adventure": {
+      "label": "เริ่มเกม/ผจญภัย",
+      "channel_id": null
+    },
+    "rent": {
+      "label": "สัญญาเช่าห้อง",
+      "channel_id": null
+    },
+    "police": {
+      "label": "ห้องแจ้งความ (arrest/fine)",
+      "channel_id": null
+    },
+    "casino_hilo": {
+      "label": "Hi-Lo",
+      "channel_id": null
+    },
+    "casino_slots": {
+      "label": "สล็อต",
+      "channel_id": null
+    },
+    "casino_bj": {
+      "label": "Blackjack",
+      "channel_id": null
+    },
+    "levelup_announce": {
+      "label": "ห้องประกาศเลเวลอัพ (Voice EXP)",
+      "channel_id": null,
+      "mention_player": false
+    },
+    "payment": {
+      "label": "เติมเงิน (Topup)",
+      "channel_id": null
+    },
+    "weekly_event": {
+      "label": "ประกาศอีเวนต์ประจำสัปดาห์",
+      "channel_id": null
+    }
   },
-
   "permission_groups": {
-    "admin":  { "label": "แอดมินหลัก (set_cash, spawn, tax...)", "role_ids": [] },
-    "police": { "label": "ตำรวจ/อัศวิน (arrest, fine, remove)", "role_ids": [] },
-    "priest": { "label": "นักบวช/หมอ (heal, rv)", "role_ids": [] }
+    "admin": {
+      "label": "แอดมินหลัก (set_cash, spawn, tax...)",
+      "role_ids": []
+    },
+    "police": {
+      "label": "ตำรวจ/อัศวิน (arrest, fine, remove)",
+      "role_ids": []
+    },
+    "priest": {
+      "label": "นักบวช/หมอ (heal, rv)",
+      "role_ids": []
+    }
   },
-
   "auto_trade_roles": {
     "dark": [
-      { "label": "♆ Maou-sama ⚓️", "value": "maou", "price": 300000000, "role_id": "1160575257892098109", "emoji": "👑" },
-      { "label": "💀 •  NECROMANCER", "value": "necro", "price": 100000000, "role_id": "1160579901515124776", "emoji": "💀" },
-      { "label": "•  Giant-King 👹", "value": "giant", "price": 50000000, "role_id": "1160577575937126543", "emoji": "👹" },
-      { "label": "• Asmodeus🕯️", "value": "asmo", "price": 20000000, "role_id": "1160576018508152912", "emoji": "🕯️" },
-      { "label": "• Beelzebub 🪰", "value": "beel", "price": 20000000, "role_id": "1160577870251425965", "emoji": "🪰" },
-      { "label": "• Mammon 🪙", "value": "mammon", "price": 20000000, "role_id": "1160576329079595079", "emoji": "🪙" },
-      { "label": "• Belphegor 🦥", "value": "belphe", "price": 20000000, "role_id": "1510346403044655124", "emoji": "🐌" },
-      { "label": "• Satan 𖤐", "value": "satan", "price": 20000000, "role_id": "1510346894558105680", "emoji": "🔯" },
-      { "label": "• Leviathan 🐍", "value": "levi", "price": 20000000, "role_id": "1510347065492901918", "emoji": "🐍" },
-      { "label": "• Lucifer ⸸", "value": "luci", "price": 20000000, "role_id": "1510347144207401140", "emoji": "✝️" }
+      {
+        "label": "♆ Maou-sama ⚓️",
+        "value": "maou",
+        "price": 300000000,
+        "role_id": "1160575257892098109",
+        "emoji": "👑"
+      },
+      {
+        "label": "💀 •  NECROMANCER",
+        "value": "necro",
+        "price": 100000000,
+        "role_id": "1160579901515124776",
+        "emoji": "💀"
+      },
+      {
+        "label": "•  Giant-King 👹",
+        "value": "giant",
+        "price": 50000000,
+        "role_id": "1160577575937126543",
+        "emoji": "👹"
+      },
+      {
+        "label": "• Asmodeus🕯️",
+        "value": "asmo",
+        "price": 20000000,
+        "role_id": "1160576018508152912",
+        "emoji": "🕯️"
+      },
+      {
+        "label": "• Beelzebub 🪰",
+        "value": "beel",
+        "price": 20000000,
+        "role_id": "1160577870251425965",
+        "emoji": "🪰"
+      },
+      {
+        "label": "• Mammon 🪙",
+        "value": "mammon",
+        "price": 20000000,
+        "role_id": "1160576329079595079",
+        "emoji": "🪙"
+      },
+      {
+        "label": "• Belphegor 🦥",
+        "value": "belphe",
+        "price": 20000000,
+        "role_id": "1510346403044655124",
+        "emoji": "🐌"
+      },
+      {
+        "label": "• Satan 𖤐",
+        "value": "satan",
+        "price": 20000000,
+        "role_id": "1510346894558105680",
+        "emoji": "🔯"
+      },
+      {
+        "label": "• Leviathan 🐍",
+        "value": "levi",
+        "price": 20000000,
+        "role_id": "1510347065492901918",
+        "emoji": "🐍"
+      },
+      {
+        "label": "• Lucifer ⸸",
+        "value": "luci",
+        "price": 20000000,
+        "role_id": "1510347144207401140",
+        "emoji": "✝️"
+      }
     ],
     "light": [
-      { "label": "ִֶָ. ..𓂃🪬 ࣪พระเจ้า ִֶָ🪽་༘࿐", "value": "god", "price": 300000000, "role_id": "1160561278297837628", "emoji": "✨" },
-      { "label": "🔥 ִֶָ อัครเทวทูต 🐦‍🔥་༘࿐", "value": "archangel", "price": 100000000, "role_id": "1160561319288766464", "emoji": "🔥" },
-      { "label": "જ⁀➴  ทูตสวรรค์ 🏹 ་༘", "value": "angel", "price": 50000000, "role_id": "1160561520095281274", "emoji": "🏹" },
-      { "label": "🪽• เทวทูต • Michael 🪽་༘࿐", "value": "michael", "price": 20000000, "role_id": "1160562306602762260", "emoji": "☁️" },
-      { "label": "🪽• เทวทูต • Raphael ‧₊˚ ☁️⋅", "value": "raphael", "price": 20000000, "role_id": "1160562310306340994", "emoji": "☁️" },
-      { "label": "🪽• เทวทูต • Gabriel 𐙚 🪽 ྀི", "value": "gabriel", "price": 20000000, "role_id": "1160563068695224432", "emoji": "☁️" },
-      { "label": "🪽• เทวทูต • Uriel⋆°🦢.⋆ᥫ᭡", "value": "uriel", "price": 20000000, "role_id": "1160563077763313806", "emoji": "☁️" },
-      { "label": "🪽• เทวทูต • Sariel ₊˚˖𓍢ִ໋🦢", "value": "sariel", "price": 20000000, "role_id": "1160563084956545064", "emoji": "🦢" },
-      { "label": "🪽• เทวทูต • Remiel 🕯️ ﾟ.", "value": "remiel", "price": 20000000, "role_id": "1160563101503066232", "emoji": "🕯️" },
-      { "label": "🪽• เทวทูต • Raguel ₊˚ʚ ᗢ₊˚", "value": "raguel", "price": 20000000, "role_id": "1160563110688596108", "emoji": "☁️" }
+      {
+        "label": "ִֶָ. ..𓂃🪬 ࣪พระเจ้า ִֶָ🪽་༘࿐",
+        "value": "god",
+        "price": 300000000,
+        "role_id": "1160561278297837628",
+        "emoji": "✨"
+      },
+      {
+        "label": "🔥 ִֶָ อัครเทวทูต 🐦‍🔥་༘࿐",
+        "value": "archangel",
+        "price": 100000000,
+        "role_id": "1160561319288766464",
+        "emoji": "🔥"
+      },
+      {
+        "label": "જ⁀➴  ทูตสวรรค์ 🏹 ་༘",
+        "value": "angel",
+        "price": 50000000,
+        "role_id": "1160561520095281274",
+        "emoji": "🏹"
+      },
+      {
+        "label": "🪽• เทวทูต • Michael 🪽་༘࿐",
+        "value": "michael",
+        "price": 20000000,
+        "role_id": "1160562306602762260",
+        "emoji": "☁️"
+      },
+      {
+        "label": "🪽• เทวทูต • Raphael ‧₊˚ ☁️⋅",
+        "value": "raphael",
+        "price": 20000000,
+        "role_id": "1160562310306340994",
+        "emoji": "☁️"
+      },
+      {
+        "label": "🪽• เทวทูต • Gabriel 𐙚 🪽 ྀི",
+        "value": "gabriel",
+        "price": 20000000,
+        "role_id": "1160563068695224432",
+        "emoji": "☁️"
+      },
+      {
+        "label": "🪽• เทวทูต • Uriel⋆°🦢.⋆ᥫ᭡",
+        "value": "uriel",
+        "price": 20000000,
+        "role_id": "1160563077763313806",
+        "emoji": "☁️"
+      },
+      {
+        "label": "🪽• เทวทูต • Sariel ₊˚˖𓍢ִ໋🦢",
+        "value": "sariel",
+        "price": 20000000,
+        "role_id": "1160563084956545064",
+        "emoji": "🦢"
+      },
+      {
+        "label": "🪽• เทวทูต • Remiel 🕯️ ﾟ.",
+        "value": "remiel",
+        "price": 20000000,
+        "role_id": "1160563101503066232",
+        "emoji": "🕯️"
+      },
+      {
+        "label": "🪽• เทวทูต • Raguel ₊˚ʚ ᗢ₊˚",
+        "value": "raguel",
+        "price": 20000000,
+        "role_id": "1160563110688596108",
+        "emoji": "☁️"
+      }
     ],
     "gacha_price": 10000000,
     "gacha_pool_price": 20000000
   },
-
   "skills": {
     "Warrior": {
-      "heavy_strike": {"chance_base": 80, "chance_lvl_scale": 1, "damage_multiplier": 2},
-      "shield_bash":  {"duration": 3, "reduction_base": 0.50, "reduction_lvl_scale": 0.005}
+      "heavy_strike": {
+        "chance_base": 80,
+        "chance_lvl_scale": 1,
+        "damage_multiplier": 2,
+        "crit_roll_min": 18,
+        "crit_multiplier": 3
+      },
+      "shield_bash": {
+        "duration": 4,
+        "reduction_base": 0.6,
+        "reduction_lvl_scale": 0.005,
+        "reflect_pct": 0.2
+      }
     },
     "Mage": {
-      "fireball":  {"duration": 2, "burn_base": 0.05, "burn_lvl_scale": 0.002},
-      "frostbolt": {"duration_base": 1, "duration_lvl_scale": 0.05, "damage_reduce": 0.75}
+      "fireball": {
+        "duration": 2,
+        "burn_base": 0.05,
+        "burn_lvl_scale": 0.002
+      },
+      "frostbolt": {
+        "duration_base": 1,
+        "duration_lvl_scale": 0.05,
+        "damage_reduce": 0.75
+      }
     },
     "Rogue": {
-      "backstab": {"chance_base": 50, "chance_lvl_scale": 0.5, "damage_reflect_mult": 1.5},
-      "evasion":  {"chance_base": 100, "chance_lvl_scale": 0.0}
+      "backstab": {
+        "chance_base": 50,
+        "chance_lvl_scale": 0.5,
+        "damage_reflect_mult": 1.5
+      },
+      "evasion": {
+        "chance_base": 100,
+        "chance_lvl_scale": 0.0
+      }
     },
     "Cleric": {
-      "heal":      {"heal_percent_base": 0.40, "heal_lvl_scale": 0.01},
-      "holy_aura": {"chance_base": 50, "chance_lvl_scale": 1}
+      "heal": {
+        "heal_percent_base": 0.4,
+        "heal_lvl_scale": 0.01
+      },
+      "holy_aura": {
+        "chance_base": 50,
+        "chance_lvl_scale": 1
+      }
     }
   },
-
   "payment": {
     "currency": "THB",
     "exchange_rate": 1000,
     "min_amount": 10,
     "max_amount": 10000,
-    "promptpay": { "enabled": false, "id": "", "name": "" },
-    "paypal": { "enabled": false, "link": "" },
-    "truemoney": { "enabled": false, "phone": "" }
+    "promptpay": {
+      "enabled": false,
+      "id": "",
+      "name": ""
+    },
+    "paypal": {
+      "enabled": false,
+      "link": ""
+    },
+    "truemoney": {
+      "enabled": false,
+      "phone": ""
+    }
   },
-
   "rank_rewards": {
     "cooldown_hours": 24,
     "ranks": [
-      { "label": "ยศอันที่ 1", "role_id": null, "cash": 10000, "exp": 500, "items": [{"item_id": "1", "amount": 2}] }
+      {
+        "label": "ยศอันที่ 1",
+        "role_id": null,
+        "cash": 10000,
+        "exp": 500,
+        "items": [
+          {
+            "item_id": "1",
+            "amount": 2
+          }
+        ]
+      }
     ]
   },
-
   "role_bonuses": [
-    {"label": "ทีมงาน (Staff) — โบนัส EXP ห้องเสียง", "role_id": null, "bonus_type": "voice_exp_multiplier", "value": 1.2},
-    {"label": "นักกวี (Poet) — โบนัส EXP ห้องเสียง", "role_id": null, "bonus_type": "voice_exp_multiplier", "value": 1.5},
-    {"label": "ทีมงาน (Staff) — โบนัสสถิติแชทกิจกรรม", "role_id": null, "bonus_type": "chat_event_multiplier", "value": 2.0},
-    {"label": "ผู้ส่งสาร (Messenger) — โบนัสเงินแชท", "role_id": null, "bonus_type": "chat_gold_multiplier", "value": 3.0}
+    {
+      "label": "ทีมงาน (Staff) — โบนัส EXP ห้องเสียง",
+      "role_id": null,
+      "bonus_type": "voice_exp_multiplier",
+      "value": 1.2
+    },
+    {
+      "label": "นักกวี (Poet) — โบนัส EXP ห้องเสียง",
+      "role_id": null,
+      "bonus_type": "voice_exp_multiplier",
+      "value": 1.5
+    },
+    {
+      "label": "ทีมงาน (Staff) — โบนัสสถิติแชทกิจกรรม",
+      "role_id": null,
+      "bonus_type": "chat_event_multiplier",
+      "value": 2.0
+    },
+    {
+      "label": "ผู้ส่งสาร (Messenger) — โบนัสเงินแชท",
+      "role_id": null,
+      "bonus_type": "chat_gold_multiplier",
+      "value": 3.0
+    }
   ],
-
   "shop_items": [
-    { "name": "✞ ทูตชั้นต้น ✞", "price": 10000, "type": "rank_role", "role_id": null },
-    { "name": "✞ ทูตชั้นกลาง ༊·˚", "price": 100000, "type": "rank_role", "role_id": null },
-    { "name": "✞ ทูตชั้นสูง ⁺˚ ཐི⋆♱⋆ཋྀ ˚₊", "price": 1000000, "type": "rank_role", "role_id": null },
-    { "name": "🎲 คัมภีร์กาชาสุ่มเปลี่ยนเผ่ามนุษย์", "price": 10000, "type": "gacha_human" },
-    { "name": "🎲 คัมภีร์กาชาสุ่มเปลี่ยนเผ่าปีศาจ", "price": 10000, "type": "gacha_monster" },
-    { "name": "🔮 คัมภีร์กาชาสุ่มเปลี่ยนคลาสอาชีพ", "price": 10000, "type": "gacha_class" }
+    {
+      "name": "✞ ทูตชั้นต้น ✞",
+      "price": 10000,
+      "type": "rank_role",
+      "role_id": null
+    },
+    {
+      "name": "✞ ทูตชั้นกลาง ༊·˚",
+      "price": 100000,
+      "type": "rank_role",
+      "role_id": null
+    },
+    {
+      "name": "✞ ทูตชั้นสูง ⁺˚ ཐི⋆♱⋆ཋྀ ˚₊",
+      "price": 1000000,
+      "type": "rank_role",
+      "role_id": null
+    },
+    {
+      "name": "🎲 คัมภีร์กาชาสุ่มเปลี่ยนเผ่ามนุษย์",
+      "price": 10000,
+      "type": "gacha_human"
+    },
+    {
+      "name": "🎲 คัมภีร์กาชาสุ่มเปลี่ยนเผ่าปีศาจ",
+      "price": 10000,
+      "type": "gacha_monster"
+    },
+    {
+      "name": "🔮 คัมภีร์กาชาสุ่มเปลี่ยนคลาสอาชีพ",
+      "price": 10000,
+      "type": "gacha_class"
+    }
   ],
-
   "item_catalog": {
     "items": {
-      "1": {"name": "💉 ยาฮีล", "buy": 300, "sell": 100, "type": "use", "effect": "heal", "effect_amount": 50},
-      "2": {"name": "🛠️ ใบซ่อมแซม", "buy": 500, "sell": 150, "type": "use", "effect": "repair"},
-      "3": {"name": "🟫 เกราะหนังเบา", "buy": 1000, "sell": 300, "type": "armor", "equip_key": "Leather_L"},
-      "4": {"name": "🟫 เกราะหนังหนัก", "buy": 3000, "sell": 900, "type": "armor", "equip_key": "Leather_H"},
-      "5": {"name": "⬜ เกราะเหล็กเบา", "buy": 8000, "sell": 2400, "type": "armor", "equip_key": "Steel_L"},
-      "6": {"name": "⬜ เกราะเหล็กหนัก", "buy": 20000, "sell": 6000, "type": "armor", "equip_key": "Steel_H"},
-      "7": {"name": "⚔️ อาวุธเหล็ก", "buy": 6000, "sell": 1800, "type": "weapon", "equip_key": "Iron_Weapon"},
-      "8": {"name": "🗡️ อาวุธในตำนาน", "buy": 9999999, "sell": 1, "type": "weapon", "equip_key": "Legen_Weapon"},
-      "9": {"name": "🦴 เศษกระดูก", "buy": 100, "sell": 10, "type": "junk", "purchasable": false},
-      "10": {"name": "🕸️ ใยแมงมุม", "buy": 150, "sell": 15, "type": "junk", "purchasable": false},
-      "11": {"name": "💎 เศษอัญมณีหมองหม่น", "buy": 500, "sell": 50, "type": "junk", "purchasable": false},
-      "12": {"name": "🪨 เศษหิน", "buy": 50, "sell": 5, "type": "junk", "purchasable": false},
-      "13": {"name": "🪵 เศษไม้", "buy": 30, "sell": 3, "type": "junk", "purchasable": false},
-      "14": {"name": "🧪 ขวดสารเคมี", "buy": 200, "sell": 20, "type": "junk", "purchasable": false},
-      "15": {"name": "🧵 เศษด้าย", "buy": 20, "sell": 2, "type": "junk", "purchasable": false},
-      "16": {"name": "🪶 ขนนก", "buy": 40, "sell": 4, "type": "junk", "purchasable": false},
-      "17": {"name": "🪙 เหรียญเก่า", "buy": 100, "sell": 10, "type": "junk", "purchasable": false},
-      "18": {"name": "🧱 ก้อนอิฐ", "buy": 60, "sell": 6, "type": "junk", "purchasable": false},
-      "19": {"name": "👜 กระเป๋ากลาง", "buy": 15000, "sell": 3000, "type": "bag", "equip_key": "Medium_Bag"},
-      "20": {"name": "👜 กระเป๋าใหญ่", "buy": 40000, "sell": 8000, "type": "bag", "equip_key": "Large_Bag"},
-      "21": {"name": "🌌 กระเป๋าเวทมนตร์", "buy": 9999999, "sell": 1, "type": "bag", "equip_key": "Magic_Bag"},
-      "22": {"name": "📜ใบวาปเมือง", "buy": 500, "sell": 50, "type": "drop", "purchasable": false, "effect": "set_state", "effect_value": "warp_village"},
-      "23": {"name": "🔑กุญแจวาปดันเจี้ยน", "buy": 2000, "sell": 200, "type": "drop", "purchasable": false, "effect": "set_state", "effect_value": "warp_dungeon"},
-      "24": {"name": "📃ใบเชิญมินิบอส", "buy": 8000, "sell": 1, "type": "drop", "purchasable": false, "effect": "set_state", "effect_value": "mini_summon"},
-      "25": {"name": "📃ใบเชิญบอสหลัก", "buy": 35000, "sell": 1, "type": "drop", "purchasable": false, "effect": "set_state", "effect_value": "main_summon"},
-      "26": {"name": "📃ใบเชิญบอสไร้พ่าย", "buy": 80000, "sell": 1, "type": "drop", "purchasable": false, "effect": "set_state", "effect_value": "unbeatable_summon"},
-      "27": {"name": "📡เรดาร์สแกนกล่องสมบัติ", "buy": 3000, "sell": 300, "type": "drop", "purchasable": false, "effect": "set_state", "effect_value": "scan_box"},
-      "28": {"name": "💌ใบชุบชีวิต", "buy": 5000, "sell": 500, "type": "drop", "purchasable": false, "effect": "revive"},
-      "29": {"name": "🔮 มานาคริสตัลบริสุทธิ์", "buy": 50000, "sell": 5000, "type": "junk", "purchasable": false},
-      "30": {"name": "🌿 ยาถอนพิษพงไพร", "buy": 1500, "sell": 300, "type": "use", "purchasable": true, "effect": "cure_status", "effect_value": ["poison", "entangled"]},
-      "31": {"name": "🥫 กล่องเสบียงฉุกเฉิน", "buy": 4000, "sell": 800, "type": "use", "purchasable": false, "effect": "emergency_ration"},
-      "32": {"name": "🏮 ตะเกียงมานาบริสุทธิ์", "buy": 3000, "sell": 600, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "warm"},
-      "33": {"name": "💾 ชิปกันคลื่น EMP", "buy": 2500, "sell": 500, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "emp_shield"},
-      "34": {"name": "📜 ม้วนคาถาขนนก", "buy": 5000, "sell": 1000, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "featherfall"},
-      "35": {"name": "💧 น้ำมนต์ชำระบาป", "buy": 3500, "sell": 700, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "holy_guard"},
-      "36": {"name": "🎲 ลูกเต๋าถ่วงน้ำหนัก", "buy": 6000, "sell": 1200, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "weighted_dice"},
-      "37": {"name": "🍀 เครื่องรางโคลเวอร์", "buy": 4000, "sell": 800, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "clover"},
-      "38": {"name": "🔍 แว่นส่องสัจจะ", "buy": 800, "sell": 150, "type": "junk", "purchasable": true},
-      "39": {"name": "🧭 เข็มทิศขบวนหลวง", "buy": 5000, "sell": 1000, "type": "use", "purchasable": true, "effect": "apply_status", "effect_value": "convoy_compass"},
-      "40": {"name": "🌋 หินอัคนีเพลิง", "buy": 15000, "sell": 1500, "type": "use", "purchasable": false, "effect": "apply_status", "effect_value": "obsidian_edge"},
-      "41": {"name": "🎨 ผงสีรุ้ง", "buy": 25000, "sell": 2500, "type": "use", "purchasable": false, "effect": "dye_profile"},
-      "42": {"name": "🧤 ถุงมือกันคลื่น EMP", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_emp_gauntlet"},
-      "43": {"name": "🥾 รองเท้าขนนกวายุ", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_gale_boots"},
-      "44": {"name": "🧥 เสื้อคลุมเปลือกไม้", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_sylvan_cloak"},
-      "45": {"name": "💍 แหวนหินอัคนี", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_fire_ring"},
-      "46": {"name": "🧊 เกราะเกล็ดน้ำแข็ง", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_frostward_mail"},
-      "47": {"name": "📿 สร้อยวิญญาณเนเธอร์", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_nether_amulet"},
-      "48": {"name": "⚔️ ดาบคู่แฝด", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_twin_blade"},
-      "49": {"name": "🌟 คทาไม้เทวา", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_celestial_staff"},
-      "50": {"name": "🎭 แว่นเดี่ยวหน้ากาก", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_masquerade_monocle"},
-      "51": {"name": "👝 ถุงเต๋าเทพี", "buy": 100000, "sell": 5000, "type": "use", "purchasable": false, "effect": "equip_artifact", "effect_value": "art_goddess_dicebag"},
-      "52": {"name": "🌀 ประตูวาร์ปมิติ", "buy": 40000, "sell": 4000, "type": "use", "purchasable": false, "effect": "random_continent"},
-      "53": {"name": "🎫 ตั๋วเรือเหมาลำ", "buy": 25000, "sell": 2500, "type": "use", "purchasable": false, "effect": "choose_continent"},
-      "54": {"name": "🗡️ มีดตัดเถาวัลย์", "buy": 800, "sell": 160, "type": "use", "purchasable": true, "effect": "cure_status", "effect_value": "entangled"},
-      "55": {"name": "🧪 ยาพลิกธาตุ", "buy": 30000, "sell": 3000, "type": "use", "purchasable": false, "effect": "apply_status", "effect_value": "element_flux"},
-      "56": {"name": "🧴 ครีมว่านเย็น", "buy": 2000, "sell": 400, "type": "use", "purchasable": true, "effect": "cure_status", "effect_value": "burn"},
-      "57": {"name": "☕ ชาสมุนไพรร้อน", "buy": 2500, "sell": 500, "type": "use", "purchasable": true, "effect": "cure_status", "effect_value": ["numb", "fumble"]},
-      "58": {"name": "⚡ สายดินพกพา", "buy": 2000, "sell": 400, "type": "use", "purchasable": true, "effect": "cure_status", "effect_value": "shock"},
-      "59": {"name": "🕯️ เทียนไล่คำสาป", "buy": 4000, "sell": 800, "type": "use", "purchasable": true, "effect": "cure_status", "effect_value": ["odd_curse", "even_curse"]},
-      "60": {"name": "💊 ยาครอบจักรวาล", "buy": 25000, "sell": 5000, "type": "use", "purchasable": true, "effect": "cure_status", "effect_value": ["poison", "numb", "emp", "frostbite", "sealed_dice", "fumble", "burn", "entangled", "odd_curse", "even_curse", "shock", "zombie_parasite", "zombie_frenzy"]}
+      "1": {
+        "name": "💉 ยาฮีล",
+        "buy": 300,
+        "sell": 100,
+        "type": "use",
+        "effect": "heal",
+        "effect_amount": 50
+      },
+      "2": {
+        "name": "🛠️ ใบซ่อมแซม",
+        "buy": 500,
+        "sell": 150,
+        "type": "use",
+        "effect": "repair"
+      },
+      "3": {
+        "name": "🟫 เกราะหนังเบา",
+        "buy": 1000,
+        "sell": 300,
+        "type": "armor",
+        "equip_key": "Leather_L"
+      },
+      "4": {
+        "name": "🟫 เกราะหนังหนัก",
+        "buy": 3000,
+        "sell": 900,
+        "type": "armor",
+        "equip_key": "Leather_H"
+      },
+      "5": {
+        "name": "⬜ เกราะเหล็กเบา",
+        "buy": 8000,
+        "sell": 2400,
+        "type": "armor",
+        "equip_key": "Steel_L"
+      },
+      "6": {
+        "name": "⬜ เกราะเหล็กหนัก",
+        "buy": 20000,
+        "sell": 6000,
+        "type": "armor",
+        "equip_key": "Steel_H"
+      },
+      "7": {
+        "name": "⚔️ อาวุธเหล็ก",
+        "buy": 6000,
+        "sell": 1800,
+        "type": "weapon",
+        "equip_key": "Iron_Weapon"
+      },
+      "8": {
+        "name": "🗡️ อาวุธในตำนาน",
+        "buy": 9999999,
+        "sell": 1,
+        "type": "weapon",
+        "equip_key": "Legen_Weapon"
+      },
+      "9": {
+        "name": "🦴 เศษกระดูก",
+        "buy": 100,
+        "sell": 10,
+        "type": "junk",
+        "purchasable": false
+      },
+      "10": {
+        "name": "🕸️ ใยแมงมุม",
+        "buy": 150,
+        "sell": 15,
+        "type": "junk",
+        "purchasable": false
+      },
+      "11": {
+        "name": "💎 เศษอัญมณีหมองหม่น",
+        "buy": 500,
+        "sell": 50,
+        "type": "junk",
+        "purchasable": false
+      },
+      "12": {
+        "name": "🪨 เศษหิน",
+        "buy": 50,
+        "sell": 5,
+        "type": "junk",
+        "purchasable": false
+      },
+      "13": {
+        "name": "🪵 เศษไม้",
+        "buy": 30,
+        "sell": 3,
+        "type": "junk",
+        "purchasable": false
+      },
+      "14": {
+        "name": "🧪 ขวดสารเคมี",
+        "buy": 200,
+        "sell": 20,
+        "type": "junk",
+        "purchasable": false
+      },
+      "15": {
+        "name": "🧵 เศษด้าย",
+        "buy": 20,
+        "sell": 2,
+        "type": "junk",
+        "purchasable": false
+      },
+      "16": {
+        "name": "🪶 ขนนก",
+        "buy": 40,
+        "sell": 4,
+        "type": "junk",
+        "purchasable": false
+      },
+      "17": {
+        "name": "🪙 เหรียญเก่า",
+        "buy": 100,
+        "sell": 10,
+        "type": "junk",
+        "purchasable": false
+      },
+      "18": {
+        "name": "🧱 ก้อนอิฐ",
+        "buy": 60,
+        "sell": 6,
+        "type": "junk",
+        "purchasable": false
+      },
+      "19": {
+        "name": "👜 กระเป๋ากลาง",
+        "buy": 15000,
+        "sell": 3000,
+        "type": "bag",
+        "equip_key": "Medium_Bag"
+      },
+      "20": {
+        "name": "👜 กระเป๋าใหญ่",
+        "buy": 40000,
+        "sell": 8000,
+        "type": "bag",
+        "equip_key": "Large_Bag"
+      },
+      "21": {
+        "name": "🌌 กระเป๋าเวทมนตร์",
+        "buy": 9999999,
+        "sell": 1,
+        "type": "bag",
+        "equip_key": "Magic_Bag"
+      },
+      "22": {
+        "name": "📜ใบวาปเมือง",
+        "buy": 500,
+        "sell": 50,
+        "type": "drop",
+        "purchasable": false,
+        "effect": "set_state",
+        "effect_value": "warp_village"
+      },
+      "23": {
+        "name": "🔑กุญแจวาปดันเจี้ยน",
+        "buy": 2000,
+        "sell": 200,
+        "type": "drop",
+        "purchasable": false,
+        "effect": "set_state",
+        "effect_value": "warp_dungeon"
+      },
+      "24": {
+        "name": "📃ใบเชิญมินิบอส",
+        "buy": 8000,
+        "sell": 1,
+        "type": "drop",
+        "purchasable": false,
+        "effect": "set_state",
+        "effect_value": "mini_summon"
+      },
+      "25": {
+        "name": "📃ใบเชิญบอสหลัก",
+        "buy": 35000,
+        "sell": 1,
+        "type": "drop",
+        "purchasable": false,
+        "effect": "set_state",
+        "effect_value": "main_summon"
+      },
+      "26": {
+        "name": "📃ใบเชิญบอสไร้พ่าย",
+        "buy": 80000,
+        "sell": 1,
+        "type": "drop",
+        "purchasable": false,
+        "effect": "set_state",
+        "effect_value": "unbeatable_summon"
+      },
+      "27": {
+        "name": "📡เรดาร์สแกนกล่องสมบัติ",
+        "buy": 3000,
+        "sell": 300,
+        "type": "drop",
+        "purchasable": false,
+        "effect": "set_state",
+        "effect_value": "scan_box"
+      },
+      "28": {
+        "name": "💌ใบชุบชีวิต",
+        "buy": 5000,
+        "sell": 500,
+        "type": "drop",
+        "purchasable": false,
+        "effect": "revive"
+      },
+      "29": {
+        "name": "🔮 มานาคริสตัลบริสุทธิ์",
+        "buy": 50000,
+        "sell": 5000,
+        "type": "junk",
+        "purchasable": false
+      },
+      "30": {
+        "name": "🌿 ยาถอนพิษพงไพร",
+        "buy": 1500,
+        "sell": 300,
+        "type": "use",
+        "purchasable": true,
+        "effect": "cure_status",
+        "effect_value": [
+          "poison",
+          "entangled"
+        ]
+      },
+      "31": {
+        "name": "🥫 กล่องเสบียงฉุกเฉิน",
+        "buy": 4000,
+        "sell": 800,
+        "type": "use",
+        "purchasable": false,
+        "effect": "emergency_ration"
+      },
+      "32": {
+        "name": "🏮 ตะเกียงมานาบริสุทธิ์",
+        "buy": 3000,
+        "sell": 600,
+        "type": "use",
+        "purchasable": true,
+        "effect": "apply_status",
+        "effect_value": "warm"
+      },
+      "33": {
+        "name": "💾 ชิปกันคลื่น EMP",
+        "buy": 2500,
+        "sell": 500,
+        "type": "use",
+        "purchasable": true,
+        "effect": "apply_status",
+        "effect_value": "emp_shield"
+      },
+      "34": {
+        "name": "📜 ม้วนคาถาขนนก",
+        "buy": 5000,
+        "sell": 1000,
+        "type": "use",
+        "purchasable": true,
+        "effect": "apply_status",
+        "effect_value": "featherfall"
+      },
+      "35": {
+        "name": "💧 น้ำมนต์ชำระบาป",
+        "buy": 3500,
+        "sell": 700,
+        "type": "use",
+        "purchasable": true,
+        "effect": "apply_status",
+        "effect_value": "holy_guard"
+      },
+      "36": {
+        "name": "🎲 ลูกเต๋าถ่วงน้ำหนัก",
+        "buy": 6000,
+        "sell": 1200,
+        "type": "use",
+        "purchasable": true,
+        "effect": "apply_status",
+        "effect_value": "weighted_dice"
+      },
+      "37": {
+        "name": "🍀 เครื่องรางโคลเวอร์",
+        "buy": 4000,
+        "sell": 800,
+        "type": "use",
+        "purchasable": true,
+        "effect": "apply_status",
+        "effect_value": "clover"
+      },
+      "38": {
+        "name": "🔍 แว่นส่องสัจจะ",
+        "buy": 800,
+        "sell": 150,
+        "type": "junk",
+        "purchasable": true
+      },
+      "39": {
+        "name": "🧭 เข็มทิศขบวนหลวง",
+        "buy": 5000,
+        "sell": 1000,
+        "type": "use",
+        "purchasable": true,
+        "effect": "apply_status",
+        "effect_value": "convoy_compass"
+      },
+      "40": {
+        "name": "🌋 หินอัคนีเพลิง",
+        "buy": 15000,
+        "sell": 1500,
+        "type": "use",
+        "purchasable": false,
+        "effect": "apply_status",
+        "effect_value": "obsidian_edge"
+      },
+      "41": {
+        "name": "🎨 ผงสีรุ้ง",
+        "buy": 25000,
+        "sell": 2500,
+        "type": "use",
+        "purchasable": false,
+        "effect": "dye_profile"
+      },
+      "42": {
+        "name": "🧤 ถุงมือกันคลื่น EMP",
+        "buy": 100000,
+        "sell": 5000,
+        "type": "use",
+        "purchasable": false,
+        "effect": "equip_artifact",
+        "effect_value": "art_emp_gauntlet"
+      },
+      "43": {
+        "name": "🥾 รองเท้าขนนกวายุ",
+        "buy": 100000,
+        "sell": 5000,
+        "type": "use",
+        "purchasable": false,
+        "effect": "equip_artifact",
+        "effect_value": "art_gale_boots"
+      },
+      "44": {
+        "name": "🧥 เสื้อคลุมเปลือกไม้",
+        "buy": 100000,
+        "sell": 5000,
+        "type": "use",
+        "purchasable": false,
+        "effect": "equip_artifact",
+        "effect_value": "art_sylvan_cloak"
+      },
+      "45": {
+        "name": "💍 แหวนหินอัคนี",
+        "buy": 100000,
+        "sell": 5000,
+        "type": "use",
+        "purchasable": false,
+        "effect": "equip_artifact",
+        "effect_value": "art_fire_ring"
+      },
+      "46": {
+        "name": "🧊 เกราะเกล็ดน้ำแข็ง",
+        "buy": 100000,
+        "sell": 5000,
+        "type": "use",
+        "purchasable": false,
+        "effect": "equip_artifact",
+        "effect_value": "art_frostward_mail"
+      },
+      "47": {
+        "name": "📿 สร้อยวิญญาณเนเธอร์",
+        "buy": 100000,
+        "sell": 5000,
+        "type": "use",
+        "purchasable": false,
+        "effect": "equip_artifact",
+        "effect_value": "art_nether_amulet"
+      },
+      "48": {
+        "name": "⚔️ ดาบคู่แฝด",
+        "buy": 100000,
+        "sell": 5000,
+        "type": "use",
+        "purchasable": false,
+        "effect": "equip_artifact",
+        "effect_value": "art_twin_blade"
+      },
+      "49": {
+        "name": "🌟 คทาไม้เทวา",
+        "buy": 100000,
+        "sell": 5000,
+        "type": "use",
+        "purchasable": false,
+        "effect": "equip_artifact",
+        "effect_value": "art_celestial_staff"
+      },
+      "50": {
+        "name": "🎭 แว่นเดี่ยวหน้ากาก",
+        "buy": 100000,
+        "sell": 5000,
+        "type": "use",
+        "purchasable": false,
+        "effect": "equip_artifact",
+        "effect_value": "art_masquerade_monocle"
+      },
+      "51": {
+        "name": "👝 ถุงเต๋าเทพี",
+        "buy": 100000,
+        "sell": 5000,
+        "type": "use",
+        "purchasable": false,
+        "effect": "equip_artifact",
+        "effect_value": "art_goddess_dicebag"
+      },
+      "52": {
+        "name": "🌀 ประตูวาร์ปมิติ",
+        "buy": 40000,
+        "sell": 4000,
+        "type": "use",
+        "purchasable": false,
+        "effect": "random_continent"
+      },
+      "53": {
+        "name": "🎫 ตั๋วเรือเหมาลำ",
+        "buy": 25000,
+        "sell": 2500,
+        "type": "use",
+        "purchasable": false,
+        "effect": "choose_continent"
+      },
+      "54": {
+        "name": "🗡️ มีดตัดเถาวัลย์",
+        "buy": 800,
+        "sell": 160,
+        "type": "use",
+        "purchasable": true,
+        "effect": "cure_status",
+        "effect_value": "entangled"
+      },
+      "55": {
+        "name": "🧪 ยาพลิกธาตุ",
+        "buy": 30000,
+        "sell": 3000,
+        "type": "use",
+        "purchasable": false,
+        "effect": "apply_status",
+        "effect_value": "element_flux"
+      },
+      "56": {
+        "name": "🧴 ครีมว่านเย็น",
+        "buy": 2000,
+        "sell": 400,
+        "type": "use",
+        "purchasable": true,
+        "effect": "cure_status",
+        "effect_value": "burn"
+      },
+      "57": {
+        "name": "☕ ชาสมุนไพรร้อน",
+        "buy": 2500,
+        "sell": 500,
+        "type": "use",
+        "purchasable": true,
+        "effect": "cure_status",
+        "effect_value": [
+          "numb",
+          "fumble"
+        ]
+      },
+      "58": {
+        "name": "⚡ สายดินพกพา",
+        "buy": 2000,
+        "sell": 400,
+        "type": "use",
+        "purchasable": true,
+        "effect": "cure_status",
+        "effect_value": "shock"
+      },
+      "59": {
+        "name": "🕯️ เทียนไล่คำสาป",
+        "buy": 4000,
+        "sell": 800,
+        "type": "use",
+        "purchasable": true,
+        "effect": "cure_status",
+        "effect_value": [
+          "odd_curse",
+          "even_curse"
+        ]
+      },
+      "60": {
+        "name": "💊 ยาครอบจักรวาล",
+        "buy": 25000,
+        "sell": 5000,
+        "type": "use",
+        "purchasable": true,
+        "effect": "cure_status",
+        "effect_value": [
+          "poison",
+          "numb",
+          "emp",
+          "frostbite",
+          "sealed_dice",
+          "fumble",
+          "burn",
+          "entangled",
+          "odd_curse",
+          "even_curse",
+          "shock",
+          "zombie_parasite",
+          "zombie_frenzy"
+        ]
+      }
     },
     "armor_stats": {
-      "None":      {"name": "👕 เสื้อผ้าธรรมดา", "hp": 0,   "eva": 85, "dur": 100, "vis": 1},
-      "Leather_L": {"name": "🟫 เกราะหนังเบา",   "hp": 20,  "eva": 70, "dur": 150, "vis": 3},
-      "Leather_H": {"name": "🟫 เกราะหนังหนัก",  "hp": 30,  "eva": 60, "dur": 200, "vis": 5},
-      "Steel_L":   {"name": "⬜ เกราะเหล็กเบา",  "hp": 50,  "eva": 40, "dur": 300, "vis": 7},
-      "Steel_H":   {"name": "⬜ เกราะเหล็กหนัก", "hp": 100, "eva": 20, "dur": 500, "vis": 9}
+      "None": {
+        "name": "👕 เสื้อผ้าธรรมดา",
+        "hp": 0,
+        "eva": 85,
+        "dur": 100,
+        "vis": 1
+      },
+      "Leather_L": {
+        "name": "🟫 เกราะหนังเบา",
+        "hp": 20,
+        "eva": 70,
+        "dur": 150,
+        "vis": 3
+      },
+      "Leather_H": {
+        "name": "🟫 เกราะหนังหนัก",
+        "hp": 30,
+        "eva": 60,
+        "dur": 200,
+        "vis": 5
+      },
+      "Steel_L": {
+        "name": "⬜ เกราะเหล็กเบา",
+        "hp": 50,
+        "eva": 40,
+        "dur": 300,
+        "vis": 7
+      },
+      "Steel_H": {
+        "name": "⬜ เกราะเหล็กหนัก",
+        "hp": 100,
+        "eva": 20,
+        "dur": 500,
+        "vis": 9
+      }
     },
     "weapon_stats": {
-      "Wooden_Weapon": {"name": "🪵 อาวุธไม้",     "atk": 10, "dur": 50},
-      "Iron_Weapon":   {"name": "⚔️ อาวุธเหล็ก",   "atk": 30, "dur": 150},
-      "Legen_Weapon":  {"name": "🗡️ อาวุธในตำนาน", "atk": 999, "dur": 1000}
+      "Wooden_Weapon": {
+        "name": "🪵 อาวุธไม้",
+        "atk": 10,
+        "dur": 50
+      },
+      "Iron_Weapon": {
+        "name": "⚔️ อาวุธเหล็ก",
+        "atk": 30,
+        "dur": 150
+      },
+      "Legen_Weapon": {
+        "name": "🗡️ อาวุธในตำนาน",
+        "atk": 999,
+        "dur": 1000
+      }
     },
     "bag_stats": {
-      "Small_Bag": {"name": "🎒 กระเป๋าเล็ก", "capacity": 10},
-      "Medium_Bag": {"name": "🎒 กระเป๋ากลาง", "capacity": 50},
-      "Large_Bag": {"name": "🎒 กระเป๋าใหญ่", "capacity": 100},
-      "Magic_Bag": {"name": "🎒 กระเป๋าเวทมนตร์", "capacity": 0}
+      "Small_Bag": {
+        "name": "🎒 กระเป๋าเล็ก",
+        "capacity": 10
+      },
+      "Medium_Bag": {
+        "name": "🎒 กระเป๋ากลาง",
+        "capacity": 50
+      },
+      "Large_Bag": {
+        "name": "🎒 กระเป๋าใหญ่",
+        "capacity": 100
+      },
+      "Magic_Bag": {
+        "name": "🎒 กระเป๋าเวทมนตร์",
+        "capacity": 0
+      }
     },
     "crafting_recipes": {
-      "1": {"recipe": {"9": 2, "12": 1}, "fail_rate": 0.1},
-      "2": {"recipe": {"18": 1, "14": 1}, "fail_rate": 0.15},
-      "3": {"recipe": {"15": 5, "10": 3}, "fail_rate": 0.25},
-      "7": {"recipe": {"9": 5, "11": 1}, "fail_rate": 0.4},
-      "22": {"recipe": {"9": 3, "12": 2}, "fail_rate": 0.05},
-      "23": {"recipe": {"14": 2, "13": 3}, "fail_rate": 0.15},
-      "24": {"recipe": {"11": 1, "14": 3, "3": 1}, "fail_rate": 0.25},
-      "25": {"recipe": {"11": 3, "7": 1, "14": 5}, "fail_rate": 0.4},
-      "26": {"recipe": {"11": 5, "6": 1, "27": 1}, "fail_rate": 0.6},
-      "27": {"recipe": {"14": 3, "12": 5}, "fail_rate": 0.2},
-      "28": {"recipe": {"9": 10, "11": 2}, "fail_rate": 0.3},
-      "8": {"recipe": {"29": 5}, "fail_rate": 0.25}
+      "1": {
+        "recipe": {
+          "9": 2,
+          "12": 1
+        },
+        "fail_rate": 0.1
+      },
+      "2": {
+        "recipe": {
+          "18": 1,
+          "14": 1
+        },
+        "fail_rate": 0.15
+      },
+      "3": {
+        "recipe": {
+          "15": 5,
+          "10": 3
+        },
+        "fail_rate": 0.25
+      },
+      "7": {
+        "recipe": {
+          "9": 5,
+          "11": 1
+        },
+        "fail_rate": 0.4
+      },
+      "22": {
+        "recipe": {
+          "9": 3,
+          "12": 2
+        },
+        "fail_rate": 0.05
+      },
+      "23": {
+        "recipe": {
+          "14": 2,
+          "13": 3
+        },
+        "fail_rate": 0.15
+      },
+      "24": {
+        "recipe": {
+          "11": 1,
+          "14": 3,
+          "3": 1
+        },
+        "fail_rate": 0.25
+      },
+      "25": {
+        "recipe": {
+          "11": 3,
+          "7": 1,
+          "14": 5
+        },
+        "fail_rate": 0.4
+      },
+      "26": {
+        "recipe": {
+          "11": 5,
+          "6": 1,
+          "27": 1
+        },
+        "fail_rate": 0.6
+      },
+      "27": {
+        "recipe": {
+          "14": 3,
+          "12": 5
+        },
+        "fail_rate": 0.2
+      },
+      "28": {
+        "recipe": {
+          "9": 10,
+          "11": 2
+        },
+        "fail_rate": 0.3
+      },
+      "8": {
+        "recipe": {
+          "29": 5
+        },
+        "fail_rate": 0.25
+      }
     }
   }
 }
