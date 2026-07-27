@@ -506,6 +506,7 @@ def build_codex_embed(topic=""):
         embed.add_field(name="🏪 ร้านค้า & อื่น ๆ", inline=False, value=(
             "`!shop` ร้านไอเทม • `!darkshop` / `!lightshop` ร้านยศสองฝ่าย\n"
             "`!rent` เช่าห้องส่วนตัว (`!extend` ต่ออายุ, `!set_room` ตั้งค่า)\n"
+            "`!guild` ระบบกิลด์: create/invite/deposit/pay (ก่อตั้ง 3,000,000,000 ทองสด)\n"
             "`!payment` เติมเงิน • `!my_orders` เช็คคำสั่งซื้อ • `!menu` เมนูปุ่มลัด"))
         return embed
 
