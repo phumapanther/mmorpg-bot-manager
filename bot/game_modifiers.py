@@ -545,7 +545,7 @@ STATUS_EFFECTS = {
     "art_nether_amulet": {
         "label": "📿 สร้อยวิญญาณเนเธอร์", "tick": "step", "default_turns": 1,
         "artifact": True, "no_tick": True,
-        "block_hp_drain": True,                                  # กัน Life Drain ถาวร
+        "hp_drain_heal": 0.03,                                   # แปลง Life Drain เป็นฮีล +3% MaxHP/เทิร์น (ตามสเปก)
         "blocks": ["odd_curse"], "cleanse_on_apply": ["odd_curse"],
     },
     "art_twin_blade": {

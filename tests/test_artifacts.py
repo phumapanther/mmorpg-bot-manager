@@ -89,9 +89,11 @@ def test_v2_artifact_table_and_helpers():
     s = gm.apply_status({"numb": 3, "fumble": 2}, "art_frostward_mail")
     assert "numb" not in s and "fumble" not in s
     assert gm.apply_status(s, "numb") == s
-    # สร้อยเนเธอร์: กัน drain + กันสาปคี่
+    # สร้อยเนเธอร์: แปลง drain เป็นฮีล 3% MaxHP + กันสาปคี่
     amulet = {"art_nether_amulet": 1}
-    assert gm.has_status_flag(amulet, "block_hp_drain") is True
+    assert gm.STATUS_EFFECTS["art_nether_amulet"]["hp_drain_heal"] == 0.03
+    assert gm.has_status_flag(amulet, "hp_drain_heal") is True
+    assert gm.has_status_flag(amulet, "block_hp_drain") is False
     assert gm.apply_status(amulet, "odd_curse") == amulet
     # ดาบแฝด/คทา: ตัวคูณถาวร
     assert gm.status_combat_mult({"art_twin_blade": 1}, "player_dmg_mult") == 1.15

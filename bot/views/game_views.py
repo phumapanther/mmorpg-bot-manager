@@ -504,7 +504,14 @@ class MonsterEventView(View):
             # 💀 Life Drain (ทวีป/ธีม เช่น เนเธอร์): วิญญาณดูดกลืนชีวิตทุกเทิร์นที่สู้
             drain_range = self.mods.get("combat_hp_drain")
             if drain_range:
-                if game_modifiers.has_status_flag(self.statuses, "block_hp_drain"):
+                # 📿 สร้อยเนเธอร์: แปลงพลังดูดชีวิตเป็นฮีล % MaxHP (ชนะ block ถ้ามีทั้งคู่)
+                heal_pct = max((game_modifiers.STATUS_EFFECTS[k].get("hp_drain_heal", 0) for k in self.statuses), default=0)
+                if heal_pct:
+                    max_hp = player.get("max_hp", 100)
+                    heal = max(1, round(max_hp * heal_pct))
+                    player["hp"] = min(max_hp, player.get("hp", 100) + heal)
+                    combat_log += f"📿 **สร้อยวิญญาณกลืนพลังดูดชีวิตย้อนกลับ** `+{heal}` HP (เหลือ {player['hp']})\n"
+                elif game_modifiers.has_status_flag(self.statuses, "block_hp_drain"):
                     combat_log += "✝️ **น้ำมนต์เปล่งแสงคุ้มครอง** — พลังดูดกลืนชีวิตถูกขับไล่ออกไป!\n"
                 else:
                     drain = random.randint(int(drain_range[0]), int(drain_range[1]))
