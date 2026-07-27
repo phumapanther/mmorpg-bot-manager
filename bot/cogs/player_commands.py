@@ -794,7 +794,8 @@ class PlayerCommands(commands.Cog):
                     groups["material"].append(f"`{iid}` {name} (ขายร้าน 💰{it.get('sell', 0):,})")
             embed = discord.Embed(
                 title="📖 Codex — ไอเทมทั้งหมด", color=0x9b59b6,
-                description="ใช้ของด้วย `!use <เลข>` — เลขไอเทมคือตัวหน้าแต่ละบรรทัด")
+                description="ใช้ของด้วย `!use <เลข>` — เลขไอเทมคือตัวหน้าแต่ละบรรทัด\n"
+                            "รายละเอียดว่าบัฟแต่ละตัวกัน/ทำอะไร → `!codex สถานะ`")
             sections = [("💊 ของใช้", groups["use"]), ("🏺 อาร์ติแฟกต์ (มีช่องเดียว — สวมทับ ของเก่าถูกทำลายถาวร!)", groups["artifact"]),
                         ("⚔️ อุปกรณ์สวมใส่", groups["equip"]), ("🧱 วัสดุคราฟ/ของขายร้าน", groups["material"])]
             for title, lines in sections:
