@@ -385,3 +385,15 @@ def claim_bestiary_reward(user_id, reward_key):
     conn.commit()
     conn.close()
     return is_new
+
+
+# ===== ⚖️ ล่าค่าหัว (Bounty) — P4 =====
+
+def get_outlaws():
+    """รายชื่อผู้เล่นสติติดลบ (อาชญากรมีค่าหัว) เรียงจากคลั่งหนักสุด — [(user_id, sanity), ...]"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, sanity FROM players WHERE sanity < 0 ORDER BY sanity ASC")
+    rows = cursor.fetchall()
+    conn.close()
+    return rows

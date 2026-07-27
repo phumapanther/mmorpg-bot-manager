@@ -1361,6 +1361,20 @@ def _merge(base, extra):
     return out
 
 
+# ===== ⚖️ ล่าค่าหัว (Bounty) — P4 =====
+BOUNTY_BASE = 10_000
+BOUNTY_PER_DEFICIT = 2_000
+BOUNTY_CAP = 100_000
+BOUNTY_HUNT_SANITY_REWARD = 10   # ฆ่าอาชญากรสำเร็จ = สติคืน (ผดุงยุติธรรม)
+
+
+def bounty_for(sanity):
+    """ค่าหัวตามสติ — สติไม่ติดลบ = ไม่มีหัว (0)"""
+    if sanity >= 0:
+        return 0
+    return min(BOUNTY_CAP, BOUNTY_BASE + abs(sanity) * BOUNTY_PER_DEFICIT)
+
+
 # ===== 📕 สมุดสะสมมอนสเตอร์ (Bestiary) — P3 =====
 BESTIARY_RANKS = ["Common", "Mini-Boss", "Main-Boss", "Secret"]  # ครบ 4 นี้ = จบทวีป (ไร้พ่าย = ⭐ โบนัส)
 BESTIARY_REWARD_CONTINENT = 100_000

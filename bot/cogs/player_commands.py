@@ -497,7 +497,8 @@ def build_codex_embed(topic=""):
             "`!rich` `!toplvl` `!mytext` `!toptext` `!mytime` `!toptime` อันดับ/แต้มกิจกรรม"))
         embed.add_field(name="🎰 คาสิโน & PvP", inline=False, value=(
             "`!bj <เงินเดิมพัน>` แบล็กแจ็ก • `!hilo` ไฮโล • `!slots` สล็อต\n"
-            "`!att @คน` เปิดฉากปล้นกลางเมือง (ต้องอยู่ห้องเสียง) • `!challenge @คน` ท้าดวล PvP"))
+            "`!att @คน` เปิดฉากปล้นกลางเมือง (ต้องอยู่ห้องเสียง) • `!challenge @คน` ท้าดวล PvP\n"
+            "`!bounty` กระดานล่าค่าหัว — ฆ่าคนสติติดลบรับทอง ไม่เสียสติ"))
         embed.add_field(name="🏪 ร้านค้า & อื่น ๆ", inline=False, value=(
             "`!shop` ร้านไอเทม • `!darkshop` / `!lightshop` ร้านยศสองฝ่าย\n"
             "`!rent` เช่าห้องส่วนตัว (`!extend` ต่ออายุ, `!set_room` ตั้งค่า)\n"
@@ -907,6 +908,23 @@ class PlayerCommands(commands.Cog):
     async def codex(self, ctx, *, topic: str = ""):
         await ctx.send(embed=build_codex_embed(topic))
 
+    # --- 🎯 !bounty: กระดานล่าค่าหัว (คนสติติดลบ = อาชญากร) ---
+    @commands.command(name="bounty", aliases=["wanted", "ล่าหัว"])
+    async def bounty_board(self, ctx):
+        outlaws = player_model.get_outlaws()
+        embed = discord.Embed(
+            title="🎯 กระดานล่าค่าหัว", color=0xc0392b,
+            description=("ผู้คลุ้มคลั่ง (สติติดลบ) มีค่าหัวรอนักล่า — สังหารด้วย `!att` รับทองเต็ม ๆ\n"
+                         "ปราบอาชญากรไม่เสียสติ แถมฆ่าสำเร็จได้สติคืน `+10`"))
+        if not outlaws:
+            embed.description += "\n\n🕊️ **บ้านเมืองสงบสุข** — ยังไม่มีหัวให้ล่าในตอนนี้"
+        else:
+            lines = []
+            for uid, sanity in outlaws[:15]:  # โชว์ 15 หัวแรก (เรียงจากคลั่งสุด)
+                lines.append(f"💀 <@{uid}> — สติ `{sanity}` | ค่าหัว 💰 `{game_modifiers.bounty_for(sanity):,}` ทอง")
+            embed.add_field(name=f"หมายหัว {len(outlaws)} ราย", value="\n".join(lines), inline=False)
+        await ctx.send(embed=embed)
+
     # --- 📕 !bestiary: สมุดสะสมมอนสเตอร์ — เนื้อหาจริงอยู่ใน build_bestiary_embed (แชร์กับปุ่มเมนู) ---
     @commands.command(name="bestiary", aliases=["สมุดมอน"])
     async def bestiary(self, ctx):
@@ -1233,16 +1251,25 @@ class PlayerCommands(commands.Cog):
 
         if loser_new_hp <= 0:
             # --- 🏆 ระบบให้รางวัลผู้ชนะ ---
-            reward_exp = 100 + (loser.get("level", 1) * 1000)  
-            reward_gold = 500 + (loser.get("level", 1) * 500) 
-            
+            reward_exp = 100 + (loser.get("level", 1) * 1000)
+            reward_gold = 500 + (loser.get("level", 1) * 500)
+
             is_lvl_up, new_lvl, new_exp = player_model.add_exp(w_member.id, reward_exp)
-            
-            new_winner_cash = winner.get("cash", 0) + reward_gold
+
+            # ⚖️ ล่าค่าหัว (P4): ฝ่ายบุกฆ่าอาชญากร (สติติดลบ) = รับค่าหัว + เหยื่อชดใช้กรรม (สติรีเซ็ต 0)
+            bounty = 0
+            if loser is defender and defender.get("sanity", 100) < 0:
+                bounty = game_modifiers.bounty_for(defender.get("sanity", 100))
+                player_model.update_player_field(l_member.id, "sanity", 0)
+
+            new_winner_cash = winner.get("cash", 0) + reward_gold + bounty
             player_model.update_player_field(w_member.id, "cash", new_winner_cash)
-            
+
             lvl_up_msg = f"\n✨ **Level Up!** คุณเลเวลอัปเป็น {new_lvl}!" if is_lvl_up else ""
             reward_text = f"\n💰 **ได้รับรางวัล:** `{reward_gold}` ทอง | `EXP +{reward_exp}`{lvl_up_msg}"
+            if bounty:
+                reward_text += (f"\n🎯 **ล่าหัวสำเร็จ!** รับค่าหัว `{bounty:,}` ทอง — "
+                                f"{l_member.mention} ชดใช้กรรมแล้ว (สติกลับเป็น 0 หลุดจากกระดานล่าหัว)")
             
             cooldown_seconds = random.randint(300, 600) # สุ่ม 5 ถึง 10 นาที
             self.pk_cooldowns[ctx.author.id] = time.time() + cooldown_seconds
@@ -1252,14 +1279,25 @@ class PlayerCommands(commands.Cog):
         # ==========================================
         # 🧠 6. ระบบสูญเสียสติ (Sanity) ของผู้โจมตี
         # ==========================================
-        sanity_loss = 5 + int(attacker.get("level", 1) * 0.25)
-        current_sanity = attacker.get("sanity", 100)
-        new_sanity = current_sanity - sanity_loss
-        
-        # อัปเดตสติลงฐานข้อมูล
-        player_model.update_player_field(ctx.author.id, "sanity", new_sanity)
-        sanity_text = f"\n🧠 **สติสัมปชัญญะ (ผู้โจมตี):** ลดลง `{sanity_loss}` หน่วย (ปัจจุบัน: {new_sanity})"
-        karma_text = ""
+        # ⚖️ P4: เป้าหมายเป็นอาชญากร (สติติดลบ) = ปราบโจรไม่บาป — ไม่เสียสติ ไม่มีเวรกรรม
+        if defender.get("sanity", 100) < 0:
+            if loser_new_hp <= 0 and loser is defender:
+                hunter_sanity = min(100, attacker.get("sanity", 100) + game_modifiers.BOUNTY_HUNT_SANITY_REWARD)
+                player_model.update_player_field(ctx.author.id, "sanity", hunter_sanity)
+                sanity_text = f"\n🧠 **จิตใจผ่องใสจากการผดุงยุติธรรม** สติ `+{game_modifiers.BOUNTY_HUNT_SANITY_REWARD}` (ปัจจุบัน: {hunter_sanity})"
+            else:
+                sanity_text = "\n🧠 การไล่ล่าอาชญากรไม่ใช่บาป — สติไม่ลดลง"
+            karma_text = ""
+            new_sanity = 0  # sentinel: การล่าโจรไม่นับเป็นบาป — ข้ามเช็คสติแตกด้านล่างเสมอ (แม้นักล่าเองสติติดลบ)
+        else:
+            sanity_loss = 5 + int(attacker.get("level", 1) * 0.25)
+            current_sanity = attacker.get("sanity", 100)
+            new_sanity = current_sanity - sanity_loss
+
+            # อัปเดตสติลงฐานข้อมูล
+            player_model.update_player_field(ctx.author.id, "sanity", new_sanity)
+            sanity_text = f"\n🧠 **สติสัมปชัญญะ (ผู้โจมตี):** ลดลง `{sanity_loss}` หน่วย (ปัจจุบัน: {new_sanity})"
+            karma_text = ""
 
         # เช็กเงื่อนไขสติแตก (ค่าสติติดลบ) - จะเช็กเฉพาะตอนผู้โจมตีเป็นฝ่ายเปิด
         if new_sanity < 0:
