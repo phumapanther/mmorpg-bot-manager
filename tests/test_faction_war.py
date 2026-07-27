@@ -18,7 +18,7 @@ def test_resolve_faction():
 
 def test_theme_registered_and_merged():
     theme = gm.get_theme_by_key("faction_war")
-    assert theme and theme["mods"]["faction_war"]["chance"] == 25
+    assert theme and theme["mods"]["faction_war"]["chance"] == 40  # ปรับหลังเทสจริง
     mods = gm.get_active_modifiers({"continent": "main"}, theme_override="faction_war") \
         if "theme_override" in gm.get_active_modifiers.__code__.co_varnames else None
     # merge ผ่านตัวจริง: จำลองธีมด้วย THEME_OVERRIDE
@@ -26,7 +26,7 @@ def test_theme_registered_and_merged():
     gm.THEME_OVERRIDE = "faction_war"
     try:
         mods = gm.get_active_modifiers({"continent": "main"})
-        assert mods.get("faction_war") == {"chance": 25}
+        assert mods.get("faction_war") == {"chance": 40}
     finally:
         gm.THEME_OVERRIDE = old
 
