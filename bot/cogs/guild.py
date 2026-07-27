@@ -14,6 +14,7 @@ GUILD_ICON = "🏰"  # ไอคอนกลาง — ผู้ใช้ตั�
 # ยศคั่น "╔══❖═══ยศกิลด์═══❖══╗" ในเซิร์ฟหลัก — ยศกิลด์ใหม่ต้องเรียงใต้ยศนี้เสมอ
 # (เซิร์ฟอื่นไม่มียศนี้ = ข้ามการจัดตำแหน่งเฉย ๆ ไม่พัง)
 GUILD_ROLE_DIVIDER_ID = 1160555382977081415
+GUILD_RENAME_COST = 100_000_000  # ค่าเปลี่ยนชื่อกิลด์ (เงินสดหัวหน้า)
 
 # ตรรกะเช็คห้องเดียวกับคำสั่งอื่น (config channels.guild — ตั้งได้ในแท็บ Channels ของ panel)
 _guild_channel_check = allowed_channel("guild").predicate
@@ -254,13 +255,18 @@ class GuildCog(commands.Cog):
         if not g:
             return await ctx.send("❌ เปลี่ยนชื่อกิลด์ได้เฉพาะหัวหน้ากิลด์เท่านั้น!")
         if not new_name:
-            return await ctx.send("❓ วิธีใช้: `!guild rename <ชื่อใหม่>`")
+            return await ctx.send(f"❓ วิธีใช้: `!guild rename <ชื่อใหม่>` (ค่าธรรมเนียม `{GUILD_RENAME_COST:,}` ทองสด)")
         new_name = new_name.strip()
         if player_model.get_guild_by_name(new_name):
             return await ctx.send(f"❌ ชื่อ **{new_name}** ถูกใช้ไปแล้ว")
+        player = player_model.get_player(ctx.author.id)
+        if not player or player.get("cash", 0) < GUILD_RENAME_COST:
+            return await ctx.send(f"❌ ค่าเปลี่ยนชื่อกิลด์ `{GUILD_RENAME_COST:,}` ทอง**สด** — "
+                                  f"ตอนนี้คุณมี `{(player or {}).get('cash', 0):,}`")
         old_name = g["name"]
         if not player_model.rename_guild(g["guild_id"], new_name):
-            return await ctx.send("❌ เปลี่ยนชื่อไม่สำเร็จ ลองใหม่อีกครั้ง")
+            return await ctx.send("❌ เปลี่ยนชื่อไม่สำเร็จ ลองใหม่อีกครั้ง (ยังไม่ถูกหักเงิน)")
+        player_model.update_player_field(ctx.author.id, "cash", player["cash"] - GUILD_RENAME_COST)
         # เปลี่ยนชื่อยศ + ห้องเสียงให้ตรงกัน (พลาดตรงไหนก็ไม่ล้มคำสั่ง — DB คือความจริงหลัก)
         role = ctx.guild.get_role(g["role_id"])
         channel = ctx.guild.get_channel(g["channel_id"])
@@ -271,7 +277,8 @@ class GuildCog(commands.Cog):
                 await channel.edit(name=f"{GUILD_ICON}︱{new_name}", reason="เปลี่ยนชื่อกิลด์")
         except (discord.Forbidden, discord.HTTPException):
             pass
-        await ctx.send(f"✏️ เปลี่ยนชื่อกิลด์ **{old_name}** → **{new_name}** เรียบร้อย! (ยศ+ห้องเปลี่ยนตามแล้ว)")
+        await ctx.send(f"✏️ เปลี่ยนชื่อกิลด์ **{old_name}** → **{new_name}** เรียบร้อย! "
+                       f"(หักค่าธรรมเนียม `{GUILD_RENAME_COST:,}` ทอง — ยศ+ห้องเปลี่ยนตามแล้ว)")
 
     @guild.command(name="bank")
     async def bank(self, ctx):
