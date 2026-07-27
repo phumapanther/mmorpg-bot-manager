@@ -38,6 +38,20 @@ MONSTER_RANKS = {
 # 🎮 INTERACTIVE VIEWS
 # ==========================================================
 
+def _random_enemy_champion(member_roles, enemy_faction):
+    """สุ่มชื่อผู้เล่นจริงฝ่ายตรงข้ามจากเซิร์ฟมาเป็นแชมเปี้ยน — หาไม่ได้ (ไม่มีคนถือยศ/intent ปิด) = ชื่อกลาง"""
+    try:
+        guild = member_roles[0].guild
+        keywords = game_modifiers.DEMON_RACES if enemy_faction == "demon" else game_modifiers.HUMAN_RACES
+        candidates = [m.display_name for m in guild.members
+                      if not m.bot and any(k in r.name for r in m.roles for k in keywords)]
+        if candidates:
+            return random.choice(candidates)
+    except Exception:
+        pass
+    return random.choice(["นักรบนิรนาม", "อัศวินไร้นาม", "เงามรณะปริศนา"])
+
+
 class MenuButton(discord.ui.Button):
     """🕹️ เมนูลัดเทียบเท่า !menu — แปะท้ายทุกหน้าอีเวนต์ ผู้เล่นไม่ต้องพิมพ์คำสั่ง"""
     def __init__(self):
@@ -57,7 +71,7 @@ class ActionView(View):
 
 
 class MonsterEventView(ActionView):
-    def __init__(self, user_id, member_roles, monster_rank=None, monster_hp=None, active_buffs=None, turn_count=1, monster_name=None, element=None, fight_statuses=None, infused=False):
+    def __init__(self, user_id, member_roles, monster_rank=None, monster_hp=None, active_buffs=None, turn_count=1, monster_name=None, element=None, fight_statuses=None, infused=False, faction_war_side=None):
         super().__init__(timeout=60)
         self.user_id = user_id
         self.member_roles = member_roles
@@ -138,6 +152,22 @@ class MonsterEventView(ActionView):
             # ป้ายธาตุนำหน้าชื่อ — ผู้เล่นเห็นธาตุในทุกข้อความที่มีชื่อมอนสเตอร์
             self.m_stats["name"] = f"{self.element_data['label']} · {self.m_stats['name']}"
 
+            # ⚔️ ธีมสงครามฝ่าย (P5): มีลุ้นเจอ "แชมเปี้ยนฝ่ายตรงข้าม" แทนมอนปกติ (เฉพาะคนมีฝ่าย)
+            self.faction_war_side = None  # ฝ่ายผู้เล่นที่จะได้แต้ม/โบนัสเมื่อชนะไฟต์นี้
+            fw_cfg = self.mods.get("faction_war")
+            if fw_cfg:
+                my_faction = game_modifiers.resolve_player_faction(
+                    [getattr(r, "name", str(r)) for r in (member_roles or [])])
+                if my_faction and random.randint(1, 100) <= fw_cfg.get("chance", 25):
+                    enemy = "demon" if my_faction == "human" else "human"
+                    fdata = game_modifiers.FACTIONS[enemy]
+                    # ธาตุประจำฝ่ายทับธาตุที่สุ่มไว้ (HP ที่คูณไปแล้วคงเดิม — แชมเปี้ยนอึดกว่าปกติได้ ถือเป็นเกียรติ)
+                    self.element = fdata["element"]
+                    self.element_data = game_modifiers.get_element_data(self.mods, self.element)
+                    champ = _random_enemy_champion(member_roles, enemy)
+                    self.m_stats["name"] = f"{self.element_data['label']} · ⚔️ {champ} {fdata['champion_title']}"
+                    self.faction_war_side = my_faction
+
             # ☄️ Infusion (ธีมเช่นฝนดาวตกมานา): โอกาสติดบัฟพิเศษตอนเกิด — ตีแรงขึ้นแต่ดรอปของ
             infusion_cfg = self.mods.get("infusion")
             self.infused = bool(infusion_cfg and random.randint(1, 100) <= infusion_cfg.get("chance", 0))
@@ -167,6 +197,7 @@ class MonsterEventView(ActionView):
             # รับสแนปช็อตสถานะต่อจากเทิร์นก่อน (สถานะแบบ fight ถูก tick ไปแล้วตอนไฟต์เริ่ม)
             self.statuses = fight_statuses if fight_statuses is not None else game_modifiers.parse_statuses(player)
             self.infused = infused
+            self.faction_war_side = faction_war_side  # ธงแชมเปี้ยนส่งต่อข้ามเทิร์น
 
         self.player_class = "Unknown"
         for role in self.member_roles:
@@ -617,6 +648,10 @@ class MonsterEventView(ActionView):
                 reward = int(random.randint(1, 25) * self.m_stats.get("gold_mult", 1.0) * self.mods.get("monster_gold_mult", 1.0) * elem_gold_mult * passive_reward_mult)
                 status_exp_mult = game_modifiers.status_combat_mult(self.statuses, "exp_mult")
                 gained_exp = int((self.m_stats.get("exp_reward", 10) + random.randint(5, 15)) * self.mods.get("monster_exp_mult", 1.0) * self.element_data.get("exp_mult", 1.0) * status_exp_mult * passive_reward_mult)
+                # ⚔️ โค่นแชมเปี้ยนฝ่ายตรงข้าม (ธีมสงครามฝ่าย): ทอง ×2, EXP ×1.5
+                if getattr(self, "faction_war_side", None):
+                    reward = int(reward * game_modifiers.FACTION_WAR_GOLD_MULT)
+                    gained_exp = int(gained_exp * game_modifiers.FACTION_WAR_EXP_MULT)
                 if elem_gold_mult > 1.0:
                     combat_log += "✨ **พรแห่งแสง!** ร่างมอนสเตอร์สลายเป็นกองทองคำมูลค่าพิเศษ!\n"
                 if status_exp_mult > 1.0:
@@ -687,6 +722,19 @@ class MonsterEventView(ActionView):
 
                 except Exception as e:
                     print(f"❌ [ERROR] ระบบดรอปไอเทมพัง: {e}")
+
+                # ⚔️ แต้มสงครามฝ่าย (P5): +1 ให้ฝ่ายผู้เล่น + โชว์สกอร์สด — พังต้องไม่ล้มไฟต์
+                if getattr(self, "faction_war_side", None):
+                    try:
+                        side = self.faction_war_side
+                        foe = "demon" if side == "human" else "human"
+                        scores = player_model.add_faction_war_point(side)
+                        s_lbl = game_modifiers.FACTIONS[side]["label"]
+                        f_lbl = game_modifiers.FACTIONS[foe]["label"]
+                        dropped_item_msg += (f"\n⚔️ **เกียรติยศแด่{s_lbl}!** แต้มสงคราม `+1` — "
+                                             f"สกอร์สัปดาห์นี้ {s_lbl} `{scores[side]}` : `{scores[foe]}` {f_lbl} (`!war`)")
+                    except Exception as e:
+                        print(f"❌ [ERROR] ระบบแต้มสงครามพัง: {e}")
 
                 # 📕 สมุดสะสมมอน (Bestiary): จดแต้ม + แจกโบนัสครั้งเดียวเมื่อครบชุด — พังต้องไม่ล้มไฟต์
                 try:
@@ -854,9 +902,9 @@ class MonsterEventView(ActionView):
                     next_msg = f"⚔️ **[เทิร์นที่ {self.turn_count}] การต่อสู้ทวีความรุนแรง!**\n👾 ศัตรู: **{self.m_stats.get('name','?')}** (🩸 HP คงเหลือ: **{self.monster_hp}**)\n❤️ เลือดร่างกายของคุณ: **{db_updates['hp']}/{player.get('max_hp',100)}**\n\n{skill_log}{combat_log}----------------------------------------\nบอสจะแกร่งขึ้นเรื่อยๆ เลือกแอคชั่นหรือสกิลที่จะใช้ถัดไป:"
                     
                     if not interaction.response.is_done():
-                        await interaction.response.edit_message(content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses, infused=getattr(self, "infused", False)))
+                        await interaction.response.edit_message(content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses, infused=getattr(self, "infused", False), faction_war_side=getattr(self, "faction_war_side", None)))
                     else:
-                        await interaction.followup.edit_message(message_id=interaction.message.id, content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses, infused=getattr(self, "infused", False)))
+                        await interaction.followup.edit_message(message_id=interaction.message.id, content=next_msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses, infused=getattr(self, "infused", False), faction_war_side=getattr(self, "faction_war_side", None)))
                 except Exception as e:
                     print(f"❌ [ERROR] การไปเทิร์นถัดไปพัง: {e}")
 
@@ -928,7 +976,7 @@ class MonsterEventView(ActionView):
                 if new_armor_dur == 0 and player.get("armor_dur", 0) > 0:
                     msg += "\n🚨 **ชุดเกราะของคุณพังยับเยิน!**"
                     
-                await interaction.response.edit_message(content=msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses, infused=getattr(self, "infused", False)))
+                await interaction.response.edit_message(content=msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses, infused=getattr(self, "infused", False), faction_war_side=getattr(self, "faction_war_side", None)))
 
     async def skill_callback(self, interaction: discord.Interaction):
         if not await self.interaction_check(interaction): return

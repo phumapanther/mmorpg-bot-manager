@@ -397,3 +397,45 @@ def get_outlaws():
     rows = cursor.fetchall()
     conn.close()
     return rows
+
+
+# ===== ⚔️ แต้มสงครามฝ่าย (Faction War) — P5 =====
+
+def _war_week():
+    """คีย์สัปดาห์ ISO ปัจจุบัน เช่น '2026-W31' — แต้มสงครามนับแยกรายสัปดาห์"""
+    import datetime
+    y, w, _ = datetime.date.today().isocalendar()
+    return f"{y}-W{w:02d}"
+
+
+def _ensure_war_table(cursor):
+    cursor.execute("""CREATE TABLE IF NOT EXISTS faction_war_score (
+        week TEXT, faction TEXT, points INTEGER DEFAULT 0,
+        PRIMARY KEY (week, faction))""")
+
+
+def add_faction_war_point(faction, week=None):
+    """+1 แต้มให้ฝ่าย แล้วคืนสกอร์ล่าสุดของสัปดาห์นั้น"""
+    week = week or _war_week()
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_war_table(cursor)
+    cursor.execute("""INSERT INTO faction_war_score (week, faction, points) VALUES (?, ?, 1)
+                      ON CONFLICT(week, faction) DO UPDATE SET points = points + 1""",
+                   (week, faction))
+    conn.commit()
+    conn.close()
+    return get_faction_war_scores(week)
+
+
+def get_faction_war_scores(week=None):
+    """สกอร์สัปดาห์นี้: {"human": x, "demon": y} (ไม่มีแต้ม = 0)"""
+    week = week or _war_week()
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_war_table(cursor)
+    cursor.execute("SELECT faction, points FROM faction_war_score WHERE week = ?", (week,))
+    scores = {"human": 0, "demon": 0}
+    scores.update(dict(cursor.fetchall()))
+    conn.close()
+    return scores

@@ -269,7 +269,7 @@ def test_black_market_theme_numbers(monkeypatch):
 def test_theme_pool_weights_final():
     # ธีมพิเศษทุกตัว weight 1 (ไม่ระบุ = 1), สงบสุข = 11 → ครึ่งหนึ่งของสัปดาห์
     specials = [t for t in gm.WEEKLY_THEMES if t["key"] != "normal"]
-    assert len(specials) == 11
+    assert len(specials) == 12  # +faction_war (P5)
     assert all(t.get("weight", 1) == 1 for t in specials)
     normal = next(t for t in gm.WEEKLY_THEMES if t["key"] == "normal")
     assert normal["weight"] == len(specials)

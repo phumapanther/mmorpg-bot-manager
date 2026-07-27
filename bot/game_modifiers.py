@@ -1058,8 +1058,21 @@ WEEKLY_THEMES = [
         "key": "normal",
         "label": "🕊️ สัปดาห์สงบสุข",
         "description": "สัปดาห์นี้โลกดำเนินไปตามปกติ ไม่มีเหตุการณ์พิเศษใดๆ — ออกผจญภัยได้อย่างสบายใจ",
-        "weight": 11,  # = ผลรวมธีมพิเศษทั้ง 11 ตัว → ครึ่งหนึ่งของสัปดาห์ทั้งหมดเป็นสัปดาห์ปกติ
+        "weight": 12,  # = ผลรวมธีมพิเศษทั้ง 12 ตัว → ครึ่งหนึ่งของสัปดาห์ทั้งหมดเป็นสัปดาห์ปกติ
         "mods": {},
+    },
+    {
+        "key": "faction_war",
+        "label": "⚔️ สงครามฝ่าย (Faction War)",
+        "description": (
+            "กลองศึกดังก้องทั้งแผ่นดิน! มนุษย์และปีศาจเปิดศึกชิงศักดิ์ศรี — "
+            "ระหว่างผจญภัยมีลุ้นเจอ **แชมเปี้ยนฝ่ายตรงข้าม** ดักทาง "
+            "โค่นได้รับทอง ×2, EXP ×1.5 และเก็บแต้มให้ฝ่ายตัวเอง (ดูสกอร์: `!war`)"
+        ),
+        "mods": {
+            # 25% ของอีเวนต์มอนกลายเป็นแชมเปี้ยนฝ่ายตรงข้าม (เฉพาะคนมียศเผ่า/มีฝ่าย)
+            "faction_war": {"chance": 25},
+        },
     },
     {
         "key": "palette",
@@ -1354,11 +1367,35 @@ def _merge(base, extra):
             out[key] = merged_ov
         elif key == "special_events":
             out[key] = list(out.get(key, [])) + list(value)
-        elif key in ("combat_hp_drain", "infusion", "ambient_status", "dice_rules", "masquerade", "on_hit_status"):
+        elif key in ("combat_hp_drain", "infusion", "ambient_status", "dice_rules", "masquerade", "on_hit_status", "faction_war"):
             out[key] = value  # แทนที่ (ธีมทับทวีป)
         elif key.endswith("_mult"):
             out[key] = out.get(key, 1.0) * value
     return out
+
+
+# ===== ⚔️ สงครามฝ่าย (Faction War) — P5 =====
+# ฝ่ายจากยศเผ่า: เผ่าผู้เล่น (ไทย) = มนุษย์ / เผ่ามอนสเตอร์ (อังกฤษ) = ปีศาจ — keyword match แบบเดียวกับธาตุ
+HUMAN_RACES = ("มนุษย์", "เอลฟ์", "ยักษ์", "คนแคระ", "มังกร", "ภูติ", "เงือก", "มิ้ง")
+DEMON_RACES = ("Dragon", "Unicon", "Slime", "Ogre", "Orc", "Goblins", "Lich", "Skeleton", "Zombie")
+
+FACTIONS = {
+    "human": {"label": "🔵 ฝ่ายมนุษย์", "element": "light", "champion_title": "ผู้กล้าฝ่ายมนุษย์"},
+    "demon": {"label": "🔴 ฝ่ายปีศาจ", "element": "dark", "champion_title": "ขุนศึกฝ่ายปีศาจ"},
+}
+FACTION_WAR_GOLD_MULT = 2.0
+FACTION_WAR_EXP_MULT = 1.5
+
+
+def resolve_player_faction(role_names):
+    """ฝ่ายของผู้เล่นจากยศเผ่า: "human" / "demon" / ไม่มียศเผ่า = None (คนกลาง ไม่เกี่ยวสงคราม)
+    ถือทั้งสองฝ่าย = ยึดมนุษย์ก่อน (สอดคล้องลำดับตรวจใน profile)"""
+    names = [str(n) for n in role_names or []]
+    if any(k in n for n in names for k in HUMAN_RACES):
+        return "human"
+    if any(k in n for n in names for k in DEMON_RACES):
+        return "demon"
+    return None
 
 
 # ===== ⚖️ ล่าค่าหัว (Bounty) — P4 =====

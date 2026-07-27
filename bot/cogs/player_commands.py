@@ -498,7 +498,8 @@ def build_codex_embed(topic=""):
         embed.add_field(name="🎰 คาสิโน & PvP", inline=False, value=(
             "`!bj <เงินเดิมพัน>` แบล็กแจ็ก • `!hilo` ไฮโล • `!slots` สล็อต\n"
             "`!att @คน` เปิดฉากปล้นกลางเมือง (ต้องอยู่ห้องเสียง) • `!challenge @คน` ท้าดวล PvP\n"
-            "`!bounty` กระดานล่าค่าหัว — ฆ่าคนสติติดลบรับทอง ไม่เสียสติ"))
+            "`!bounty` กระดานล่าค่าหัว — ฆ่าคนสติติดลบรับทอง ไม่เสียสติ\n"
+            "`!war` สกอร์สงครามฝ่าย มนุษย์↔ปีศาจ (ธีมสงคราม)"))
         embed.add_field(name="🏪 ร้านค้า & อื่น ๆ", inline=False, value=(
             "`!shop` ร้านไอเทม • `!darkshop` / `!lightshop` ร้านยศสองฝ่าย\n"
             "`!rent` เช่าห้องส่วนตัว (`!extend` ต่ออายุ, `!set_room` ตั้งค่า)\n"
@@ -907,6 +908,26 @@ class PlayerCommands(commands.Cog):
     @commands.command(name="codex")
     async def codex(self, ctx, *, topic: str = ""):
         await ctx.send(embed=build_codex_embed(topic))
+
+    # --- ⚔️ !war: สกอร์สงครามฝ่ายประจำสัปดาห์ (ธีม faction_war) ---
+    @commands.command(name="war", aliases=["สงคราม"])
+    async def war_scores(self, ctx):
+        scores = player_model.get_faction_war_scores()
+        h, d = scores.get("human", 0), scores.get("demon", 0)
+        theme = game_modifiers.get_weekly_theme()
+        active = bool(theme and theme.get("key") == "faction_war")
+        if h > d:
+            headline = "🔵 **ฝ่ายมนุษย์กำลังนำ!**"
+        elif d > h:
+            headline = "🔴 **ฝ่ายปีศาจกำลังนำ!**"
+        else:
+            headline = "⚖️ **สูสีคู่คี่ ไม่มีใครยอมใคร!**"
+        embed = discord.Embed(
+            title="⚔️ สกอร์สงครามฝ่าย — สัปดาห์นี้", color=0x992d22,
+            description=(f"{headline}\n\n🔵 ฝ่ายมนุษย์ `{h:,}` แต้ม\n🔴 ฝ่ายปีศาจ `{d:,}` แต้ม\n\n"
+                         + ("🔥 ธีมสงครามฝ่ายกำลังลุกโหม — ออกล่าแชมเปี้ยนได้เลย!" if active
+                            else "🕊️ สัปดาห์นี้ไม่ใช่ธีมสงคราม — แต้มจะเริ่มนับเมื่อธีม ⚔️ สงครามฝ่าย มาถึง")))
+        await ctx.send(embed=embed)
 
     # --- 🎯 !bounty: กระดานล่าค่าหัว (คนสติติดลบ = อาชญากร) ---
     @commands.command(name="bounty", aliases=["wanted", "ล่าหัว"])
