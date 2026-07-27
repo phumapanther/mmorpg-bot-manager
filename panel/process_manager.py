@@ -33,12 +33,24 @@ def stop():
     global _proc
     with _lock:
         if _proc and _proc.poll() is None:
-            _proc.terminate()
+            # ขอปิดแบบสุภาพก่อน: วางไฟล์ธงให้บอทประกาศ 🔴 ในห้อง server_status แล้วปิดตัวเอง
+            flag = os.path.join(_ROOT, "shutdown_request.flag")
             try:
-                _proc.wait(timeout=8)
-            except subprocess.TimeoutExpired:
-                _proc.kill()
-                _proc.wait()
+                open(flag, "w").close()
+                _proc.wait(timeout=6)
+            except (subprocess.TimeoutExpired, OSError):
+                _proc.terminate()  # บอทไม่ตอบ (ค้าง/ยังไม่ ready) → จัดการแบบเดิม
+                try:
+                    _proc.wait(timeout=8)
+                except subprocess.TimeoutExpired:
+                    _proc.kill()
+                    _proc.wait()
+            finally:
+                try:
+                    if os.path.exists(flag):
+                        os.remove(flag)
+                except OSError:
+                    pass
         _proc = None
 
 def restart():

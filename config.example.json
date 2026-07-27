@@ -60,6 +60,10 @@
     "guild": {
       "label": "กิลด์ (สร้าง/จัดการกิลด์)",
       "channel_id": null
+    },
+    "server_status": {
+      "label": "แจ้งเตือนเปิด-ปิดเซิร์ฟ",
+      "channel_id": null
     }
   },
   "permission_groups": {
