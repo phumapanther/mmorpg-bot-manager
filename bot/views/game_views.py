@@ -930,9 +930,15 @@ class MonsterEventView(ActionView):
     @discord.ui.button(label="🏃 วิ่งหนี!", style=discord.ButtonStyle.secondary, row=0)
     async def flee(self, interaction: discord.Interaction, button: discord.ui.Button):
         # 🌱 สถานะรากพันธนาการ: หนีไม่ได้จนกว่าสถานะจะหมด
+        # (บั๊กเฟส D #2: เช็คซ้ำกับ DB สดด้วย — ใช้ 🗡️ มีดตัดเถากลางไฟต์แล้วต้องหนีได้ทันที ไม่ติดสแนปช็อตไฟต์)
         if game_modifiers.has_status_flag(self.statuses, "no_flee"):
-            return await interaction.response.send_message(
-                "🌱 **รากไม้รัดขาแน่น!** คุณดิ้นเท่าไหร่ก็หนีไม่หลุด — ต้องสู้จนกว่าพันธนาการจะคลาย!", ephemeral=True)
+            fresh = game_modifiers.parse_statuses(player_model.get_player(self.user_id))
+            if game_modifiers.has_status_flag(fresh, "no_flee"):
+                return await interaction.response.send_message(
+                    "🌱 **รากไม้รัดขาแน่น!** คุณดิ้นเท่าไหร่ก็หนีไม่หลุด — ต้องสู้จนกว่าพันธนาการจะคลาย (หรือใช้ 🗡️ มีดตัดเถาวัลย์/🌿 ยาถอนพิษ)!", ephemeral=True)
+            # เพิ่งตัดเถา/ล้างสถานะไป — เอาธงห้ามหนีออกจากสแนปช็อตไฟต์ให้ตรงความจริง
+            self.statuses = {k: v for k, v in self.statuses.items()
+                             if not game_modifiers.STATUS_EFFECTS[k].get("no_flee")}
 
         flee_roll = random.randint(1, 100)
         
