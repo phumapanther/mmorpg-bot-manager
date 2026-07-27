@@ -651,6 +651,53 @@ class PlayerCommands(commands.Cog):
                 embed.add_field(name=data["label"], value="\n".join(lines), inline=False)
             return await ctx.send(embed=embed)
 
+        if topic in ("วิธีเล่น", "เริ่มเล่น", "howto", "guide"):
+            embed = discord.Embed(
+                title="📖 Codex — วิธีเล่นฉบับเริ่มต้น", color=0x9b59b6,
+                description="โลกนี้เดินด้วย **ลูกเต๋า** — ทุกการผจญภัยคือการทอยวัดดวงกับโชคชะตา")
+            embed.add_field(name="1️⃣ เกิดใหม่ในโลกนี้", inline=False, value=(
+                "รับ **ยศเผ่า** และ **ยศคลาสอาชีพ** จากเซิร์ฟก่อน (เผ่ากำหนดธาตุประจำตัว ดู `!codex ธาตุ`)\n"
+                "พิมพ์ `!adv` สร้างห้องผจญภัยส่วนตัว แล้ว `!play` เพื่อออกเดินทาง"))
+            embed.add_field(name="2️⃣ ออกเดินทาง", inline=False, value=(
+                "กดปุ่ม **ไปต่อ** เพื่อเดินทีละก้าว — สุ่มเจอมอนสเตอร์ กับดัก สมบัติ หมู่บ้าน NPC "
+                "หรือพาหนะข้ามทวีป (ทางเดียวที่จะไปทวีปอื่น!)\n"
+                "เจอมอน = ทอยเต๋าสู้กันเป็นเทิร์น ชนะได้ทอง+EXP แพ้เต๋า = โดนสวน"))
+            embed.add_field(name="3️⃣ ของติดตัวคือชีวิต", inline=False, value=(
+                "`!bag` ดูกระเป๋า / `!use <เลขไอเทม>` ใช้ของ / `!craft` คราฟ\n"
+                "พกยาแก้สถานะให้ตรงทวีป (ดู `!codex สถานะ`) และหา **อาร์ติแฟกต์** มาสวม "
+                "(มีช่องเดียว — สวมทับแล้วของเก่าถูกทำลายถาวร คิดก่อนสวม!)"))
+            embed.add_field(name="4️⃣ เงินและเมือง", inline=False, value=(
+                "ทองที่ถือตายแล้วหาย — ฝากธนาคารด้วย `!deposit` ไว้ก่อน\n"
+                "`!shop` ซื้อของ / คาสิโนมี `!bj` `!hilo` `!slots` เสี่ยงดวงเพิ่ม (หรือหมดตัว)"))
+            embed.add_field(name="5️⃣ โลกที่หมุนเอง", inline=False, value=(
+                "ทุกสัปดาห์มี **ธีมโลก** สุ่มใหม่ (ประกาศวันจันทร์) เปลี่ยนมอน/เรท/อีเวนต์ทั้งเซิร์ฟ\n"
+                "แต่ละทวีปมีธาตุ สถานะ และบอสประจำถิ่น — `!codex ทวีป` ก่อนออกเดิน"))
+            return await ctx.send(embed=embed)
+
+        if topic in ("คำสั่ง", "commands", "cmd"):
+            embed = discord.Embed(
+                title="📖 Codex — คำสั่งผู้เล่นทั้งหมด", color=0x9b59b6,
+                description="พิมพ์ในห้องที่เซิร์ฟกำหนดไว้ (บางคำสั่งจำกัดห้อง) — `!menu` มีปุ่มลัดของที่ใช้บ่อย")
+            embed.add_field(name="🗺️ ผจญภัย", inline=False, value=(
+                "`!adv` สร้างห้องผจญภัยส่วนตัว • `!play` เริ่มออกเดินทาง\n"
+                "`!profile` (`!info`) โปรไฟล์+ธาตุ+อาร์ติแฟกต์ • `!scan @คน` ส่องข้อมูลคนอื่น\n"
+                "`!codex <หมวด>` สารานุกรมกติกา • `!reward` รับรางวัลประจำยศ"))
+            embed.add_field(name="🎒 กระเป๋า & ไอเทม", inline=False, value=(
+                "`!bag` ดูกระเป๋า • `!use <เลข>` ใช้ไอเทม • `!drop <เลข>` ทิ้ง\n"
+                "`!give @คน <เลข>` ส่งของให้เพื่อน • `!recipes` สูตรคราฟ • `!craft <เลข>` คราฟของ"))
+            embed.add_field(name="💰 เงิน & ธนาคาร", inline=False, value=(
+                "`!bank` ยอดธนาคาร • `!deposit <จำนวน>` ฝาก • `!withdraw <จำนวน>` ถอน\n"
+                "`!transfer @คน <จำนวน>` โอน • `!beg` ขอทาน • `!rob @คน` ปล้น (เสี่ยงติดคุก!)\n"
+                "`!rich` `!toplvl` `!mytext` `!toptext` `!mytime` `!toptime` อันดับ/แต้มกิจกรรม"))
+            embed.add_field(name="🎰 คาสิโน & PvP", inline=False, value=(
+                "`!bj <เงินเดิมพัน>` แบล็กแจ็ก • `!hilo` ไฮโล • `!slots` สล็อต\n"
+                "`!att @คน` เปิดฉากปล้นกลางเมือง (ต้องอยู่ห้องเสียง) • `!challenge @คน` ท้าดวล PvP"))
+            embed.add_field(name="🏪 ร้านค้า & อื่น ๆ", inline=False, value=(
+                "`!shop` ร้านไอเทม • `!darkshop` / `!lightshop` ร้านยศสองฝ่าย\n"
+                "`!rent` เช่าห้องส่วนตัว (`!extend` ต่ออายุ, `!set_room` ตั้งค่า)\n"
+                "`!payment` เติมเงิน • `!my_orders` เช็คคำสั่งซื้อ • `!menu` เมนูปุ่มลัด"))
+            return await ctx.send(embed=embed)
+
         if topic in ("สถานะ", "status"):
             cures, guards, cure_all = {}, {}, []
             for iid, it in config_loader.get_all_items().items():
@@ -704,6 +751,8 @@ class PlayerCommands(commands.Cog):
         embed = discord.Embed(
             title="📖 Codex — สารานุกรมนักผจญภัย", color=0x9b59b6,
             description=("เลือกหมวดที่อยากอ่าน:\n"
+                         "`!codex วิธีเล่น` — ไกด์เริ่มต้นตั้งแต่เกิดจนออกผจญภัย\n"
+                         "`!codex คำสั่ง` — คำสั่งผู้เล่นทั้งหมดแยกหมวด\n"
                          "`!codex ธาตุ` — ธาตุทั้ง 7, ตารางข่ม, passive ประจำเผ่า\n"
                          "`!codex สถานะ` — สถานะทั้งหมด + ไอเทมที่ใช้แก้/กัน\n"
                          "`!codex ทวีป` — ทวีปทั้ง 9 และธาตุประจำถิ่น"))
