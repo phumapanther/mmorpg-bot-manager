@@ -38,7 +38,25 @@ MONSTER_RANKS = {
 # 🎮 INTERACTIVE VIEWS
 # ==========================================================
 
-class MonsterEventView(View):
+class MenuButton(discord.ui.Button):
+    """🕹️ เมนูลัดเทียบเท่า !menu — แปะท้ายทุกหน้าอีเวนต์ ผู้เล่นไม่ต้องพิมพ์คำสั่ง"""
+    def __init__(self):
+        super().__init__(label="🕹️ เมนู", style=discord.ButtonStyle.secondary)
+
+    async def callback(self, interaction: discord.Interaction):
+        # import ในฟังก์ชันกันวงจร import (menu_view → player_commands → game_views)
+        from bot.views.menu_view import GameMenuView
+        await interaction.response.send_message("🕹️ **เมนูผู้เล่น**", view=GameMenuView(), ephemeral=True)
+
+
+class ActionView(View):
+    """ฐานของ view อีเวนต์เกมทุกตัว — สืบทอดแล้วได้ปุ่มเมนูลัดต่อท้ายอัตโนมัติ"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.add_item(MenuButton())
+
+
+class MonsterEventView(ActionView):
     def __init__(self, user_id, member_roles, monster_rank=None, monster_hp=None, active_buffs=None, turn_count=1, monster_name=None, element=None, fight_statuses=None, infused=False):
         super().__init__(timeout=60)
         self.user_id = user_id
@@ -873,7 +891,7 @@ class MonsterEventView(View):
         await self.process_turn(interaction, skill_used=interaction.data["custom_id"])
 
 # 2. เหตุการณ์ หมู่บ้าน (Village)
-class VillageEventView(View):
+class VillageEventView(ActionView):
     def __init__(self, user_id):
         super().__init__(timeout=60)
         self.user_id = user_id
@@ -934,7 +952,7 @@ class VillageEventView(View):
             content="🚶 คุณก้าวเท้าเดินออกจากหมู่บ้านมุ่งสู่เส้นทางหลัก...\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?", 
             view=AdventureView(author_id=self.user_id)
         )
-class DeathRespawnView(discord.ui.View):
+class DeathRespawnView(ActionView):
     def __init__(self, user_id):
         super().__init__(timeout=120) # ให้เวลาตัดสินใจ 2 นาที
         self.user_id = user_id
@@ -983,7 +1001,7 @@ class DeathRespawnView(discord.ui.View):
                 pass
 
 # ระบบร้านค้า      
-class ShopEventView(View):
+class ShopEventView(ActionView):
     def __init__(self, user_id):
         super().__init__(timeout=60)
         self.user_id = user_id
@@ -1161,7 +1179,7 @@ class SellSelectView(View):
         await interaction.response.edit_message(view=ShopEventView(self.user_id))
         
 # 3. เหตุการณ์ กล่องสมบัติ (Treasure)
-class TreasureEventView(View):
+class TreasureEventView(ActionView):
     def __init__(self, user_id):
         super().__init__(timeout=60)
         self.user_id = user_id
@@ -1266,7 +1284,7 @@ class TreasureEventView(View):
             view=AdventureView(author_id=self.user_id)
         )
 
-class QuestConfirmView(View):
+class QuestConfirmView(ActionView):
     def __init__(self, user_id, requested_items, reward_item_id, reward_cash):
         super().__init__(timeout=60)
         self.user_id = user_id
@@ -1330,7 +1348,7 @@ class QuestConfirmView(View):
         )
 
 # 4. เหตุการณ์ เควส NPC
-class NpcEventView(View):
+class NpcEventView(ActionView):
     def __init__(self, user_id):
         super().__init__(timeout=60)
         self.user_id = user_id
@@ -1540,7 +1558,7 @@ class NpcEventView(View):
 
 
 # 5. เหตุการณ์ ดันเจี้ยน (Dungeon)
-class DungeonEventView(View):
+class DungeonEventView(ActionView):
     def __init__(self, user_id):
         super().__init__(timeout=60)
         self.user_id = user_id
@@ -1572,7 +1590,7 @@ class DungeonEventView(View):
 
 
 # 6. เหตุการณ์ กับดัก (Trap)
-class TrapEventView(View):
+class TrapEventView(ActionView):
     def __init__(self, user_id, member_roles):
         super().__init__(timeout=60)
         self.user_id = user_id
@@ -1650,7 +1668,7 @@ class TrapEventView(View):
 
 
 # 🏥 VIEW พิเศษ: ฟื้นคืนชีพเมื่อผู้เล่นหมดสติ (Respawn System)
-class RespawnView(View):
+class RespawnView(ActionView):
     def __init__(self, user_id):
         super().__init__(timeout=60)
         self.user_id = user_id
@@ -1842,7 +1860,7 @@ def resolve_instant_special(event, rng=None):
     return rng.choices(outcomes, weights=weights, k=1)[0]
 
 
-class SpecialEventView(View):
+class SpecialEventView(ActionView):
     """View กลางของอีเวนต์พิเศษ — render ปุ่มจาก data (dice_check/choice; ส่วน instant จ่ายผลตรงไม่ผ่าน View)"""
 
     def __init__(self, user_id, event):
@@ -1976,7 +1994,7 @@ class ProfileDyeView(View):
         await interaction.response.edit_message(content=None, embed=embed, view=None)
 
 
-class ContinentWarpView(View):
+class ContinentWarpView(ActionView):
     """🎫 ตั๋วเรือเหมาลำ: เมนูเลือกทวีปปลายทางเอง — ตั๋วถูกหักตอนยืนยันเลือกเท่านั้น (ยกเลิก/หมดเวลา = ตั๋วอยู่ครบ)"""
 
     def __init__(self, user_id, item_id):
@@ -2040,7 +2058,7 @@ class ContinentWarpView(View):
             view=None)
 
 
-class TravelEventView(View):
+class TravelEventView(ActionView):
     """เหตุการณ์สุ่มเจอพาหนะข้ามทวีป — เลือกขึ้นยาน (จ่ายค่าโดยสาร วัดดวงปลายทางตามเรทพาหนะ) หรือไม่ไป"""
 
     def __init__(self, user_id, encounter):
@@ -2110,7 +2128,7 @@ class TravelEventView(View):
             view=AdventureView(author_id=self.user_id))
 
 
-class AdventureView(View):
+class AdventureView(ActionView):
     def __init__(self, author_id: int):
         super().__init__(timeout=60)
         self.author_id = author_id
