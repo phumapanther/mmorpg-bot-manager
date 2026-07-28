@@ -2357,8 +2357,14 @@ class AdventureView(ActionView):
             return False
         return True
 
+    @discord.ui.button(label="⏩ เดินต่อ ×5", style=discord.ButtonStyle.secondary)
+    async def start_adv_x5(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """O5: เดินรวดสูงสุด 5 ก้าว — ข้ามเฉพาะช่วงที่ไม่มีอะไรให้ตัดสินใจ (อีเวนต์สงบ)
+        เจอมอน/หีบ/กับดัก/ดันเจี้ยน/พาหนะ/อีเวนต์พิเศษ หรือเลือดต่ำ = หยุดทันที"""
+        await self.start_adv(interaction, button, max_steps=5)
+
     @discord.ui.button(label="🧭 เริ่มออกเดินทาง", style=discord.ButtonStyle.green)
-    async def start_adv(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def start_adv(self, interaction: discord.Interaction, button: discord.ui.Button, max_steps=1):
         user_id = interaction.user.id
         player = player_model.get_player(user_id)
 
@@ -2584,8 +2590,20 @@ class AdventureView(ActionView):
 
         elif chosen_event == "calm":
             # ไม่มีอะไรเกิดขึ้น — สถานะยังเป็น idle กดไปต่อได้ทันที
+            # ⏩ O5: โหมดเดินรวด — ก้าวนี้ไม่มีอะไรให้ตัดสินใจ เดินต่อให้เลย (ยังทอยอีเวนต์ครบทุกก้าว)
+            fresh = player_model.get_player(user_id) or player
+            hp_ok = fresh.get("hp", 0) > fresh.get("max_hp", 100) * 0.3
+            if max_steps > 1 and hp_ok:
+                self._auto_walked = getattr(self, "_auto_walked", 0) + 1
+                return await self.start_adv(interaction, button, max_steps=max_steps - 1)
+            walked = getattr(self, "_auto_walked", 0)
             next_view = AdventureView(author_id=user_id)
             calm_text = game_modifiers.pick_calm_text()
+            if walked:
+                calm_text = f"⏩ **เดินรวด {walked + 1} ก้าว** — เส้นทางเงียบสงบตลอดทาง\n{calm_text}"
+                self._auto_walked = 0
+            elif not hp_ok and max_steps > 1:
+                calm_text += "\n⚠️ **เลือดต่ำกว่า 30% — หยุดเดินรวดเพื่อความปลอดภัย** (กินยาก่อนไปต่อ!)"
             sent_msg = await interaction.followup.send(
                 content=f"{calm_text}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
                 view=next_view, wait=True)
