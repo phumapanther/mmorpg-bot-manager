@@ -64,6 +64,23 @@ def is_main_server(ctx_or_guild):
     return bool(guild and getattr(guild, "id", None) == main_id)
 
 
+def adventure_room_only():
+    """เซิร์ฟหลัก: ใช้ได้เฉพาะ 'ห้องมิติส่วนตัว' ของตัวเอง (ห้องที่ !adv สร้าง) เหมือน !play
+    เซิร์ฟรอง: ปล่อยผ่าน (ด่านห้องรายเซิร์ฟของบอทแจกคุมอยู่แล้ว)"""
+    async def predicate(ctx):
+        if not is_main_server(ctx):
+            return True
+        required = f"มิติส่วนตัว-{ctx.author.name.lower()}"
+        if required in getattr(ctx.channel, "name", "").lower():
+            return True
+        await ctx.send(
+            f"❌ **[พื้นที่ไม่ถูกต้อง]** {ctx.author.mention} คำสั่งนี้ใช้ได้เฉพาะในมิติส่วนตัวของคุณ\n"
+            f"📌 พิมพ์ `!adv` ในห้องผจญภัยเพื่อเปิดมิติ แล้วค่อยใช้คำสั่งนี้ในห้องลับนั้นนะครับ",
+            delete_after=10.0)
+        return False
+    return commands.check(predicate)
+
+
 def main_server_only():
     """คำสั่งที่ใช้ได้เฉพาะเซิร์ฟหลัก (P8) — ร้านค้า/คาสิโน/PvP/กิลด์/บอส/เติมเงิน/คำสั่งแอดมิน
     ⚠️ ต้องเช็ค "เซิร์ฟ" ก่อนเช็ค "ยศ" เสมอ — ไม่งั้นเจ้าของเซิร์ฟรองสร้างยศชื่อเดียวกันแล้วยิงคำสั่งแอดมินได้"""

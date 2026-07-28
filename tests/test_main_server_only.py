@@ -71,3 +71,40 @@ def test_panel_ui_has_multi_server_fields():
         assert el in js, f"app.js ไม่ได้อ่าน/เขียน {el}"
     for key in ("guest_bot_token", "main_guild_id", "main_server_invite"):
         assert f"state.config.{key}" in js
+
+
+def test_adventure_room_only_gate(monkeypatch):
+    """คำสั่งที่ไม่ได้ฟิกห้อง: เซิร์ฟหลักต้องอยู่ในมิติส่วนตัวของตัวเอง / เซิร์ฟรองผ่าน"""
+    import asyncio
+    monkeypatch.setattr(config_loader, "get_main_guild_id", lambda: 999)
+    predicate = utils.adventure_room_only().predicate
+    sent = []
+
+    async def send(msg=None, **kw):
+        sent.append(msg)
+
+    def ctx(guild_id, channel_name, author="panther"):
+        return SimpleNamespace(guild=SimpleNamespace(id=guild_id),
+                               channel=SimpleNamespace(name=channel_name),
+                               author=SimpleNamespace(name=author, mention=f"@{author}"),
+                               send=send)
+
+    assert asyncio.run(predicate(ctx(999, "🌌มิติส่วนตัว-panther"))) is True     # ห้องตัวเอง
+    assert asyncio.run(predicate(ctx(999, "แชทโลก"))) is False                   # ห้องทั่วไป
+    assert "มิติส่วนตัว" in sent[-1]
+    assert asyncio.run(predicate(ctx(999, "🌌มิติส่วนตัว-someone"))) is False     # ห้องคนอื่น
+    assert asyncio.run(predicate(ctx(111, "แชทอะไรก็ได้"))) is True               # เซิร์ฟรองผ่าน
+
+
+def test_all_player_commands_have_a_room_gate():
+    """กันลืม: ทุกคำสั่งผู้เล่นต้องมีด่านห้องอย่างใดอย่างหนึ่ง (config หรือมิติส่วนตัว)"""
+    import pathlib, re
+    for f in ("player_commands", "game_commands"):
+        src = pathlib.Path(f"bot/cogs/{f}.py").read_text(encoding="utf-8")
+        for m in re.finditer(r'((?:^    @[^\n]*\n)+)    async def \w+', src, re.M):
+            block = m.group(1)
+            name = re.search(r'command\(name="([^"]+)"', block)
+            if not name or name.group(1) == "play":   # !play มีเช็คมิติในตัว
+                continue
+            assert ("allowed_channel" in block or "adventure_room_only" in block), \
+                f"!{name.group(1)} ยังไม่มีด่านห้อง"

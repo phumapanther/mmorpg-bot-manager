@@ -6,7 +6,7 @@ import bot.models.player_model as player_model
 import time
 import sqlite3
 from contextlib import contextmanager
-from bot.utils import not_arrested, allowed_channel, main_server_only
+from bot.utils import not_arrested, allowed_channel, main_server_only, adventure_room_only
 from bot.views.profile_embed import GAME_CLASSES
 from bot import config_loader
 from bot import game_modifiers
@@ -886,6 +886,7 @@ class PlayerCommands(commands.Cog):
     # ==========================================
     @not_arrested()
     @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
+    @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
     @commands.command(name="reward")
     async def claim_rank_reward(self, ctx):
         user_id = ctx.author.id
@@ -945,11 +946,13 @@ class PlayerCommands(commands.Cog):
         await ctx.send("\n".join(lines))
 
     # --- 📖 !codex: สารานุกรมกติกา — เนื้อหาจริงอยู่ใน build_codex_embed (แชร์กับปุ่มเมนู) ---
+    @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
     @commands.command(name="codex")
     async def codex(self, ctx, *, topic: str = ""):
         await ctx.send(embed=build_codex_embed(topic))
 
     # --- ⚔️ !war: สกอร์สงครามฝ่ายประจำสัปดาห์ (ธีม faction_war) ---
+    @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
     @commands.command(name="war", aliases=["สงคราม"])
     async def war_scores(self, ctx):
         scores = player_model.get_faction_war_scores()
@@ -971,6 +974,7 @@ class PlayerCommands(commands.Cog):
 
     # --- 🎯 !bounty: กระดานล่าค่าหัว (คนสติติดลบ = อาชญากร) ---
     @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
+    @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
     @commands.command(name="bounty", aliases=["wanted", "ล่าหัว"])
     async def bounty_board(self, ctx):
         outlaws = player_model.get_outlaws()
@@ -988,12 +992,14 @@ class PlayerCommands(commands.Cog):
         await ctx.send(embed=embed)
 
     # --- 📕 !bestiary: สมุดสะสมมอนสเตอร์ — เนื้อหาจริงอยู่ใน build_bestiary_embed (แชร์กับปุ่มเมนู) ---
+    @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
     @commands.command(name="bestiary", aliases=["สมุดมอน"])
     async def bestiary(self, ctx):
         await ctx.send(embed=build_bestiary_embed(
             ctx.author.id, ctx.author.display_name, ctx.author.display_avatar.url))
 
     # --- โค้ดคำสั่ง !bag ---
+    @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
     @commands.command(name="bag")
     async def check_bag(self, ctx): # 🚨 จุดสำคัญ: เติม self ลงไปตรงนี้ครับ
         user_id = ctx.author.id
@@ -1049,6 +1055,7 @@ class PlayerCommands(commands.Cog):
         await ctx.send(embed=embed)
         
     # --- คำสั่ง !use <เลขไอเทม> ---
+    @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
     @commands.command(name="use")
     async def use_item(self, ctx, item_id: str):
         item_cfg = config_loader.get_item_config(item_id)
@@ -1088,6 +1095,7 @@ class PlayerCommands(commands.Cog):
         ok, msg = apply_item_effect(ctx.author.id, item_id)
         await ctx.send(msg)
 
+    @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
     @commands.command(name="drop")
     async def drop_item(self, ctx, item_id: str = None, amount: int = None):
         user_id = ctx.author.id
@@ -1158,6 +1166,7 @@ class PlayerCommands(commands.Cog):
         item_name = config_loader.get_item_config(item_id).get("name", "ไอเทมปริศนา")
         await ctx.send(f"🗑️ คุณได้โยน **{item_name}** ทิ้งไปจำนวน `{amount}` ชิ้นเรียบร้อยแล้ว!")
     
+    @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
     @commands.command(name="give")
     async def give_item_to_player(self, ctx, member: discord.Member = None, item_id: str = None, amount: int = 1):
         # 1. เช็กความถูกต้องเบื้องต้น
@@ -1454,6 +1463,7 @@ class PlayerCommands(commands.Cog):
                 player_model.update_player_field(message.author.id, "last_event", "death_warned")
 
     # 📜 คำสั่งเช็กสูตรคราฟ (ปรับให้ดึงจากโครงสร้างใหม่)
+    @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
     @commands.command(name="recipes")
     async def show_recipes(self, ctx):
         msg = "📜 **สูตรการคราฟไอเทม (พิมพ์ `!craft [เลขไอเทม]` เพื่อเริ่มคราฟ):**\n"
@@ -1471,6 +1481,7 @@ class PlayerCommands(commands.Cog):
         await ctx.send(msg)
 
     # 🛠️ คำสั่งคราฟไอเทม (ปรับให้ใช้ fail_rate ของแต่ละไอเทม)
+    @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
     @commands.command(name="craft")
     async def craft_item(self, ctx, item_id: str = None):
         # เริ่มการ Debug

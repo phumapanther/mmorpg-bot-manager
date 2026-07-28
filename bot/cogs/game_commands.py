@@ -4,7 +4,7 @@ import bot.models.player_model as player_model
 from bot import config_loader
 from bot.views.profile_embed import create_profile_embed
 from bot.views.profile_embed import GAME_RACES, GAME_CLASSES
-from bot.utils import not_arrested, allowed_channel, main_server_only, is_main_server
+from bot.utils import not_arrested, allowed_channel, main_server_only, is_main_server, adventure_room_only
 
 class GameCommands(commands.Cog):
     def __init__(self, bot):
@@ -211,6 +211,7 @@ class GameCommands(commands.Cog):
         await ctx.send(embed=embed)
 
     # ─── 🕹️ เมนูปุ่มสะดวก (กระเป๋า/ธนาคาร/โปรไฟล์/ใช้ไอเทม) — ระบบเดียวกับคำสั่งเดิม แค่แยกเป็นปุ่ม ───
+    @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
     @commands.command(name="menu")
     async def game_menu(self, ctx):
         from bot.views.menu_view import GameMenuView
