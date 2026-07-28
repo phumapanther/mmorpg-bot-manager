@@ -198,6 +198,12 @@ async def main():
 
     # 🌍 [P8] บอทแจกสำหรับเซิร์ฟรอง — รันคู่กันถ้าตั้ง guest_bot_token ไว้ (ไม่ตั้ง = ข้าม)
     guest_token = config_loader.get_guest_token()
+    main_gid = config_loader.get_main_guild_id()
+    print(f"🌍 [P8] เซิร์ฟหลัก: {main_gid or '⚠️ ยังไม่ตั้ง (ทุกเซิร์ฟถูกนับเป็นเซิร์ฟหลัก!)'} | "
+          f"บอทแจก: {'✅ ตั้งโทเค็นแล้ว' if guest_token else '➖ ไม่ได้ใช้'}")
+    if guest_token and not main_gid:
+        print("⚠️ [P8] เตือน: เปิดบอทแจกแต่ไม่ได้ตั้ง Main Guild ID — "
+              "เซิร์ฟรองจะใช้ได้ทุกฟีเจอร์รวมคำสั่งแอดมิน! กรอกไอดีเซิร์ฟหลักใน Panel ก่อนเปิดใช้จริง")
     if guest_token:
         print("🌍 กำลังเปิดบอทแจก (โหมดเซิร์ฟรอง) คู่ไปด้วย...")
 
