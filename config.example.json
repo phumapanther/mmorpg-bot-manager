@@ -1320,5 +1320,14 @@
       }
     ],
     "streak_daily_gold": 1000
+  },
+  "weekly_ranking": {
+    "enabled": true,
+    "min_points": 100,
+    "rewards": [
+      { "gold": 300000, "exp": 5000, "item": null },
+      { "gold": 150000, "exp": 2500, "item": null },
+      { "gold": 75000, "exp": 1000, "item": null }
+    ]
   }
 }

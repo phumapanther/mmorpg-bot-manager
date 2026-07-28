@@ -173,7 +173,12 @@ def update_player_fields(user_id, updates: dict):
     conn.close()
 
 def add_exp(user_id, exp_to_add):
-    player = get_player(user_id) 
+    player = get_player(user_id)
+    # 🗓️ C3: EXP ทุกทางไหลผ่านที่นี่ที่เดียว — เก็บเป็นแต้มอันดับรายสัปดาห์ไปด้วยเลย
+    try:
+        add_weekly_points(user_id, exp_to_add)
+    except Exception as e:
+        print(f"⚠️ [weekly] เก็บแต้มไม่สำเร็จ: {e}")   # ห้ามพังการอัป EXP หลัก
     current_exp = player.get("exp", 0) + exp_to_add
     current_level = player.get("level", 1)
     max_hp = player.get("max_hp", 100)
@@ -677,6 +682,8 @@ LEADERBOARD_SQL = {
 
 def get_leaderboard(kind, limit=10):
     """อันดับตามหมวด — คืน [(user_id, ค่า), ...] เรียงมากไปน้อย"""
+    if kind == "weekly":
+        return get_weekly_top(limit)          # อยู่คนละตาราง (รีเซ็ตทุกสัปดาห์)
     if kind not in LEADERBOARD_SQL:
         return []
     conn = sqlite3.connect(DB_NAME)
@@ -689,6 +696,8 @@ def get_leaderboard(kind, limit=10):
 
 def get_my_rank(user_id, kind):
     """อันดับของเราในหมวดนั้น — คืน (อันดับ, ค่าของเรา, จำนวนผู้เล่นทั้งหมด) หรือ None"""
+    if kind == "weekly":
+        return get_my_weekly_rank(user_id)
     if kind not in LEADERBOARD_SQL:
         return None
     col = {"rich": "(bank + cash)", "level": "level", "text": "total_text", "time": "total_online_time"}[kind]
@@ -706,6 +715,65 @@ def get_my_rank(user_id, kind):
     total = cursor.fetchone()[0]
     conn.close()
     return better + 1, my_value, total
+
+
+# ===== 🗓️ อันดับรายสัปดาห์ (C3) =====
+# แต้ม = EXP ที่หาได้ในสัปดาห์นั้น (ยิงจาก add_exp จุดเดียว ครอบคลุมทั้งล่ามอน/บอส/เควส)
+# ไม่ต้องรีเซ็ตอะไรเลย — ขึ้นสัปดาห์ใหม่ = คีย์ใหม่ = เริ่มนับศูนย์เอง
+
+def week_key(when=None):
+    """คีย์สัปดาห์ ISO เช่น '2026-W31' — ต้องตรงกับที่ cog weekly_event ใช้เป๊ะ"""
+    import datetime
+    year, week, _ = (when or datetime.date.today()).isocalendar()
+    return f"{year}-W{week}"
+
+
+def _ensure_weekly(cursor):
+    cursor.execute("""CREATE TABLE IF NOT EXISTS weekly_score (
+        week TEXT, user_id INTEGER, points INTEGER DEFAULT 0,
+        PRIMARY KEY (week, user_id))""")
+
+
+def add_weekly_points(user_id, points, week=None):
+    if points <= 0:
+        return
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_weekly(cursor)
+    cursor.execute("""INSERT INTO weekly_score (week, user_id, points) VALUES (?, ?, ?)
+                      ON CONFLICT(week, user_id) DO UPDATE SET points = points + ?""",
+                   (week or week_key(), user_id, int(points), int(points)))
+    conn.commit()
+    conn.close()
+
+
+def get_weekly_top(limit=10, week=None):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_weekly(cursor)
+    cursor.execute("""SELECT user_id, points FROM weekly_score
+                      WHERE week = ? AND points > 0 ORDER BY points DESC LIMIT ?""",
+                   (week or week_key(), limit))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+
+def get_my_weekly_rank(user_id, week=None):
+    """คืน (อันดับ, แต้ม, จำนวนคนที่ลงแข่งสัปดาห์นี้) — ยังไม่มีแต้ม = อันดับบ๊วยสุด"""
+    week = week or week_key()
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_weekly(cursor)
+    cursor.execute("SELECT points FROM weekly_score WHERE week = ? AND user_id = ?", (week, user_id))
+    row = cursor.fetchone()
+    mine = (row[0] if row else 0) or 0
+    cursor.execute("SELECT COUNT(*) FROM weekly_score WHERE week = ? AND points > ?", (week, mine))
+    better = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM weekly_score WHERE week = ? AND points > 0", (week,))
+    total = cursor.fetchone()[0]
+    conn.close()
+    return better + 1, mine, max(total, 1 if mine else total)
 
 
 # ===== 📅 เควสรายวัน + Login Streak (C1) =====

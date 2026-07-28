@@ -932,8 +932,10 @@ class PlayerCommands(commands.Cog):
     async def top_board(self, ctx, kind: str = None):
         from bot.views.menu_view import TopBoardView
         alias_map = {"rich": "rich", "toplvl": "level", "toptext": "text", "toptime": "time"}
-        start = alias_map.get(ctx.invoked_with, None) or {"เงิน": "rich", "เลเวล": "level",
-                                                          "แชท": "text", "เวลา": "time"}.get(kind or "", "rich")
+        # !top เปล่า ๆ เปิดหมวดสัปดาห์นี้ก่อน (C3) — หมวดที่มีของรางวัลรออยู่ | alias เดิมยังพาไปหมวดเดิม
+        start = alias_map.get(ctx.invoked_with, None) or {
+            "เงิน": "rich", "เลเวล": "level", "แชท": "text", "เวลา": "time",
+            "สัปดาห์": "weekly", "week": "weekly"}.get(kind or "", "weekly")
         await ctx.send(embed=build_top_embed(start, ctx.author.id),
                        view=TopBoardView(ctx.author.id, current=start))
 
@@ -1584,6 +1586,7 @@ TOP_KINDS = {
     "level": ("⭐ เลเวล", "Lv.", lambda v: f"Lv. {v:,}"),
     "text":  ("💬 นักแชท", "ข้อความ", lambda v: f"{v:,} ข้อความ"),
     "time":  ("🎙️ เวลาออนไลน์", "ชั่วโมง", lambda v: f"{int(v) // 3600:,} ชม. {int(v) % 3600 // 60} นาที"),
+    "weekly": ("🗓️ นักผจญภัยแห่งสัปดาห์", "แต้ม", lambda v: f"{v:,} แต้ม"),
 }
 MEDALS = ["🥇", "🥈", "🥉"]
 
@@ -1608,5 +1611,17 @@ def build_top_embed(kind, viewer_id=None):
             rank, value, total = mine
             embed.add_field(name="📍 อันดับของคุณ",
                             value=f"อันดับ **{rank:,}** จาก {total:,} คน · {fmt(value or 0)}", inline=False)
-    embed.set_footer(text="กดปุ่มด้านล่างเพื่อสลับหมวด")
+    if kind == "weekly":
+        rewards = config_loader.get_weekly_ranking("rewards", []) or []
+        if rewards:
+            embed.add_field(
+                name="🎁 รางวัลตอนปิดสัปดาห์ (เข้าธนาคารอัตโนมัติ)",
+                value=" · ".join(f"{m} {int(r.get('gold', 0)):,} ทอง"
+                                 for m, r in zip(MEDALS, rewards)),
+                inline=False)
+        import datetime
+        left = 7 - datetime.date.today().weekday()      # จันทร์=0 → เหลือ 7 วัน, อาทิตย์=6 → เหลือ 1
+        embed.set_footer(text=f"แต้ม = EXP ที่หาได้ในสัปดาห์นี้ · ปิดอันดับอีก {left} วัน (เช้าวันจันทร์)")
+    else:
+        embed.set_footer(text="กดปุ่มด้านล่างเพื่อสลับหมวด")
     return embed

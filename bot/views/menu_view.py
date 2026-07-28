@@ -113,7 +113,7 @@ class DropView(discord.ui.View):
 
 class TopBoardView(discord.ui.View):
     """ปุ่มสลับหมวดอันดับ (O6) — รวม !rich/!toplvl/!toptext/!toptime ไว้ที่เดียว"""
-    KINDS = [("💰 เศรษฐี", "rich"), ("⭐ เลเวล", "level"),
+    KINDS = [("🗓️ สัปดาห์นี้", "weekly"), ("💰 เศรษฐี", "rich"), ("⭐ เลเวล", "level"),
              ("💬 นักแชท", "text"), ("🎙️ ออนไลน์", "time")]
 
     def __init__(self, viewer_id, current="rich"):

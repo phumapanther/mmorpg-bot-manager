@@ -38,8 +38,49 @@ def set_state(key, value):
 
 
 def current_week_key(when=None):
-    year, week, _ = (when or datetime.date.today()).isocalendar()
-    return f"{year}-W{week}"
+    return player_model.week_key(when)          # แหล่งเดียวกับตารางแต้มรายสัปดาห์ (C3)
+
+
+def previous_week_key(when=None):
+    return current_week_key((when or datetime.date.today()) - datetime.timedelta(days=7))
+
+
+def pay_weekly_ranking(week):
+    """จ่ายรางวัลท็อป 3 ของสัปดาห์ที่ปิดไปแล้ว — คืน [(user_id, แต้ม, ทอง, exp), ...]
+
+    เรียกซ้ำได้ปลอดภัย: ตัวเรียกเป็นคนจด paid_week กันจ่ายซ้ำ
+    """
+    if not config_loader.get_weekly_ranking("enabled", True):
+        return []
+    rewards = config_loader.get_weekly_ranking("rewards", []) or []
+    min_points = int(config_loader.get_weekly_ranking("min_points", 0) or 0)
+    paid = []
+    for (uid, points), reward in zip(player_model.get_weekly_top(len(rewards), week), rewards):
+        if points < min_points:
+            break                              # แต้มน้อยเกินเกณฑ์ = ไม่มีใครถัดไปผ่านแน่ (เรียงมากไปน้อย)
+        player = player_model.get_player(uid)
+        if not player:
+            continue
+        gold, exp = int(reward.get("gold", 0)), int(reward.get("exp", 0))
+        player_model.update_player_field(uid, "bank", player.get("bank", 0) + gold)   # เข้าธนาคาร ตายแล้วไม่หาย
+        if exp:
+            player_model.add_exp(uid, exp)
+        paid.append((uid, points, gold, exp))
+    return paid
+
+
+def build_ranking_embed(week, paid):
+    embed = discord.Embed(
+        title="🏆 ปิดอันดับประจำสัปดาห์แล้ว!",
+        description=f"ผลอันดับนักผจญภัยแห่งสัปดาห์ **{week}**\nรางวัลโอนเข้า **ธนาคาร** ให้เรียบร้อยแล้ว 🏦",
+        color=0xf1c40f)
+    medals = ["🥇", "🥈", "🥉"]
+    for i, (uid, points, gold, exp) in enumerate(paid):
+        embed.add_field(name=f"{medals[i] if i < len(medals) else '🎖️'} อันดับ {i + 1}",
+                        value=f"<@{uid}> — {points:,} แต้ม\n🪙 +{gold:,} ทอง · 🔷 +{exp:,} EXP",
+                        inline=False)
+    embed.set_footer(text="สัปดาห์ใหม่เริ่มนับใหม่ตั้งแต่ตอนนี้ — แต้มมาจาก EXP ที่หาได้ทั้งสัปดาห์!")
+    return embed
 
 
 def build_announce_embed(theme):
@@ -62,6 +103,7 @@ class WeeklyEvent(commands.Cog):
 
     @tasks.loop(minutes=30)
     async def check_week(self):
+        await self._payout_last_week()
         try:
             theme = game_modifiers.get_weekly_theme()
             if not theme:
@@ -85,6 +127,24 @@ class WeeklyEvent(commands.Cog):
             print(f"📅 [WeeklyEvent] ประกาศธีมสัปดาห์ {week_key}: {theme['label']}")
         except Exception as e:
             print(f"⚠️ [WeeklyEvent] loop ผิดพลาด: {e}")
+
+    async def _payout_last_week(self):
+        """🗓️ C3: ขึ้นสัปดาห์ใหม่ = ปิดอันดับสัปดาห์ก่อน จ่ายท็อป 3 แล้วประกาศ (ครั้งเดียวตลอดกาล)"""
+        try:
+            last = previous_week_key()
+            if get_state("paid_week") == last:
+                return
+            paid = pay_weekly_ranking(last)
+            set_state("paid_week", last)          # จดทันทีแม้ไม่มีใครได้ กันวนเช็คทุก 30 นาที
+            if not paid:
+                return
+            print(f"🏆 [WeeklyRank] จ่ายรางวัลสัปดาห์ {last} ให้ {len(paid)} คน")
+            channel_id = config_loader.get_channel_id("weekly_event")
+            channel = self.bot.get_channel(channel_id) if channel_id else None
+            if channel:
+                await channel.send(embed=build_ranking_embed(last, paid))
+        except Exception as e:
+            print(f"⚠️ [WeeklyRank] จ่ายรางวัลรายสัปดาห์พัง: {e}")
 
     @check_week.before_loop
     async def before_check(self):

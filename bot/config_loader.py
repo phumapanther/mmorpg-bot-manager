@@ -188,3 +188,8 @@ def get_daily_quests():
 
 def get_daily_cfg(key, default=None):
     return get_config().get("daily_quests", {}).get(key, default)
+
+
+def get_weekly_ranking(key, default=None):
+    """ตั้งค่าอันดับรายสัปดาห์ (C3)"""
+    return get_config().get("weekly_ranking", {}).get(key, default)

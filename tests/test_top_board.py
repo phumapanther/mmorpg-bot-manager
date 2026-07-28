@@ -46,6 +46,6 @@ def test_top_embed_marks_viewer(tmp_path, monkeypatch):
 
 def test_top_view_and_aliases():
     from bot.views.menu_view import TopBoardView
-    assert len(TopBoardView(1).children) == 4
+    assert len(TopBoardView(1).children) == 5      # 4 หมวดเดิม + 🗓️ สัปดาห์นี้ (C3)
     cmd = pc.PlayerCommands.top_board
     assert set(cmd.aliases) >= {"rich", "toplvl", "toptext", "toptime"}   # คำสั่งเดิมยังใช้ได้
