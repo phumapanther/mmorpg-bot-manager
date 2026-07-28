@@ -974,8 +974,8 @@ class PlayerCommands(commands.Cog):
 
     # --- 🎯 !bounty: กระดานล่าค่าหัว (คนสติติดลบ = อาชญากร) ---
     @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
-    @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
     @commands.command(name="bounty", aliases=["wanted", "ล่าหัว"])
+    @allowed_channel("arena")   # อยู่ห้องเดียวกับ !att/!scan — เช็คกระดานแล้วตีต่อได้เลย
     async def bounty_board(self, ctx):
         outlaws = player_model.get_outlaws()
         embed = discord.Embed(
