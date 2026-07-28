@@ -535,14 +535,18 @@ def build_codex_embed(topic=""):
             "`!profile` (`!info`) โปรไฟล์+ธาตุ+อาร์ติแฟกต์ • `!scan @คน` ส่องข้อมูลคนอื่น\n"
             "`!codex <หมวด>` สารานุกรมกติกา • `!reward` รับรางวัลประจำยศ\n"
             "`!bestiary` สมุดสะสมมอนสเตอร์ (ล่าครบมีโบนัสทอง)\n"
-            "`!daily` **ภารกิจรายวัน + เช็คอินต่อเนื่อง** — ทำครบรับทองก้อนโต!"))
+            "`!daily` **ภารกิจรายวัน + เช็คอินต่อเนื่อง** — ทำครบรับทองก้อนโต!\n"
+            "`!season` **ซีซั่นพาสรายเดือน** • `!ach` **ความสำเร็จ + ตำแหน่งอวด**\n"
+            "`!pet` **สัตว์เลี้ยง** ที่จับมาได้ — ติดตัวช่วยหนุนเต๋าตอนสู้"))
         embed.add_field(name="🎒 กระเป๋า & ไอเทม", inline=False, value=(
             "`!bag` ดูกระเป๋า *(มีปุ่ม 🔨 คราฟ · 🗑️ ทิ้ง · 🧱 ขายวัสดุ ในตัว)* • `!use <เลข>` • `!drop <เลข>`\n"
             "`!give @คน <เลข>` ส่งของให้เพื่อน • `!recipes` สูตรคราฟ • `!craft <เลข>` คราฟของ"))
         embed.add_field(name="💰 เงิน & ธนาคาร", inline=False, value=(
             "`!bank` ยอดธนาคาร *(มีปุ่ม 💰 ฝาก · 💸 ถอน · 🤝 โอน ในตัว)* • `!deposit` • `!withdraw`\n"
             "`!transfer @คน <จำนวน>` โอน • `!beg` ขอทาน • `!rob @คน` ปล้น (เสี่ยงติดคุก!)\n"
-            "`!top` **อันดับรวมทุกหมวด** (เศรษฐี/เลเวล/แชท/ออนไลน์ — กดปุ่มสลับได้) • `!mytext` `!mytime` สถิติตัวเอง"))
+            "`!top` **อันดับรวมทุกหมวด** (🗓️ สัปดาห์นี้/เศรษฐี/เลเวล/แชท/ออนไลน์ — กดปุ่มสลับได้)\n"
+            "`!market` **ตลาดผู้เล่น** — `sell` ลงขาย · `buy` ซื้อ · `cancel` เอาคืน · `mine` ของฉัน\n"
+            "`!mytext` `!mytime` สถิติตัวเอง"))
         embed.add_field(name="🎰 คาสิโน & PvP", inline=False, value=(
             "`!bj <เงินเดิมพัน>` แบล็กแจ็ก • `!hilo` ไฮโล • `!slots` สล็อต\n"
             "`!att @คน` เปิดฉากปล้นกลางเมือง (ต้องอยู่ห้องเสียง) • `!challenge @คน` ท้าดวล PvP\n"
@@ -553,6 +557,7 @@ def build_codex_embed(topic=""):
             "`!shop` ร้านไอเทม • `!darkshop` / `!lightshop` ร้านยศสองฝ่าย\n"
             "`!rent` เช่าห้องส่วนตัว (`!extend` ต่ออายุ, `!set_room` ตั้งค่า)\n"
             "`!guild` ระบบกิลด์: create/invite/deposit/pay (ก่อตั้ง 3,000,000,000 ทองสด)\n"
+            "`!marry @คน` **ชวนเป็นคู่หู** • `!partner` สถานะคู่ • `!divorce` เลิก\n"
             "`!payment` เติมเงิน • `!my_orders` เช็คคำสั่งซื้อ • `!menu` เมนูปุ่มลัด"))
         return embed
 
@@ -640,6 +645,95 @@ def build_codex_embed(topic=""):
             embed.add_field(name=c["label"], value=f"ธาตุชุกชุม: {elem_txt}", inline=True)
         return embed
 
+    if topic in ("รางวัล", "กิจกรรม", "daily", "season"):
+        cfg = config_loader.get_config()
+        embed = discord.Embed(
+            title="📖 Codex — รางวัลรายวัน · ซีซั่นพาส · อันดับสัปดาห์", color=0x9b59b6,
+            description="สามระบบนี้ให้รางวัลจาก **การเล่นปกติ** ไม่ต้องทำอะไรพิเศษ — แค่เข้ามาเล่นทุกวัน")
+
+        quests = config_loader.get_daily_quests()
+        bonus = config_loader.get_daily_cfg("all_clear_bonus", {}) or {}
+        embed.add_field(name="📅 ภารกิจรายวัน (`!daily`)", inline=False, value=(
+            "\n".join(f"• {q['label']} {int(q.get('target', 1)):,} ครั้ง → 🪙 {int(q.get('gold', 0)):,}"
+                      for q in quests)
+            + (f"\n🏆 เคลียร์ครบทุกข้อ → 🪙 **{int(bonus.get('gold', 0)):,}**" if bonus else "")
+            + "\n*ความคืบหน้านับเองจากการเล่นปกติ · รีเซ็ตเที่ยงคืน*"))
+
+        streak = sorted(config_loader.get_daily_cfg("streak_rewards", []) or [], key=lambda r: r["day"])
+        if streak:
+            embed.add_field(name="🔥 ล็อกอินต่อเนื่อง", inline=False, value=(
+                " · ".join(f"**{int(r['day'])} วัน** 🪙 {int(r.get('gold', 0)):,}" for r in streak)
+                + "\n*ขาดวันเดียวนับใหม่หมด แต่สถิติสูงสุดยังอยู่*"))
+
+        season = cfg.get("season_pass", {}) or {}
+        if season.get("enabled", True):
+            tiers = season.get("tiers", []) or []
+            embed.add_field(name="🎟️ ซีซั่นพาส (`!season`)", inline=False, value=(
+                f"แต้ม = **EXP ที่หาได้ในเดือนนี้** · มี {len(tiers)} ขั้น\n"
+                f"🆓 สายฟรีทุกคนได้ · ⭐ สายพรีเมียม {int(season.get('price_gold', 0)):,} ทอง "
+                "(ซื้อแล้วย้อนเก็บขั้นที่ปลดไปแล้วได้ทันที)\n"
+                "*ขึ้นเดือนใหม่ = ซีซั่นใหม่ แต้มเริ่มศูนย์ พรีเมียมต้องซื้อใหม่*"))
+
+        weekly = cfg.get("weekly_ranking", {}) or {}
+        if weekly.get("enabled", True):
+            rw = weekly.get("rewards", []) or []
+            embed.add_field(name="🗓️ อันดับรายสัปดาห์ (`!top` → 🗓️)", inline=False, value=(
+                "แต้ม = **EXP ที่หาได้ในสัปดาห์นี้** · ปิดอันดับเช้าวันจันทร์\n"
+                + " · ".join(f"{m} 🪙 {int(r.get('gold', 0)):,}" for m, r in zip(MEDALS, rw))
+                + "\n*รางวัลโอนเข้าธนาคารอัตโนมัติ ตายแล้วไม่หาย*"))
+        return embed
+
+    if topic in ("สะสม", "ความสำเร็จ", "สัตว์เลี้ยง", "pet", "achievement"):
+        cfg = config_loader.get_config()
+        embed = discord.Embed(
+            title="📖 Codex — ความสำเร็จ & สัตว์เลี้ยง", color=0x9b59b6,
+            description="ของสะสมระยะยาว — เก็บไปเรื่อย ๆ ระหว่างเล่นปกติ ไม่ต้องไล่เก็บเป็นพิเศษ")
+
+        achs = cfg.get("achievements", []) or []
+        if achs:
+            embed.add_field(name=f"🏅 ความสำเร็จ {len(achs)} รายการ (`!ach`)", inline=False, value=(
+                "นับย้อนหลังให้อัตโนมัติ — เล่นมานานแล้วเปิดครั้งแรกได้เลยหลายอัน\n"
+                + "\n".join(f"• {a['label']} — {a.get('desc', '')}" for a in achs[:6])
+                + (f"\n*...และอีก {len(achs) - 6} รายการ ดูครบที่ `!ach`*" if len(achs) > 6 else "")
+                + "\n🎖️ ปลดแล้วได้ **ตำแหน่ง** เลือกติดโชว์ใต้ชื่อในโปรไฟล์"))
+
+        pets = (cfg.get("pets", {}) or {}).get("list", []) or []
+        chances = (cfg.get("pets", {}) or {}).get("tame_chance", {}) or {}
+        if pets:
+            rank_th = {"Common": "มอนธรรมดา", "Mini-Boss": "มินิบอส", "Main-Boss": "บอสใหญ่",
+                       "Secret": "มอนลับ", "Unbeatable": "ไร้พ่าย"}
+            embed.add_field(name=f"🐾 สัตว์เลี้ยง {len(pets)} ตัว (`!pet`)", inline=False, value=(
+                "**ล้มมอนแล้วลุ้นจับมาเลี้ยง** — ยิ่งมอนโหด ตัวที่ได้ยิ่งแรง ติดตัวได้ทีละตัว\n"
+                + "\n".join(f"• {p['name']} — 🎲 เต๋า +{int(p.get('dice', 0))} "
+                            f"(ล้ม{rank_th.get(p.get('from_rank'), '?')} โอกาส {int(chances.get(p.get('from_rank'), 0))}%)"
+                            for p in pets)
+                + "\n*ตัวที่มีแล้วจะไม่ออกซ้ำ · ตัวแรกติดให้อัตโนมัติ*"))
+        return embed
+
+    if topic in ("สังคม", "ตลาด", "คู่หู", "market", "partner"):
+        cfg = config_loader.get_config()
+        market = cfg.get("market", {}) or {}
+        partner = cfg.get("partner", {}) or {}
+        embed = discord.Embed(
+            title="📖 Codex — ตลาดผู้เล่น & คู่หู", color=0x9b59b6,
+            description="สองระบบที่ต้องมีคนอื่นถึงจะได้ประโยชน์เต็ม")
+        if market.get("enabled", True):
+            embed.add_field(name="🏪 ตลาดผู้เล่น (`!market`)", inline=False, value=(
+                "ฝากขายไอเทมให้ผู้เล่นคนอื่นซื้อด้วยทองในเกม\n"
+                "`!market sell <เลขไอเทม> <ราคา>` ลงขาย *(ของออกจากกระเป๋าทันที)*\n"
+                "`!market buy <เลขรายการ>` ซื้อ • `!market cancel <เลขรายการ>` เอาของคืน\n"
+                "`!market mine` ดูของที่ตัวเองลงขายอยู่\n"
+                f"💸 ค่าธรรมเนียม **{int(market.get('tax_percent', 0))}%** หักจากคนขาย · "
+                f"ราคา {int(market.get('min_price', 0)):,}–{int(market.get('max_price', 0)):,} ทอง · "
+                f"ลงขายพร้อมกันได้ {int(market.get('max_listings_per_player', 0))} รายการ\n"
+                "*เงินคนขายเข้าธนาคาร · ขายไปแล้วยกเลิกไม่ได้*"))
+        embed.add_field(name="💍 คู่หู (`!marry` / `!partner` / `!divorce`)", inline=False, value=(
+            f"ชวนใครสักคนเป็นคู่ (อีกฝ่ายต้องกดยืนยัน) ค่าจัดงานคนละ 🪙 {int(partner.get('wedding_cost', 0)):,}\n"
+            f"💍 มีคู่: รางวัลจากการล่า **+{int(partner.get('solo_bonus_percent', 0))}%**\n"
+            f"💞 **คู่เข้ามาเล่นวันเดียวกัน: +{int(partner.get('together_bonus_percent', 0))}%** ทั้งสองฝ่าย\n"
+            f"*เลิกได้ด้วย `!divorce` (ค่าดำเนินการ {int(partner.get('divorce_cost', 0)):,} ทอง หักจากคนขอ)*"))
+        return embed
+
     embed = discord.Embed(
         title="📖 Codex — สารานุกรมนักผจญภัย", color=0x9b59b6,
         description=("เลือกหมวดที่อยากอ่าน:\n"
@@ -649,7 +743,10 @@ def build_codex_embed(topic=""):
                      "`!codex สถานะ` — สถานะทั้งหมด + ไอเทมที่ใช้แก้/กัน\n"
                      "`!codex ไอเทม` — ไอเทมทุกชิ้น ใช้ทำอะไร ราคาเท่าไหร่\n"
                      "`!codex ทวีป` — ทวีปทั้ง 9 และธาตุประจำถิ่น\n"
-                     "`!codex กิลด์` — ก่อตั้งกิลด์ คลังกิลด์ และกิลด์วอร์"))
+                     "`!codex กิลด์` — ก่อตั้งกิลด์ คลังกิลด์ และกิลด์วอร์\n"
+                     "`!codex รางวัล` — ภารกิจรายวัน ซีซั่นพาส อันดับสัปดาห์\n"
+                     "`!codex สะสม` — ความสำเร็จ + สัตว์เลี้ยง\n"
+                     "`!codex สังคม` — ตลาดผู้เล่น + ระบบคู่หู"))
     return embed
 
 
