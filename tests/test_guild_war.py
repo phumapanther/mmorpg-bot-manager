@@ -45,3 +45,13 @@ def test_restart_refund_flow(tmp_path, monkeypatch):
     assert pm.get_guild_of(1)["treasury"] == 1400
     assert pm.get_guild_of(2)["treasury"] == 1400
     assert pm.pop_all_war_stakes() == []
+
+
+def test_war_briefing_reads_every_number_from_panel():
+    """ป้ายวิธีเล่นในห้องรบต้องไม่ฟิกตัวเลข — ตั้งค่าใน Panel แล้วต้องเปลี่ยนตาม"""
+    import pathlib, re
+    src = pathlib.Path("bot/cogs/guild_war.py").read_text(encoding="utf-8")
+    brief = src[src.index('title=f"⚔️ สงคราม'):src.index('return f"⚔️ **สงครามเริ่มแล้ว')]
+    for fn in ("war_duration()", "idle_warn()", "idle_grace()", "fight_cooldown()"):
+        assert fn in brief, f"ป้ายวิธีเล่นต้องอ่าน {fn} ไม่ใช่ฟิกเลข"
+    assert "FIGHT_COOLDOWN}" not in brief and "**30 นาที**" not in brief

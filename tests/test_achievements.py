@@ -44,6 +44,22 @@ def test_unlock_pays_once_only(world):
     assert world["bank"] == 30000
 
 
+def test_no_rewrites_once_unlocked(world, monkeypatch):
+    """คนที่ปลดครบแล้วฆ่ามอนอีก ต้องไม่สั่งเขียน DB ซ้ำเลย
+    (เคยยิง claim_once ทุกอันทุกครั้ง = 13 write transaction ต่อการฆ่ามอน 1 ตัว)"""
+    world["bank"] = 2000000000
+    for _ in range(60):
+        pm.record_bestiary_kill(1, "main", "Common")
+    achievements.check_and_unlock(1)                 # ปลดรอบแรก
+
+    calls = []
+    real = pm.claim_once
+    monkeypatch.setattr(pm, "claim_once", lambda u, k: calls.append(k) or real(u, k))
+    for _ in range(5):
+        achievements.check_and_unlock(1)
+    assert calls == [], f"เขียนซ้ำเปล่า ๆ {len(calls)} ครั้ง"
+
+
 def test_locked_when_below_target(world):
     for _ in range(9):
         pm.record_bestiary_kill(1, "main", "Main-Boss")   # บอส 9 ตัว ยังไม่ถึง 10

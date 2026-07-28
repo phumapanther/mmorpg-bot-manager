@@ -36,12 +36,15 @@ def check_and_unlock(user_id):
     เรียกบ่อยแค่ไหนก็ได้ ปลอดภัย: claim_bestiary_reward เป็น INSERT OR IGNORE
     """
     stats = player_stats(user_id)
+    done = unlocked_keys(user_id)     # อ่านครั้งเดียว — ไม่งั้นคนที่ปลดครบแล้วจะสั่งเขียนซ้ำทุกอันทุกครั้งที่ฆ่ามอน
     fresh = []
     for ach in _defs():
+        if ach.get("key") in done:
+            continue
         if stats.get(ach.get("stat"), 0) < int(ach.get("target", 0)):
             continue
         if not player_model.claim_once(user_id, f"ach:{ach['key']}"):
-            continue                      # เคยปลดไปแล้ว
+            continue                      # กันแข่งกันเขียนพร้อมกัน (ปกติ done กรองไปแล้ว)
         gold = int(ach.get("gold", 0))
         if gold:
             player = player_model.get_player(user_id)
