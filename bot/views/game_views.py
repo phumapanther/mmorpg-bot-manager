@@ -110,6 +110,30 @@ class ActionView(View):
         super().__init__(*args, **kwargs)
         self.add_item(MenuButton())
 
+    async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item):
+        """ปุ่มพังห้ามเงียบ — บอกผู้เล่นว่าเกิดอะไร แล้วพ่นสาเหตุลงคอนโซลให้ตามแก้ได้"""
+        traceback.print_exception(type(error), error, error.__traceback__)
+        msg = (f"⚠️ ปุ่ม **{getattr(item, 'label', '?')}** ขัดข้อง (`{type(error).__name__}`)\n"
+               "รบกวนเรียกหน้าต่างใหม่ด้วย `!play` นะครับ")
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(msg, ephemeral=True)
+        except Exception:
+            pass
+
+    async def on_timeout(self):
+        """หน้าต่างหมดอายุต้องเห็นได้ — ปิดปุ่มพร้อมบอกเหตุผล ไม่ปล่อยให้กดแล้วเงียบ"""
+        for child in self.children:
+            child.disabled = True
+        if getattr(self, "message", None):
+            try:
+                await self.message.edit(content="⏰ **หน้าต่างนี้หมดอายุแล้ว** — พิมพ์ `!play` เพื่อเรียกหน้าใหม่นะครับ",
+                                        view=self)
+            except Exception:
+                pass
+
 
 class MonsterEventView(ActionView):
     def __init__(self, user_id, member_roles, monster_rank=None, monster_hp=None, active_buffs=None, turn_count=1, monster_name=None, element=None, fight_statuses=None, infused=False, faction_war_side=None, fight_grace=None, monster_hp_max=None):
@@ -1125,7 +1149,7 @@ class MonsterEventView(ActionView):
 # 2. เหตุการณ์ หมู่บ้าน (Village)
 class VillageEventView(ActionView):
     def __init__(self, user_id):
-        super().__init__(timeout=60)
+        super().__init__(timeout=600)   # หน้าหมู่บ้านเป็นหน้า "เดินดู" ไม่ใช่ไฟต์ — 60 วิสั้นไปจนปุ่มตายก่อนกด
         self.user_id = user_id
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -1238,7 +1262,7 @@ class DeathRespawnView(ActionView):
 # ระบบร้านค้า      
 class ShopEventView(ActionView):
     def __init__(self, user_id):
-        super().__init__(timeout=60)
+        super().__init__(timeout=600)   # เลือกของในร้านใช้เวลา — timeout สั้นทำให้กดซื้อไม่ติด
         self.user_id = user_id
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -1258,7 +1282,9 @@ class ShopEventView(ActionView):
 
     @discord.ui.button(label="⬅️ กลับไปหมู่บ้าน", style=discord.ButtonStyle.secondary)
     async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(content="คุณเดินกลับไปยังจุดพักแรม...", view=VillageEventView(self.user_id))
+        village = VillageEventView(self.user_id)
+        await interaction.response.edit_message(content="คุณเดินกลับไปยังจุดพักแรม...", view=village)
+        village.message = interaction.message   # ให้ on_timeout เอาไว้ปิดปุ่มพร้อมบอกเหตุผลได้
 
 # --- ระบบซื้อ ---
 class BuyItemSelect(discord.ui.Select):
@@ -1942,8 +1968,9 @@ class RespawnView(ActionView):
         embed, _info = respawn_player(self.user_id)
         if not embed:
             return await interaction.response.send_message("❌ ไม่พบข้อมูลตัวละคร!", ephemeral=True)
-        await interaction.response.edit_message(content=None, embed=embed,
-                                                view=VillageEventView(self.user_id))
+        village = VillageEventView(self.user_id)
+        await interaction.response.edit_message(content=None, embed=embed, view=village)
+        village.message = interaction.message
 
 
 # 🧭 VIEW หลักในการเริ่มเดินทาง (!play)
@@ -2400,18 +2427,28 @@ class AdventureView(ActionView):
     async def start_adv_x5(self, interaction: discord.Interaction, button: discord.ui.Button):
         """O5: เดินรวดสูงสุด 5 ก้าว — ข้ามเฉพาะช่วงที่ไม่มีอะไรให้ตัดสินใจ (อีเวนต์สงบ)
         เจอมอน/หีบ/กับดัก/ดันเจี้ยน/พาหนะ/อีเวนต์พิเศษ หรือเลือดต่ำ = หยุดทันที"""
-        await self.start_adv(interaction, button, max_steps=5)
+        await self.walk_step(interaction, button, max_steps=5)
 
     @discord.ui.button(label="🧭 เริ่มออกเดินทาง", style=discord.ButtonStyle.green)
-    async def start_adv(self, interaction: discord.Interaction, button: discord.ui.Button, max_steps=1):
+    async def start_adv(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.walk_step(interaction, button, max_steps=1)
+
+    async def walk_step(self, interaction: discord.Interaction, button: discord.ui.Button, max_steps=1):
+        """ตรรกะเดินหนึ่งก้าว — ต้องเป็นเมธอดธรรมดา ห้ามครอบ @discord.ui.button
+        เพราะ discord.py จะ setattr ทับชื่อด้วยอ็อบเจ็กต์ Button ทำให้เรียกเป็นฟังก์ชันไม่ได้"""
         user_id = interaction.user.id
         player = player_model.get_player(user_id)
 
         if player["current_state"] != "idle":
-            await interaction.response.send_message("⚠️ คุณกำลังติดเหตุการณ์อื่นอยู่!", ephemeral=True)
+            if interaction.response.is_done():
+                await interaction.followup.send("⚠️ คุณกำลังติดเหตุการณ์อื่นอยู่!", ephemeral=True)
+            else:
+                await interaction.response.send_message("⚠️ คุณกำลังติดเหตุการณ์อื่นอยู่!", ephemeral=True)
             return
 
-        await interaction.response.edit_message(content="✨ คุณเริ่มก้าวเท้าออกเดินทางตรวจตราเส้นทาง...", view=None)
+        # ⏩ รอบเดินรวด (max_steps>1) จะวนเข้าฟังก์ชันนี้ซ้ำด้วย interaction เดิม — ตอบได้ครั้งเดียวเท่านั้น
+        if not interaction.response.is_done():
+            await interaction.response.edit_message(content="✨ คุณเริ่มก้าวเท้าออกเดินทางตรวจตราเส้นทาง...", view=None)
 
         # 📅 C1: นับเควสรายวัน (ออกเดินทาง) — นับทุกก้าวจริงรวมโหมดเดินรวด
         try:
@@ -2641,7 +2678,7 @@ class AdventureView(ActionView):
             hp_ok = fresh.get("hp", 0) > fresh.get("max_hp", 100) * 0.3
             if max_steps > 1 and hp_ok:
                 self._auto_walked = getattr(self, "_auto_walked", 0) + 1
-                return await self.start_adv(interaction, button, max_steps=max_steps - 1)
+                return await self.walk_step(interaction, button, max_steps=max_steps - 1)
             walked = getattr(self, "_auto_walked", 0)
             next_view = AdventureView(author_id=user_id)
             calm_text = game_modifiers.pick_calm_text()

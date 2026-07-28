@@ -15,7 +15,7 @@ def test_walk_logic_rules():
     calm = src[src.index('elif chosen_event == "calm":'):src.index('elif chosen_event == "special":')]
     assert "max_steps=max_steps - 1" in calm, "ต้องนับก้าวถอยหลัง (กันวนไม่รู้จบ)"
     assert "max_hp" in calm and "0.3" in calm, "ต้องหยุดเมื่อเลือดต่ำ"
-    assert "start_adv(interaction, button, max_steps=" in calm
+    assert "walk_step(interaction, button, max_steps=" in calm
 
     # อีเวนต์อื่นต้องไม่มีการวนซ้ำเลย (เจอแล้วหยุดทันที) — ตัดบล็อกถึงสาขาถัดไปเท่านั้น
     import re
@@ -30,5 +30,7 @@ def test_walk_logic_rules():
 def test_default_single_step():
     """ปุ่มเดิมต้องยังเดินทีละก้าวเหมือนเดิม (max_steps=1)"""
     src = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
-    assert "async def start_adv(self, interaction: discord.Interaction, button: discord.ui.Button, max_steps=1):" in src
-    assert "await self.start_adv(interaction, button, max_steps=5)" in src
+    # ตรรกะเดินอยู่ในเมธอดธรรมดา (walk_step) ปุ่มทั้งสองเป็นแค่ตัวเรียก — ห้ามเรียกปุ่มเป็นฟังก์ชัน
+    assert "async def walk_step(self, interaction: discord.Interaction, button: discord.ui.Button, max_steps=1):" in src
+    assert "await self.walk_step(interaction, button, max_steps=5)" in src
+    assert "await self.walk_step(interaction, button, max_steps=1)" in src
