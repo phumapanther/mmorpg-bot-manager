@@ -76,3 +76,19 @@ def test_play_room_rule_only_on_main_server():
     import pathlib
     src = pathlib.Path("bot/cogs/game_commands.py").read_text(encoding="utf-8")
     assert "if is_main_server(ctx) and required_room_part not in current_room_name:" in src
+
+
+def test_portal_button_only_on_guest(monkeypatch):
+    """ปุ่ม 🌏 ไปต่างโลก โผล่เฉพาะเซิร์ฟรอง และลิงก์ตรงกับ config"""
+    import discord
+    from bot.views.menu_view import CodexView
+    monkeypatch.setattr(config_loader, "get_main_server_invite", lambda: "https://discord.gg/test")
+
+    assert not [c for c in CodexView(show_portal=False).children if isinstance(c, discord.ui.Button)]
+    btns = [c for c in CodexView(show_portal=True).children if isinstance(c, discord.ui.Button)]
+    assert len(btns) == 1 and btns[0].url == "https://discord.gg/test"
+    assert "ไปต่างโลก" in btns[0].label
+
+    # ไม่ได้ตั้งลิงก์ = ไม่โผล่ปุ่ม (ไม่ให้ปุ่มตายค้าง)
+    monkeypatch.setattr(config_loader, "get_main_server_invite", lambda: "")
+    assert not [c for c in CodexView(show_portal=True).children if isinstance(c, discord.ui.Button)]

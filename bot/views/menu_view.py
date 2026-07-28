@@ -29,9 +29,14 @@ class CodexSelect(discord.ui.Select):
 
 
 class CodexView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, show_portal=False):
         super().__init__(timeout=120)
         self.add_item(CodexSelect())
+        # 🌏 P8: ปุ่มข้ามมิติไปเซิร์ฟหลัก — โผล่เฉพาะตอนเล่นในเซิร์ฟรอง (กดแล้วเปิดหน้าเชิญทันที)
+        invite = config_loader.get_main_server_invite()
+        if show_portal and invite:
+            self.add_item(discord.ui.Button(
+                label="🌏 ไปต่างโลก (เซิร์ฟหลัก)", style=discord.ButtonStyle.link, url=invite))
 
 
 class BankAmountModal(discord.ui.Modal):
@@ -147,8 +152,13 @@ class GameMenuView(discord.ui.View):
 
     @discord.ui.button(label="📖 คู่มือ", style=discord.ButtonStyle.secondary, custom_id="game_menu:codex")
     async def codex_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message(
-            "📖 **คู่มือนักผจญภัย** — เลือกหัวข้อ:", view=CodexView(), ephemeral=True)
+        from bot.utils import is_main_server
+        on_guest = not is_main_server(interaction)   # เซิร์ฟรอง = โชว์ปุ่มข้ามมิติ + ข้อความชวน
+        text = "📖 **คู่มือนักผจญภัย** — เลือกหัวข้อ:"
+        if on_guest:
+            text += ("\n\n✨ *รางวัลรายวัน ร้านค้า คาสิโน กิลด์ PvP และระบบเต็มทั้งหมด "
+                     "เล่นได้ที่**เซิร์ฟหลัก**เท่านั้น — กดปุ่ม 🌏 ด้านล่างเพื่อข้ามมิติไปเลย!*")
+        await interaction.response.send_message(text, view=CodexView(show_portal=on_guest), ephemeral=True)
 
     @discord.ui.button(label="🧪 ใช้ไอเทม", style=discord.ButtonStyle.danger, custom_id="game_menu:use_item")
     async def use_item_button(self, interaction: discord.Interaction, button: discord.ui.Button):
