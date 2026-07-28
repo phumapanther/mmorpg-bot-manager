@@ -1107,5 +1107,122 @@
     }
   },
   "main_guild_id": null,
-  "main_server_invite": "https://discord.gg/7snE7rhTHa"
+  "main_server_invite": "https://discord.gg/7snE7rhTHa",
+  "game_balance": {
+    "roles": {
+      "king_role_id": null,
+      "guild_divider_role_id": null,
+      "guild_leader_role_id": null
+    },
+    "guild": {
+      "create_cost": 3000000000,
+      "rename_cost": 100000000
+    },
+    "guild_war": {
+      "duration_min": 30,
+      "idle_warn_sec": 60,
+      "idle_grace_sec": 30,
+      "fight_cooldown_sec": 10,
+      "points": {
+        "soldier": 1,
+        "leader": 10,
+        "fort": -10,
+        "castle": -100
+      },
+      "chances": {
+        "soldier": 60,
+        "leader": 15,
+        "fort": 20,
+        "castle": 5
+      }
+    },
+    "pvp": {
+      "min_level": 20,
+      "reward_exp_base": 100,
+      "reward_exp_per_level": 1000,
+      "reward_gold_base": 500,
+      "reward_gold_per_level": 500,
+      "kill_cooldown_min_sec": 300,
+      "kill_cooldown_max_sec": 600,
+      "sanity_loss_base": 5,
+      "sanity_loss_per_level": 0.25,
+      "jail_base_min": 10,
+      "jail_per_deficit_min": 3,
+      "fine_base": 1000,
+      "fine_per_deficit": 200
+    },
+    "bounty": {
+      "base": 10000,
+      "per_deficit": 2000,
+      "cap": 100000,
+      "hunt_sanity_reward": 10
+    },
+    "bestiary": {
+      "continent_reward": 100000,
+      "star_reward": 200000,
+      "complete_reward": 1000000
+    },
+    "faction_war": {
+      "gold_mult": 2.0,
+      "exp_mult": 1.5,
+      "encounter_chance": 40
+    },
+    "drops": {
+      "normal_chance": 70,
+      "rare_chance": 1,
+      "respawn_hp_percent": 30
+    },
+    "events": {
+      "travel_chance": 8,
+      "calm_chance": 12
+    },
+    "cooldowns": {
+      "play_sec": 3,
+      "profile_sec": 30,
+      "adv_sec": 5,
+      "shop_sec": 3
+    }
+  },
+  "monster_ranks": {
+    "Common": {
+      "dice_count": 1,
+      "hp_min": 40,
+      "hp_max": 100,
+      "flee_chance": 85,
+      "gold_mult": 2,
+      "exp_reward": 25
+    },
+    "Mini-Boss": {
+      "dice_count": 2,
+      "hp_min": 100,
+      "hp_max": 500,
+      "flee_chance": 60,
+      "gold_mult": 5,
+      "exp_reward": 50
+    },
+    "Main-Boss": {
+      "dice_count": 3,
+      "hp_min": 500,
+      "hp_max": 1000,
+      "flee_chance": 30,
+      "gold_mult": 10,
+      "exp_reward": 250
+    },
+    "Secret": {
+      "dice_count": 2,
+      "hp_min": 100,
+      "hp_max": 1000,
+      "flee_chance": 50,
+      "gold_mult": 15,
+      "exp_reward": 250
+    },
+    "Unbeatable": {
+      "dice_count": 5,
+      "hp_min": 1000,
+      "hp_max": 2000,
+      "flee_chance": 5,
+      "gold_mult": 1000,
+      "exp_reward": 1000
+    }
+  }
 }

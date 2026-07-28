@@ -1137,12 +1137,12 @@ class AdminCommands(commands.Cog):
         )
 
     # 👑 กำหนด ID ของยศกษัตริย์ (ใส่เป็นตัวเลข Integer ได้เลย)
-    KING_ROLE_ID = 1148147180243267624 
+    KING_ROLE_ID = 1148147180243267624   # fallback — ตั้งจริงที่ Panel (game_balance.roles.king_role_id)
 
     def get_king_ids(self, ctx):
         """ฟังก์ชันช่วยหาว่าใครมียศกษัตริย์บ้างผ่าน Role ID"""
         # ใช้ get_role(ID) แทนการหาด้วยชื่อ
-        role = ctx.guild.get_role(self.KING_ROLE_ID)
+        role = ctx.guild.get_role(config_loader.get_balance_role_id("king_role_id") or self.KING_ROLE_ID)
         
         if not role:
             print(f"⚠️ [WARNING] หายศกษัตริย์ ID {self.KING_ROLE_ID} ไม่เจอในเซิร์ฟเวอร์นี้!")

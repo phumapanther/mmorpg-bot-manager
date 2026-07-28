@@ -15,7 +15,7 @@ class GameCommands(commands.Cog):
     @commands.command(name="shop")
     @main_server_only()   # P8: ร้านค้าเล่นได้เฉพาะเซิร์ฟหลัก
     @allowed_channel("role_shop")
-    @commands.cooldown(1, 3.0, commands.BucketType.user) # ⏱️ คูลดาวน์ 3 วินาที ต่อผู้เล่น 1 คน
+    @commands.cooldown(1, float(config_loader.get_balance("cooldowns.shop_sec", 3)), commands.BucketType.user)
     async def shop(self, ctx, action: str = None, item_num: int = None):
         import random
         from bot.views.profile_embed import GAME_RACES, MONSTER_RACES, GAME_CLASSES
@@ -202,7 +202,7 @@ class GameCommands(commands.Cog):
     # ─── 📊 คำสั่งพิมพ์ดูโปรไฟล์ ───
     @commands.command(name="profile", aliases=["info"])
     @allowed_channel("profile")
-    @commands.cooldown(1, 30.0, commands.BucketType.user) # ⏱️ คูลดาวน์ 
+    @commands.cooldown(1, float(config_loader.get_balance("cooldowns.profile_sec", 30)), commands.BucketType.user)
     async def profile(self, ctx, member: discord.Member = None):
         target_member = member if member else ctx.author
         player_data = player_model.get_player(target_member.id)
@@ -224,7 +224,7 @@ class GameCommands(commands.Cog):
 
     # ─── ⚔️ คำสั่งเล่นเกมคอร์หลัก (ระบบแสดงผลเฉพาะคนใช้คำสั่ง - Ephemeral + ล็อกห้องมิติ) ───
     @commands.hybrid_command(name="play", description="เริ่มออกเดินทางในโลก D&D MMORPG")
-    @commands.cooldown(1, 3.0, commands.BucketType.user) # ⏱️ แก้กลับเป็นคูลดาวน์ 3 วินาทีตามที่คุยกันรอบก่อนครับน้า
+    @commands.cooldown(1, float(config_loader.get_balance("cooldowns.play_sec", 3)), commands.BucketType.user)
     async def play(self, ctx):
         user_id = ctx.author.id
         

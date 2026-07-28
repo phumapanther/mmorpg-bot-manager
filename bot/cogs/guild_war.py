@@ -8,15 +8,17 @@ from discord.ext import commands, tasks
 from bot.utils import is_main_server
 
 import bot.models.player_model as player_model
+from bot import config_loader
 from bot.cogs.guild import GUILD_CATEGORY, _is_leader
 
+# ค่าพื้นฐาน (fallback) — ตั้งจริงที่ Panel: game_balance.guild_war.*
 WAR_DURATION = 30 * 60      # ศึกยาว 30 นาที
 IDLE_TIMEOUT = 60           # ห้องเงียบ 1 นาที = เตือนก่อน (ยังสู้ต่อได้!)
 IDLE_GRACE = 30             # หลังเตือน ถ้ายังเงียบต่ออีกเท่านี้ค่อยจบศึกจริง
 FIGHT_COOLDOWN = 10         # วินาทีต่อคน
 
 # (ชนิด, โอกาส%, แต้ม, ฝั่งที่โดน: "me"=ได้แต้ม / "enemy"=ศัตรูโดนหัก, ความยากโบนัสเต๋าศัตรู)
-ENCOUNTERS = [
+DEFAULT_ENCOUNTERS = [
     ("soldier", 60, 1, "me", 0),
     ("leader", 15, 10, "me", 5),
     ("fort", 20, -10, "enemy", 3),
@@ -24,12 +26,39 @@ ENCOUNTERS = [
 ]
 
 
+def war_duration():
+    return int(config_loader.get_balance("guild_war.duration_min", 30)) * 60
+
+
+def idle_warn():
+    return int(config_loader.get_balance("guild_war.idle_warn_sec", IDLE_TIMEOUT))
+
+
+def idle_grace():
+    return int(config_loader.get_balance("guild_war.idle_grace_sec", IDLE_GRACE))
+
+
+def fight_cooldown():
+    return int(config_loader.get_balance("guild_war.fight_cooldown_sec", FIGHT_COOLDOWN))
+
+
+def encounters():
+    """ตารางเป้าหมายในศึก — โอกาส/แต้มตั้งได้ที่ Panel (ไม่ตั้ง = ค่าเริ่มต้น)"""
+    chances = config_loader.get_balance("guild_war.chances", {}) or {}
+    points = config_loader.get_balance("guild_war.points", {}) or {}
+    out = []
+    for key, ch, pt, side, diff in DEFAULT_ENCOUNTERS:
+        out.append((key, int(chances.get(key, ch)), int(points.get(key, pt)), side, diff))
+    return out
+
+
 def roll_encounter(rng=None):
     rng = rng or random
-    keys = [e[0] for e in ENCOUNTERS]
-    weights = [e[1] for e in ENCOUNTERS]
+    table = encounters()
+    keys = [e[0] for e in table]
+    weights = [e[1] for e in table]
     key = rng.choices(keys, weights=weights, k=1)[0]
-    return next(e for e in ENCOUNTERS if e[0] == key)
+    return next(e for e in table if e[0] == key)
 
 
 def apply_encounter(scores, my_gid, enemy_gid, encounter):
@@ -49,7 +78,7 @@ class ActiveWar:
         self.info = {guild_a["guild_id"]: guild_a, guild_b["guild_id"]: guild_b}
         self.scores = {guild_a["guild_id"]: 0, guild_b["guild_id"]: 0}
         self.stake = stake
-        self.ends_at = time.time() + WAR_DURATION
+        self.ends_at = time.time() + war_duration()
         self.last_activity = time.time()
         self.warned_at = None   # เวลาแจ้งเตือนห้องเงียบ — None = ยังไม่เตือน/มีคนกลับมาแล้ว
         self.cooldowns = {}
@@ -177,8 +206,8 @@ class GuildWarCog(commands.Cog):
         if not my_guild or my_guild["guild_id"] not in war.scores:
             return await ctx.send("❌ คุณไม่ใช่ทหารของกิลด์คู่สงครามนี้!")
         now = time.time()
-        if now - war.cooldowns.get(ctx.author.id, 0) < FIGHT_COOLDOWN:
-            remain = FIGHT_COOLDOWN - (now - war.cooldowns[ctx.author.id])
+        if now - war.cooldowns.get(ctx.author.id, 0) < fight_cooldown():
+            remain = fight_cooldown() - (now - war.cooldowns[ctx.author.id])
             return await ctx.send(f"⏳ พักหายใจก่อน! อีก `{remain:.0f}` วิค่อยบุกใหม่", delete_after=5)
         war.cooldowns[ctx.author.id] = now
         war.last_activity = now
@@ -228,7 +257,7 @@ class GuildWarCog(commands.Cog):
             # มีคนกลับมาขยับหลังโดนเตือน = ยกเลิกนับถอยหลัง ศึกดำเนินต่อ
             if war.warned_at and war.last_activity > war.warned_at:
                 war.warned_at = None
-            if now - war.last_activity > IDLE_TIMEOUT:
+            if now - war.last_activity > idle_warn():
                 if war.warned_at is None:
                     war.warned_at = now
                     battlefield = self.bot.get_channel(cid)
@@ -239,7 +268,7 @@ class GuildWarCog(commands.Cog):
                                 "พิมพ์ `!fight` (หรืออะไรก็ได้) เพื่อสู้ต่อ!")
                         except Exception:
                             pass
-                elif now - war.warned_at > IDLE_GRACE:
+                elif now - war.warned_at > idle_grace():
                     await self.end_war(war, "🍂 สนามรบเงียบจนสิ้นเสียงดาบ — สงครามยุติ")
 
     @watch_wars.before_loop

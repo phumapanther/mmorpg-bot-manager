@@ -984,6 +984,13 @@ def roll_special_event(mods, rng=None):
 
 # ===== อีเวนต์เงียบสงบ (ไม่มีอะไรเกิดขึ้น — แค่บรรยากาศ) =====
 
+
+def _balance(path, default=None):
+    """อ่านค่าสมดุลจาก Panel (import ในฟังก์ชันกัน circular import)"""
+    from bot import config_loader
+    return config_loader.get_balance(path, default)
+
+
 CALM_EVENT_CHANCE = 12  # % ต่อการสุ่มอีเวนต์ปกติหนึ่งครั้ง
 
 CALM_TEXTS = [
@@ -997,7 +1004,7 @@ CALM_TEXTS = [
 
 def roll_calm_chance(rng=None):
     """ทอยว่าการสุ่มปกติครั้งนี้เป็นอีเวนต์เงียบสงบไหม"""
-    return (rng or random).randint(1, 100) <= CALM_EVENT_CHANCE
+    return (rng or random).randint(1, 100) <= int(_balance("events.calm_chance", CALM_EVENT_CHANCE))
 
 
 def pick_calm_text(rng=None):
@@ -1020,7 +1027,7 @@ VEHICLES = {
 
 def roll_travel_chance(mods=None, rng=None):
     """ทอยว่าการสุ่มปกติครั้งนี้เจอเหตุการณ์เดินทางไหม (ธีมคูณโอกาสได้ผ่าน travel_chance_mult)"""
-    chance = TRAVEL_EVENT_CHANCE * (mods or {}).get("travel_chance_mult", 1.0)
+    chance = int(_balance("events.travel_chance", TRAVEL_EVENT_CHANCE)) * (mods or {}).get("travel_chance_mult", 1.0)
     return (rng or random).randint(1, 100) <= chance
 
 
@@ -1408,10 +1415,14 @@ BOUNTY_HUNT_SANITY_REWARD = 10   # ฆ่าอาชญากรสำเร็
 
 
 def bounty_for(sanity):
-    """ค่าหัวตามสติ — สติไม่ติดลบ = ไม่มีหัว (0)"""
+    """ค่าหัวตามสติ — สติไม่ติดลบ = ไม่มีหัว (0) | ตัวเลขตั้งได้ที่ Panel"""
     if sanity >= 0:
         return 0
-    return min(BOUNTY_CAP, BOUNTY_BASE + abs(sanity) * BOUNTY_PER_DEFICIT)
+    from bot import config_loader
+    base = int(config_loader.get_balance("bounty.base", BOUNTY_BASE))
+    per = int(config_loader.get_balance("bounty.per_deficit", BOUNTY_PER_DEFICIT))
+    cap = int(config_loader.get_balance("bounty.cap", BOUNTY_CAP))
+    return min(cap, base + abs(sanity) * per)
 
 
 # ===== 📕 สมุดสะสมมอนสเตอร์ (Bestiary) — P3 =====

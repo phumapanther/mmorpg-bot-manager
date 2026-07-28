@@ -156,3 +156,26 @@ def get_license_key():
 
 def get_guild_id():
     return get_config().get("guild_id")
+
+
+# ===== ⚖️ ค่าสมดุลเกมที่ตั้งได้ใน Panel (กลุ่ม A) =====
+
+def get_balance(path, default=None):
+    """อ่านค่าสมดุลแบบ 'guild.create_cost' — ไม่มีใน config = คืน default (ของเก่าไม่พัง)"""
+    node = get_config().get("game_balance", {})
+    for key in path.split("."):
+        if not isinstance(node, dict) or key not in node:
+            return default
+        node = node[key]
+    return default if node is None else node
+
+
+def get_balance_role_id(key):
+    """ไอดียศจาก Panel — ไม่ตั้ง = None (ระบบที่ใช้ยศนั้นจะข้ามอย่างปลอดภัย)"""
+    rid = get_balance(f"roles.{key}")
+    return int(rid) if rid else None
+
+
+def get_monster_rank(rank_key, default=None):
+    """สเปกมอนสเตอร์รายแรงค์จาก Panel — ไม่มี = ใช้ค่าในโค้ด"""
+    return dict(get_config().get("monster_ranks", {}).get(rank_key) or (default or {}))

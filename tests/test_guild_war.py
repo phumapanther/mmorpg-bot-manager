@@ -2,10 +2,11 @@
 import random
 
 import bot.models.player_model as pm
-from bot.cogs.guild_war import ENCOUNTERS, apply_encounter, roll_encounter
+from bot.cogs.guild_war import DEFAULT_ENCOUNTERS as ENCOUNTERS, apply_encounter, encounters, roll_encounter
 
 
 def test_encounter_table():
+    assert [e[0] for e in encounters()] == [e[0] for e in ENCOUNTERS]   # ตารางจาก Panel ตรงกับค่าเริ่มต้น
     keys = {e[0] for e in ENCOUNTERS}
     assert keys == {"soldier", "leader", "fort", "castle"}
     assert sum(e[1] for e in ENCOUNTERS) == 100

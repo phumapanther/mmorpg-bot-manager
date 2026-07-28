@@ -1269,8 +1269,9 @@ class PlayerCommands(commands.Cog):
             return await ctx.send("❌ ไม่สามารถต่อสู้ได้เนื่องจากมีฝ่ายใดฝ่ายหนึ่งอยู่ในเซฟโซนหมู่บ้าน หรืออยู่ในสถานะเสียชีวิตแล้ว!")
 
         # 6. เช็กเงื่อนไขเลเวลต่ำกว่า 20
-        if attacker.get("level", 0) < 20 or defender.get("level", 0) < 20:
-            return await ctx.send("❌ ระบบ PVP รองรับเฉพาะผู้กล้าเลเวล 20 ขึ้นไปเท่านั้น! (และห้ามรังแกผู้เล่นเลเวลต่ำกว่า 20)")
+        pvp_min_level = int(config_loader.get_balance("pvp.min_level", 20))
+        if attacker.get("level", 0) < pvp_min_level or defender.get("level", 0) < pvp_min_level:
+            return await ctx.send(f"❌ ระบบ PVP รองรับเฉพาะผู้กล้าเลเวล {pvp_min_level} ขึ้นไปเท่านั้น! (และห้ามรังแกผู้เล่นเลเวลต่ำกว่านี้)")
         
         now = time.time()
         if ctx.author.id in self.pk_cooldowns:
@@ -1325,8 +1326,8 @@ class PlayerCommands(commands.Cog):
 
         if loser_new_hp <= 0:
             # --- 🏆 ระบบให้รางวัลผู้ชนะ ---
-            reward_exp = 100 + (loser.get("level", 1) * 1000)
-            reward_gold = 500 + (loser.get("level", 1) * 500)
+            reward_exp = int(config_loader.get_balance("pvp.reward_exp_base", 100)) + (loser.get("level", 1) * int(config_loader.get_balance("pvp.reward_exp_per_level", 1000)))
+            reward_gold = int(config_loader.get_balance("pvp.reward_gold_base", 500)) + (loser.get("level", 1) * int(config_loader.get_balance("pvp.reward_gold_per_level", 500)))
 
             is_lvl_up, new_lvl, new_exp = player_model.add_exp(w_member.id, reward_exp)
 
@@ -1345,7 +1346,7 @@ class PlayerCommands(commands.Cog):
                 reward_text += (f"\n🎯 **ล่าหัวสำเร็จ!** รับค่าหัว `{bounty:,}` ทอง — "
                                 f"{l_member.mention} ชดใช้กรรมแล้ว (สติกลับเป็น 0 หลุดจากกระดานล่าหัว)")
             
-            cooldown_seconds = random.randint(300, 600) # สุ่ม 5 ถึง 10 นาที
+            cooldown_seconds = random.randint(int(config_loader.get_balance("pvp.kill_cooldown_min_sec", 300)), int(config_loader.get_balance("pvp.kill_cooldown_max_sec", 600)))
             self.pk_cooldowns[ctx.author.id] = time.time() + cooldown_seconds
             player_model.update_player_field(l_member.id, "current_state", "death")
             death_status_text = f"\n💀 **☠️ สิ้นชีพ!** พลังชีวิตของ {l_member.mention} หมดลงและเข้าสู่สถานะเสียชีวิต!"
@@ -1356,15 +1357,15 @@ class PlayerCommands(commands.Cog):
         # ⚖️ P4: เป้าหมายเป็นอาชญากร (สติติดลบ) = ปราบโจรไม่บาป — ไม่เสียสติ ไม่มีเวรกรรม
         if defender.get("sanity", 100) < 0:
             if loser_new_hp <= 0 and loser is defender:
-                hunter_sanity = min(100, attacker.get("sanity", 100) + game_modifiers.BOUNTY_HUNT_SANITY_REWARD)
+                hunter_sanity = min(100, attacker.get("sanity", 100) + int(config_loader.get_balance("bounty.hunt_sanity_reward", game_modifiers.BOUNTY_HUNT_SANITY_REWARD)))
                 player_model.update_player_field(ctx.author.id, "sanity", hunter_sanity)
-                sanity_text = f"\n🧠 **จิตใจผ่องใสจากการผดุงยุติธรรม** สติ `+{game_modifiers.BOUNTY_HUNT_SANITY_REWARD}` (ปัจจุบัน: {hunter_sanity})"
+                sanity_text = f"\n🧠 **จิตใจผ่องใสจากการผดุงยุติธรรม** สติ `+{int(config_loader.get_balance("bounty.hunt_sanity_reward", game_modifiers.BOUNTY_HUNT_SANITY_REWARD))}` (ปัจจุบัน: {hunter_sanity})"
             else:
                 sanity_text = "\n🧠 การไล่ล่าอาชญากรไม่ใช่บาป — สติไม่ลดลง"
             karma_text = ""
             new_sanity = 0  # sentinel: การล่าโจรไม่นับเป็นบาป — ข้ามเช็คสติแตกด้านล่างเสมอ (แม้นักล่าเองสติติดลบ)
         else:
-            sanity_loss = 5 + int(attacker.get("level", 1) * 0.25)
+            sanity_loss = int(config_loader.get_balance("pvp.sanity_loss_base", 5)) + int(attacker.get("level", 1) * float(config_loader.get_balance("pvp.sanity_loss_per_level", 0.25)))
             current_sanity = attacker.get("sanity", 100)
             new_sanity = current_sanity - sanity_loss
 
@@ -1382,7 +1383,7 @@ class PlayerCommands(commands.Cog):
                 event_type = random.choice(["arrest", "execute"])
                 
                 if event_type == "arrest":
-                    jail_mins = 10 + (deficit * 3)
+                    jail_mins = int(config_loader.get_balance("pvp.jail_base_min", 10)) + (deficit * int(config_loader.get_balance("pvp.jail_per_deficit_min", 3)))
                     jail_until = time.time() + (jail_mins * 60)
                     
                     player_model.update_player_fields(ctx.author.id, {
@@ -1392,7 +1393,7 @@ class PlayerCommands(commands.Cog):
                     karma_text = f"\n\n🚨 **เวรกรรมตามสนอง!** ความคลุ้มคลั่งทำให้ {ctx.author.mention} ถูกจับเข้าคุกเป็นเวลา `{jail_mins}` นาที!"
                     
                 elif event_type == "execute":
-                    money_penalty = 1000 + (deficit * 200)
+                    money_penalty = int(config_loader.get_balance("pvp.fine_base", 1000)) + (deficit * int(config_loader.get_balance("pvp.fine_per_deficit", 200)))
                     level_penalty = 1 + int(deficit / 10)
                     
                     atk_current_cash = attacker.get("cash", 0)

@@ -34,6 +34,20 @@ MONSTER_RANKS = {
 }
 
 
+
+def _rank_stats(rank_key):
+    """สเปกมอนสเตอร์รายแรงค์ — ค่าในโค้ดเป็นพื้นฐาน ทับด้วยค่าจาก Panel (monster_ranks)"""
+    stats = dict(MONSTER_RANKS[rank_key])
+    override = config_loader.get_monster_rank(rank_key)
+    if override:
+        for key in ("dice_count", "flee_chance", "gold_mult", "exp_reward"):
+            if key in override:
+                stats[key] = override[key]
+        if "hp_min" in override and "hp_max" in override:
+            stats["hp_range"] = (int(override["hp_min"]), int(override["hp_max"]))
+    return stats
+
+
 # ==========================================================
 # 🎮 INTERACTIVE VIEWS
 # ==========================================================
@@ -130,7 +144,7 @@ class MonsterEventView(ActionView):
 
             # 3. สุ่มมอนสเตอร์ตามน้ำหนักที่ได้จากเงื่อนไขด้านบน
             self.monster_rank = random.choices(rank_keys, weights=spawn_weights, k=1)[0]
-            self.m_stats = dict(MONSTER_RANKS[self.monster_rank])
+            self.m_stats = _rank_stats(self.monster_rank)
             self.monster_hp = random.randint(self.m_stats["hp_range"][0], self.m_stats["hp_range"][1])
             # ตัวคูณ HP จากทวีป/ธีมสัปดาห์ — ใช้เฉพาะตอนเกิดใหม่ (เทิร์นต่อๆ ไปส่ง hp เดิมเข้ามา ไม่คูณซ้ำ)
             self.monster_hp = max(1, round(self.monster_hp * self.mods["monster_hp_mult"]))
@@ -188,7 +202,7 @@ class MonsterEventView(ActionView):
             
         else:
             self.monster_rank = monster_rank
-            self.m_stats = dict(MONSTER_RANKS[self.monster_rank])
+            self.m_stats = _rank_stats(self.monster_rank)
             self.monster_hp = monster_hp
             player = player_model.get_player(user_id)
             self.mods = game_modifiers.get_active_modifiers(player)
@@ -675,8 +689,8 @@ class MonsterEventView(ActionView):
                 gained_exp = int((self.m_stats.get("exp_reward", 10) + random.randint(5, 15)) * self.mods.get("monster_exp_mult", 1.0) * self.element_data.get("exp_mult", 1.0) * status_exp_mult * passive_reward_mult)
                 # ⚔️ โค่นแชมเปี้ยนฝ่ายตรงข้าม (ธีมสงครามฝ่าย): ทอง ×2, EXP ×1.5
                 if getattr(self, "faction_war_side", None):
-                    reward = int(reward * game_modifiers.FACTION_WAR_GOLD_MULT)
-                    gained_exp = int(gained_exp * game_modifiers.FACTION_WAR_EXP_MULT)
+                    reward = int(reward * float(config_loader.get_balance("faction_war.gold_mult", game_modifiers.FACTION_WAR_GOLD_MULT)))
+                    gained_exp = int(gained_exp * float(config_loader.get_balance("faction_war.exp_mult", game_modifiers.FACTION_WAR_EXP_MULT)))
                 if elem_gold_mult > 1.0:
                     combat_log += "✨ **พรแห่งแสง!** ร่างมอนสเตอร์สลายเป็นกองทองคำมูลค่าพิเศษ!\n"
                 if status_exp_mult > 1.0:
@@ -711,9 +725,9 @@ class MonsterEventView(ActionView):
                     dropped_item_id = None
 
                     ITEM_CONFIG = config_loader.get_all_items()
-                    if m_tier in ["Secret", "Unbeatable"] and random.random() <= 0.01:
+                    if m_tier in ["Secret", "Unbeatable"] and random.randint(1, 100) <= int(config_loader.get_balance("drops.rare_chance", 1)):
                         dropped_item_id = random.choice(["8", "21"])
-                    elif random.random() <= 0.70:
+                    elif random.randint(1, 100) <= int(config_loader.get_balance("drops.normal_chance", 70)):
                         if m_tier == "Common":
                             drop_pool = ["9", "10", "11", "12", "13", "14", "15", "16", "17", "18"]
                         else:
@@ -769,14 +783,14 @@ class MonsterEventView(ActionView):
                     cont_label = game_modifiers.CONTINENTS.get(cont_key, game_modifiers.CONTINENTS["main"])["label"]
                     if self.monster_rank == "Unbeatable":
                         if player_model.claim_bestiary_reward(self.user_id, f"star:{cont_key}"):
-                            db_updates["cash"] += game_modifiers.BESTIARY_REWARD_STAR
-                            dropped_item_msg += f"\n⭐ **ดาวไร้พ่ายประดับสมุดล่า!** พิชิตไร้พ่ายแห่ง {cont_label} — โบนัส `+{game_modifiers.BESTIARY_REWARD_STAR:,}` ทอง"
+                            db_updates["cash"] += int(config_loader.get_balance("bestiary.star_reward", game_modifiers.BESTIARY_REWARD_STAR))
+                            dropped_item_msg += f"\n⭐ **ดาวไร้พ่ายประดับสมุดล่า!** พิชิตไร้พ่ายแห่ง {cont_label} — โบนัส `+{int(config_loader.get_balance("bestiary.star_reward", game_modifiers.BESTIARY_REWARD_STAR)):,}` ทอง"
                     elif game_modifiers.bestiary_continent_done(book, cont_key):
                         if player_model.claim_bestiary_reward(self.user_id, f"continent:{cont_key}"):
-                            db_updates["cash"] += game_modifiers.BESTIARY_REWARD_CONTINENT
-                            dropped_item_msg += f"\n📕 **สมุดล่า {cont_label} ครบชุด!** โบนัส `+{game_modifiers.BESTIARY_REWARD_CONTINENT:,}` ทอง (ดูสมุด: `!bestiary`)"
+                            db_updates["cash"] += int(config_loader.get_balance("bestiary.continent_reward", game_modifiers.BESTIARY_REWARD_CONTINENT))
+                            dropped_item_msg += f"\n📕 **สมุดล่า {cont_label} ครบชุด!** โบนัส `+{int(config_loader.get_balance("bestiary.continent_reward", game_modifiers.BESTIARY_REWARD_CONTINENT)):,}` ทอง (ดูสมุด: `!bestiary`)"
                     if game_modifiers.bestiary_complete(book) and player_model.claim_bestiary_reward(self.user_id, "complete"):
-                        db_updates["cash"] += game_modifiers.BESTIARY_REWARD_COMPLETE
+                        db_updates["cash"] += int(config_loader.get_balance("bestiary.complete_reward", game_modifiers.BESTIARY_REWARD_COMPLETE))
                         import json as _json
                         if db_updates.get("inventory") is not None:
                             final_inv = _json.loads(db_updates["inventory"])
@@ -784,7 +798,7 @@ class MonsterEventView(ActionView):
                             final_inv = player_model.load_inventory(player.get("inventory", ""))
                         final_inv.append(game_modifiers.BESTIARY_COMPLETE_ITEM)  # รางวัลใหญ่ ไม่เช็คความจุ
                         db_updates["inventory"] = _json.dumps(final_inv)
-                        dropped_item_msg += f"\n🏆 **สมุดล่าสมบูรณ์ทั้ง 9 ทวีป!** ตำนานนักล่าจารึกชื่อคุณ — `+{game_modifiers.BESTIARY_REWARD_COMPLETE:,}` ทอง + 💊 ยาครอบจักรวาล!"
+                        dropped_item_msg += f"\n🏆 **สมุดล่าสมบูรณ์ทั้ง 9 ทวีป!** ตำนานนักล่าจารึกชื่อคุณ — `+{int(config_loader.get_balance("bestiary.complete_reward", game_modifiers.BESTIARY_REWARD_COMPLETE)):,}` ทอง + 💊 ยาครอบจักรวาล!"
                 except Exception as e:
                     print(f"❌ [ERROR] ระบบสมุดล่าพัง: {e}")
 
@@ -1094,7 +1108,7 @@ class DeathRespawnView(ActionView):
         
         # หักเงิน 1,000 ทองตามเงื่อนไข (และคำนวณเลือดพื้นฐาน 30% ให้เหมือนระบบปกติ)
         new_cash = player.get("cash", 0) - 1000
-        respawn_hp = int(player.get("max_hp", 100) * 0.3)
+        respawn_hp = int(player.get("max_hp", 100) * int(config_loader.get_balance("drops.respawn_hp_percent", 30)) / 100)
         
         # อัปเดตข้อมูลกลับเข้า Database
         player_model.update_player_field(self.user_id, "hp", respawn_hp)
