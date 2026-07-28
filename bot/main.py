@@ -200,7 +200,21 @@ async def main():
     guest_token = config_loader.get_guest_token()
     if guest_token:
         print("🌍 กำลังเปิดบอทแจก (โหมดเซิร์ฟรอง) คู่ไปด้วย...")
-        runners.append(create_bot("guest")(guest_token))
+
+        async def run_guest():
+            """บอทแจกล้มต้องไม่ลากบอทหลักตายไปด้วย — จับ error ไว้ที่นี่ พร้อมบอกวิธีแก้"""
+            try:
+                await create_bot("guest")(guest_token)
+            except discord.PrivilegedIntentsRequired:
+                print("❌ [Guest Bot] เปิดไม่ได้: ยังไม่ได้เปิด Privileged Intents ให้บอทตัวนี้!\n"
+                      "   → ไปที่ Discord Developer Portal → เลือกแอปบอทแจก → Bot →\n"
+                      "     เปิด MESSAGE CONTENT INTENT / SERVER MEMBERS INTENT / PRESENCE INTENT ทั้ง 3 อัน แล้วรีสตาร์ท")
+            except discord.LoginFailure:
+                print("❌ [Guest Bot] เปิดไม่ได้: โทเค็นบอทแจกไม่ถูกต้อง (เช็คช่อง Guest Bot Token ใน Panel)")
+            except Exception as e:
+                print(f"❌ [Guest Bot] เปิดไม่ได้: {type(e).__name__}: {e}")
+
+        runners.append(run_guest())
 
     # 🔥 [สั่งรันเฉพาะบอทแรก] บายพาสตัวที่ 2 และ 3 ออกไปก่อนชั่วคราว
     await asyncio.gather(
