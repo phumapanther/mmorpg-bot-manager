@@ -965,6 +965,38 @@ class PlayerCommands(commands.Cog):
         await ctx.send(embed=build_bestiary_embed(
             ctx.author.id, ctx.author.display_name, ctx.author.display_avatar.url))
 
+    # --- 💍 !marry / !partner / !divorce: คู่หู (C7) ---
+    @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
+    @commands.command(name="partner", aliases=["คู่หู", "couple"])
+    async def partner_status(self, ctx):
+        from bot import partner
+        await ctx.send(embed=partner.build_partner_embed(ctx.author.id, ctx.author.display_name))
+
+    @adventure_room_only()
+    @commands.command(name="marry", aliases=["แต่งงาน"])
+    async def marry_cmd(self, ctx, member: discord.Member = None):
+        from bot import partner
+        from bot.views.menu_view import ProposalView
+        if member is None:
+            return await ctx.send("❓ **วิธีใช้:** `!marry @ผู้เล่น` — ชวนเป็นคู่หู (อีกฝ่ายต้องกดยืนยัน)")
+        if member.bot or member.id == ctx.author.id:
+            return await ctx.send("❌ เลือกผู้เล่นคนอื่นที่ไม่ใช่บอทนะ")
+        if partner.partner_of(ctx.author.id):
+            return await ctx.send("❌ คุณมีคู่อยู่แล้ว! หย่าก่อนด้วย `!divorce`")
+        if partner.partner_of(member.id):
+            return await ctx.send(f"❌ {member.display_name} มีคู่อยู่แล้ว")
+        cost = int(config_loader.get_config().get("partner", {}).get("wedding_cost", 0) or 0)
+        await ctx.send(f"💌 {member.mention} — {ctx.author.mention} ชวนคุณเป็นคู่หู!\n"
+                       f"ค่าจัดงานคนละ 🪙 `{cost:,}` ทอง (หักตอนกดตกลง)",
+                       view=ProposalView(ctx.author.id, member.id))
+
+    @adventure_room_only()
+    @commands.command(name="divorce", aliases=["หย่า"])
+    async def divorce_cmd(self, ctx):
+        from bot import partner
+        _ok, msg = partner.divorce(ctx.author.id)
+        await ctx.send(msg)
+
     # --- 🏪 !market: ตลาดผู้เล่น (C5) ---
     @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
     @commands.command(name="market", aliases=["ตลาด"])

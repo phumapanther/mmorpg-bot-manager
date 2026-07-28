@@ -782,6 +782,17 @@ class MonsterEventView(ActionView):
                 if status_exp_mult > 1.0:
                     combat_log += "🌟 **พรบรรพชนหนุนนำ!** ประสบการณ์ที่ได้รับเพิ่มขึ้นเป็นพิเศษ!\n"
                 
+                # 💞 C7: โบนัสคู่หู — เต็มจำนวนเมื่อคู่เข้ามาเล่นวันเดียวกัน
+                try:
+                    from bot import partner as _partner
+                    p_mult, p_note = _partner.bonus_for(self.user_id)
+                    if p_mult > 1.0:
+                        reward = int(reward * p_mult)
+                        gained_exp = int(gained_exp * p_mult)
+                        combat_log += p_note
+                except Exception as e:
+                    print(f"⚠️ [partner] โบนัสคู่หูพัง: {e}")
+
                 db_updates["cash"] = player.get("cash", 0) + reward
                 db_updates["sanity"] = player.get("sanity", 100) + 1
                 db_updates["last_event"] = "monster"

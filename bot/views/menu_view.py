@@ -135,6 +135,31 @@ class TopBoardView(discord.ui.View):
         return cb
 
 
+class ProposalView(discord.ui.View):
+    """คำขอเป็นคู่หู (C7) — เฉพาะคนที่ถูกชวนกดได้ ภายใน 2 นาที"""
+    def __init__(self, proposer_id, target_id):
+        super().__init__(timeout=120)
+        self.proposer_id = proposer_id
+        self.target_id = target_id
+
+    async def interaction_check(self, interaction):
+        if interaction.user.id != self.target_id:
+            await interaction.response.send_message("❌ คำชวนนี้ไม่ใช่ของคุณ!", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="💍 ตกลงเป็นคู่หู", style=discord.ButtonStyle.success)
+    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+        from bot import partner
+        _ok, msg = partner.marry(self.proposer_id, self.target_id)
+        await interaction.response.edit_message(content=msg, view=None)
+
+    @discord.ui.button(label="💔 ขอบคุณ แต่ไม่", style=discord.ButtonStyle.secondary)
+    async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(
+            content=f"💔 <@{self.target_id}> ปฏิเสธคำชวนของ <@{self.proposer_id}>", view=None)
+
+
 class MarketBuySelect(discord.ui.Select):
     """เลือกซื้อของจากตลาด (C5) — ของตัวเองไม่ขึ้นในลิสต์ให้กดพลาด"""
     def __init__(self, user_id):
