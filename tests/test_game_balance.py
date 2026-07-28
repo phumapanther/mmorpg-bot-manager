@@ -69,3 +69,17 @@ def test_panel_balance_tab_exists():
         for k in path.split("."):
             assert k in node, f"Panel อ้าง game_balance.{path} แต่ config ไม่มี"
             node = node[k]
+
+
+def test_panel_init_never_broken_by_balance_tab():
+    """บั๊กจริง 2026-07-28: renderBalance โยน error → init หยุด → Dashboard จอดำ
+    กติกา: Dashboard ต้องโหลดก่อน และ renderBalance ต้องถูกห่อ try เสมอ"""
+    import pathlib
+    js = pathlib.Path("panel/static/app.js").read_text(encoding="utf-8")
+    assert '.replace("<select"' not in js, "roleSelectHtml คืนอิลิเมนต์ ห้ามใช้ .replace"
+    assert "sel.dataset.balRole" in js
+    init_body = js[js.index("async function init"):]
+    status_at = init_body.index("await refreshStatus()")
+    balance_at = init_body.index("renderBalance()")
+    assert status_at < balance_at, "Dashboard ต้องโหลดก่อนแท็บ Balance"
+    assert "try {" in init_body[status_at:balance_at + 200], "renderBalance ต้องอยู่ใน try"

@@ -1251,12 +1251,19 @@ async function init() {
   renderItemsCatalog();
   renderRankRewards();
   renderPayment();
-  renderBalance();
 
+  // Dashboard ต้องขึ้นเสมอ — แท็บอื่นพังไม่ควรทำให้สถานะบอท/ล็อกหายไปทั้งหน้า
   await refreshStatus();
   setInterval(refreshStatus, 1500);
   setInterval(pollLog, 1500);
   pollLog();
+
+  try {
+    renderBalance();
+  } catch (e) {
+    console.error("renderBalance ล้มเหลว:", e);
+    toast("แท็บ Balance โหลดไม่ได้ (ดู console) — ส่วนอื่นใช้งานได้ปกติ");
+  }
 }
 
 document.addEventListener("DOMContentLoaded", init);
@@ -1357,7 +1364,12 @@ function renderBalance() {
                       ["balRoleLeader", "guild_leader_role_id"]];
   for (const [elId, key] of roleFields) {
     const el = document.getElementById(elId);
-    if (el) el.innerHTML = roleSelectHtml(balGet(`roles.${key}`) || null).replace("<select", `<select data-bal-role="${key}"`);
+    if (!el) continue;
+    // roleSelectHtml คืน "อิลิเมนต์" ไม่ใช่สตริง — ต้อง appendChild (เคยเรียก .replace แล้วหน้าพังทั้งหน้า)
+    const sel = roleSelectHtml(balGet(`roles.${key}`) || null);
+    sel.dataset.balRole = key;
+    el.innerHTML = "";
+    el.appendChild(sel);
   }
   // ตารางแรงค์มอนสเตอร์
   const tbody = document.querySelector("#balRanksTable tbody");
