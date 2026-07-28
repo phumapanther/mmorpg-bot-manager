@@ -206,3 +206,6 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\n🛑 ปิดระบบการทำงานของบอทเรียบร้อยแล้วครับคุณอาเธอร์")
+    except asyncio.CancelledError:
+        # ปิดสุภาพจากปุ่ม Stop (server_status สั่ง bot.close จากข้างใน) — ไม่ใช่ crash อย่าพ่น traceback
+        print("\n🛑 ปิดเซิร์ฟเวอร์เรียบร้อย (คำสั่งปิดจาก Panel)")
