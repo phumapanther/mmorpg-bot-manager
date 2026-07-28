@@ -175,11 +175,12 @@ def update_player_fields(user_id, updates: dict):
 
 def add_exp(user_id, exp_to_add):
     player = get_player(user_id)
-    # 🗓️ C3: EXP ทุกทางไหลผ่านที่นี่ที่เดียว — เก็บเป็นแต้มอันดับรายสัปดาห์ไปด้วยเลย
+    # 🗓️ C3 + 🎟️ C2: EXP ทุกทางไหลผ่านที่นี่ที่เดียว — แบ่งไปเป็นแต้มรายสัปดาห์และแต้มซีซั่นด้วย
     try:
         add_weekly_points(user_id, exp_to_add)
+        add_season_points(user_id, exp_to_add)
     except Exception as e:
-        print(f"⚠️ [weekly] เก็บแต้มไม่สำเร็จ: {e}")   # ห้ามพังการอัป EXP หลัก
+        print(f"⚠️ [score] เก็บแต้มไม่สำเร็จ: {e}")     # ห้ามพังการอัป EXP หลัก
     current_exp = player.get("exp", 0) + exp_to_add
     current_level = player.get("level", 1)
     max_hp = player.get("max_hp", 100)
@@ -790,6 +791,46 @@ def get_my_weekly_rank(user_id, week=None):
     total = cursor.fetchone()[0]
     conn.close()
     return better + 1, mine, max(total, 1 if mine else total)
+
+
+# ===== 🎟️ Season Pass รายเดือน (C2) =====
+# แต้มซีซั่นมาจาก add_exp จุดเดียวกับอันดับรายสัปดาห์ — ขึ้นเดือนใหม่ = คีย์ใหม่ = เริ่มใหม่เอง
+# สถานะ premium + ตำแหน่งที่รับรางวัลไปแล้ว เก็บในสมุด claim_once ไม่ต้องมีตารางเพิ่ม
+
+def season_key(when=None):
+    """คีย์ซีซั่น = เดือนปฏิทิน เช่น '2026-07'"""
+    import datetime
+    return (when or datetime.date.today()).strftime("%Y-%m")
+
+
+def _ensure_season(cursor):
+    cursor.execute("""CREATE TABLE IF NOT EXISTS season_score (
+        season TEXT, user_id INTEGER, points INTEGER DEFAULT 0,
+        PRIMARY KEY (season, user_id))""")
+
+
+def add_season_points(user_id, points, season=None):
+    if points <= 0:
+        return
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_season(cursor)
+    cursor.execute("""INSERT INTO season_score (season, user_id, points) VALUES (?, ?, ?)
+                      ON CONFLICT(season, user_id) DO UPDATE SET points = points + ?""",
+                   (season or season_key(), user_id, int(points), int(points)))
+    conn.commit()
+    conn.close()
+
+
+def get_season_points(user_id, season=None):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_season(cursor)
+    cursor.execute("SELECT points FROM season_score WHERE season = ? AND user_id = ?",
+                   (season or season_key(), user_id))
+    row = cursor.fetchone()
+    conn.close()
+    return (row[0] if row else 0) or 0
 
 
 # ===== 📅 เควสรายวัน + Login Streak (C1) =====

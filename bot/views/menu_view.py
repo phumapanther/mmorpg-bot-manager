@@ -135,6 +135,38 @@ class TopBoardView(discord.ui.View):
         return cb
 
 
+class SeasonView(discord.ui.View):
+    """ปุ่มรับรางวัล/เปิดพรีเมียมของซีซั่นพาส (C2)"""
+    def __init__(self, user_id):
+        super().__init__(timeout=180)
+        self.user_id = user_id
+        from bot import season
+        if not season.is_premium(user_id):
+            btn = discord.ui.Button(label="⭐ เปิดสายพรีเมียม", style=discord.ButtonStyle.primary)
+            btn.callback = self._buy
+            self.add_item(btn)
+
+    async def interaction_check(self, interaction):
+        return interaction.user.id == self.user_id
+
+    async def _refresh(self, interaction, msg):
+        from bot import season
+        await interaction.response.edit_message(
+            content=msg,
+            embed=season.build_season_embed(interaction.user.id, interaction.user.display_name),
+            view=SeasonView(interaction.user.id))
+
+    async def _buy(self, interaction: discord.Interaction):
+        from bot import season
+        _ok, msg = season.buy_premium(interaction.user.id)
+        await self._refresh(interaction, msg)
+
+    @discord.ui.button(label="🎁 รับรางวัลที่ปลดแล้ว", style=discord.ButtonStyle.success)
+    async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
+        from bot import season
+        await self._refresh(interaction, season.claim_all(interaction.user.id))
+
+
 class TitleSelect(discord.ui.Select):
     """เลือกตำแหน่งอวดจากที่ปลดล็อกแล้ว (C8) — ponytail: 24 อันแรกพอ ลิมิต Select คือ 25"""
     def __init__(self, user_id):
@@ -324,6 +356,13 @@ class GameMenuView(discord.ui.View):
         await interaction.response.send_message(
             embed=daily.build_daily_embed(interaction.user.id, interaction.user.display_name),
             view=DailyView(interaction.user.id), ephemeral=True)
+
+    @discord.ui.button(label="🎟️ ซีซั่นพาส", style=discord.ButtonStyle.primary, custom_id="game_menu:season")
+    async def season_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        from bot import season
+        await interaction.response.send_message(
+            embed=season.build_season_embed(interaction.user.id, interaction.user.display_name),
+            view=SeasonView(interaction.user.id), ephemeral=True)
 
     @discord.ui.button(label="🏅 ความสำเร็จ", style=discord.ButtonStyle.secondary, custom_id="game_menu:ach")
     async def ach_button(self, interaction: discord.Interaction, button: discord.ui.Button):

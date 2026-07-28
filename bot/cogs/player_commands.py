@@ -6,7 +6,7 @@ import bot.models.player_model as player_model
 import time
 import sqlite3
 from contextlib import contextmanager
-from bot.utils import not_arrested, allowed_channel, main_server_only, adventure_room_only
+from bot.utils import not_arrested, allowed_channel, main_server_only, adventure_room_only, has_permission
 from bot.views.profile_embed import GAME_CLASSES
 from bot import config_loader
 from bot import game_modifiers
@@ -964,6 +964,29 @@ class PlayerCommands(commands.Cog):
     async def bestiary(self, ctx):
         await ctx.send(embed=build_bestiary_embed(
             ctx.author.id, ctx.author.display_name, ctx.author.display_avatar.url))
+
+    # --- 🎟️ !season: ซีซั่นพาสรายเดือน (C2) ---
+    @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
+    @commands.command(name="season", aliases=["pass", "ซีซั่น", "ซีซัน"])
+    async def season_pass(self, ctx):
+        from bot import season
+        from bot.views.menu_view import SeasonView
+        await ctx.send(embed=season.build_season_embed(ctx.author.id, ctx.author.display_name),
+                       view=SeasonView(ctx.author.id))
+
+    # --- 🎟️ แอดมินเปิดพรีเมียมให้คนที่โอนเงินจริงมาแล้ว (คู่กับ !confirm_payment) ---
+    @main_server_only()
+    @has_permission("admin")
+    @allowed_channel("payment")   # ห้องเดียวกับที่แอดมินกด !confirm_payment
+    @commands.command(name="grant_season")
+    async def grant_season(self, ctx, member: discord.Member = None):
+        if member is None:
+            return await ctx.send("❓ **วิธีใช้:** `!grant_season @ผู้เล่น` — เปิดสายพรีเมียมซีซั่นนี้ให้")
+        from bot import season
+        if season.grant_premium(member.id):
+            await ctx.send(f"🎟️ เปิดสายพรีเมียมซีซั่น `{player_model.season_key()}` ให้ {member.mention} แล้ว!")
+        else:
+            await ctx.send(f"ℹ️ {member.mention} เปิดสายพรีเมียมของซีซั่นนี้ไว้อยู่แล้ว")
 
     # --- 🏅 !ach: ความสำเร็จ + เลือกตำแหน่งอวด (C8) ---
     @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว

@@ -1321,6 +1321,19 @@
     ],
     "streak_daily_gold": 1000
   },
+  "season_pass": {
+    "enabled": true,
+    "price_gold": 5000000,
+    "tiers": [
+      { "points": 2000, "free": { "gold": 30000 }, "premium": { "gold": 80000, "exp": 1000 } },
+      { "points": 5000, "free": { "gold": 60000 }, "premium": { "gold": 150000, "item": "30" } },
+      { "points": 10000, "free": { "gold": 120000 }, "premium": { "gold": 300000, "exp": 3000 } },
+      { "points": 20000, "free": { "gold": 250000 }, "premium": { "gold": 600000, "item": "60" } },
+      { "points": 35000, "free": { "gold": 400000, "exp": 2000 }, "premium": { "gold": 1000000, "exp": 8000 } },
+      { "points": 60000, "free": { "gold": 700000 }, "premium": { "gold": 2000000, "item": "64" } },
+      { "points": 100000, "free": { "gold": 1200000, "exp": 5000 }, "premium": { "gold": 5000000, "exp": 20000 } }
+    ]
+  },
   "achievements": [
     { "key": "kills_50", "stat": "kills", "target": 50, "label": "🗡️ นักล่าฝึกหัด", "desc": "ล้มมอนสเตอร์ครบ 50 ตัว", "gold": 30000, "title": "นักล่าฝึกหัด" },
     { "key": "kills_500", "stat": "kills", "target": 500, "label": "⚔️ นักล่ามือฉมัง", "desc": "ล้มมอนสเตอร์ครบ 500 ตัว", "gold": 200000, "title": "นักล่ามือฉมัง" },
