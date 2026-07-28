@@ -139,6 +139,18 @@ def get_gacha_pool_price():
 def get_token():
     return get_config().get("bot_token", "")
 
+def get_guest_token():
+    """โทเค็นบอทแจก (P8) — บอทสำหรับเซิร์ฟรอง เล่นผจญภัยได้อย่างเดียว"""
+    return get_config().get("guest_bot_token", "")
+
+def get_main_guild_id():
+    """ไอดีเซิร์ฟหลัก — None = ยังไม่ตั้ง (ถือว่าทุกเซิร์ฟเป็นเซิร์ฟหลัก = พฤติกรรมเดิม)"""
+    gid = get_config().get("main_guild_id")
+    return int(gid) if gid else None
+
+def get_main_server_invite():
+    return get_config().get("main_server_invite", "")
+
 def get_license_key():
     return get_config().get("license_key", "")
 

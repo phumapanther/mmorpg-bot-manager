@@ -1,5 +1,6 @@
 {
   "bot_token": "",
+  "guest_bot_token": "",
   "license_key": "",
   "guild_id": null,
   "panel_port": 8770,
@@ -1104,5 +1105,7 @@
         "fail_rate": 0.25
       }
     }
-  }
+  },
+  "main_guild_id": null,
+  "main_server_invite": "https://discord.gg/7snE7rhTHa"
 }

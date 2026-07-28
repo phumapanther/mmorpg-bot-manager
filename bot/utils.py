@@ -51,6 +51,28 @@ def allowed_channel(feature_key):
         return True
     return commands.check(predicate)
 
+def is_main_server(ctx_or_guild):
+    """เซิร์ฟนี้คือเซิร์ฟหลักไหม — ยังไม่ตั้ง main_guild_id = ถือว่าใช่ (พฤติกรรมเดิม ไม่พังของเก่า)"""
+    main_id = config_loader.get_main_guild_id()
+    if not main_id:
+        return True
+    guild = getattr(ctx_or_guild, "guild", ctx_or_guild)
+    return bool(guild and getattr(guild, "id", None) == main_id)
+
+
+def main_server_only():
+    """คำสั่งที่ใช้ได้เฉพาะเซิร์ฟหลัก (P8) — ร้านค้า/คาสิโน/PvP/กิลด์/บอส/เติมเงิน/คำสั่งแอดมิน
+    ⚠️ ต้องเช็ค "เซิร์ฟ" ก่อนเช็ค "ยศ" เสมอ — ไม่งั้นเจ้าของเซิร์ฟรองสร้างยศชื่อเดียวกันแล้วยิงคำสั่งแอดมินได้"""
+    async def predicate(ctx):
+        if is_main_server(ctx):
+            return True
+        invite = config_loader.get_main_server_invite()
+        link = f"\n🌏 เข้าเซิร์ฟหลักที่นี่: {invite}" if invite else ""
+        await ctx.send(f"🔒 **ฟีเจอร์นี้เล่นได้เฉพาะเซิร์ฟหลักเท่านั้น!**{link}")
+        return False
+    return commands.check(predicate)
+
+
 def has_permission(group):
     async def predicate(ctx):
         if ctx.author.id == ctx.guild.owner_id:
