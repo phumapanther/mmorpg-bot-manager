@@ -5,7 +5,8 @@ import bot.models.player_model as player_model
 from bot import config_loader
 from bot.cogs.player_commands import (apply_item_effect, bank_action, build_bag_embed,
                                       build_bank_embed, build_bestiary_embed, build_codex_embed,
-                                      craft_for, craftable_now, drop_item_for, sell_all_junk)
+                                      build_top_embed, craft_for, craftable_now, drop_item_for,
+                                      sell_all_junk)
 from bot.views.profile_embed import create_profile_embed
 
 # หัวข้อคู่มือในปุ่ม 📖 — ค่า value ตรงกับ topic ของ !codex เป๊ะ
@@ -108,6 +109,30 @@ class DropView(discord.ui.View):
     def __init__(self, inv_array):
         super().__init__(timeout=120)
         self.add_item(DropSelect(inv_array))
+
+
+class TopBoardView(discord.ui.View):
+    """ปุ่มสลับหมวดอันดับ (O6) — รวม !rich/!toplvl/!toptext/!toptime ไว้ที่เดียว"""
+    KINDS = [("💰 เศรษฐี", "rich"), ("⭐ เลเวล", "level"),
+             ("💬 นักแชท", "text"), ("🎙️ ออนไลน์", "time")]
+
+    def __init__(self, viewer_id, current="rich"):
+        super().__init__(timeout=180)
+        self.viewer_id = viewer_id
+        for label, key in self.KINDS:
+            btn = discord.ui.Button(
+                label=label,
+                style=discord.ButtonStyle.primary if key == current else discord.ButtonStyle.secondary,
+                disabled=(key == current))
+            btn.callback = self._cb(key)
+            self.add_item(btn)
+
+    def _cb(self, kind):
+        async def cb(interaction: discord.Interaction):
+            await interaction.response.edit_message(
+                embed=build_top_embed(kind, interaction.user.id),
+                view=TopBoardView(self.viewer_id, current=kind))
+        return cb
 
 
 class BagActionView(discord.ui.View):

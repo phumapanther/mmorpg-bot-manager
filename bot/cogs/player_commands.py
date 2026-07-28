@@ -535,7 +535,7 @@ def build_codex_embed(topic=""):
         embed.add_field(name="💰 เงิน & ธนาคาร", inline=False, value=(
             "`!bank` ยอดธนาคาร *(มีปุ่ม 💰 ฝาก · 💸 ถอน · 🤝 โอน ในตัว)* • `!deposit` • `!withdraw`\n"
             "`!transfer @คน <จำนวน>` โอน • `!beg` ขอทาน • `!rob @คน` ปล้น (เสี่ยงติดคุก!)\n"
-            "`!rich` `!toplvl` `!mytext` `!toptext` `!mytime` `!toptime` อันดับ/แต้มกิจกรรม"))
+            "`!top` **อันดับรวมทุกหมวด** (เศรษฐี/เลเวล/แชท/ออนไลน์ — กดปุ่มสลับได้) • `!mytext` `!mytime` สถิติตัวเอง"))
         embed.add_field(name="🎰 คาสิโน & PvP", inline=False, value=(
             "`!bj <เงินเดิมพัน>` แบล็กแจ็ก • `!hilo` ไฮโล • `!slots` สล็อต\n"
             "`!att @คน` เปิดฉากปล้นกลางเมือง (ต้องอยู่ห้องเสียง) • `!challenge @คน` ท้าดวล PvP\n"
@@ -769,57 +769,7 @@ class PlayerCommands(commands.Cog):
 
     # 5. rich
     @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
-    @commands.command(name="rich")
-    @allowed_channel("bank")
-    async def rich(self, ctx):
-        # ดึง ID ของเจ้าของเซิร์ฟเวอร์
-        owner_id = ctx.guild.owner_id 
-        
-        with self.get_db() as cursor:
-            # เพิ่ม WHERE user_id != ? เพื่อยกเว้นเจ้าของเซิร์ฟเวอร์
-            cursor.execute("""
-                SELECT user_id, (bank + cash) as total 
-                FROM players 
-                WHERE user_id != ? 
-                ORDER BY total DESC 
-                LIMIT 10
-            """, (owner_id,))
-            rows = cursor.fetchall()
-        
-        msg = "🏆 **10 อันดับมหาเศรษฐี (ไม่รวมเจ้าของเซิร์ฟ)** 🏆\n"
-        for i, (uid, total) in enumerate(rows, 1):
-            name = await self.get_user_name(uid)
-            msg += f"{i}. **{name}**: `{total:,}` ทอง\n"
-        await ctx.send(msg)
-
-    # 6. toplvl
     @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
-    @commands.command(name="toplvl")
-    @allowed_channel("bank")
-    async def toplvl(self, ctx):
-        # ดึง ID ของเจ้าของเซิร์ฟเวอร์
-        owner_id = ctx.guild.owner_id 
-        
-        with self.get_db() as cursor:
-            # เพิ่ม WHERE user_id != ? เพื่อยกเว้นเจ้าของเซิร์ฟเวอร์
-            cursor.execute("""
-                SELECT user_id, level, exp 
-                FROM players 
-                WHERE user_id != ? 
-                ORDER BY level DESC, exp DESC 
-                LIMIT 10
-            """, (owner_id,))
-            rows = cursor.fetchall()
-
-        msg = "⚔️ **10 อันดับผู้กล้าเลเวลสูง (ไม่รวมเจ้าของเซิร์ฟ)** ⚔️\n"
-        for i, (uid, lvl, exp) in enumerate(rows, 1):
-            name = await self.get_user_name(uid)
-            msg += f"{i}. **{name}**: เลเวล `{lvl}` (EXP: `{exp}`)\n"
-        await ctx.send(msg)
-    
-    # ==========================================
-    # 💬 คำสั่งเช็กสถิติการพิมพ์ของตัวเอง (!mytext)
-    # ==========================================
     @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
     @commands.command(name="mytext")
     @allowed_channel("bank")
@@ -850,42 +800,6 @@ class PlayerCommands(commands.Cog):
     # 🏆 คำสั่งเช็ก 10 อันดับคนพิมพ์เยอะที่สุด (!toptext)
     # ==========================================
     @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
-    @commands.command(name="toptext")
-    @allowed_channel("bank")
-    async def top_text_leaderboard(self, ctx):
-        # เรียกใช้ฟังก์ชันดึง Top 10 ที่เราเพิ่งสร้าง
-        top_players = player_model.get_top_text_players(10)
-        
-        if not top_players:
-            return await ctx.send("❌ ยังไม่มีสถิติการพิมพ์ในเซิร์ฟเวอร์เลย! (ไปพิมพ์แชทกันก่อนนะ)")
-            
-        embed = discord.Embed(
-            title="🏆 TOP 10 นักแชทแห่งเซิร์ฟเวอร์ 🏆", 
-            description="รายชื่อนักผจญภัยที่พูดคุยเยอะที่สุดในดินแดนนี้!", 
-            color=discord.Color.gold()
-        )
-        
-        board_text = ""
-        for index, (user_id, total, event) in enumerate(top_players, start=1):
-            # จัดการเหรียญรางวัลให้อันดับ 1-3
-            if index == 1:
-                medal = "🥇"
-            elif index == 2:
-                medal = "🥈"
-            elif index == 3:
-                medal = "🥉"
-            else:
-                medal = f"**{index}.**"
-            
-            # ใช้ <@user_id> เพื่อให้ Discord แท็ก (Mention) โชว์ชื่อผู้เล่นปัจจุบันอัตโนมัติ
-            board_text += f"{medal} <@{user_id}>\n"
-            board_text += f"└ 💬 รวม: `{total:,}` | 🏆 กิจกรรม: `{event:,}`\n\n"
-            
-        embed.add_field(name="อันดับกระดานผู้นำ", value=board_text, inline=False)
-        embed.set_footer(text="ระบบจะนับเฉพาะข้อความที่พิมพ์ในช่องแชททั่วไปเท่านั้น")
-        
-        await ctx.send(embed=embed)
-    
     @commands.command(name="bank")
     @allowed_channel("bank")
     async def check_bank(self, ctx):
@@ -985,6 +899,18 @@ class PlayerCommands(commands.Cog):
                             else "🕊️ สัปดาห์นี้ไม่ใช่ธีมสงคราม — แต้มจะเริ่มนับเมื่อธีม ⚔️ สงครามฝ่าย มาถึง")))
         await ctx.send(embed=embed)
 
+    # --- 🏆 !top: อันดับรวมทุกหมวด (O6 — ยุบจาก 4 คำสั่งเดิม ชื่อเดิมยังใช้เป็นทางลัดได้) ---
+    @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
+    @commands.command(name="top", aliases=["rich", "toplvl", "toptext", "toptime", "อันดับ"])
+    @allowed_channel("bank")
+    async def top_board(self, ctx, kind: str = None):
+        from bot.views.menu_view import TopBoardView
+        alias_map = {"rich": "rich", "toplvl": "level", "toptext": "text", "toptime": "time"}
+        start = alias_map.get(ctx.invoked_with, None) or {"เงิน": "rich", "เลเวล": "level",
+                                                          "แชท": "text", "เวลา": "time"}.get(kind or "", "rich")
+        await ctx.send(embed=build_top_embed(start, ctx.author.id),
+                       view=TopBoardView(ctx.author.id, current=start))
+
     # --- 🎯 !bounty: กระดานล่าค่าหัว (คนสติติดลบ = อาชญากร) ---
     @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
     @commands.command(name="bounty", aliases=["wanted", "ล่าหัว"])
@@ -1044,31 +970,6 @@ class PlayerCommands(commands.Cog):
 
     # 🏆 เช็กอันดับ Top 10 เวลาออนไลน์
     @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
-    @commands.command(name="toptime")
-    @allowed_channel("bank")
-    async def top_online_time(self, ctx):
-        all_players = player_model.get_all_players() 
-        
-        if not all_players:
-            return await ctx.send("❌ ยังไม่มีข้อมูลผู้เล่นในระบบ!")
-
-        # เรียงลำดับจากมากไปน้อย
-        top_players = sorted(all_players, key=lambda x: x.get("total_online_time", 0), reverse=True)[:10]
-        
-        embed = discord.Embed(title="🏆 10 อันดับนักผจญภัยที่ออนไลน์นานที่สุด", color=discord.Color.gold())
-        
-        msg = ""
-        for i, p in enumerate(top_players, 1):
-            user_id = p.get("user_id")
-            time_m = p.get("total_online_time", 0)
-            
-            # ใช้ <@user_id> เพื่อแท็กชื่อผู้เล่นอัตโนมัติ
-            msg += f"{i}. <@{user_id}> - `{time_m // 60} ชม. {time_m % 60} นาที`\n"
-            
-        embed.description = msg
-        await ctx.send(embed=embed)
-        
-    # --- คำสั่ง !use <เลขไอเทม> ---
     @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
     @commands.command(name="use")
     async def use_item(self, ctx, item_id: str):
@@ -1648,3 +1549,38 @@ def drop_item_for(user_id, item_id, amount=1):
     player_model.update_player_field(user_id, "inventory", json.dumps(inv))
     name = config_loader.get_item_config(item_id).get("name", item_id)
     return True, f"🗑️ ทิ้ง **{name}** ×{amount} ทิ้งแล้ว (เหลือของในกระเป๋า {len(inv)} ชิ้น)"
+
+
+# ===== 🏆 อันดับรวม (O6) — 6 คำสั่งเดิมยุบเหลือ !top หน้าเดียว =====
+
+TOP_KINDS = {
+    "rich":  ("💰 เศรษฐี", "ทอง", lambda v: f"{v:,} ทอง"),
+    "level": ("⭐ เลเวล", "Lv.", lambda v: f"Lv. {v:,}"),
+    "text":  ("💬 นักแชท", "ข้อความ", lambda v: f"{v:,} ข้อความ"),
+    "time":  ("🎙️ เวลาออนไลน์", "ชั่วโมง", lambda v: f"{int(v) // 3600:,} ชม. {int(v) % 3600 // 60} นาที"),
+}
+MEDALS = ["🥇", "🥈", "🥉"]
+
+
+def build_top_embed(kind, viewer_id=None):
+    """หน้าอันดับหมวดเดียว + บอกอันดับของคนดูด้วย"""
+    title, _unit, fmt = TOP_KINDS.get(kind, TOP_KINDS["rich"])
+    rows = player_model.get_leaderboard(kind, 10)
+    embed = discord.Embed(title=f"🏆 อันดับ {title} — TOP 10", color=0xf1c40f)
+    if not rows:
+        embed.description = "*ยังไม่มีข้อมูลผู้เล่น*"
+    else:
+        lines = []
+        for i, (uid, value) in enumerate(rows):
+            badge = MEDALS[i] if i < 3 else f"`{i + 1:>2}.`"
+            me = " ⬅️ **คุณ**" if uid == viewer_id else ""
+            lines.append(f"{badge} <@{uid}> — {fmt(value or 0)}{me}")
+        embed.description = "\n".join(lines)
+    if viewer_id:
+        mine = player_model.get_my_rank(viewer_id, kind)
+        if mine:
+            rank, value, total = mine
+            embed.add_field(name="📍 อันดับของคุณ",
+                            value=f"อันดับ **{rank:,}** จาก {total:,} คน · {fmt(value or 0)}", inline=False)
+    embed.set_footer(text="กดปุ่มด้านล่างเพื่อสลับหมวด")
+    return embed

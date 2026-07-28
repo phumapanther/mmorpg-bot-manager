@@ -663,3 +663,46 @@ def get_adv_channels(guild_id):
     rows = [r[0] for r in cursor.fetchall()]
     conn.close()
     return rows
+
+
+# ===== 🏆 อันดับรวม (O6) — ดึงทุกหมวดผ่านฟังก์ชันเดียว =====
+
+LEADERBOARD_SQL = {
+    "rich":  "SELECT user_id, (bank + cash) FROM players ORDER BY (bank + cash) DESC LIMIT ?",
+    "level": "SELECT user_id, level FROM players ORDER BY level DESC, exp DESC LIMIT ?",
+    "text":  "SELECT user_id, total_text FROM players ORDER BY total_text DESC LIMIT ?",
+    "time":  "SELECT user_id, total_online_time FROM players ORDER BY total_online_time DESC LIMIT ?",
+}
+
+
+def get_leaderboard(kind, limit=10):
+    """อันดับตามหมวด — คืน [(user_id, ค่า), ...] เรียงมากไปน้อย"""
+    if kind not in LEADERBOARD_SQL:
+        return []
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute(LEADERBOARD_SQL[kind], (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+
+def get_my_rank(user_id, kind):
+    """อันดับของเราในหมวดนั้น — คืน (อันดับ, ค่าของเรา, จำนวนผู้เล่นทั้งหมด) หรือ None"""
+    if kind not in LEADERBOARD_SQL:
+        return None
+    col = {"rich": "(bank + cash)", "level": "level", "text": "total_text", "time": "total_online_time"}[kind]
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute(f"SELECT {col} FROM players WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    if row is None:
+        conn.close()
+        return None
+    my_value = row[0] or 0
+    cursor.execute(f"SELECT COUNT(*) FROM players WHERE {col} > ?", (my_value,))
+    better = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM players")
+    total = cursor.fetchone()[0]
+    conn.close()
+    return better + 1, my_value, total
