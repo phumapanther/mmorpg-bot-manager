@@ -39,6 +39,24 @@ CLASS_SKILLS = {
     "Unknown": ["❓ ไม่มีสกิล (กรุณารับยศคลาสอาชีพก่อน)"]
 }
 
+def _partner_line(user_id):
+    """บรรทัดคู่หูในโปรไฟล์ — พังก็แค่ไม่โชว์ ไม่ทำให้เปิดโปรไฟล์ไม่ได้"""
+    try:
+        import time as _time
+
+        from bot import partner as _partner
+        row = _partner.partner_of(user_id) if user_id else None
+        if not row:
+            return "ยังไม่มีคู่ — `!marry @คนที่ถูกใจ`"
+        partner_id, since = row
+        days = max(0, (int(_time.time()) - int(since or 0)) // 86400)
+        together = " · 💞 วันนี้ออกล่าด้วยกัน!" if _partner.played_today(partner_id) else ""
+        return f"💞 <@{partner_id}> — ครองคู่มาแล้ว **{days:,} วัน**{together}"
+    except Exception as e:
+        print(f"⚠️ [profile] อ่านคู่หูไม่ได้: {e}")
+        return "—"
+
+
 def create_profile_embed(target_member, player_data, page="status"):
     """หน้าโปรไฟล์ (B2) — page: status / equip / progress"""
     player_level = player_data.get("level", 1)
@@ -183,6 +201,7 @@ def create_profile_embed(target_member, player_data, page="status"):
     embed.add_field(name="🗺️ ทวีปปัจจุบัน", value=continent_label, inline=True)
     embed.add_field(name="🧬 ธาตุประจำตัว", value=element_text, inline=True)
     embed.add_field(name="🏺 อาร์ติแฟกต์", value=artifact_text, inline=True)
+    embed.add_field(name="💍 คู่หู", value=_partner_line(getattr(target_member, "id", None)), inline=False)   # C7
     if normal_statuses:
         embed.add_field(name="🩸 สถานะติดตัว", value=game_modifiers.format_status_line(normal_statuses), inline=False)
 

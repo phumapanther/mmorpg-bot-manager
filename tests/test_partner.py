@@ -207,3 +207,72 @@ def test_ring_exists_in_shop_and_is_not_usable():
     import bot.models.player_model as _pm
     src = pathlib.Path("bot/cogs/player_commands.py").read_text(encoding="utf-8")
     assert '"wedding_ring"' in src and "!marry @คนที่อยากขอ" in src, "กด !use แหวนต้องบอกทางให้ถูก"
+
+
+# ── 📜 ประวัติ + หน้าโปรไฟล์ ──
+
+def test_history_records_both_sides_of_every_event(db):
+    partner.marry(1, 2)
+    conn = sqlite3.connect(db)
+    conn.execute("UPDATE players SET cash = 2000000 WHERE user_id = 1")
+    conn.commit()
+    conn.close()
+    partner.divorce(1)
+    partner.marry(1, 3)                       # แต่งใหม่กับอีกคน
+
+    mine = [(pid, act) for pid, act, _at in partner.history_of(1)]
+    assert mine == [(2, "marry"), (2, "divorce"), (3, "marry")], "ประวัติต้องเรียงตามเวลาและครบทุกเหตุการณ์"
+    # อีกฝ่ายต้องมีประวัติของตัวเองด้วย (จดสองทาง)
+    assert [(pid, act) for pid, act, _at in partner.history_of(2)] == [(1, "marry"), (1, "divorce")]
+    assert partner.history_of(99) == []
+
+
+def test_failed_wedding_leaves_no_history(db):
+    conn = sqlite3.connect(db)
+    conn.execute("UPDATE players SET cash = 10 WHERE user_id = 2")
+    conn.commit()
+    conn.close()
+    partner.marry(1, 2)
+    assert partner.history_of(1) == [], "แต่งไม่สำเร็จห้ามมีประวัติค้าง"
+
+
+def test_history_is_never_shown_in_game():
+    """ผู้ใช้สั่งชัดว่าเก็บได้แต่ห้ามแสดง — ห้ามมีคำสั่ง/ปุ่มไหนเรียก history_of"""
+    import pathlib
+    for f in pathlib.Path("bot").rglob("*.py"):
+        if f.name == "partner.py":
+            continue
+        assert "history_of" not in f.read_text(encoding="utf-8"), f"{f} เอาประวัติมาแสดง"
+
+
+def test_profile_shows_the_partner(db, monkeypatch):
+    from types import SimpleNamespace
+
+    from bot.views.profile_embed import create_profile_embed
+    # หน้าโปรไฟล์ต้องใช้ค่าเกราะ/สกิลจากคอนฟิกจริง — เอา partner ไปแปะทับแค่ส่วนเดียว
+    real = json.load(open("config.example.json", encoding="utf-8"))
+    monkeypatch.setattr(config_loader, "get_config", lambda: {**real, **CFG})
+    member = SimpleNamespace(id=1, display_name="T", roles=[],
+                             display_avatar=SimpleNamespace(url="https://x/a.png"))
+
+    embed = create_profile_embed(member, {"level": 5})
+    couple = next(f for f in embed.fields if "คู่หู" in f.name)
+    assert "ยังไม่มีคู่" in couple.value
+
+    partner.marry(1, 2)
+    monkeypatch.setattr(pm, "get_daily_progress", lambda uid: {"kill": (1, False)})
+    embed = create_profile_embed(member, {"level": 5})
+    couple = next(f for f in embed.fields if "คู่หู" in f.name)
+    assert "<@2>" in couple.value and "ครองคู่มาแล้ว" in couple.value
+    assert "ออกล่าด้วยกัน" in couple.value
+
+
+def test_profile_survives_a_broken_partner_lookup(monkeypatch):
+    from types import SimpleNamespace
+
+    from bot.views.profile_embed import create_profile_embed
+    monkeypatch.setattr(partner, "partner_of", lambda uid: 1 / 0)
+    member = SimpleNamespace(id=1, display_name="T", roles=[],
+                             display_avatar=SimpleNamespace(url="https://x/a.png"))
+    embed = create_profile_embed(member, {"level": 5})      # ต้องไม่ระเบิด
+    assert embed.fields

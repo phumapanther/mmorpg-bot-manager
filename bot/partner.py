@@ -21,7 +21,29 @@ def _connect():
     conn = sqlite3.connect(player_model.DB_NAME)
     conn.execute("""CREATE TABLE IF NOT EXISTS partners (
         user_id INTEGER PRIMARY KEY, partner_id INTEGER, since INTEGER)""")
+    # 📜 ประวัติ: จดทุกครั้งที่แต่ง/หย่า — เก็บไว้เฉย ๆ ไม่มีคำสั่งไหนเอามาโชว์
+    # (ไว้ให้เจ้าของเซิร์ฟย้อนดูเองใน DB เวลามีเรื่องต้องเคลียร์ เช่น "ใครแต่งกับใครมาก่อน")
+    conn.execute("""CREATE TABLE IF NOT EXISTS partner_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER, partner_id INTEGER, action TEXT, at INTEGER)""")
     return conn
+
+
+def _log(conn, a_id, b_id, action, when):
+    """จดประวัติสองทาง (คนละแถวต่อฝ่าย) — ใช้ connection เดียวกับ transaction ที่กำลังทำอยู่"""
+    conn.execute("INSERT INTO partner_history (user_id, partner_id, action, at) VALUES (?, ?, ?, ?)",
+                 (a_id, b_id, action, when))
+    conn.execute("INSERT INTO partner_history (user_id, partner_id, action, at) VALUES (?, ?, ?, ?)",
+                 (b_id, a_id, action, when))
+
+
+def history_of(user_id):
+    """ประวัติแต่ง/หย่าทั้งหมดของคนนี้ — ไม่มีคำสั่งในเกมเรียกใช้ มีไว้ให้แอดมินเรียกดูเอง"""
+    conn = _connect()
+    rows = conn.execute("""SELECT partner_id, action, at FROM partner_history
+                           WHERE user_id = ? ORDER BY id""", (user_id,)).fetchall()
+    conn.close()
+    return rows
 
 
 def partner_of(user_id):
@@ -97,6 +119,7 @@ def marry(a_id, b_id):
             if ring:
                 conn.execute("UPDATE players SET inventory = ? WHERE user_id = ?",
                              (json.dumps(proposer_inv), a_id))
+            _log(conn, a_id, b_id, "marry", now)
     finally:
         conn.close()
     ring_line = f"\n**{ring_name()}** ถูกสวมให้ <@{b_id}> เรียบร้อย" if ring else ""   # ชื่อไอเทมมีอีโมจิอยู่แล้ว
@@ -119,6 +142,7 @@ def divorce(user_id):
             conn.execute("DELETE FROM partners WHERE user_id IN (?, ?)", (user_id, partner_id))
             if cost:
                 conn.execute("UPDATE players SET cash = cash - ? WHERE user_id = ?", (cost, user_id))
+            _log(conn, user_id, partner_id, "divorce", int(time.time()))
     finally:
         conn.close()
     return True, f"💔 หย่ากับ <@{partner_id}> เรียบร้อยแล้ว"
