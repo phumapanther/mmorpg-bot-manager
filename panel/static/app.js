@@ -1520,6 +1520,7 @@ const CFG_FIELDS = {
     ["market.min_price", "ราคาต่ำสุดที่ลงขายได้"],
     ["market.max_price", "ราคาสูงสุดที่ลงขายได้"],
     ["market.max_listings_per_player", "ลงขายได้สูงสุดกี่รายการต่อคน"],
+    ["partner.ring_item", "เลขไอเทมแหวนแต่งงาน (เว้นว่าง = ไม่ต้องใช้แหวน)", "text"],
     ["partner.wedding_cost", "ค่าจัดงานคู่หู (คนละเท่านี้)"],
     ["partner.divorce_cost", "ค่าดำเนินการหย่า"],
     ["partner.solo_bonus_percent", "โบนัสตอนมีคู่ %"],

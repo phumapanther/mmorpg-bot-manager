@@ -947,6 +947,14 @@
         "purchasable": true,
         "effect": "apply_status",
         "effect_value": "monster_ward"
+      },
+      "65": {
+        "name": "💍 แหวนแต่งงาน",
+        "buy": 50000000,
+        "sell": 5000000,
+        "type": "use",
+        "purchasable": true,
+        "effect": "wedding_ring"
       }
     },
     "armor_stats": {
@@ -1558,7 +1566,8 @@
     "wedding_cost": 500000,
     "divorce_cost": 1000000,
     "solo_bonus_percent": 5,
-    "together_bonus_percent": 15
+    "together_bonus_percent": 15,
+    "ring_item": "65"
   },
   "market": {
     "enabled": true,

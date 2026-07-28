@@ -363,6 +363,11 @@ def apply_item_effect(user_id, item_id):
             destroy_note = f"\n💥 **{names} ที่สวมอยู่แตกสลายเป็นผุยผง!** (สวมทับแล้วไม่มีวันได้คืน)"
         msg = f"🏺 คุณสวม **{item_name}** เข้าช่องอาร์ติแฟกต์ — พลังถาวรไหลเวียนทั่วร่าง!{destroy_note}"
 
+    elif item_info.get("effect") == "wedding_ring":
+        # 💍 ไม่ใช่ของกดใช้ — ถูกใช้ไปเองตอนอีกฝ่ายกดตกลงเป็นคู่หู
+        return False, (f"💍 **{item_name}** ไม่ต้องกดใช้ — พิมพ์ `!marry @คนที่อยากขอ` "
+                       "แล้วแหวนจะถูกสวมให้เองตอนอีกฝ่ายกดตกลง")
+
     else:
         return False, f"❌ ไอเทม **{item_name}** ยังไม่สามารถกดใช้งานได้ในตอนนี้"
 
@@ -727,8 +732,12 @@ def build_codex_embed(topic=""):
                 f"ราคา {int(market.get('min_price', 0)):,}–{int(market.get('max_price', 0)):,} ทอง · "
                 f"ลงขายพร้อมกันได้ {int(market.get('max_listings_per_player', 0))} รายการ\n"
                 "*เงินคนขายเข้าธนาคาร · ขายไปแล้วยกเลิกไม่ได้*"))
+        ring_key = str(partner.get("ring_item", "") or "")
+        ring = config_loader.get_item_config(ring_key) if ring_key else {}
         embed.add_field(name="💍 คู่หู (`!marry` / `!partner` / `!divorce`)", inline=False, value=(
-            f"ชวนใครสักคนเป็นคู่ (อีกฝ่ายต้องกดยืนยัน) ค่าจัดงานคนละ 🪙 {int(partner.get('wedding_cost', 0)):,}\n"
+            (f"**ต้องซื้อ {ring.get('name', 'แหวน')} ที่ `!shop` ก่อน** ราคา 🪙 {int(ring.get('buy', 0)):,} ทอง\n"
+             "แหวนถูกสวมให้อีกฝ่ายตอนกดตกลง (ใช้แล้วหมดไป) — หย่าแล้วไม่ได้คืน\n" if ring else "")
+            + f"ชวนใครสักคนเป็นคู่ (อีกฝ่ายต้องกดยืนยัน) ค่าจัดงานคนละ 🪙 {int(partner.get('wedding_cost', 0)):,}\n"
             f"💍 มีคู่: รางวัลจากการล่า **+{int(partner.get('solo_bonus_percent', 0))}%**\n"
             f"💞 **คู่เข้ามาเล่นวันเดียวกัน: +{int(partner.get('together_bonus_percent', 0))}%** ทั้งสองฝ่าย\n"
             f"*เลิกได้ด้วย `!divorce` (ค่าดำเนินการ {int(partner.get('divorce_cost', 0)):,} ทอง หักจากคนขอ)*"))
@@ -1083,8 +1092,14 @@ class PlayerCommands(commands.Cog):
             return await ctx.send("❌ คุณมีคู่อยู่แล้ว! หย่าก่อนด้วย `!divorce`")
         if partner.partner_of(member.id):
             return await ctx.send(f"❌ {member.display_name} มีคู่อยู่แล้ว")
+        # 💍 เช็คแหวนตั้งแต่ตอนพิมพ์ — จะได้ไม่ชวนเขาแล้วมาล้มตอนเขากดตกลง
+        if not partner.has_ring(ctx.author.id):
+            return await ctx.send(
+                f"❌ ต้องมี **{partner.ring_name()}** ก่อนถึงจะขอแต่งงานได้!\n"
+                f"ซื้อที่ `!shop` ราคา 🪙 `{partner.ring_price():,}` ทอง")
         cost = int(config_loader.get_config().get("partner", {}).get("wedding_cost", 0) or 0)
-        await ctx.send(f"💌 {member.mention} — {ctx.author.mention} ชวนคุณเป็นคู่หู!\n"
+        ring_note = f"\n💍 {ctx.author.mention} เตรียม **{partner.ring_name()}** มาแล้ว" if partner.ring_id() else ""
+        await ctx.send(f"💌 {member.mention} — {ctx.author.mention} ชวนคุณเป็นคู่หู!{ring_note}\n"
                        f"ค่าจัดงานคนละ 🪙 `{cost:,}` ทอง (หักตอนกดตกลง)",
                        view=ProposalView(ctx.author.id, member.id))
 

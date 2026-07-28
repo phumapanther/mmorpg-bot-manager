@@ -3,6 +3,7 @@
 # หัวใจของฟีเจอร์: โบนัสเต็มจะได้ก็ต่อเมื่อ "คู่ของคุณเข้ามาเล่นวันนี้ด้วย"
 # → รู้ว่าคู่เล่นวันนี้ไหมจากแถวเควสรายวัน (C1) ที่มีอยู่แล้ว ไม่ต้องเก็บเวลาล็อกอินเพิ่ม
 # → เป็นเหตุผลให้คู่กันตามกันมาเล่น ซึ่งคือจุดประสงค์ของฟีเจอร์นี้
+import json
 import sqlite3
 import time
 
@@ -30,8 +31,34 @@ def partner_of(user_id):
     return row          # (partner_id, since) หรือ None
 
 
+def ring_id():
+    """เลขไอเทมแหวนแต่งงาน — ตั้งเป็นค่าว่างใน Panel = ไม่ต้องใช้แหวน"""
+    return str(_cfg("ring_item", "") or "")
+
+
+def ring_name():
+    return config_loader.get_item_config(ring_id()).get("name", "💍 แหวนแต่งงาน")
+
+
+def ring_price():
+    return int(config_loader.get_item_config(ring_id()).get("buy", 0) or 0)
+
+
+def has_ring(user_id):
+    """ต้องมีแหวนถึงจะขอแต่งได้ — ไม่ได้ตั้งแหวนไว้ = ผ่านตลอด"""
+    if not ring_id():
+        return True
+    player = player_model.get_player(user_id)
+    if not player:
+        return False
+    return ring_id() in player_model.load_inventory(player.get("inventory", ""))
+
+
 def marry(a_id, b_id):
-    """ผูกคู่สองทาง + หักค่าจัดงานจากทั้งคู่ — ต้องผ่านปุ่มยืนยันของอีกฝ่ายมาก่อน"""
+    """ผูกคู่สองทาง + หักค่าจัดงานจากทั้งคู่ + ใช้แหวนของคนที่ขอ
+
+    ทุกอย่างอยู่ใน transaction เดียว — ล้มเหลวคือไม่เสียทั้งเงินและแหวน
+    """
     if a_id == b_id:
         return False, "❌ แต่งกับตัวเองไม่ได้นะ..."
     if partner_of(a_id):
@@ -47,18 +74,33 @@ def marry(a_id, b_id):
         if player.get("cash", 0) < cost:
             return False, f"❌ <@{uid}> มีเงินสดไม่พอค่าจัดงาน 🪙 `{cost:,}` ทอง (คนละเท่ากัน)"
 
+    # 💍 แหวนอยู่กับคนที่เป็นฝ่ายขอ (a_id) — ต้องมีจริงตอนกดยืนยัน ไม่ใช่แค่ตอนพิมพ์คำสั่ง
+    ring = ring_id()
+    proposer_inv = None
+    if ring:
+        proposer = player_model.get_player(a_id)
+        proposer_inv = player_model.load_inventory((proposer or {}).get("inventory", ""))
+        if ring not in proposer_inv:
+            return False, (f"❌ <@{a_id}> ไม่มี **{ring_name()}** ในกระเป๋าแล้ว!\n"
+                           f"ซื้อได้ที่ `!shop` ราคา 🪙 `{ring_price():,}` ทอง")
+        proposer_inv.remove(ring)
+
     now = int(time.time())
     conn = _connect()
     try:
-        with conn:      # ผูกคู่ + หักเงินทั้งสองฝ่ายพร้อมกัน ไม่มีสภาพแต่งข้างเดียว
+        with conn:      # ผูกคู่ + หักเงินสองฝ่าย + ใช้แหวน พร้อมกันทั้งชุด
             conn.execute("INSERT OR REPLACE INTO partners VALUES (?, ?, ?)", (a_id, b_id, now))
             conn.execute("INSERT OR REPLACE INTO partners VALUES (?, ?, ?)", (b_id, a_id, now))
             if cost:
                 conn.execute("UPDATE players SET cash = cash - ? WHERE user_id IN (?, ?)",
                              (cost, a_id, b_id))
+            if ring:
+                conn.execute("UPDATE players SET inventory = ? WHERE user_id = ?",
+                             (json.dumps(proposer_inv), a_id))
     finally:
         conn.close()
-    return True, (f"💍 **<@{a_id}> กับ <@{b_id}> เป็นคู่หูกันแล้ว!**\n"
+    ring_line = f"\n**{ring_name()}** ถูกสวมให้ <@{b_id}> เรียบร้อย" if ring else ""   # ชื่อไอเทมมีอีโมจิอยู่แล้ว
+    return True, (f"💍 **<@{a_id}> กับ <@{b_id}> เป็นคู่หูกันแล้ว!**{ring_line}\n"
                   f"ออกล่าในวันเดียวกันเพื่อรับโบนัสคู่เต็ม ๆ — ดูสถานะที่ `!partner`")
 
 
@@ -111,11 +153,18 @@ def build_partner_embed(user_id, display_name):
     solo = int(_cfg("solo_bonus_percent", 0) or 0)
     duo = int(_cfg("together_bonus_percent", 0) or 0)
     if not row:
+        ring_line = ""
+        if ring_id():
+            ring_line = (f"\nต้องมี **{ring_name()}** ก่อน — ซื้อที่ `!shop` "
+                         f"ราคา 🪙 `{ring_price():,}` ทอง"
+                         + ("\n✅ คุณมีแหวนแล้ว พร้อมขอได้เลย!" if has_ring(user_id)
+                            else "\n❌ ตอนนี้คุณยังไม่มีแหวน"))
         embed = discord.Embed(
             title=f"💍 คู่หูของ {display_name}",
             color=0x95a5a6,
             description=("ยังไม่มีคู่หู\n\nชวนใครสักคนด้วย `!marry @ชื่อ`\n"
-                         f"ค่าจัดงานคนละ 🪙 `{int(_cfg('wedding_cost', 0) or 0):,}` ทอง"))
+                         f"ค่าจัดงานคนละ 🪙 `{int(_cfg('wedding_cost', 0) or 0):,}` ทอง"
+                         + ring_line))
         embed.add_field(name="ได้อะไรบ้าง",
                         value=f"💍 มีคู่: รางวัลจากการล่า **+{solo}%**\n"
                               f"💞 คู่เล่นวันเดียวกัน: **+{duo}%**", inline=False)

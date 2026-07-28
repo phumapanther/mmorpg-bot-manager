@@ -1,5 +1,6 @@
 """C7: คู่หู — ผูกคู่สองทาง, หักเงินทั้งคู่พร้อมกัน, โบนัสเต็มเมื่อคู่เล่นวันเดียวกัน"""
 import json
+import pathlib
 import sqlite3
 
 import pytest
@@ -122,3 +123,87 @@ def test_config_present():
     cfg = json.load(open("config.example.json", encoding="utf-8"))["partner"]
     assert cfg["together_bonus_percent"] > cfg["solo_bonus_percent"], \
         "โบนัสตอนคู่เล่นด้วยต้องมากกว่า ไม่งั้นไม่มีเหตุผลให้ชวนกันมาเล่น"
+
+
+# ── 💍 แหวนแต่งงาน ──
+
+RING = "65"
+
+
+@pytest.fixture
+def world_with_ring(db, monkeypatch):
+    """ตลาดเดียวกับ world แต่มีของในกระเป๋าและเปิดใช้แหวน"""
+    cfg = {"partner": {**CFG["partner"], "ring_item": RING},
+           "item_catalog": {"items": {RING: {"name": "💍 แหวนแต่งงาน", "buy": 50000000}}}}
+    monkeypatch.setattr(config_loader, "get_config", lambda: cfg)
+    conn = sqlite3.connect(db)
+    conn.execute("ALTER TABLE players ADD COLUMN inventory TEXT DEFAULT '[]'")
+    conn.execute("UPDATE players SET inventory = ? WHERE user_id = 1", (json.dumps([RING, "30"]),))
+    conn.commit()
+    conn.close()
+
+    def _get(uid):
+        c = sqlite3.connect(db)
+        r = c.execute("SELECT cash, inventory FROM players WHERE user_id = ?", (uid,)).fetchone()
+        c.close()
+        return {"cash": r[0], "inventory": r[1]} if r else None
+
+    monkeypatch.setattr(pm, "get_player", _get)
+    return db
+
+
+def _inv(db, uid):
+    conn = sqlite3.connect(db)
+    raw = conn.execute("SELECT inventory FROM players WHERE user_id = ?", (uid,)).fetchone()[0]
+    conn.close()
+    return json.loads(raw)
+
+
+def test_ring_is_required_to_propose(world_with_ring):
+    assert partner.has_ring(1) is True
+    assert partner.has_ring(2) is False, "คนไม่มีแหวนต้องขอไม่ได้"
+
+    ok, msg = partner.marry(2, 3)          # ผู้เล่น 2 ไม่มีแหวน
+    assert not ok and "แหวน" in msg
+    assert partner.partner_of(2) is None
+    assert _inv(world_with_ring, 1) == [RING, "30"], "แหวนของคนอื่นห้ามหาย"
+
+
+def test_ring_is_consumed_on_success(world_with_ring):
+    ok, msg = partner.marry(1, 2)
+    assert ok and "แหวนแต่งงาน" in msg
+    assert RING not in _inv(world_with_ring, 1), "แหวนต้องถูกใช้ไป"
+    assert _inv(world_with_ring, 1) == ["30"], "ของชิ้นอื่นห้ามหายตาม"
+
+
+def test_failed_wedding_keeps_the_ring(world_with_ring):
+    conn = sqlite3.connect(world_with_ring)
+    conn.execute("UPDATE players SET cash = 10 WHERE user_id = 2")   # อีกฝ่ายจ่ายค่าจัดงานไม่ไหว
+    conn.commit()
+    conn.close()
+
+    ok, _msg = partner.marry(1, 2)
+    assert not ok
+    assert RING in _inv(world_with_ring, 1), "แต่งไม่สำเร็จห้ามกินแหวน"
+    assert partner.partner_of(1) is None
+
+
+def test_ring_can_be_switched_off(db, monkeypatch):
+    """ตั้ง ring_item เป็นค่าว่างใน Panel = เลิกใช้ระบบแหวน ไม่มีอะไรพัง"""
+    monkeypatch.setattr(config_loader, "get_config",
+                        lambda: {"partner": {**CFG["partner"], "ring_item": ""}})
+    assert partner.has_ring(1) is True
+    assert partner.marry(1, 2)[0] is True
+
+
+def test_ring_exists_in_shop_and_is_not_usable():
+    cfg = json.load(open("config.example.json", encoding="utf-8"))
+    ring_key = cfg["partner"]["ring_item"]
+    ring = cfg["item_catalog"]["items"][ring_key]
+    assert ring["purchasable"] is True and ring["buy"] >= 1000000, "แหวนต้องซื้อได้และแพงจริง"
+    assert ring["effect"] == "wedding_ring"
+
+    from bot.cogs.player_commands import apply_item_effect
+    import bot.models.player_model as _pm
+    src = pathlib.Path("bot/cogs/player_commands.py").read_text(encoding="utf-8")
+    assert '"wedding_ring"' in src and "!marry @คนที่อยากขอ" in src, "กด !use แหวนต้องบอกทางให้ถูก"
