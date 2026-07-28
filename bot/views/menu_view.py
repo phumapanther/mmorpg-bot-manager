@@ -5,7 +5,7 @@ import bot.models.player_model as player_model
 from bot import config_loader
 from bot.cogs.player_commands import (apply_item_effect, bank_action, build_bag_embed,
                                       build_bank_embed, build_bestiary_embed, build_codex_embed,
-                                      sell_all_junk)
+                                      craft_for, craftable_now, sell_all_junk)
 from bot.views.profile_embed import create_profile_embed
 
 # หัวข้อคู่มือในปุ่ม 📖 — ค่า value ตรงกับ topic ของ !codex เป๊ะ
@@ -66,6 +66,27 @@ class ProfilePageView(discord.ui.View):
         return cb
 
 
+class CraftSelect(discord.ui.Select):
+    """เลือกสูตรที่คราฟได้ตอนนี้ (B1) — ไม่ต้องจำรหัสไอเทม"""
+    def __init__(self, options_data):
+        options = [discord.SelectOption(label=name[:100], value=str(iid), description=mats[:100])
+                   for iid, name, mats in options_data[:25]]
+        super().__init__(placeholder="เลือกของที่จะคราฟ...", options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        _ok, msg = craft_for(interaction.user.id, self.values[0])
+        left = craftable_now(interaction.user.id)
+        view = CraftView(left) if left else None
+        await interaction.response.edit_message(
+            content=msg + ("" if left else "\n\n🎒 ตอนนี้ไม่มีสูตรไหนที่วัตถุดิบครบแล้ว"), view=view)
+
+
+class CraftView(discord.ui.View):
+    def __init__(self, options_data):
+        super().__init__(timeout=120)
+        self.add_item(CraftSelect(options_data))
+
+
 class BagActionView(discord.ui.View):
     """ปุ่มลัดในกระเป๋า (B5) — ขายวัสดุรวดเดียว ไม่ต้องขายทีละชิ้นที่ร้าน"""
     def __init__(self, user_id):
@@ -74,6 +95,16 @@ class BagActionView(discord.ui.View):
 
     async def interaction_check(self, interaction):
         return interaction.user.id == self.user_id
+
+    @discord.ui.button(label="🔨 คราฟของ", style=discord.ButtonStyle.primary)
+    async def craft_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        options = craftable_now(interaction.user.id)
+        if not options:
+            return await interaction.response.send_message(
+                "🔨 ยังไม่มีสูตรไหนที่วัตถุดิบครบเลย — ดูสูตรทั้งหมดที่ `!recipes`", ephemeral=True)
+        await interaction.response.send_message(
+            f"🔨 **คราฟได้ตอนนี้ {len(options)} สูตร** — เลือกจากรายการ:",
+            view=CraftView(options), ephemeral=True)
 
     @discord.ui.button(label="🧱 ขายวัสดุทั้งหมด", style=discord.ButtonStyle.success)
     async def sell_junk(self, interaction: discord.Interaction, button: discord.ui.Button):

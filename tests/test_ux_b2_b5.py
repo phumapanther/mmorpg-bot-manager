@@ -73,3 +73,44 @@ def test_bag_groups_by_type(monkeypatch):
     names = " ".join(f.name for f in embed.fields)
     assert "💊 ของใช้" in names and "🏺 อาร์ติแฟกต์" in names
     assert "⚔️ อุปกรณ์สวมใส่" in names and "ขายหมดได้" in names
+
+
+# ── B1: คราฟผ่านปุ่ม ──
+
+RECIPE_ITEMS = dict(ITEMS, **{"7": {"name": "⚔️ อาวุธเหล็ก", "type": "weapon", "equip_key": "iron", "sell": 1}})
+RECIPES = {"7": {"recipe": {"9": 2, "12": 1}, "fail_rate": 0}}
+
+
+def _craft_env(monkeypatch, inv):
+    saved = {}
+    monkeypatch.setattr(pc.player_model, "get_player",
+                        lambda uid: {"inventory": list(inv), "capacity": 50, "cash": 0})
+    monkeypatch.setattr(pc.player_model, "load_inventory", lambda raw: list(raw) if isinstance(raw, list) else list(inv))
+    monkeypatch.setattr(pc.player_model, "update_player_field",
+                        lambda uid, f, v: saved.__setitem__(f, v))
+    monkeypatch.setattr(pc.config_loader, "get_crafting_recipe", lambda i: RECIPES.get(str(i), {}))
+    monkeypatch.setattr(pc.config_loader, "get_item_config", lambda i: RECIPE_ITEMS.get(str(i), {}))
+    monkeypatch.setattr(pc.config_loader, "get_config",
+                        lambda: {"item_catalog": {"crafting_recipes": RECIPES}})
+    return saved
+
+
+def test_craft_for_success(monkeypatch):
+    saved = _craft_env(monkeypatch, ["9", "9", "12"])
+    ok, msg = pc.craft_for(1, "7")
+    assert ok and "คราฟสำเร็จ" in msg
+    assert json.loads(saved["inventory"]) == ["7"]        # วัตถุดิบถูกหัก ของใหม่เข้ากระเป๋า
+
+
+def test_craft_for_missing_material(monkeypatch):
+    _craft_env(monkeypatch, ["9"])
+    ok, msg = pc.craft_for(1, "7")
+    assert not ok and "วัตถุดิบไม่พอ" in msg
+
+
+def test_craftable_now_lists_only_ready(monkeypatch):
+    _craft_env(monkeypatch, ["9", "9", "12"])
+    ready = pc.craftable_now(1)
+    assert [r[0] for r in ready] == ["7"] and "×2" in ready[0][2]
+    _craft_env(monkeypatch, ["9"])
+    assert pc.craftable_now(1) == []
