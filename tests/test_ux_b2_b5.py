@@ -114,3 +114,29 @@ def test_craftable_now_lists_only_ready(monkeypatch):
     assert [r[0] for r in ready] == ["7"] and "×2" in ready[0][2]
     _craft_env(monkeypatch, ["9"])
     assert pc.craftable_now(1) == []
+
+
+# ── B6: แยกไฟล์แล้วต้องใช้งานเหมือนเดิมทุกจุด ──
+
+def test_b6_data_module_reexport():
+    """ย้าย data ออกไป game_data แล้ว game_modifiers ต้องยังเข้าถึงได้เหมือนเดิม"""
+    import bot.game_data as gd
+    import bot.game_modifiers as gm
+    assert gm.CONTINENTS is gd.CONTINENTS
+    assert gm.STATUS_EFFECTS is gd.STATUS_EFFECTS and gm.WEEKLY_THEMES is gd.WEEKLY_THEMES
+    assert len(gm.CONTINENTS) == 9 and len(gm.WEEKLY_THEMES) == 13
+
+
+def test_b6_fight_ui_module():
+    """ย้าย UI ไฟต์ออกไป fight_ui แล้ว game_views ต้องยังเรียกได้เหมือนเดิม"""
+    import bot.views.fight_ui as ui
+    import bot.views.game_views as gv
+    assert gv.hp_bar is ui.hp_bar and gv.build_fight_embed is ui.build_fight_embed
+    assert gv.ELEMENT_COLORS is ui.ELEMENT_COLORS
+
+
+def test_b6_files_got_smaller():
+    """กันถอยหลัง: ไฟล์ตรรกะหลักต้องไม่บวมกลับ"""
+    import pathlib
+    assert len(pathlib.Path("bot/game_modifiers.py").read_text(encoding="utf-8").splitlines()) < 900
+    assert len(pathlib.Path("bot/views/fight_ui.py").read_text(encoding="utf-8").splitlines()) < 200
