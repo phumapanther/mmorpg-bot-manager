@@ -141,8 +141,9 @@ class MonsterEventView(ActionView):
 
             # 🧪 สุ่มธาตุประจำตัว (เรทตามทวีป/ธีม) — เกิดครั้งเดียว คงเดิมตลอดไฟต์
             # ยาพลิกธาตุ (element_flux): บังคับมอนเกิดเป็นธาตุที่เผ่าผู้เล่นข่มแทนการสุ่มปกติ
+            from bot import identity as _id_mod
             flux_elems = game_modifiers.resolve_player_elements(
-                [getattr(r, "name", str(r)) for r in (member_roles or [])])
+                _id_mod.effective_role_names(member_roles, player))
             self.element = game_modifiers.forced_weak_element(self.statuses, flux_elems)
             if self.element is None:
                 self.element = game_modifiers.roll_element(self.mods)
@@ -156,8 +157,9 @@ class MonsterEventView(ActionView):
             self.faction_war_side = None  # ฝ่ายผู้เล่นที่จะได้แต้ม/โบนัสเมื่อชนะไฟต์นี้
             fw_cfg = self.mods.get("faction_war")
             if fw_cfg:
+                from bot import identity as _identity
                 my_faction = game_modifiers.resolve_player_faction(
-                    [getattr(r, "name", str(r)) for r in (member_roles or [])])
+                    _identity.effective_role_names(member_roles, player_model.get_player(user_id)))
                 if my_faction and random.randint(1, 100) <= fw_cfg.get("chance", 25):
                     enemy = "demon" if my_faction == "human" else "human"
                     fdata = game_modifiers.FACTIONS[enemy]
@@ -203,15 +205,19 @@ class MonsterEventView(ActionView):
             self.fight_grace = set(fight_grace or ())
             self._resync_statuses(player)  # รักษา/บัฟระหว่างเทิร์น → สะท้อนทันที (รวมปลดล็อกปุ่มสกิลจาก EMP)
 
+        # 🧬 P8: ชื่อยศที่มีผลจริง — เซิร์ฟหลักใช้ยศจริง / เซิร์ฟรองใช้ค่าจาก DB
+        from bot import identity
+        self.effective_roles = identity.effective_role_names(
+            self.member_roles, player_model.get_player(self.user_id))
+
         self.player_class = "Unknown"
-        for role in self.member_roles:
-            if role.name in GAME_CLASSES:
-                self.player_class = role.name
+        for name in self.effective_roles:
+            if name in GAME_CLASSES:
+                self.player_class = name
                 break
 
         # ⚔️ ธาตุประจำตัวผู้เล่นจากยศเผ่า (dual-race ได้หลายธาตุ)
-        self.player_elements = game_modifiers.resolve_player_elements(
-            [getattr(r, "name", str(r)) for r in (self.member_roles or [])])
+        self.player_elements = game_modifiers.resolve_player_elements(self.effective_roles)
 
         self.add_skill_buttons()
 

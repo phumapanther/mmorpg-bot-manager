@@ -243,10 +243,20 @@ class GameCommands(commands.Cog):
 
         # ─── 🟢 โครงสร้างโค้ดระบบเกมเดิมทำงานต่อจากตรงนี้ด้านล่างเมื่อผ่านประตูมิติเข้ามา ───
         player = player_model.get_player(user_id)
-        
+
         if not player:
             await ctx.send("❌ **ไม่พบข้อมูลตัวละครของคุณ!** กรุณาลงทะเบียนสร้างตัวละครก่อนครับ", ephemeral=True)
             return
+
+        # 🧬 P8: จัดเผ่า/คลาสให้ครบก่อนเริ่มเล่น (สุ่มให้คนใหม่ / ซิงก์ยศ↔DB ให้คนเก่า)
+        try:
+            from bot import identity
+            born = await identity.ensure_identity(ctx.author, player, is_main_server(ctx))
+            if born:
+                await ctx.send(born)
+                player = player_model.get_player(user_id)   # โหลดค่าที่เพิ่งสุ่มมาใช้ต่อ
+        except Exception as e:
+            print(f"⚠️ [P8 identity] จัดเผ่า/คลาสไม่สำเร็จ: {e}")
 
         current_level = player.get("level", 1)
         _, current_rank = player_model.check_and_update_rank(user_id, current_level)

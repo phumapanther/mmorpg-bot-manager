@@ -33,7 +33,9 @@ NEW_PLAYER_DEFAULTS = {
     "last_reward_claim": 0,
     "continent": "main",
     "status_effects": "{}",
-    "profile_color": 0
+    "profile_color": 0,
+    "race": "",        # P8: เผ่าจาก DB (ใช้เมื่อไม่มียศ เช่นเซิร์ฟรอง)
+    "class_name": ""   # P8: คลาสจาก DB
 }
     
 def init_db():

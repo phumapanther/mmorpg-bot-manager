@@ -66,7 +66,10 @@ def create_profile_embed(target_member, player_data):
     found_races = []
 
     # 🔍 ลูปเช็กยศของสมาชิกเพื่อระบุ เผ่าพันธุ์, อาชีพ และ ฝ่าย สังกัด
-    for role in target_member.roles:
+    # 🧬 P8: ใช้ชื่อยศ "ที่มีผลจริง" — เซิร์ฟรองไม่มียศ ก็อ่านเผ่า/คลาสจาก DB มาแสดงแทน
+    from bot import identity
+    for role_name in identity.effective_role_names(target_member.roles, player_data):
+        role = type("R", (), {"name": role_name})
         if role.name in GAME_RACES:
             found_races.append(role.name)
             # เซ็ตค่าเริ่มต้นกรณีเจอเผ่าเดียวก่อน
@@ -137,7 +140,7 @@ def create_profile_embed(target_member, player_data):
     # ─── 🌍 โลก & ธาตุ & ของติดตัว (ระบบขยายใหญ่) ───
     continent_label = game_modifiers.get_continent(player_data)["label"]
 
-    role_names = [getattr(r, "name", str(r)) for r in getattr(target_member, "roles", [])]
+    role_names = identity.effective_role_names(getattr(target_member, "roles", []), player_data)
     player_elements = game_modifiers.resolve_player_elements(role_names)
     if player_elements:
         element_labels = " ".join(game_modifiers.ELEMENTS[e]["label"] for e in player_elements)
