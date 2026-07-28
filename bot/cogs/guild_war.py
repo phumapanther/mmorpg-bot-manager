@@ -88,8 +88,10 @@ class GuildWarCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.wars = {}  # channel_id -> ActiveWar
-        # 💸 คืนเดิมพันศึกที่ตายเพราะรีสตาร์ท (จดไว้ใน DB)
-        for _cid, ga, gb, stake in player_model.pop_all_war_stakes():
+        # 💸 คืนเดิมพันศึกที่ตายเพราะรีสตาร์ท (จดไว้ใน DB) + จำห้องรบกำพร้าไว้ลบตอน ready
+        self._orphan_channels = []
+        for cid, ga, gb, stake in player_model.pop_all_war_stakes():
+            self._orphan_channels.append(cid)
             if stake:
                 player_model.guild_add_treasury(ga, stake)
                 player_model.guild_add_treasury(gb, stake)
@@ -244,6 +246,19 @@ class GuildWarCog(commands.Cog):
         await self.bot.wait_until_ready()
 
     @commands.Cog.listener()
+    async def on_ready(self):
+        # 🧹 ลบห้องรบกำพร้าจากศึกที่ตายกลางคัน (เช่น รีสตาร์ทช่วงนับถอยหลังสลายห้อง)
+        for cid in self._orphan_channels:
+            channel = self.bot.get_channel(cid)
+            if channel:
+                try:
+                    await channel.delete(reason="เก็บกวาดห้องรบค้างจากรีสตาร์ท")
+                    print(f"🧹 [Guild War] ลบห้องรบค้าง: {cid}")
+                except Exception as e:
+                    print(f"⚠️ [Guild War] ลบห้องรบค้าง {cid} ไม่สำเร็จ: {e}")
+        self._orphan_channels = []
+
+    @commands.Cog.listener()
     async def on_message(self, message):
         war = self.wars.get(getattr(message.channel, "id", None))
         if war and not message.author.bot:
@@ -280,13 +295,17 @@ class GuildWarCog(commands.Cog):
                 pass
         battlefield = self.bot.get_channel(war.channel_id)
         if battlefield:
+            # ส่งข้อความลาพลาดก็ต้องลบห้องให้ได้ — แยก try กัน
             try:
                 await battlefield.send(summary + "\n\n🔒 สกอร์ล็อกแล้ว — 💨 ห้องรบจะสลายใน 30 วินาที...")
+            except Exception:
+                pass
+            try:
                 import asyncio
                 await asyncio.sleep(30)
                 await battlefield.delete(reason="สงครามจบ")
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"⚠️ [Guild War] ลบห้องรบ {war.channel_id} ไม่สำเร็จ: {e}")
 
 
 async def setup(bot):
