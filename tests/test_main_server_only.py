@@ -132,3 +132,23 @@ def test_no_cog_blocks_silently():
     for f in pathlib.Path("bot/cogs").glob("*.py"):
         src = f.read_text(encoding="utf-8")
         assert "return is_main_server(ctx)" not in src, f"{f.name} บล็อกเงียบ — ใช้ main_server_gate แทน"
+
+
+def test_snowflake_ids_never_converted_to_js_number():
+    """บั๊กจริง 2026-07-28: Number() ใน JS ปัดไอดี Discord (>2^53) ทิ้งหลักท้าย
+    เช่น 1138420073900560515 → 1138420073900560500 ทำให้เซิร์ฟหลักกลายเป็นเซิร์ฟรอง"""
+    import pathlib, re
+    js = pathlib.Path("panel/static/app.js").read_text(encoding="utf-8")
+    for line in js.splitlines():
+        if "Number(" not in line:
+            continue
+        assert "guild_id" not in line and "role" not in line.lower(), \
+            f"ห้ามแปลงไอดี Discord เป็น Number: {line.strip()}"
+
+
+def test_main_guild_id_accepts_string(monkeypatch):
+    """เก็บเป็น string แล้ว get_main_guild_id ต้องยังคืน int ที่ถูกต้อง"""
+    from bot import config_loader
+    monkeypatch.setattr(config_loader, "get_config",
+                        lambda: {"main_guild_id": "1138420073900560515"})
+    assert config_loader.get_main_guild_id() == 1138420073900560515

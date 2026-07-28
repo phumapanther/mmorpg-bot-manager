@@ -114,7 +114,8 @@ async function setupSave() {
   // 🌍 โหมดหลายเซิร์ฟ (P8)
   state.config.guest_bot_token = document.getElementById("guestTokenInput").value.trim();
   const mainId = document.getElementById("mainGuildIdInput").value.trim();
-  state.config.main_guild_id = mainId ? Number(mainId) : null;
+  // ⚠️ ไอดี Discord ยาวเกินความแม่นยำของ Number ใน JS (>2^53) — ต้องเก็บเป็น string เท่านั้น
+  state.config.main_guild_id = mainId || null;
   state.config.main_server_invite = document.getElementById("mainInviteInput").value.trim();
   await saveConfig();
 }
@@ -1374,7 +1375,8 @@ async function balanceSave() {
   document.querySelectorAll("[data-bal-role]").forEach(sel => {
     if (!state.config.game_balance) state.config.game_balance = {};
     if (!state.config.game_balance.roles) state.config.game_balance.roles = {};
-    state.config.game_balance.roles[sel.dataset.balRole] = sel.value ? Number(sel.value) : null;
+    // ไอดียศเป็น snowflake เหมือนกัน — ห้ามแปลงเป็น Number (จะปัดเศษหลักท้าย)
+    state.config.game_balance.roles[sel.dataset.balRole] = sel.value || null;
   });
   document.querySelectorAll("[data-rank]").forEach(inp => {
     if (!state.config.monster_ranks) state.config.monster_ranks = {};
