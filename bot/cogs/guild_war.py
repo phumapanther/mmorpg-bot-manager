@@ -41,8 +41,9 @@ def apply_encounter(scores, my_gid, enemy_gid, encounter):
 
 
 class ActiveWar:
-    def __init__(self, channel_id, guild_a, guild_b, stake):
+    def __init__(self, channel_id, guild_a, guild_b, stake, origin_channel_id=None):
         self.channel_id = channel_id
+        self.origin_channel_id = origin_channel_id  # ห้องที่ใช้คำสั่งท้าศึก — ประกาศผลที่นี่เสมอ
         self.info = {guild_a["guild_id"]: guild_a, guild_b["guild_id"]: guild_b}
         self.scores = {guild_a["guild_id"]: 0, guild_b["guild_id"]: 0}
         self.stake = stake
@@ -148,7 +149,8 @@ class GuildWarCog(commands.Cog):
             return "❌ บอทไม่มีสิทธิ์สร้างห้องรบ (Manage Channels) — ศึกยกเลิก คืนเดิมพันแล้ว"
 
         player_model.record_war_stake(channel.id, guild_a["guild_id"], guild_b["guild_id"], stake)
-        self.wars[channel.id] = ActiveWar(channel.id, guild_a, guild_b, stake)
+        self.wars[channel.id] = ActiveWar(channel.id, guild_a, guild_b, stake,
+                                          origin_channel_id=interaction.channel.id)
         await channel.send(embed=discord.Embed(
             title=f"⚔️ สงคราม {guild_a['icon']} {guild_a['name']} ⚡ {guild_b['icon']} {guild_b['name']}",
             color=0xe74c3c,
@@ -252,14 +254,13 @@ class GuildWarCog(commands.Cog):
                 headline += f" รับกองกลาง `{pot:,}` ทองเข้าคลังกิลด์!"
         summary = (f"{reason}\n{headline}\n"
                    f"📊 สกอร์สุดท้าย: {ia['icon']} {ia['name']} `{sa}` : `{sb}` {ib['icon']} {ib['name']}")
-        # ประกาศในบ้านทั้งสองกิลด์ + ลบห้องรบ
-        for info in (ia, ib):
-            home = self.bot.get_channel(info["channel_id"])
-            if home:
-                try:
-                    await home.send(f"📯 **ข่าวสงคราม**\n{summary}")
-                except Exception:
-                    pass
+        # 📯 ประกาศผลที่ "ห้องที่ใช้คำสั่งท้าศึก" เสมอ — ทุกกรณีจบศึก (หมดเวลา/ห้องเงียบ)
+        origin = self.bot.get_channel(war.origin_channel_id) if war.origin_channel_id else None
+        if origin:
+            try:
+                await origin.send(f"📯 **ข่าวสงครามกิลด์**\n{summary}")
+            except Exception:
+                pass
         battlefield = self.bot.get_channel(war.channel_id)
         if battlefield:
             try:
