@@ -135,6 +135,34 @@ class TopBoardView(discord.ui.View):
         return cb
 
 
+class PetSelect(discord.ui.Select):
+    """เลือกสัตว์เลี้ยงที่จะติดตัว (C4) — ponytail: 24 ตัวแรก ลิมิต Select คือ 25"""
+    def __init__(self, user_id):
+        from bot import pets
+        have = pets.owned(user_id)
+        options = [discord.SelectOption(label="— ไม่ติดตัวไหน —", value="")]
+        options += [discord.SelectOption(label=p["name"], value=p["key"],
+                                         description=f"เต๋า +{int(p.get('dice', 0))}")
+                    for p in pets.all_pets() if p["key"] in have][:24]
+        super().__init__(placeholder="เลือกสัตว์เลี้ยงที่จะออกเดินทางด้วย...", options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        from bot import pets
+        _ok, msg = pets.set_active(interaction.user.id, self.values[0])
+        await interaction.response.edit_message(
+            content=msg,
+            embed=pets.build_pet_embed(interaction.user.id, interaction.user.display_name),
+            view=PetView(interaction.user.id))
+
+
+class PetView(discord.ui.View):
+    def __init__(self, user_id):
+        super().__init__(timeout=180)
+        from bot import pets
+        if pets.owned(user_id):       # ยังไม่มีสักตัว = ไม่ต้องมี dropdown ว่าง
+            self.add_item(PetSelect(user_id))
+
+
 class SeasonView(discord.ui.View):
     """ปุ่มรับรางวัล/เปิดพรีเมียมของซีซั่นพาส (C2)"""
     def __init__(self, user_id):
@@ -356,6 +384,13 @@ class GameMenuView(discord.ui.View):
         await interaction.response.send_message(
             embed=daily.build_daily_embed(interaction.user.id, interaction.user.display_name),
             view=DailyView(interaction.user.id), ephemeral=True)
+
+    @discord.ui.button(label="🐾 สัตว์เลี้ยง", style=discord.ButtonStyle.secondary, custom_id="game_menu:pet")
+    async def pet_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        from bot import pets
+        await interaction.response.send_message(
+            embed=pets.build_pet_embed(interaction.user.id, interaction.user.display_name),
+            view=PetView(interaction.user.id), ephemeral=True)
 
     @discord.ui.button(label="🎟️ ซีซั่นพาส", style=discord.ButtonStyle.primary, custom_id="game_menu:season")
     async def season_button(self, interaction: discord.Interaction, button: discord.ui.Button):

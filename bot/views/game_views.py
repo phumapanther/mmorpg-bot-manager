@@ -411,6 +411,18 @@ class MonsterEventView(ActionView):
                 roll_parts.append(f"💨+{wind_bonus}")
                 skill_log += f"💨 **สายลมประจำตัวหนุนลูกเต๋า** `+{wind_bonus}` (รวม {player_roll})\n"
 
+            # 🐾 C4: สัตว์เลี้ยงที่ติดตัว หนุนเต๋าให้ทุกเทิร์น (ใช้ dict ผู้เล่นที่โหลดไว้แล้ว ไม่ยิง DB ซ้ำ)
+            try:
+                from bot import pets as _pets
+                pet_bonus = _pets.roll_bonus(player)
+                if pet_bonus:
+                    player_roll += pet_bonus
+                    roll_parts.append(f"🐾+{pet_bonus}")
+                    skill_log += (f"🐾 **{_pets.active(player)['name']} ส่งเสียงเชียร์!** "
+                                  f"เต๋า `+{pet_bonus}` (รวม {player_roll})\n")
+            except Exception as e:
+                print(f"⚠️ [pets] โบนัสเต๋าพัง: {e}")
+
             # 🎲 เต๋าถ่วงน้ำหนัก: การันตีแต้มขั้นต่ำ (ก่อนผลราก/เต๋าหลุดมือ — ของพวกนั้นทำเต๋าหลุดจากมือ ไม่ใช่แต้มไม่ดี)
             weighted_min = game_modifiers.status_min_roll(self.statuses)
             if weighted_min and player_roll < weighted_min:
@@ -864,6 +876,13 @@ class MonsterEventView(ActionView):
                     dropped_item_msg += _ach.unlock_message(_ach.check_and_unlock(self.user_id))
                 except Exception as e:
                     print(f"⚠️ [ach] เช็คความสำเร็จพัง: {e}")
+
+                # 🐾 C4: ลุ้นจับมอนที่เพิ่งล้มมาเลี้ยง (โอกาสตามแรงค์ — ตัวที่มีแล้วไม่ออกซ้ำ)
+                try:
+                    from bot import pets as _pets
+                    dropped_item_msg += _pets.tame_message(_pets.try_tame(self.user_id, self.monster_rank))
+                except Exception as e:
+                    print(f"⚠️ [pets] จับสัตว์เลี้ยงพัง: {e}")
 
                 # 📕 สมุดสะสมมอน (Bestiary): จดแต้ม + แจกโบนัสครั้งเดียวเมื่อครบชุด — พังต้องไม่ล้มไฟต์
                 try:

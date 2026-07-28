@@ -965,6 +965,15 @@ class PlayerCommands(commands.Cog):
         await ctx.send(embed=build_bestiary_embed(
             ctx.author.id, ctx.author.display_name, ctx.author.display_avatar.url))
 
+    # --- 🐾 !pet: สัตว์เลี้ยงที่จับมาได้ + เลือกตัวติดตาม (C4) ---
+    @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
+    @commands.command(name="pet", aliases=["pets", "สัตว์เลี้ยง"])
+    async def pet_board(self, ctx):
+        from bot import pets
+        from bot.views.menu_view import PetView
+        await ctx.send(embed=pets.build_pet_embed(ctx.author.id, ctx.author.display_name),
+                       view=PetView(ctx.author.id))
+
     # --- 🎟️ !season: ซีซั่นพาสรายเดือน (C2) ---
     @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
     @commands.command(name="season", aliases=["pass", "ซีซั่น", "ซีซัน"])

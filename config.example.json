@@ -1321,6 +1321,19 @@
     ],
     "streak_daily_gold": 1000
   },
+  "pets": {
+    "tame_chance": { "Common": 1, "Mini-Boss": 8, "Main-Boss": 15, "Secret": 20, "Unbeatable": 30 },
+    "list": [
+      { "key": "slime", "name": "🟢 สไลม์น้อย", "from_rank": "Common", "dice": 1, "desc": "เด้งดึ๋งอยู่ข้างเท้า คอยหนุนจังหวะทอยเต๋า" },
+      { "key": "batling", "name": "🦇 ค้างคาวจิ๋ว", "from_rank": "Common", "dice": 1, "desc": "บินวนรอบตัว ช่วยชี้จุดอ่อนศัตรู" },
+      { "key": "wolfpup", "name": "🐺 ลูกหมาป่า", "from_rank": "Mini-Boss", "dice": 2, "desc": "เห่าข่มขวัญศัตรูก่อนปะทะ" },
+      { "key": "imp", "name": "👺 ภูตน้อยจอมกวน", "from_rank": "Mini-Boss", "dice": 2, "desc": "แอบสะกิดแขนศัตรูตอนสวน" },
+      { "key": "griffin", "name": "🦅 ลูกกริฟฟิน", "from_rank": "Main-Boss", "dice": 3, "desc": "โฉบลงมาเปิดช่องว่างให้คุณเข้าทำ" },
+      { "key": "golemite", "name": "🪨 โกเลมจิ๋ว", "from_rank": "Main-Boss", "dice": 3, "desc": "ยืนบังแรงปะทะให้ครึ่งก้าว" },
+      { "key": "phantom", "name": "👻 เงาลึกลับ", "from_rank": "Secret", "dice": 4, "desc": "ไม่มีใครรู้ว่ามันมาจากไหน แต่มันอยู่ข้างคุณ" },
+      { "key": "dragonling", "name": "🐉 ลูกมังกร", "from_rank": "Unbeatable", "dice": 5, "desc": "ลูกของสิ่งที่ไม่ควรมีใครล้มได้ — สัญลักษณ์ของผู้พิชิต" }
+    ]
+  },
   "season_pass": {
     "enabled": true,
     "price_gold": 5000000,
