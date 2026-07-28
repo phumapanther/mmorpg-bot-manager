@@ -32,6 +32,11 @@ def create_bot(bot_type: str):
         # ตรวจสอบว่า Error ที่เกิดขึ้นคือ CheckFailure ที่มาจากไฟล์ utils.py หรือไม่
         if isinstance(error, commands.CheckFailure) and str(error) == "arrested":
             await ctx.send("❌ **[ปฏิเสธคำสั่ง]** คุณถูกจับกุมอยู่! ไม่สามารถใช้คำสั่งได้จนกว่าจะพ้นโทษ 🔗⛓️")
+        elif isinstance(error, commands.MissingPermissions):
+            await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะแอดมินของเซิร์ฟเวอร์นี้เท่านั้น")
+        elif isinstance(error, commands.CheckFailure):
+            # ด่านต่าง ๆ (ผิดห้อง/ไม่ใช่เซิร์ฟหลัก/ไม่มีสิทธิ์) ตอบผู้ใช้ไปเองแล้ว — ไม่ต้องพ่น traceback ให้ log รก
+            print(f"🔒 [BLOCKED] {ctx.author.name} ใช้ !{ctx.command} ไม่ผ่านด่านตรวจ ({ctx.guild.name if ctx.guild else 'DM'})")
         else:
             # ถ้าเป็น Error อื่นๆ ให้แสดงออกมาตามปกติ (เพื่อใช้ดีบั๊ก)
             raise error
