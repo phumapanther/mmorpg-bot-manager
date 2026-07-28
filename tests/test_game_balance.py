@@ -64,7 +64,9 @@ def test_panel_balance_tab_exists():
     # ทุก path ที่ Panel แก้ ต้องมีอยู่จริงใน config
     import json, re
     cfg = json.load(open("config.example.json", encoding="utf-8"))
-    for path in re.findall(r'\["([a-z_]+\.[a-z_.]+)",', js):
+    # เฉพาะบล็อก BAL_FIELDS — CFG_FIELDS ของแท็บ Retention ชี้ไปรากของ config คนละที่กัน
+    bal_block = js[js.index("const BAL_FIELDS = {"):js.index("const BAL_RANK_COLS")]
+    for path in re.findall(r'\["([a-z_]+\.[a-z_.-]+)",', bal_block):
         node = cfg["game_balance"]
         for k in path.split("."):
             assert k in node, f"Panel อ้าง game_balance.{path} แต่ config ไม่มี"

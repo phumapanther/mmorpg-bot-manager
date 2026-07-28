@@ -21,6 +21,7 @@
   <button class="tab-btn" data-tab="items">Items</button>
   <button class="tab-btn" data-tab="rank-rewards">Rank Rewards</button>
   <button class="tab-btn" data-tab="balance">⚖️ Balance</button>
+  <button class="tab-btn" data-tab="retention">🎮 Retention</button>
   <button class="tab-btn" data-tab="payment">Payment</button>
 </nav>
 
@@ -213,12 +214,70 @@
   <h3>🎲 ดรอป / ตาย / อีเวนต์ / คูลดาวน์</h3>
   <div id="balMisc" class="bal-grid"></div>
 
+  <h3>🆕 ผู้เล่นใหม่ / ⚔️ ประลอง / 🎰 คาสิโน</h3>
+  <div id="balExtra" class="bal-grid"></div>
+
   <h3>👾 แรงค์มอนสเตอร์</h3>
   <table id="balRanksTable"><thead><tr>
     <th>แรงค์</th><th>เต๋า</th><th>HP ต่ำสุด</th><th>HP สูงสุด</th><th>โอกาสหนี %</th><th>ตัวคูณทอง</th><th>EXP</th>
   </tr></thead><tbody></tbody></table>
 
+  <h3>🎲 น้ำหนักอีเวนต์ตอนออกเดินทาง</h3>
+  <p class="hint">แถว = อีเวนต์ที่เพิ่งเจอ · คอลัมน์ = โอกาสเจอครั้งถัดไป (เทียบน้ำหนักกันเอง ไม่ใช่ %) — ใส่ 0 = ไม่เจอเลย</p>
+  <div class="table-scroll"><table id="balEventsTable"><thead><tr>
+    <th>เพิ่งเจอ...</th><th>👹 มอน</th><th>🏡 หมู่บ้าน</th><th>💰 หีบ</th><th>💀 ดันเจี้ยน</th><th>🧙 NPC</th><th>⚠️ กับดัก</th>
+  </tr></thead><tbody></tbody></table></div>
+
+  <h3>🧬 สถานะผิดปกติ</h3>
+  <p class="hint">ปรับได้เฉพาะระยะเวลากับดาเมจต่อก้าว — กลไกอื่น (ล้างด้วยอะไร/บล็อกอะไร/แปลงร่าง) ไม่เปิดให้แก้ เพราะแก้ผิดแล้วระบบพัง</p>
+  <div class="table-scroll"><table id="balStatusTable"><thead><tr>
+    <th>สถานะ</th><th>ระยะเวลา</th><th>หน่วย</th><th>ดาเมจ/ก้าว ต่ำสุด</th><th>สูงสุด</th>
+  </tr></thead><tbody></tbody></table></div>
+
   <button id="balanceSaveBtn" class="save-btn">บันทึก</button>
+</section>
+
+<section id="tab-retention" class="tab-panel">
+  <h2>🎮 Retention — ระบบดึงผู้เล่นกลับมา</h2>
+  <p class="hint">เควสรายวัน · ซีซั่นพาส · อันดับสัปดาห์ · ความสำเร็จ · สัตว์เลี้ยง · ตลาด · คู่หู — กด Restart บอทหลังบันทึกทุกครั้ง</p>
+
+  <h3>📅 เควสรายวัน</h3>
+  <div class="table-scroll"><table id="retDailyQuests"><thead><tr>
+    <th>คีย์ (ห้ามแก้)</th><th>ชื่อที่ผู้เล่นเห็น</th><th>เป้าหมาย</th><th>ทอง</th><th>EXP</th>
+  </tr></thead><tbody></tbody></table></div>
+  <div id="retDailyMisc" class="bal-grid"></div>
+  <h4>🔥 รางวัลล็อกอินต่อเนื่อง</h4>
+  <div class="table-scroll"><table id="retStreak"><thead><tr>
+    <th>ครบกี่วัน</th><th>ทอง</th><th>ไอเทมแถม (เลขไอเทม)</th>
+  </tr></thead><tbody></tbody></table></div>
+
+  <h3>🎟️ ซีซั่นพาส (รายเดือน)</h3>
+  <div id="retSeasonMisc" class="bal-grid"></div>
+  <div class="table-scroll"><table id="retSeasonTiers"><thead><tr>
+    <th>ขั้น</th><th>ต้องมีแต้ม</th><th>🆓 ทอง</th><th>🆓 EXP</th><th>🆓 ไอเทม</th><th>⭐ ทอง</th><th>⭐ EXP</th><th>⭐ ไอเทม</th>
+  </tr></thead><tbody></tbody></table></div>
+
+  <h3>🗓️ อันดับรายสัปดาห์</h3>
+  <div id="retWeeklyMisc" class="bal-grid"></div>
+  <div class="table-scroll"><table id="retWeeklyRewards"><thead><tr>
+    <th>อันดับ</th><th>ทอง</th><th>EXP</th>
+  </tr></thead><tbody></tbody></table></div>
+
+  <h3>🏅 ความสำเร็จ</h3>
+  <div class="table-scroll"><table id="retAchievements"><thead><tr>
+    <th>คีย์</th><th>ชื่อ</th><th>คำอธิบาย</th><th>นับจาก</th><th>เป้าหมาย</th><th>ทอง</th><th>ตำแหน่งที่ได้</th>
+  </tr></thead><tbody></tbody></table></div>
+
+  <h3>🐾 สัตว์เลี้ยง</h3>
+  <div id="retPetChance" class="bal-grid"></div>
+  <div class="table-scroll"><table id="retPets"><thead><tr>
+    <th>คีย์</th><th>ชื่อ</th><th>คำอธิบาย</th><th>ได้จากแรงค์</th><th>โบนัสเต๋า</th>
+  </tr></thead><tbody></tbody></table></div>
+
+  <h3>🏪 ตลาดผู้เล่น · 💍 คู่หู</h3>
+  <div id="retMarketPartner" class="bal-grid"></div>
+
+  <button id="retentionSaveBtn" class="save-btn">บันทึก</button>
 </section>
 
 <section id="tab-payment" class="tab-panel">

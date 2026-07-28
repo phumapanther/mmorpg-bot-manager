@@ -1186,6 +1186,7 @@ async function init() {
   document.getElementById("guildSelect").addEventListener("change", onGuildChange);
   document.getElementById("setupSaveBtn").addEventListener("click", setupSave);
   document.getElementById("balanceSaveBtn").addEventListener("click", balanceSave);
+  document.getElementById("retentionSaveBtn").addEventListener("click", retentionSave);
 
   document.getElementById("startBtn").addEventListener("click", startBot);
   document.getElementById("stopBtn").addEventListener("click", stopBot);
@@ -1258,11 +1259,14 @@ async function init() {
   setInterval(pollLog, 1500);
   pollLog();
 
-  try {
-    renderBalance();
-  } catch (e) {
-    console.error("renderBalance ล้มเหลว:", e);
-    toast("แท็บ Balance โหลดไม่ได้ (ดู console) — ส่วนอื่นใช้งานได้ปกติ");
+  // แท็บพวกนี้พังต้องไม่ลากทั้งหน้าไปด้วย (เคยเจอมาแล้ว — แดชบอร์ดจอดำทั้งหน้า)
+  for (const [name, fn] of [["Balance", renderBalance], ["Retention", renderRetention]]) {
+    try {
+      fn();
+    } catch (e) {
+      console.error(`render${name} ล้มเหลว:`, e);
+      toast(`แท็บ ${name} โหลดไม่ได้ (ดู console) — ส่วนอื่นใช้งานได้ปกติ`);
+    }
   }
 }
 
@@ -1328,7 +1332,17 @@ const BAL_FIELDS = {
     ["cooldowns.shop_sec", "คูลดาวน์ !shop (วิ)"],
     ["village.rest_cost", "ค่าพักแรมในหมู่บ้าน"],
     ["village.rest_cost_per_level", "ค่าพักแรมเพิ่มต่อเลเวล (0 = คิดเท่ากันทุกเลเวล)"],
+    ["village.heal_fee", "ค่ารักษาของนักบวช (!heal)"],
     ["death.force_respawn_fee", "(ไม่ใช้แล้ว — ค่าชุบใช้ตารางตามเลเวล)"],
+  ],
+  balExtra: [
+    ["new_player.cash", "ผู้เล่นใหม่: ทองเริ่มต้น"],
+    ["new_player.capacity", "ผู้เล่นใหม่: ช่องกระเป๋า"],
+    ["new_player.max_hp", "ผู้เล่นใหม่: HP สูงสุด"],
+    ["new_player.hp", "ผู้เล่นใหม่: HP เริ่มต้น"],
+    ["new_player.sanity", "ผู้เล่นใหม่: สติ"],
+    ["duel.rounds", "ประลอง !challenge: จำนวนยก"],
+    ["duel.bet", "ประลอง !challenge: เงินเดิมพัน"],
   ],
 };
 
@@ -1354,6 +1368,18 @@ function balSet(path, value) {
   node[keys[keys.length - 1]] = value === "" ? null : Number(value);
 }
 
+function balSetRaw(path, value) {
+  /* เขียนค่าที่ไม่ใช่ตัวเลข (เช่น object ทั้งแถวของตาราง) ลง game_balance */
+  if (!state.config.game_balance) state.config.game_balance = {};
+  const keys = path.split(".");
+  let node = state.config.game_balance;
+  for (const k of keys.slice(0, -1)) {
+    if (typeof node[k] !== "object" || node[k] == null) node[k] = {};
+    node = node[k];
+  }
+  node[keys[keys.length - 1]] = value;
+}
+
 function renderBalance() {
   for (const [containerId, fields] of Object.entries(BAL_FIELDS)) {
     const box = document.getElementById(containerId);
@@ -1374,6 +1400,8 @@ function renderBalance() {
     el.innerHTML = "";
     el.appendChild(sel);
   }
+  renderEventWeights();
+  renderStatusTable();
   // ตารางแรงค์มอนสเตอร์
   const tbody = document.querySelector("#balRanksTable tbody");
   if (tbody) {
@@ -1385,7 +1413,48 @@ function renderBalance() {
   }
 }
 
+// ── ตารางน้ำหนักอีเวนต์ + ตารางสถานะ (ตารางใหญ่ในแท็บ Balance) ──
+
+const EVENT_COLS = ["monster", "village", "treasure", "dungeon", "npc", "trap"];
+const EVENT_ROW_LABEL = {
+  village: "🏡 หมู่บ้าน", dungeon_inside: "💀 ในดันเจี้ยน", monster: "👹 มอนสเตอร์",
+  treasure: "💰 หีบสมบัติ", npc: "🧙 NPC", trap: "⚠️ กับดัก", none: "🚶 เริ่มใหม่/ไม่มี",
+};
+
+function renderEventWeights() {
+  const tbody = document.querySelector("#balEventsTable tbody");
+  if (!tbody) return;
+  const rows = balGet("events.weights") || {};
+  tbody.innerHTML = Object.keys(EVENT_ROW_LABEL).filter(k => rows[k]).map(situation =>
+    `<tr><td>${EVENT_ROW_LABEL[situation]}</td>` + EVENT_COLS.map(col =>
+      `<td><input type="number" min="0" data-evt="${situation}" data-col="${col}"
+        value="${rows[situation][col] ?? 0}"></td>`).join("") + "</tr>"
+  ).join("");
+}
+
+function renderStatusTable() {
+  const tbody = document.querySelector("#balStatusTable tbody");
+  if (!tbody) return;
+  const rows = balGet("status_overrides") || {};
+  tbody.innerHTML = Object.entries(rows).map(([key, s]) => {
+    const cell = (col) => `<td><input type="number" min="0" data-status="${key}" data-col="${col}"
+        value="${s[col] ?? ""}" ${s.dmg_min === undefined && col.startsWith("dmg") ? 'placeholder="—" disabled' : ""}></td>`;
+    return `<tr><td>${s.label || key}</td>${cell("turns")}<td>${s.unit || "ก้าว"}</td>${cell("dmg_min")}${cell("dmg_max")}</tr>`;
+  }).join("");
+}
+
 async function balanceSave() {
+  document.querySelectorAll("[data-evt]").forEach(inp => {
+    const row = balGet(`events.weights.${inp.dataset.evt}`) || {};
+    row[inp.dataset.col] = Number(inp.value || 0);
+    balSetRaw(`events.weights.${inp.dataset.evt}`, row);
+  });
+  document.querySelectorAll("[data-status]").forEach(inp => {
+    if (inp.disabled || inp.value === "") return;
+    const row = balGet(`status_overrides.${inp.dataset.status}`) || {};
+    row[inp.dataset.col] = Number(inp.value);
+    balSetRaw(`status_overrides.${inp.dataset.status}`, row);
+  });
   document.querySelectorAll("[data-bal]").forEach(inp => balSet(inp.dataset.bal, inp.value));
   document.querySelectorAll("[data-bal-role]").forEach(sel => {
     if (!state.config.game_balance) state.config.game_balance = {};
@@ -1398,5 +1467,141 @@ async function balanceSave() {
     const r = state.config.monster_ranks[inp.dataset.rank] || (state.config.monster_ranks[inp.dataset.rank] = {});
     if (inp.value !== "") r[inp.dataset.col] = Number(inp.value);
   });
+  await saveConfig();
+}
+
+// ---------- 🎮 retention tab (กลุ่ม C: เควส/ซีซั่น/อันดับ/ความสำเร็จ/สัตว์เลี้ยง/ตลาด/คู่หู) ----------
+// ทุกหมวดอ่าน-เขียนที่ "รากของ config" (ไม่ใช่ game_balance) จึงมี helper แยกจากแท็บ Balance
+
+function cfgGet(path, root) {
+  let node = root || state.config || {};
+  for (const k of path.split(".")) {
+    if (node == null || typeof node !== "object") return undefined;
+    node = node[k];
+  }
+  return node;
+}
+
+function cfgSet(path, value) {
+  const keys = path.split(".");
+  let node = state.config;
+  for (const k of keys.slice(0, -1)) {
+    if (typeof node[k] !== "object" || node[k] == null) node[k] = {};
+    node = node[k];
+  }
+  node[keys[keys.length - 1]] = value;
+}
+
+// ค่าเดี่ยว ๆ — [path, label, type] (type: number ค่าเริ่มต้น | text | bool)
+const CFG_FIELDS = {
+  retDailyMisc: [
+    ["daily_quests.all_clear_bonus.gold", "โบนัสเคลียร์ครบทุกภารกิจ: ทอง"],
+    ["daily_quests.all_clear_bonus.exp", "โบนัสเคลียร์ครบทุกภารกิจ: EXP"],
+    ["daily_quests.streak_daily_gold", "ทองที่ได้ตอนเช็คอินวันใหม่"],
+  ],
+  retSeasonMisc: [
+    ["season_pass.enabled", "เปิดใช้ซีซั่นพาส", "bool"],
+    ["season_pass.price_gold", "ราคาสายพรีเมียม (ทองสด)"],
+  ],
+  retWeeklyMisc: [
+    ["weekly_ranking.enabled", "เปิดใช้อันดับรายสัปดาห์", "bool"],
+    ["weekly_ranking.min_points", "แต้มขั้นต่ำถึงมีสิทธิ์รับรางวัล"],
+  ],
+  retPetChance: [
+    ["pets.tame_chance.Common", "โอกาสจับจากมอนธรรมดา %"],
+    ["pets.tame_chance.Mini-Boss", "โอกาสจับจากมินิบอส %"],
+    ["pets.tame_chance.Main-Boss", "โอกาสจับจากบอสใหญ่ %"],
+    ["pets.tame_chance.Secret", "โอกาสจับจากมอนลับ %"],
+    ["pets.tame_chance.Unbeatable", "โอกาสจับจากไร้พ่าย %"],
+  ],
+  retMarketPartner: [
+    ["market.enabled", "เปิดใช้ตลาดผู้เล่น", "bool"],
+    ["market.tax_percent", "ค่าธรรมเนียมตลาด % (หักจากคนขาย)"],
+    ["market.min_price", "ราคาต่ำสุดที่ลงขายได้"],
+    ["market.max_price", "ราคาสูงสุดที่ลงขายได้"],
+    ["market.max_listings_per_player", "ลงขายได้สูงสุดกี่รายการต่อคน"],
+    ["partner.wedding_cost", "ค่าจัดงานคู่หู (คนละเท่านี้)"],
+    ["partner.divorce_cost", "ค่าดำเนินการหย่า"],
+    ["partner.solo_bonus_percent", "โบนัสตอนมีคู่ %"],
+    ["partner.together_bonus_percent", "โบนัสตอนคู่เล่นวันเดียวกัน %"],
+  ],
+};
+
+// ตารางแถวซ้ำ — cols: [คีย์ในแถว, ชนิด, อ่านอย่างเดียว?]
+const ROW_TABLES = {
+  retDailyQuests: { path: "daily_quests.quests", cols: [
+    ["key", "text", true], ["label", "text"], ["target", "number"], ["gold", "number"], ["exp", "number"]] },
+  retStreak: { path: "daily_quests.streak_rewards", cols: [
+    ["day", "number"], ["gold", "number"], ["item", "text"]] },
+  retWeeklyRewards: { path: "weekly_ranking.rewards", cols: [["gold", "number"], ["exp", "number"]],
+    rowLabel: i => ["🥇 อันดับ 1", "🥈 อันดับ 2", "🥉 อันดับ 3"][i] || `อันดับ ${i + 1}` },
+  retSeasonTiers: { path: "season_pass.tiers", cols: [
+    ["points", "number"], ["free.gold", "number"], ["free.exp", "number"], ["free.item", "text"],
+    ["premium.gold", "number"], ["premium.exp", "number"], ["premium.item", "text"]],
+    rowLabel: i => `ขั้น ${i + 1}` },
+  retAchievements: { path: "achievements", cols: [
+    ["key", "text", true], ["label", "text"], ["desc", "text"], ["stat", "text", true],
+    ["target", "number"], ["gold", "number"], ["title", "text"]] },
+  retPets: { path: "pets.list", cols: [
+    ["key", "text", true], ["name", "text"], ["desc", "text"], ["from_rank", "text", true], ["dice", "number"]] },
+};
+
+function renderRetention() {
+  for (const [boxId, fields] of Object.entries(CFG_FIELDS)) {
+    const box = document.getElementById(boxId);
+    if (!box) continue;
+    box.innerHTML = fields.map(([path, label, type]) => {
+      const v = cfgGet(path);
+      if (type === "bool") {
+        return `<label>${label}<select data-cfg="${path}" data-type="bool">
+          <option value="1"${v ? " selected" : ""}>เปิด</option>
+          <option value="0"${v ? "" : " selected"}>ปิด</option></select></label>`;
+      }
+      return `<label>${label}<input type="${type === "text" ? "text" : "number"}" step="any"
+        data-cfg="${path}" data-type="${type || "number"}" value="${v ?? ""}"></label>`;
+    }).join("");
+  }
+
+  for (const [tableId, spec] of Object.entries(ROW_TABLES)) {
+    const tbody = document.querySelector(`#${tableId} tbody`);
+    if (!tbody) continue;
+    const rows = cfgGet(spec.path) || [];
+    tbody.innerHTML = rows.map((row, i) => {
+      const lead = spec.rowLabel ? `<td>${spec.rowLabel(i)}</td>` : "";
+      return `<tr>${lead}` + spec.cols.map(([col, type, ro]) =>
+        `<td><input type="${type === "text" ? "text" : "number"}" step="any"
+          data-table="${tableId}" data-i="${i}" data-col="${col}" data-type="${type}"
+          value="${cfgGet(col, row) ?? ""}"${ro ? " readonly class=\"ro\"" : ""}></td>`).join("") + "</tr>";
+    }).join("");
+  }
+}
+
+async function retentionSave() {
+  document.querySelectorAll("[data-cfg]").forEach(inp => {
+    const t = inp.dataset.type;
+    if (t === "bool") return cfgSet(inp.dataset.cfg, inp.value === "1");
+    if (t === "text") return cfgSet(inp.dataset.cfg, inp.value.trim() || null);
+    cfgSet(inp.dataset.cfg, inp.value === "" ? null : Number(inp.value));
+  });
+
+  document.querySelectorAll("[data-table]").forEach(inp => {
+    const spec = ROW_TABLES[inp.dataset.table];
+    const rows = cfgGet(spec.path);
+    if (!Array.isArray(rows)) return;
+    const row = rows[Number(inp.dataset.i)];
+    if (!row) return;
+    const value = inp.dataset.type === "text"
+      ? (inp.value.trim() || null)
+      : (inp.value === "" ? null : Number(inp.value));
+    // คีย์แบบ "free.gold" = เขียนซ้อนชั้นเข้าไปในแถว
+    const keys = inp.dataset.col.split(".");
+    let node = row;
+    for (const k of keys.slice(0, -1)) {
+      if (typeof node[k] !== "object" || node[k] == null) node[k] = {};
+      node = node[k];
+    }
+    node[keys[keys.length - 1]] = value;
+  });
+
   await saveConfig();
 }

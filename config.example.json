@@ -1304,123 +1304,152 @@
         "label": "☠️ พิษป่า",
         "turns": 20,
         "dmg_min": 3,
-        "dmg_max": 6
+        "dmg_max": 6,
+        "unit": "ก้าว"
       },
       "numb": {
         "label": "🥶 ชา",
-        "turns": 6
+        "turns": 6,
+        "unit": "ก้าว"
       },
       "emp": {
         "label": "⚡ โดน EMP",
-        "turns": 1
+        "turns": 1,
+        "unit": "ไฟต์"
       },
       "exp_blessing": {
         "label": "🌟 พรบรรพชน",
-        "turns": 10
+        "turns": 10,
+        "unit": "ก้าว"
       },
       "bleed": {
         "label": "🩸 เลือดไหล",
         "turns": 5,
         "dmg_min": 4,
-        "dmg_max": 8
+        "dmg_max": 8,
+        "unit": "ก้าว"
       },
       "frostbite": {
         "label": "🥶 หนาวกัดกระดูก",
         "turns": 999,
         "dmg_min": 2,
-        "dmg_max": 4
+        "dmg_max": 4,
+        "unit": "ก้าว"
       },
       "illegal_buff": {
         "label": "💪 ยาโด๊ปเถื่อน",
-        "turns": 15
+        "turns": 15,
+        "unit": "ก้าว"
       },
       "sealed_dice": {
         "label": "🎲 เต๋าถูกผนึก",
-        "turns": 5
+        "turns": 5,
+        "unit": "ก้าว"
       },
       "fumble": {
         "label": "🤲 เต๋าหลุดมือ",
-        "turns": 4
+        "turns": 4,
+        "unit": "ก้าว"
       },
       "burn": {
         "label": "🔥 แผลแผดเผา",
-        "turns": 3
+        "turns": 3,
+        "unit": "ไฟต์"
       },
       "entangled": {
         "label": "🌱 รากไม้พันธนาการ",
-        "turns": 3
+        "turns": 3,
+        "unit": "ไฟต์"
       },
       "odd_curse": {
         "label": "🌑 คำสาปแต้มคี่",
-        "turns": 8
+        "turns": 8,
+        "unit": "ก้าว"
       },
       "even_curse": {
         "label": "🌕 คำสาปแต้มคู่",
-        "turns": 8
+        "turns": 8,
+        "unit": "ก้าว"
       },
       "shock": {
         "label": "⚡ ไฟฟ้าสถิต",
-        "turns": 2
+        "turns": 2,
+        "unit": "ไฟต์"
       },
       "spores": {
         "label": "🍄 สปอร์เห็ดรา",
-        "turns": 1
+        "turns": 1,
+        "unit": "ก้าว"
       },
       "mushroom_bloom": {
         "label": "🍄 เห็ดงอกทั่วร่าง",
-        "turns": 6
+        "turns": 6,
+        "unit": "ก้าว"
       },
       "zombie_parasite": {
         "label": "🧟 เชื้อซอมบี้",
-        "turns": 1
+        "turns": 1,
+        "unit": "ก้าว"
       },
       "zombie_frenzy": {
         "label": "🧟 คลั่งซอมบี้",
-        "turns": 5
+        "turns": 5,
+        "unit": "ก้าว"
       },
       "element_flux": {
         "label": "🧪 ธาตุวิปริต",
-        "turns": 1
+        "turns": 1,
+        "unit": "ไฟต์"
       },
       "warm": {
         "label": "🔆 อบอุ่น",
-        "turns": 10
+        "turns": 10,
+        "unit": "ก้าว"
       },
       "emp_shield": {
         "label": "💾 เกราะกันคลื่น",
-        "turns": 1
+        "turns": 1,
+        "unit": "ไฟต์"
       },
       "featherfall": {
         "label": "🪶 ขนนก",
-        "turns": 30
+        "turns": 30,
+        "unit": "ก้าว"
       },
       "holy_guard": {
         "label": "✝️ คุ้มครองศักดิ์สิทธิ์",
-        "turns": 3
+        "turns": 3,
+        "unit": "ไฟต์"
       },
       "weighted_dice": {
         "label": "🎲 เต๋าถ่วงน้ำหนัก",
-        "turns": 1
+        "turns": 1,
+        "unit": "ไฟต์"
       },
       "clover": {
         "label": "🍀 โคลเวอร์นำโชค",
-        "turns": 1
+        "turns": 1,
+        "unit": "ไฟต์"
       },
       "convoy_compass": {
         "label": "🧭 เข็มทิศขบวนหลวง",
-        "turns": 20
+        "turns": 20,
+        "unit": "ก้าว"
       },
       "monster_lure": {
         "label": "🥩 กลิ่นเหยื่อล่อ",
-        "turns": 15
+        "turns": 15,
+        "unit": "ก้าว"
       },
       "monster_ward": {
         "label": "🕯️ ควันธูปไล่มอน",
-        "turns": 15
+        "turns": 15,
+        "unit": "ก้าว"
       },
       "obsidian_edge": {
         "label": "🌋 คมอัคนีเพลิง",
-        "turns": 1
+        "turns": 1,
+        "unit": "ไฟต์"
       }
     }
   },
