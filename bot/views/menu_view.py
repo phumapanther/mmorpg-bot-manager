@@ -135,6 +135,23 @@ class TopBoardView(discord.ui.View):
         return cb
 
 
+class DailyView(discord.ui.View):
+    """ปุ่มรับรางวัลภารกิจรายวัน (C1)"""
+    def __init__(self, user_id):
+        super().__init__(timeout=180)
+        self.user_id = user_id
+
+    async def interaction_check(self, interaction):
+        return interaction.user.id == self.user_id
+
+    @discord.ui.button(label="🎁 รับรางวัลที่ทำครบแล้ว", style=discord.ButtonStyle.success)
+    async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
+        from bot import daily
+        msg = daily.claim_all(interaction.user.id)
+        embed = daily.build_daily_embed(interaction.user.id, interaction.user.display_name)
+        await interaction.response.edit_message(content=msg, embed=embed, view=self)
+
+
 class BagActionView(discord.ui.View):
     """ปุ่มลัดในกระเป๋า (B5) — ขายวัสดุรวดเดียว ไม่ต้องขายทีละชิ้นที่ร้าน"""
     def __init__(self, user_id):
@@ -274,6 +291,13 @@ class GameMenuView(discord.ui.View):
             return await interaction.response.send_message("❌ ไม่พบข้อมูลตัวละครของคุณ! พิมพ์ `!play` ก่อนนะ", ephemeral=True)
         embed = create_profile_embed(interaction.user, player)
         await interaction.response.send_message(embed=embed, view=ProfilePageView(interaction.user), ephemeral=True)
+
+    @discord.ui.button(label="📅 ภารกิจวันนี้", style=discord.ButtonStyle.success, custom_id="game_menu:daily")
+    async def daily_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        from bot import daily
+        await interaction.response.send_message(
+            embed=daily.build_daily_embed(interaction.user.id, interaction.user.display_name),
+            view=DailyView(interaction.user.id), ephemeral=True)
 
     @discord.ui.button(label="📕 สมุดมอน", style=discord.ButtonStyle.secondary, custom_id="game_menu:bestiary")
     async def bestiary_button(self, interaction: discord.Interaction, button: discord.ui.Button):

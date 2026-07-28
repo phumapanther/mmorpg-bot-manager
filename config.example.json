@@ -1261,5 +1261,64 @@
       "gold_mult": 1000,
       "exp_reward": 1000
     }
+  },
+  "daily_quests": {
+    "quests": [
+      {
+        "key": "kill",
+        "label": "⚔️ ล่ามอนสเตอร์",
+        "target": 10,
+        "gold": 5000,
+        "exp": 200
+      },
+      {
+        "key": "walk",
+        "label": "🧭 ออกเดินทาง",
+        "target": 20,
+        "gold": 3000,
+        "exp": 150
+      },
+      {
+        "key": "boss",
+        "label": "👑 ล้มบอส (มินิบอสขึ้นไป)",
+        "target": 2,
+        "gold": 8000,
+        "exp": 400
+      },
+      {
+        "key": "item",
+        "label": "🧪 ใช้ไอเทม",
+        "target": 3,
+        "gold": 2000,
+        "exp": 100
+      }
+    ],
+    "all_clear_bonus": {
+      "gold": 20000,
+      "exp": 1000
+    },
+    "streak_rewards": [
+      {
+        "day": 3,
+        "gold": 10000,
+        "item": null
+      },
+      {
+        "day": 7,
+        "gold": 50000,
+        "item": "31"
+      },
+      {
+        "day": 14,
+        "gold": 150000,
+        "item": "60"
+      },
+      {
+        "day": 30,
+        "gold": 500000,
+        "item": "51"
+      }
+    ],
+    "streak_daily_gold": 1000
   }
 }

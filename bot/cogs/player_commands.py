@@ -368,6 +368,12 @@ def apply_item_effect(user_id, item_id):
 
     inv_array.remove(item_id)
     player_model.update_player_field(user_id, "inventory", inv_array)
+    # 📅 C1: นับเควสรายวัน (ใช้ไอเทม)
+    try:
+        from bot import daily as _daily
+        _daily.track(user_id, "item", 1)
+    except Exception as _e:
+        print(f"⚠️ [daily] นับเควสใช้ไอเทมพัง: {_e}")
     return True, msg
 
 
@@ -528,7 +534,9 @@ def build_codex_embed(topic=""):
             "`!adv` สร้างห้องผจญภัยส่วนตัว • `!play` เริ่มออกเดินทาง\n"
             "`!profile` (`!info`) โปรไฟล์+ธาตุ+อาร์ติแฟกต์ • `!scan @คน` ส่องข้อมูลคนอื่น\n"
             "`!codex <หมวด>` สารานุกรมกติกา • `!reward` รับรางวัลประจำยศ\n"
-            "`!bestiary` สมุดสะสมมอนสเตอร์ (ล่าครบมีโบนัสทอง)"))
+            "`!bestiary` สมุดสะสมมอนสเตอร์ (ล่าครบมีโบนัสทอง)
+"
+            "`!daily` **ภารกิจรายวัน + เช็คอินต่อเนื่อง** — ทำครบรับทองก้อนโต!"))
         embed.add_field(name="🎒 กระเป๋า & ไอเทม", inline=False, value=(
             "`!bag` ดูกระเป๋า *(มีปุ่ม 🔨 คราฟ · 🗑️ ทิ้ง · 🧱 ขายวัสดุ ในตัว)* • `!use <เลข>` • `!drop <เลข>`\n"
             "`!give @คน <เลข>` ส่งของให้เพื่อน • `!recipes` สูตรคราฟ • `!craft <เลข>` คราฟของ"))
@@ -898,6 +906,25 @@ class PlayerCommands(commands.Cog):
                          + ("🔥 ธีมสงครามฝ่ายกำลังลุกโหม — ออกล่าแชมเปี้ยนได้เลย!" if active
                             else "🕊️ สัปดาห์นี้ไม่ใช่ธีมสงคราม — แต้มจะเริ่มนับเมื่อธีม ⚔️ สงครามฝ่าย มาถึง")))
         await ctx.send(embed=embed)
+
+    # --- 📅 !daily: ภารกิจรายวัน + ล็อกอินต่อเนื่อง (C1) ---
+    @adventure_room_only()   # เล่นในมิติส่วนตัวเหมือนคำสั่งผู้เล่นอื่น
+    @commands.command(name="daily", aliases=["เควส", "quest"])
+    async def daily_quests(self, ctx):
+        from bot import daily
+        from bot.views.menu_view import DailyView
+        streak, _best, is_new = player_model.touch_login_streak(ctx.author.id)
+        if is_new:
+            bonus_gold = int(config_loader.get_daily_cfg("streak_daily_gold", 0))
+            if bonus_gold:
+                player = player_model.get_player(ctx.author.id)
+                player_model.update_player_field(ctx.author.id, "cash", player.get("cash", 0) + bonus_gold)
+                await ctx.send(f"🌅 **เช็คอินวันใหม่!** รับ 🪙 `{bonus_gold:,}` ทอง (ต่อเนื่องวันที่ {streak})")
+            milestone = daily.claim_streak_reward(ctx.author.id, streak)
+            if milestone:
+                await ctx.send(milestone)
+        await ctx.send(embed=daily.build_daily_embed(ctx.author.id, ctx.author.display_name),
+                       view=DailyView(ctx.author.id))
 
     # --- 🏆 !top: อันดับรวมทุกหมวด (O6 — ยุบจาก 4 คำสั่งเดิม ชื่อเดิมยังใช้เป็นทางลัดได้) ---
     @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น

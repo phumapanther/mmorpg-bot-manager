@@ -706,3 +706,87 @@ def get_my_rank(user_id, kind):
     total = cursor.fetchone()[0]
     conn.close()
     return better + 1, my_value, total
+
+
+# ===== 📅 เควสรายวัน + Login Streak (C1) =====
+
+def _today():
+    import datetime
+    return datetime.date.today().isoformat()
+
+
+def _ensure_daily(cursor):
+    cursor.execute("""CREATE TABLE IF NOT EXISTS daily_quests (
+        user_id INTEGER, day TEXT, quest_key TEXT, progress INTEGER DEFAULT 0,
+        claimed INTEGER DEFAULT 0, PRIMARY KEY (user_id, day, quest_key))""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS login_streak (
+        user_id INTEGER PRIMARY KEY, last_day TEXT, streak INTEGER DEFAULT 0, best INTEGER DEFAULT 0)""")
+
+
+def get_daily_progress(user_id, day=None):
+    """ความคืบหน้าเควสวันนี้ — {quest_key: (progress, claimed)}"""
+    day = day or _today()
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_daily(cursor)
+    cursor.execute("SELECT quest_key, progress, claimed FROM daily_quests WHERE user_id = ? AND day = ?",
+                   (user_id, day))
+    rows = {k: (p, bool(c)) for k, p, c in cursor.fetchall()}
+    conn.close()
+    return rows
+
+
+def add_daily_progress(user_id, quest_key, amount=1, day=None):
+    """+ความคืบหน้าเควส — คืนค่าสะสมใหม่ (เควสที่รับรางวัลแล้วไม่นับต่อ)"""
+    day = day or _today()
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_daily(cursor)
+    cursor.execute("""INSERT INTO daily_quests (user_id, day, quest_key, progress) VALUES (?, ?, ?, ?)
+                      ON CONFLICT(user_id, day, quest_key) DO UPDATE SET progress = progress + ?""",
+                   (user_id, day, quest_key, amount, amount))
+    cursor.execute("SELECT progress FROM daily_quests WHERE user_id = ? AND day = ? AND quest_key = ?",
+                   (user_id, day, quest_key))
+    total = cursor.fetchone()[0]
+    conn.commit()
+    conn.close()
+    return total
+
+
+def claim_daily(user_id, quest_key, day=None):
+    """รับรางวัลเควส — True = เพิ่งรับสำเร็จ, False = รับไปแล้ว"""
+    day = day or _today()
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_daily(cursor)
+    cursor.execute("UPDATE daily_quests SET claimed = 1 WHERE user_id = ? AND day = ? AND quest_key = ? AND claimed = 0",
+                   (user_id, day, quest_key))
+    ok = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return ok
+
+
+def touch_login_streak(user_id, day=None):
+    """เช็คอินรายวัน — คืน (streak, best, เพิ่งเช็คอินวันนี้ครั้งแรก?)"""
+    import datetime
+    day = day or _today()
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_daily(cursor)
+    cursor.execute("SELECT last_day, streak, best FROM login_streak WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    if row and row[0] == day:
+        conn.close()
+        return row[1], row[2], False        # เช็คอินไปแล้ววันนี้
+    if row:
+        yesterday = (datetime.date.fromisoformat(day) - datetime.timedelta(days=1)).isoformat()
+        streak = row[1] + 1 if row[0] == yesterday else 1   # ขาดวัน = เริ่มนับใหม่
+        best = max(row[2], streak)
+    else:
+        streak, best = 1, 1
+    cursor.execute("INSERT OR REPLACE INTO login_streak (user_id, last_day, streak, best) VALUES (?, ?, ?, ?)",
+                   (user_id, day, streak, best))
+    conn.commit()
+    conn.close()
+    return streak, best, True

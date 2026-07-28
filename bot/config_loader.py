@@ -179,3 +179,12 @@ def get_balance_role_id(key):
 def get_monster_rank(rank_key, default=None):
     """สเปกมอนสเตอร์รายแรงค์จาก Panel — ไม่มี = ใช้ค่าในโค้ด"""
     return dict(get_config().get("monster_ranks", {}).get(rank_key) or (default or {}))
+
+
+def get_daily_quests():
+    """เควสรายวันที่ตั้งใน Panel (C1)"""
+    return list(get_config().get("daily_quests", {}).get("quests", []))
+
+
+def get_daily_cfg(key, default=None):
+    return get_config().get("daily_quests", {}).get(key, default)

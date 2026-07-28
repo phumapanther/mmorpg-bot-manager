@@ -825,6 +825,15 @@ class MonsterEventView(ActionView):
                     except Exception as e:
                         print(f"❌ [ERROR] ระบบแต้มสงครามพัง: {e}")
 
+                # 📅 C1: นับเควสรายวัน (ล่ามอน / ล้มบอส)
+                try:
+                    from bot import daily as _daily
+                    _daily.track(self.user_id, "kill", 1)
+                    if self.monster_rank in ("Mini-Boss", "Main-Boss", "Secret", "Unbeatable"):
+                        _daily.track(self.user_id, "boss", 1)
+                except Exception as e:
+                    print(f"⚠️ [daily] นับเควสล่ามอนพัง: {e}")
+
                 # 📕 สมุดสะสมมอน (Bestiary): จดแต้ม + แจกโบนัสครั้งเดียวเมื่อครบชุด — พังต้องไม่ล้มไฟต์
                 try:
                     cont_key = player.get("continent") or "main"
@@ -2403,6 +2412,13 @@ class AdventureView(ActionView):
             return
 
         await interaction.response.edit_message(content="✨ คุณเริ่มก้าวเท้าออกเดินทางตรวจตราเส้นทาง...", view=None)
+
+        # 📅 C1: นับเควสรายวัน (ออกเดินทาง) — นับทุกก้าวจริงรวมโหมดเดินรวด
+        try:
+            from bot import daily as _daily
+            _daily.track(user_id, "walk", 1)
+        except Exception as e:
+            print(f"⚠️ [daily] นับเควสเดินทางพัง: {e}")
 
         current_cooldown = player.get("village_cooldown", 0)
         if current_cooldown > 0:
