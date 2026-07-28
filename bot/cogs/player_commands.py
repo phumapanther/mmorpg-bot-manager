@@ -890,7 +890,8 @@ class PlayerCommands(commands.Cog):
     @allowed_channel("bank")
     async def check_bank(self, ctx):
         player = player_model.get_player(ctx.author.id)
-        await ctx.send(embed=build_bank_embed(player))
+        from bot.views.menu_view import BankActionView   # B1: พิมพ์ !bank ก็ได้ปุ่มธุรกรรมเหมือนกดจากเมนู
+        await ctx.send(embed=build_bank_embed(player), view=BankActionView())
 
     # ==========================================
     # 🎖️ คำสั่งรับรางวัลตามยศ (!reward) — รวมรางวัลทุกยศที่มีสิทธิ์ในครั้งเดียว
@@ -1023,7 +1024,8 @@ class PlayerCommands(commands.Cog):
             return
 
         embed = build_bag_embed(ctx.author.display_name, ctx.author.display_avatar.url, player)
-        await ctx.send(embed=embed)
+        from bot.views.menu_view import BagActionView   # B1: ปุ่มคราฟ/ขายวัสดุ ติดมากับ !bag ด้วย
+        await ctx.send(embed=embed, view=BagActionView(ctx.author.id))
     
     # ⏱️ เช็กเวลาออนไลน์ของตัวเอง
     @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
@@ -1628,3 +1630,21 @@ def craftable_now(user_id):
                           for i, n in recipe.items())
         out.append((item_id, config_loader.get_item_config(item_id).get("name", item_id), mats))
     return out
+
+
+def drop_item_for(user_id, item_id, amount=1):
+    """🗑️ B1: ทิ้งไอเทมออกจากกระเป๋า — ใช้ทั้งคำสั่ง !drop และปุ่มในกระเป๋า"""
+    player = player_model.get_player(user_id)
+    if not player:
+        return False, "❌ ไม่พบข้อมูลตัวละครของคุณ!"
+    inv = player_model.load_inventory(player.get("inventory", ""))
+    item_id = str(item_id)
+    have = inv.count(item_id)
+    if not have:
+        return False, "❌ คุณไม่มีไอเทมชิ้นนี้ในกระเป๋า!"
+    amount = max(1, min(int(amount), have))
+    for _ in range(amount):
+        inv.remove(item_id)
+    player_model.update_player_field(user_id, "inventory", json.dumps(inv))
+    name = config_loader.get_item_config(item_id).get("name", item_id)
+    return True, f"🗑️ ทิ้ง **{name}** ×{amount} ทิ้งแล้ว (เหลือของในกระเป๋า {len(inv)} ชิ้น)"

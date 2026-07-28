@@ -5,7 +5,7 @@ import bot.models.player_model as player_model
 from bot import config_loader
 from bot.cogs.player_commands import (apply_item_effect, bank_action, build_bag_embed,
                                       build_bank_embed, build_bestiary_embed, build_codex_embed,
-                                      craft_for, craftable_now, sell_all_junk)
+                                      craft_for, craftable_now, drop_item_for, sell_all_junk)
 from bot.views.profile_embed import create_profile_embed
 
 # หัวข้อคู่มือในปุ่ม 📖 — ค่า value ตรงกับ topic ของ !codex เป๊ะ
@@ -87,6 +87,29 @@ class CraftView(discord.ui.View):
         self.add_item(CraftSelect(options_data))
 
 
+class DropSelect(discord.ui.Select):
+    """เลือกของที่จะทิ้ง (B1) — ทิ้งได้โดยไม่ต้องจำรหัสไอเทม"""
+    def __init__(self, inv_array):
+        all_items = config_loader.get_all_items()
+        counts = Counter(inv_array)
+        options = [discord.SelectOption(label=f"{all_items.get(i, {}).get('name', i)} ×{n}"[:100], value=str(i))
+                   for i, n in list(counts.items())[:25]]
+        super().__init__(placeholder="เลือกของที่จะทิ้ง (ทิ้งทีละ 1 ชิ้น)...", options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        _ok, msg = drop_item_for(interaction.user.id, self.values[0], 1)
+        player = player_model.get_player(interaction.user.id)
+        inv = player_model.load_inventory(player.get("inventory", ""))
+        view = DropView(inv) if inv else None
+        await interaction.response.edit_message(content=msg, view=view)
+
+
+class DropView(discord.ui.View):
+    def __init__(self, inv_array):
+        super().__init__(timeout=120)
+        self.add_item(DropSelect(inv_array))
+
+
 class BagActionView(discord.ui.View):
     """ปุ่มลัดในกระเป๋า (B5) — ขายวัสดุรวดเดียว ไม่ต้องขายทีละชิ้นที่ร้าน"""
     def __init__(self, user_id):
@@ -105,6 +128,14 @@ class BagActionView(discord.ui.View):
         await interaction.response.send_message(
             f"🔨 **คราฟได้ตอนนี้ {len(options)} สูตร** — เลือกจากรายการ:",
             view=CraftView(options), ephemeral=True)
+
+    @discord.ui.button(label="🗑️ ทิ้งของ", style=discord.ButtonStyle.danger)
+    async def drop_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        player = player_model.get_player(interaction.user.id)
+        inv = player_model.load_inventory((player or {}).get("inventory", ""))
+        if not inv:
+            return await interaction.response.send_message("🎒 กระเป๋าว่างเปล่า ไม่มีอะไรให้ทิ้ง!", ephemeral=True)
+        await interaction.response.send_message("🗑️ เลือกของที่จะทิ้ง:", view=DropView(inv), ephemeral=True)
 
     @discord.ui.button(label="🧱 ขายวัสดุทั้งหมด", style=discord.ButtonStyle.success)
     async def sell_junk(self, interaction: discord.Interaction, button: discord.ui.Button):

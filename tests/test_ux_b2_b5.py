@@ -140,3 +140,33 @@ def test_b6_files_got_smaller():
     import pathlib
     assert len(pathlib.Path("bot/game_modifiers.py").read_text(encoding="utf-8").splitlines()) < 900
     assert len(pathlib.Path("bot/views/fight_ui.py").read_text(encoding="utf-8").splitlines()) < 200
+
+
+# ── B1 รอบสอง: คำสั่งที่พิมพ์เองต้องได้ปุ่มเหมือนกดจากเมนู ──
+
+def test_typed_commands_attach_views():
+    """!bank / !bag พิมพ์เองต้องมีปุ่มติดมาด้วย (เดิมมีเฉพาะตอนกดจากเมนู)"""
+    import pathlib
+    src = pathlib.Path("bot/cogs/player_commands.py").read_text(encoding="utf-8")
+    assert "view=BankActionView()" in src, "!bank ไม่มีปุ่มฝาก/ถอน/โอน"
+    assert "view=BagActionView(ctx.author.id)" in src, "!bag ไม่มีปุ่มคราฟ/ทิ้ง/ขาย"
+
+
+def test_bag_has_three_action_buttons():
+    from bot.views.menu_view import BagActionView
+    labels = [b.label for b in BagActionView(1).children]
+    assert any("คราฟ" in l for l in labels) and any("ทิ้ง" in l for l in labels) \
+        and any("ขายวัสดุ" in l for l in labels)
+
+
+def test_drop_item_for(monkeypatch):
+    saved = {}
+    monkeypatch.setattr(pc.player_model, "get_player", lambda uid: {"inventory": ["9", "9", "1"]})
+    monkeypatch.setattr(pc.player_model, "load_inventory", lambda raw: ["9", "9", "1"])
+    monkeypatch.setattr(pc.player_model, "update_player_field", lambda uid, f, v: saved.__setitem__(f, v))
+    monkeypatch.setattr(pc.config_loader, "get_item_config", lambda i: ITEMS.get(str(i), {}))
+
+    ok, msg = pc.drop_item_for(1, "9", 1)
+    assert ok and json.loads(saved["inventory"]) == ["9", "1"]
+    ok2, msg2 = pc.drop_item_for(1, "77", 1)          # ไม่มีของชิ้นนี้
+    assert not ok2 and "ไม่มีไอเทม" in msg2
