@@ -36,6 +36,10 @@ def not_arrested():
 
 def allowed_channel(feature_key):
     async def predicate(ctx):
+        # 🌍 P8: เซิร์ฟรองมีห้องของตัวเอง (ตั้งด้วย !set_adv_channel) — ห้องใน config เป็นของเซิร์ฟหลัก
+        # ด่านห้องรายเซิร์ฟถูกคุมโดย guest_server.channel_gate อยู่แล้ว ตรงนี้จึงปล่อยผ่าน
+        if not is_main_server(ctx):
+            return True
         target = config_loader.get_channel_id(feature_key)
         if target is None:
             return True  # feature not mapped to a channel yet → don't block

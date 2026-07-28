@@ -4,7 +4,7 @@ import bot.models.player_model as player_model
 from bot import config_loader
 from bot.views.profile_embed import create_profile_embed
 from bot.views.profile_embed import GAME_RACES, GAME_CLASSES
-from bot.utils import not_arrested, allowed_channel, main_server_only
+from bot.utils import not_arrested, allowed_channel, main_server_only, is_main_server
 
 class GameCommands(commands.Cog):
     def __init__(self, bot):
@@ -228,10 +228,11 @@ class GameCommands(commands.Cog):
         user_id = ctx.author.id
         
         # 🔒 [ระบบรักษาความปลอดภัยพื้นที่] ดักเช็กให้ใช้คำสั่งได้เฉพาะในห้องมิติส่วนตัวของตัวเองเท่านั้น!
+        # 🌍 P8: เซิร์ฟรองเล่นในห้องที่แอดมินผูกไว้ได้เลย (ไม่บังคับเปิดมิติส่วนตัวก่อน)
         required_room_part = f"มิติส่วนตัว-{ctx.author.name.lower()}"
         current_room_name = ctx.channel.name.lower()
 
-        if required_room_part not in current_room_name:
+        if is_main_server(ctx) and required_room_part not in current_room_name:
             # ใช้ ephemeral=True เพื่อส่งข้อความกระซิบเตือนเห็นคนเดียว ไม่รบกวนช่องแชทหลัก
             await ctx.send(
                 f"❌ **[พื้นที่ไม่ถูกต้อง]** คุณ {ctx.author.mention} ไม่สามารถเริ่มผจญภัยตรงนี้ได้ครับ!\n"

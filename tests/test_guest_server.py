@@ -49,3 +49,30 @@ def test_channel_gate(tmp_path, monkeypatch):
     assert asyncio.run(cog.channel_gate(_gate_ctx(1, 555, sent, command="set_adv_channel"))) is True
     # เซิร์ฟหลักไม่ถูกด่านนี้จำกัด
     assert asyncio.run(cog.channel_gate(_gate_ctx(999, 777, sent))) is True
+
+
+def test_allowed_channel_skips_on_secondary_server(monkeypatch):
+    """P8: เซิร์ฟรองใช้ห้องของตัวเอง — ด่านห้องจาก config (ของเซิร์ฟหลัก) ต้องไม่บล็อก"""
+    import asyncio
+    from bot import utils
+    monkeypatch.setattr(config_loader, "get_main_guild_id", lambda: 999)
+    monkeypatch.setattr(config_loader, "get_channel_id", lambda key: 12345)  # ห้องเซิร์ฟหลัก
+    predicate = utils.allowed_channel("adventure").predicate
+
+    async def _noop(*a, **k):
+        return SimpleNamespace(delete=lambda: None)
+
+    secondary = SimpleNamespace(guild=SimpleNamespace(id=111), channel=SimpleNamespace(id=777),
+                                send=_noop, message=SimpleNamespace(delete=_noop))
+    assert asyncio.run(predicate(secondary)) is True      # เซิร์ฟรอง = ผ่าน (ด่านรายเซิร์ฟคุมแทน)
+
+    main_wrong_room = SimpleNamespace(guild=SimpleNamespace(id=999), channel=SimpleNamespace(id=777),
+                                      send=_noop, message=SimpleNamespace(delete=_noop))
+    assert asyncio.run(predicate(main_wrong_room)) is False   # เซิร์ฟหลักยังบังคับห้องตามเดิม
+
+
+def test_play_room_rule_only_on_main_server():
+    """!play ในเซิร์ฟรองไม่ต้องเปิดมิติส่วนตัวก่อน"""
+    import pathlib
+    src = pathlib.Path("bot/cogs/game_commands.py").read_text(encoding="utf-8")
+    assert "if is_main_server(ctx) and required_room_part not in current_room_name:" in src
