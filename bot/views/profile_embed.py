@@ -39,7 +39,8 @@ CLASS_SKILLS = {
     "Unknown": ["❓ ไม่มีสกิล (กรุณารับยศคลาสอาชีพก่อน)"]
 }
 
-def create_profile_embed(target_member, player_data):
+def create_profile_embed(target_member, player_data, page="status"):
+    """หน้าโปรไฟล์ (B2) — page: status / equip / progress"""
     player_level = player_data.get("level", 1)
     rank = player_data.get("rank", "None")
     
@@ -107,7 +108,9 @@ def create_profile_embed(target_member, player_data):
 
     # 🎨 สีโปรไฟล์ส่วนตัว (ย้อมด้วยผงสีรุ้ง) — ไม่เคยย้อม = สีม่วงมาตรฐาน
     profile_color = player_data.get("profile_color") or 0x9b59b6
-    embed = discord.Embed(title=f"👤 ข้อมูลตัวละคร: {target_member.display_name}", color=profile_color)
+    page_title = {"status": "👤 สถานะตัวละคร", "equip": "🛡️ อุปกรณ์ & สกิล",
+                  "progress": "📊 ความคืบหน้า"}.get(page, "👤 ข้อมูลตัวละคร")
+    embed = discord.Embed(title=f"{page_title}: {target_member.display_name}", color=profile_color)
     embed.set_thumbnail(url=target_member.display_avatar.url)
     
     # 📊 สเตตัสหลัก
@@ -119,23 +122,14 @@ def create_profile_embed(target_member, player_data):
     embed.add_field(name="🧬 เผ่าพันธุ์", value=f"🟢 {detected_race}\n\n\n\n👑 **{player_faction} (สติ {sanity})**", inline=True)
     embed.add_field(name="⚔️ คลาสอาชีพ", value=f"🔵 {detected_class}", inline=True)
  
-    embed.add_field(name="​", value="​", inline=False) 
-
-    # 🛡️ อุปกรณ์ & ความทนทาน (เพิ่มอาวุธและความทนทาน)
-    embed.add_field(name="⚔️ อาวุธที่ถือ", value=f"**{weapon_info['name']}**\nความทนทาน: `{player_data.get('weapon_dur', 0)}/{weapon_info['dur']}`", inline=True)
-    embed.add_field(name="🛡️ เกราะที่สวม", value=f"**{armor_info['name']}**\nความทนทาน: `{player_data.get('armor_dur', 0)}/{armor_info['dur']}`", inline=True)
-    
-    embed.add_field(
-        name="🎒 กระเป๋าสัมภาระ", 
-        value=f"บรรจุไอเทมอยู่: `{len(inv_list)} / {cap_display}` ชิ้น\n\n", 
-        inline=False
-    )
-
-    # 💨 สถานะการป้องกัน/การซ่อนตัว
-    embed.add_field(name="💨 หลบหลีก / 👁️ มองเห็น", value=f"🏃 {armor_info['eva']}% / ⚠️ ระดับ: {armor_info['vis']}", inline=False)
-    
-    # 🔥 สกิล
-    embed.add_field(name="🔥 สกิลประจำคลาส", value=f"```\n{skills_text}\n```", inline=False)
+    # 🛡️ B2: อุปกรณ์/สกิล อยู่หน้า "อุปกรณ์" (กดปุ่มสลับ) — หน้าแรกเหลือเฉพาะสถานะตัวละคร
+    if page == "equip":
+        embed.add_field(name="⚔️ อาวุธที่ถือ", value=f"**{weapon_info['name']}**\nความทนทาน: `{player_data.get('weapon_dur', 0)}/{weapon_info['dur']}`", inline=True)
+        embed.add_field(name="🛡️ เกราะที่สวม", value=f"**{armor_info['name']}**\nความทนทาน: `{player_data.get('armor_dur', 0)}/{armor_info['dur']}`", inline=True)
+        embed.add_field(name="🎒 กระเป๋าสัมภาระ", value=f"บรรจุไอเทมอยู่: `{len(inv_list)} / {cap_display}` ชิ้น", inline=False)
+        embed.add_field(name="💨 หลบหลีก / 👁️ มองเห็น", value=f"🏃 {armor_info['eva']}% / ⚠️ ระดับ: {armor_info['vis']}", inline=False)
+        embed.add_field(name="🔥 สกิลประจำคลาส", value=f"```\n{skills_text}\n```", inline=False)
+        return embed
 
     # ─── 🌍 โลก & ธาตุ & ของติดตัว (ระบบขยายใหญ่) ───
     continent_label = game_modifiers.get_continent(player_data)["label"]
@@ -159,6 +153,29 @@ def create_profile_embed(target_member, player_data):
     artifact_keys = [k for k in statuses if game_modifiers.STATUS_EFFECTS[k].get("artifact")]
     normal_statuses = {k: v for k, v in statuses.items() if k not in artifact_keys}
     artifact_text = game_modifiers.STATUS_EFFECTS[artifact_keys[0]]["label"] if artifact_keys else "- ว่าง -"
+
+    if page == "progress":
+        # 📊 B2/B4: หน้าความคืบหน้า — EXP / สมุดล่า / กิลด์
+        import bot.models.player_model as _pm
+        need_xp = (player_level ** 2) * 70
+        cur_xp = player_data.get("exp", 0)
+        filled = round(min(cur_xp / max(1, need_xp), 1) * 12)
+        embed.add_field(name="📊 ประสบการณ์",
+                        value=f"`{'█' * filled}{'░' * (12 - filled)}` `{cur_xp:,}/{need_xp:,}` XP", inline=False)
+        try:
+            book = _pm.get_bestiary(target_member.id)
+            slots = sum(1 for c in game_modifiers.CONTINENTS for r in game_modifiers.BESTIARY_RANKS if (c, r) in book)
+            embed.add_field(name="📕 สมุดล่ามอน",
+                            value=f"ช่องสมุด `{slots}/36` · ล้มสะสม `{sum(book.values()):,}` ตัว  (`!bestiary`)",
+                            inline=False)
+            g = _pm.get_guild_of(target_member.id)
+            embed.add_field(name="🏰 กิลด์",
+                            value=(f"{g['icon']} **{g['name']}** · คลัง `{g['treasury']:,}` ทอง" if g
+                                   else "ยังไม่มีกิลด์ — `!guild create <ชื่อ>`"), inline=False)
+        except Exception:
+            pass
+        embed.add_field(name="🗺️ ทวีปปัจจุบัน", value=continent_label, inline=True)
+        return embed
 
     embed.add_field(name="🗺️ ทวีปปัจจุบัน", value=continent_label, inline=True)
     embed.add_field(name="🧬 ธาตุประจำตัว", value=element_text, inline=True)

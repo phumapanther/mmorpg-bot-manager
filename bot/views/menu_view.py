@@ -4,7 +4,8 @@ from collections import Counter
 import bot.models.player_model as player_model
 from bot import config_loader
 from bot.cogs.player_commands import (apply_item_effect, bank_action, build_bag_embed,
-                                      build_bank_embed, build_bestiary_embed, build_codex_embed)
+                                      build_bank_embed, build_bestiary_embed, build_codex_embed,
+                                      sell_all_junk)
 from bot.views.profile_embed import create_profile_embed
 
 # หัวข้อคู่มือในปุ่ม 📖 — ค่า value ตรงกับ topic ของ !codex เป๊ะ
@@ -37,6 +38,49 @@ class CodexView(discord.ui.View):
         if show_portal and invite:
             self.add_item(discord.ui.Button(
                 label="🌏 ไปต่างโลก (เซิร์ฟหลัก)", style=discord.ButtonStyle.link, url=invite))
+
+
+class ProfilePageView(discord.ui.View):
+    """ปุ่มสลับหน้าโปรไฟล์ (B2) — สถานะ / อุปกรณ์ / ความคืบหน้า"""
+    PAGES = [("👤 สถานะ", "status"), ("🛡️ อุปกรณ์", "equip"), ("📊 ความคืบหน้า", "progress")]
+
+    def __init__(self, member, current="status"):
+        super().__init__(timeout=180)
+        self.member = member
+        for label, key in self.PAGES:
+            btn = discord.ui.Button(
+                label=label,
+                style=discord.ButtonStyle.primary if key == current else discord.ButtonStyle.secondary,
+                disabled=(key == current))
+            btn.callback = self._make_cb(key)
+            self.add_item(btn)
+
+    def _make_cb(self, page):
+        async def cb(interaction: discord.Interaction):
+            player = player_model.get_player(self.member.id)
+            if not player:
+                return await interaction.response.send_message("❌ ไม่พบข้อมูลตัวละคร!", ephemeral=True)
+            await interaction.response.edit_message(
+                embed=create_profile_embed(self.member, player, page=page),
+                view=ProfilePageView(self.member, current=page))
+        return cb
+
+
+class BagActionView(discord.ui.View):
+    """ปุ่มลัดในกระเป๋า (B5) — ขายวัสดุรวดเดียว ไม่ต้องขายทีละชิ้นที่ร้าน"""
+    def __init__(self, user_id):
+        super().__init__(timeout=120)
+        self.user_id = user_id
+
+    async def interaction_check(self, interaction):
+        return interaction.user.id == self.user_id
+
+    @discord.ui.button(label="🧱 ขายวัสดุทั้งหมด", style=discord.ButtonStyle.success)
+    async def sell_junk(self, interaction: discord.Interaction, button: discord.ui.Button):
+        _sold, _gold, msg = sell_all_junk(interaction.user.id)
+        player = player_model.get_player(interaction.user.id)
+        embed = build_bag_embed(interaction.user.display_name, interaction.user.display_avatar.url, player)
+        await interaction.response.edit_message(content=msg, embed=embed, view=self)
 
 
 class BankAmountModal(discord.ui.Modal):
@@ -126,7 +170,7 @@ class GameMenuView(discord.ui.View):
         if not player:
             return await interaction.response.send_message("❌ ไม่พบข้อมูลตัวละครของคุณ! พิมพ์ `!play` ก่อนนะ", ephemeral=True)
         embed = build_bag_embed(interaction.user.display_name, interaction.user.display_avatar.url, player)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, view=BagActionView(interaction.user.id), ephemeral=True)
 
     @discord.ui.button(label="🏦 ธนาคาร", style=discord.ButtonStyle.success, custom_id="game_menu:bank")
     async def bank_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -142,7 +186,7 @@ class GameMenuView(discord.ui.View):
         if not player:
             return await interaction.response.send_message("❌ ไม่พบข้อมูลตัวละครของคุณ! พิมพ์ `!play` ก่อนนะ", ephemeral=True)
         embed = create_profile_embed(interaction.user, player)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, view=ProfilePageView(interaction.user), ephemeral=True)
 
     @discord.ui.button(label="📕 สมุดมอน", style=discord.ButtonStyle.secondary, custom_id="game_menu:bestiary")
     async def bestiary_button(self, interaction: discord.Interaction, button: discord.ui.Button):

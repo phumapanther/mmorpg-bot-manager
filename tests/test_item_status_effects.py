@@ -166,8 +166,9 @@ def test_bag_embed_survives_huge_inventory():
     total = len(embed.title or "") + len(embed.description or "") + sum(
         len(f.name) + len(f.value) for f in embed.fields)
     assert total <= 6000, f"embed รวมยาวเกิน: {total}"
-    # เรียงตามเลขไอเทม: บรรทัดแรกต้องเป็น [1]
-    assert embed.fields[0].value.startswith("**[1]**")
+    # B5: จัดกลุ่มตามประเภทแล้ว — ของใช้มาก่อน และเรียงตามเลขไอเทมในกลุ่ม
+    assert "ของใช้" in embed.fields[0].name
+    assert embed.fields[0].value.startswith("`1` ")
 
 
 def test_on_hit_status_merge_and_default(monkeypatch):

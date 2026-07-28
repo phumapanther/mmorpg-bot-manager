@@ -409,31 +409,43 @@ def build_bag_embed(display_name, avatar_url, player):
         def _sort_key(item_id):
             return (0, int(item_id)) if str(item_id).isdigit() else (1, 0)
 
-        lines = []
+        # 🎒 B5: จัดกลุ่มตามประเภท — หาของที่ต้องการเจอเร็วขึ้นมาก
+        groups = {"use": [], "equip": [], "artifact": [], "junk": []}
+        junk_value = 0
         for item_id in sorted(item_counts, key=_sort_key):
             count = item_counts[item_id]
-            item_name = all_items[item_id]["name"] if item_id in all_items else "❓ ไอเทมปริศนา"
-            lines.append(f"**[{item_id}]** {item_name} x`{count}` ชิ้น")
+            data = all_items.get(item_id, {})
+            name = data.get("name", "❓ ไอเทมปริศนา")
+            line = f"`{item_id}` {name} ×**{count}**"
+            eff = data.get("effect")
+            if eff == "equip_artifact":
+                groups["artifact"].append(line)
+            elif data.get("equip_key"):
+                groups["equip"].append(line)
+            elif eff or data.get("type") == "use":
+                groups["use"].append(line)
+            else:
+                groups["junk"].append(line + f" *(ขายได้ {data.get('sell', 0):,}/ชิ้น)*")
+                junk_value += int(data.get("sell", 0)) * count
 
-        # Discord จำกัด field ละ 1024 ตัวอักษร (และ embed รวม 6000) — ซอยรายการเป็นหลาย field
-        chunks = []
-        current = ""
-        for line in lines:
-            if len(current) + len(line) + 1 > 1024:
-                chunks.append(current)
-                current = ""
-            current += line + "\n"
-        if current:
-            chunks.append(current)
-
-        header = f"📦 ไอเทมในกระเป๋า ({len(inv_array)} / {'ไม่จำกัด' if capacity == 0 else capacity})"
-        for i, chunk in enumerate(chunks[:5]):
-            embed.add_field(name=header if i == 0 else "📦 (ต่อ)", value=chunk, inline=False)
-        if len(chunks) > 5:
-            embed.add_field(
-                name="⚠️ ของเยอะเกินจอ",
-                value="รายการที่เหลือแสดงไม่หมด แต่ยังใช้งานผ่าน `!use <เลขไอเทม>` ได้ปกติ",
-                inline=False)
+        cap_line = f"({len(inv_array)} / {'ไม่จำกัด' if capacity == 0 else capacity})"
+        sections = [
+            (f"💊 ของใช้ {cap_line}", groups["use"]),
+            ("🏺 อาร์ติแฟกต์", groups["artifact"]),
+            ("⚔️ อุปกรณ์สวมใส่", groups["equip"]),
+            (f"🧱 วัสดุ/ของขาย — ขายหมดได้ **{junk_value:,}** ทอง", groups["junk"]),
+        ]
+        for title, lines in sections:
+            if not lines:
+                continue
+            chunk, first = "", True
+            for line in lines:  # ตัดท่อนละ ≤1024 ตามลิมิต Discord
+                if len(chunk) + len(line) + 1 > 1024:
+                    embed.add_field(name=title if first else "​", value=chunk, inline=False)
+                    chunk, first = "", False
+                chunk += line + "\n"
+            if chunk:
+                embed.add_field(name=title if first else "​", value=chunk, inline=False)
 
     embed.set_thumbnail(url=avatar_url)
     return embed
@@ -1578,3 +1590,28 @@ class PlayerCommands(commands.Cog):
 # 🚨 ลบอันที่ซ้ำออกเหลือแค่อันเดียว
 async def setup(bot):
     await bot.add_cog(PlayerCommands(bot))
+
+def sell_all_junk(user_id):
+    """🧱 B5: ขายวัสดุ/ของขยะทั้งกระเป๋ารวดเดียว — คืน (จำนวนชิ้น, ทองที่ได้, ข้อความ)
+    'ของขยะ' = ไม่มี effect, ไม่ใช่อุปกรณ์สวมใส่ (ของใช้/อาร์ติแฟกต์/เกราะ/อาวุธ ปลอดภัยเสมอ)"""
+    player = player_model.get_player(user_id)
+    if not player:
+        return 0, 0, "❌ ไม่พบข้อมูลตัวละครของคุณ!"
+    inv = player_model.load_inventory(player.get("inventory", ""))
+    all_items = config_loader.get_all_items()
+
+    keep, sold, gold = [], 0, 0
+    for item_id in inv:
+        data = all_items.get(item_id, {})
+        is_junk = data and not data.get("effect") and not data.get("equip_key") and data.get("type") != "use"
+        if is_junk:
+            sold += 1
+            gold += int(data.get("sell", 0))
+        else:
+            keep.append(item_id)
+
+    if not sold:
+        return 0, 0, "🎒 ไม่มีวัสดุ/ของขายในกระเป๋าเลย (ของใช้กับอุปกรณ์ไม่ถูกขาย)"
+    player_model.update_player_fields(user_id, {
+        "inventory": json.dumps(keep), "cash": player.get("cash", 0) + gold})
+    return sold, gold, f"💰 ขายวัสดุ **{sold}** ชิ้น ได้ **{gold:,}** ทอง (เหลือของในกระเป๋า {len(keep)} ชิ้น)"

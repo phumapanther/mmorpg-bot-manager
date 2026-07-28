@@ -208,7 +208,8 @@ class GameCommands(commands.Cog):
         player_data = player_model.get_player(target_member.id)
         
         embed = create_profile_embed(target_member, player_data)
-        await ctx.send(embed=embed)
+        from bot.views.menu_view import ProfilePageView
+        await ctx.send(embed=embed, view=ProfilePageView(target_member))
 
     # ─── 🕹️ เมนูปุ่มสะดวก (กระเป๋า/ธนาคาร/โปรไฟล์/ใช้ไอเทม) — ระบบเดียวกับคำสั่งเดิม แค่แยกเป็นปุ่ม ───
     @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
