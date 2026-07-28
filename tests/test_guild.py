@@ -63,8 +63,10 @@ def test_guild_channel_lock(monkeypatch):
     async def _noop(*a, **k):
         return SimpleNamespace(delete=lambda: None)
 
-    ctx = SimpleNamespace(channel=SimpleNamespace(id=111),
+    ctx = SimpleNamespace(channel=SimpleNamespace(id=111), guild=SimpleNamespace(id=42),
                           send=_noop, message=SimpleNamespace(delete=_noop))
+    # เทสนี้สนใจแค่ด่าน "ห้อง" — ตรึงด่านเซิร์ฟหลักไว้ ไม่ให้ config จริงของเครื่องมามีผล
+    monkeypatch.setattr(config_loader, "get_main_guild_id", lambda: None)
     monkeypatch.setattr(config_loader, "get_channel_id", lambda key: None)
     assert asyncio.run(cog.cog_check(ctx)) is True          # ยังไม่ผูกห้อง = ใช้ได้ทุกห้อง
     monkeypatch.setattr(config_loader, "get_channel_id", lambda key: 111)
