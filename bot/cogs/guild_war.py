@@ -10,7 +10,8 @@ import bot.models.player_model as player_model
 from bot.cogs.guild import GUILD_CATEGORY, _is_leader
 
 WAR_DURATION = 30 * 60      # ศึกยาว 30 นาที
-IDLE_TIMEOUT = 60           # ห้องเงียบ 1 นาที = จบศึก
+IDLE_TIMEOUT = 60           # ห้องเงียบ 1 นาที = เตือนก่อน (ยังสู้ต่อได้!)
+IDLE_GRACE = 30             # หลังเตือน ถ้ายังเงียบต่ออีกเท่านี้ค่อยจบศึกจริง
 FIGHT_COOLDOWN = 10         # วินาทีต่อคน
 
 # (ชนิด, โอกาส%, แต้ม, ฝั่งที่โดน: "me"=ได้แต้ม / "enemy"=ศัตรูโดนหัก, ความยากโบนัสเต๋าศัตรู)
@@ -49,6 +50,7 @@ class ActiveWar:
         self.stake = stake
         self.ends_at = time.time() + WAR_DURATION
         self.last_activity = time.time()
+        self.warned_at = None   # เวลาแจ้งเตือนห้องเงียบ — None = ยังไม่เตือน/มีคนกลับมาแล้ว
         self.cooldowns = {}
 
     def enemy_of(self, gid):
@@ -154,7 +156,7 @@ class GuildWarCog(commands.Cog):
         await channel.send(embed=discord.Embed(
             title=f"⚔️ สงคราม {guild_a['icon']} {guild_a['name']} ⚡ {guild_b['icon']} {guild_b['name']}",
             color=0xe74c3c,
-            description=(f"🕰️ ศึกยาว **30 นาที** — ห้องนี้จะสลายเมื่อเงียบเกิน **1 นาที** (สกอร์ ณ ตอนนั้นตัดสิน)\n"
+            description=(f"🕰️ ศึกยาว **30 นาที** — เงียบเกิน 1 นาทีจะมี**คำเตือน** ถ้ายังเงียบต่ออีก 30 วิ ศึกจบด้วยสกอร์ปัจจุบัน\n"
                          + (f"💰 กองกลางเดิมพัน `{stake * 2:,}` ทอง — ผู้ชนะรับไปทั้งก้อน!\n" if stake else "🏅 ศึกชิงเกียรติยศ\n")
                          + "\n**วิธีเล่น:** พิมพ์ `!fight` เพื่อออกปะทะ!\n"
                          "⚔️ ทหารศัตรู ชนะ `+1` | 👑 หัวหน้าศัตรู `+10`\n"
@@ -219,8 +221,23 @@ class GuildWarCog(commands.Cog):
         for cid, war in list(self.wars.items()):
             if now > war.ends_at:
                 await self.end_war(war, "⏰ ครบ 30 นาที — หมดเวลาสงคราม!")
-            elif now - war.last_activity > IDLE_TIMEOUT:
-                await self.end_war(war, "🍂 สนามรบเงียบเกิน 1 นาที — สงครามยุติ")
+                continue
+            # มีคนกลับมาขยับหลังโดนเตือน = ยกเลิกนับถอยหลัง ศึกดำเนินต่อ
+            if war.warned_at and war.last_activity > war.warned_at:
+                war.warned_at = None
+            if now - war.last_activity > IDLE_TIMEOUT:
+                if war.warned_at is None:
+                    war.warned_at = now
+                    battlefield = self.bot.get_channel(cid)
+                    if battlefield:
+                        try:
+                            await battlefield.send(
+                                "⚠️ **สนามรบเงียบเชียบ...** ถ้าไม่มีใครขยับภายใน **30 วินาที** ศึกจะยุติด้วยสกอร์ปัจจุบัน!\n"
+                                "พิมพ์ `!fight` (หรืออะไรก็ได้) เพื่อสู้ต่อ!")
+                        except Exception:
+                            pass
+                elif now - war.warned_at > IDLE_GRACE:
+                    await self.end_war(war, "🍂 สนามรบเงียบจนสิ้นเสียงดาบ — สงครามยุติ")
 
     @watch_wars.before_loop
     async def _wait_ready(self):
@@ -264,7 +281,7 @@ class GuildWarCog(commands.Cog):
         battlefield = self.bot.get_channel(war.channel_id)
         if battlefield:
             try:
-                await battlefield.send(summary + "\n\n💨 ห้องรบจะสลายใน 30 วินาที...")
+                await battlefield.send(summary + "\n\n🔒 สกอร์ล็อกแล้ว — 💨 ห้องรบจะสลายใน 30 วินาที...")
                 import asyncio
                 await asyncio.sleep(30)
                 await battlefield.delete(reason="สงครามจบ")
