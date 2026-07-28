@@ -5,7 +5,7 @@ import time
 
 import discord
 from discord.ext import commands, tasks
-from bot.utils import main_server_gate
+from bot.utils import allowed_channel, main_server_gate
 
 import bot.models.player_model as player_model
 from bot import config_loader
@@ -133,6 +133,7 @@ class GuildWarCog(commands.Cog):
 
     # ── เปิดศึก ──
     @commands.command(name="warguild", aliases=["วอกิลด์"])
+    @allowed_channel("guild_war")   # O8: ประกาศศึกได้เฉพาะห้องที่ตั้งไว้ (ไม่ตั้ง = ทุกห้อง)
     async def warguild(self, ctx, member: discord.Member = None, stake: int = 0):
         g = _is_leader(ctx.author.id)
         if not g:

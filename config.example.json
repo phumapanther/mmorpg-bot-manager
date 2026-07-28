@@ -65,6 +65,10 @@
     "server_status": {
       "label": "แจ้งเตือนเปิด-ปิดเซิร์ฟ",
       "channel_id": null
+    },
+    "guild_war": {
+      "label": "กิลด์วอร์ (!warguild)",
+      "channel_id": null
     }
   },
   "permission_groups": {

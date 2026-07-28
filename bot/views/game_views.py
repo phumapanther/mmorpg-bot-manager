@@ -1039,6 +1039,18 @@ class MonsterEventView(ActionView):
         await self.process_turn(interaction)
 
     # 🌱 สถานะรากพันธนาการ (no_flee): บล็อกการหนีจนกว่าสถานะจะหมด — เช็คในตัว callback ด้านล่าง
+    @discord.ui.button(label="🧪 ใช้ไอเทม", style=discord.ButtonStyle.success, row=0)
+    async def quick_item(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """O2: กินยา/ใช้ของกลางไฟต์ได้เลย (เดิมต้องผ่านปุ่มเมนูก่อน = คลิกมากกว่า)"""
+        from bot.views.menu_view import ItemUseView
+        player = player_model.get_player(self.user_id)
+        inv = player_model.load_inventory((player or {}).get("inventory", ""))
+        if not inv:
+            return await interaction.response.send_message("🎒 กระเป๋าว่างเปล่า ไม่มีของให้ใช้!", ephemeral=True)
+        await interaction.response.send_message(
+            "🧪 เลือกไอเทมที่จะใช้ *(ใช้แล้วกดสู้ต่อได้เลย ผลมีทันที)*:",
+            view=ItemUseView(inv), ephemeral=True)
+
     @discord.ui.button(label="🏃 วิ่งหนี!", style=discord.ButtonStyle.secondary, row=0)
     async def flee(self, interaction: discord.Interaction, button: discord.ui.Button):
         # 🌱 สถานะรากพันธนาการ: หนีไม่ได้จนกว่าสถานะจะหมด
@@ -1156,6 +1168,24 @@ class VillageEventView(ActionView):
             content="🏪 ยินดีต้อนรับสู่ร้านค้าประจำหมู่บ้าน! คุณต้องการซื้อหรือขายไอเทมอะไรดี?",
             view=ShopEventView(self.user_id) # เรียกใช้ View ร้านค้าที่ผมร่างให้ก่อนหน้านี้
         )
+
+    @discord.ui.button(label="🏦 ธนาคาร", style=discord.ButtonStyle.secondary)
+    async def village_bank(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """O7: จัดการเงินจากในหมู่บ้านได้เลย ไม่ต้องเดินไปห้องธนาคาร"""
+        from bot.cogs.player_commands import build_bank_embed
+        from bot.views.menu_view import BankActionView
+        player = player_model.get_player(self.user_id)
+        await interaction.response.send_message(embed=build_bank_embed(player),
+                                                view=BankActionView(), ephemeral=True)
+
+    @discord.ui.button(label="🪪 โปรไฟล์", style=discord.ButtonStyle.secondary)
+    async def village_profile(self, interaction: discord.Interaction, button: discord.ui.Button):
+        from bot.views.menu_view import ProfilePageView
+        from bot.views.profile_embed import create_profile_embed
+        player = player_model.get_player(self.user_id)
+        await interaction.response.send_message(
+            embed=create_profile_embed(interaction.user, player),
+            view=ProfilePageView(interaction.user), ephemeral=True)
 
     @discord.ui.button(label="🚶 ออกเดินทางต่อ", style=discord.ButtonStyle.secondary)
     async def leave(self, interaction: discord.Interaction, button: discord.ui.Button):
