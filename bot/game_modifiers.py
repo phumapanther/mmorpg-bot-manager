@@ -212,6 +212,15 @@ def status_combat_mult(statuses, param):
     return mult
 
 
+def status_forced_event(statuses):
+    """อีเวนต์ที่สถานะบังคับให้เจอในก้าวถัดไป (เช่น กับดักมอน) — คืน (คีย์อีเวนต์, คีย์สถานะ) หรือ (None, None)"""
+    for key in statuses:
+        forced = STATUS_EFFECTS[key].get("force_event")
+        if forced:
+            return forced, key
+    return None, None
+
+
 def has_status_flag(statuses, param):
     """มีสถานะไหนที่เปิดธง param นี้ไหม (เช่น disable_skills)"""
     return any(STATUS_EFFECTS[key].get(param) for key in statuses)
@@ -338,6 +347,10 @@ def format_status_line(statuses):
             continue
         if cfg.get("stacking"):
             parts.append(f"{cfg['label']} ({turns}/{cfg.get('transform_at', '?')} สแตก)")
+            continue
+        if cfg.get("no_tick"):
+            # ไม่นับถอยหลัง (เช่น กับดักที่รอเหยื่อ) — บอก "เหลือ n ก้าว" จะโกหกผู้เล่น
+            parts.append(f"{cfg['label']} (พร้อมทำงาน)")
             continue
         unit = "ไฟต์" if cfg.get("tick") == "fight" else "ก้าว"
         parts.append(f"{cfg['label']} (เหลือ {turns} {unit})")

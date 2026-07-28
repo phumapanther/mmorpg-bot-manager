@@ -406,7 +406,10 @@ class MonsterEventView(ActionView):
             p_lvl = player.get("level", 1)
 
             # ✨ ธาตุแสง: โอกาสมอนสเตอร์เผ่นหนีต้นเทิร์น (แบบ Metal Slime) — จบไฟต์ ไม่ได้รางวัล
+            # 🪤 กับดักมอนสเตอร์ล็อกไว้ = หนีไม่ได้เลย (จุดขายหลักของกับดัก — ล่ามอนแสงได้จริง)
             monster_flee = self.element_data.get("monster_flee_chance", 0)
+            if game_modifiers.has_status_flag(self.statuses, "block_monster_flee"):
+                monster_flee = 0
             if monster_flee and random.randint(1, 100) <= monster_flee:
                 player_model.update_player_field(self.user_id, "current_state", "idle")
                 self.stop()
@@ -852,6 +855,12 @@ class MonsterEventView(ActionView):
                 if status_exp_mult > 1.0:
                     combat_log += "🌟 **พรบรรพชนหนุนนำ!** ประสบการณ์ที่ได้รับเพิ่มขึ้นเป็นพิเศษ!\n"
                 
+                # 🪤 กับดักถูกใช้ไปแล้ว — ปลดออกตอนล้มมอนได้ (หนีออกมาเฉย ๆ กับดักยังอยู่ ใช้ต่อได้)
+                if "monster_trap" in self.statuses:
+                    self.statuses.pop("monster_trap", None)
+                    db_updates["status_effects"] = json.dumps(self.statuses)
+                    combat_log += "🪤 **กับดักมอนสเตอร์ถูกใช้ไปแล้ว** — เหยื่อติดกับสมบูรณ์\n"
+
                 # 💞 C7: โบนัสคู่หู — เต็มจำนวนเมื่อคู่เข้ามาเล่นวันเดียวกัน
                 try:
                     from bot import partner as _partner
@@ -2671,8 +2680,12 @@ class AdventureView(ActionView):
         # [Priority 5: สุ่มปกติ]
         else:
             special_event = None
+            # 🪤 กับดักมอนสเตอร์: วางไว้แล้วก้าวถัดไปเจอมอนแน่นอน — ตัดหน้าทั้งพาหนะ/อีเวนต์พิเศษ/สงบ
+            forced_event, _trap_key = game_modifiers.status_forced_event(statuses)
+            if forced_event:
+                chosen_event = forced_event
             # 🧭 โอกาสสุ่มเจอพาหนะข้ามทวีป (แทรกเฉพาะจังหวะสุ่มปกติ ไม่ชนดันเจี้ยน/บอส/วาร์ป)
-            if game_modifiers.roll_travel_chance(mods):
+            elif game_modifiers.roll_travel_chance(mods):
                 chosen_event = "travel"
             # 🎪 อีเวนต์พิเศษประจำทวีป/ธีมสัปดาห์ (ทอยตาม chance รายอีเวนต์)
             elif (special_event := game_modifiers.roll_special_event(mods)):

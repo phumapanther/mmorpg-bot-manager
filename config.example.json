@@ -955,6 +955,15 @@
         "type": "use",
         "purchasable": true,
         "effect": "wedding_ring"
+      },
+      "66": {
+        "name": "🪤 กับดักมอนสเตอร์",
+        "buy": 6000,
+        "sell": 1200,
+        "type": "use",
+        "purchasable": true,
+        "effect": "apply_status",
+        "effect_value": "monster_trap"
       }
     },
     "armor_stats": {
@@ -1477,6 +1486,11 @@
         "label": "🌋 คมอัคนีเพลิง",
         "turns": 1,
         "unit": "ไฟต์"
+      },
+      "monster_trap": {
+        "label": "🪤 กับดักมอนสเตอร์",
+        "turns": 1,
+        "unit": "ก้าว"
       }
     }
   },

@@ -462,6 +462,13 @@ STATUS_EFFECTS = {
         "event_weight_mult": {"monster": 0.5},   # ควันศักดิ์สิทธิ์ไล่มอน ×0.5 (สายเก็บของ/หนีตาย)
         "cleanse_on_apply": ["monster_lure"],    # ควันธูปดับกลิ่นเหยื่อ
     },
+    "monster_trap": {
+        "label": "🪤 กับดักมอนสเตอร์", "tick": "step", "default_turns": 1,
+        "no_tick": True,              # ไม่นับถอยหลังเอง — รอจนกว่าจะเจอมอน แล้วค่อยถูกใช้ไป
+        "force_event": "monster",     # ก้าวถัดไปเจอมอนแน่นอน (แรงค์/ธาตุยังสุ่มตามปกติ)
+        "block_monster_flee": True,   # มอนหนีไม่ได้ — รวมมอนธาตุแสงที่ปกติเผ่น 40%
+        "cleanse_on_apply": ["monster_ward"],   # วางกับดักแล้วควันธูปไล่มอนหมดความหมาย
+    },
     "obsidian_edge": {
         "label": "🌋 คมอัคนีเพลิง", "tick": "fight", "default_turns": 1,
         "player_dmg_mult": 1.2,              # อาบคมอาวุธด้วยหินภูเขาไฟ
