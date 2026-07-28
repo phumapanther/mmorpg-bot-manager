@@ -102,12 +102,21 @@ def get_player(user_id):
         fields = ["user_id"] + list(NEW_PLAYER_DEFAULTS.keys())
         placeholders = ["?"] * len(fields)
         
-        # ดึงค่าจากตัวแปรด้านบนมาเตรียมยัดลง DB
+        # ค่าเริ่มต้นของผู้เล่นใหม่ที่ตั้งได้ที่ Panel (ไม่ตั้ง = ค่าเดิมในโค้ด)
+        # แก้ได้เฉพาะตัวเลขเริ่มต้น ไม่แตะโครงสร้างคอลัมน์ (ระบบ migration ใช้ dict เดิม)
+        starters = {}
+        try:
+            from bot import config_loader
+            for key in ("cash", "capacity", "max_hp", "hp", "sanity"):
+                val = config_loader.get_balance(f"new_player.{key}")
+                if val is not None:
+                    starters[key] = int(val)
+        except Exception as e:
+            print(f"⚠️ [new_player] อ่านค่าเริ่มต้นจาก Panel ไม่ได้ ใช้ค่าเดิม: {e}")
+
         values = [user_id]
         for key, val in NEW_PLAYER_DEFAULTS.items():
-            # ดักเคสพิเศษพวกตัวแปรเลขที่อยากให้ยืดหยุ่นในโค้ด
-            if key == "cash": val = NEW_PLAYER_DEFAULTS["cash"]
-            values.append(val)
+            values.append(starters.get(key, val))
             
         sql_insert = f"INSERT INTO players ({', '.join(fields)}) VALUES ({', '.join(placeholders)})"
         
@@ -115,8 +124,9 @@ def get_player(user_id):
         conn.commit()
         conn.close()
         
-        init_profile = NEW_PLAYER_DEFAULTS.copy()
-        
+        # ต้องสร้างจากค่าเดียวกับที่เพิ่งยัดลง DB ไม่งั้นเทิร์นแรกของผู้เล่นใหม่เห็นเลขไม่ตรงฐานข้อมูล
+        init_profile = {**NEW_PLAYER_DEFAULTS, **starters}
+
         # 🛠️ จุดที่ 1: ยกเลิกการใช้ json.loads สำหรับผู้เล่นใหม่
         raw_inv = str(init_profile.get("inventory", ""))
         for char in ["(", ")", "[", "]", "'", '"', " "]:

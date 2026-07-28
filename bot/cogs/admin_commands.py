@@ -803,8 +803,8 @@ class AdminCommands(commands.Cog):
         if current_hp >= max_hp_total:
             return await ctx.send(f"❌ {member.display_name} พลังชีวิตเต็มเปี่ยมอยู่แล้ว! (`{current_hp}/{max_hp_total}`) ไม่จำเป็นต้องรับการรักษา")
 
-        # 5. คิดค่าบริการ 300 ทอง (หักจากเป้าหมาย โอนให้นักบวช)
-        fee = 300
+        # 5. ค่าบริการรักษา (หักจากเป้าหมาย โอนให้นักบวช) — ตั้งได้ที่ Panel
+        fee = int(config_loader.get_balance("village.heal_fee", 300))
         new_target_cash = target.get("cash", 0) - fee
         new_caster_cash = caster.get("cash", 0) + fee
 

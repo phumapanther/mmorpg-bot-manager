@@ -34,9 +34,11 @@ class DuelView(discord.ui.View):
         p1 = player_model.get_player(self.challenger.id)
         p2 = player_model.get_player(self.target.id)
 
-        # เช็กเงินเดิมพัน (ต้องมีคนละอย่างน้อย 2000)
-        if p1.get("cash", 0) < 2000 or p2.get("cash", 0) < 2000:
-            return await interaction.channel.send("❌ การดวลถูกยกเลิก! ผู้เล่นทั้งสองฝ่ายต้องมีเงินอย่างน้อย 2,000 ทองสำหรับเดิมพัน")
+        # เช็กเงินเดิมพัน — จำนวนตั้งได้ที่ Panel (duel.bet)
+        bet = int(config_loader.get_balance("duel.bet", 2000))
+        if p1.get("cash", 0) < bet or p2.get("cash", 0) < bet:
+            return await interaction.channel.send(
+                f"❌ การดวลถูกยกเลิก! ผู้เล่นทั้งสองฝ่ายต้องมีเงินอย่างน้อย {bet:,} ทองสำหรับเดิมพัน")
 
         # ==========================================
         # 1. ฟังก์ชันช่วยคำนวณสเตตัสรวม (Base Stats + อุปกรณ์)
@@ -76,7 +78,7 @@ class DuelView(discord.ui.View):
         # ==========================================
         # 2. ลูปการประลอง (เพิ่มเป็นสู้ 5 รอบ เพื่อให้สมกับเลือดที่เยอะขึ้น)
         # ==========================================
-        max_rounds = 5
+        max_rounds = int(config_loader.get_balance("duel.rounds", 5))
         for turn in range(1, max_rounds + 1):
             log += f"**[รอบที่ {turn}]**\n"
             
@@ -129,11 +131,12 @@ class DuelView(discord.ui.View):
             return await interaction.channel.send(log + "\n🤝 **การประลองจบลงด้วยผลเสมอ!** (เลือดเหลือเท่ากัน) ไม่มีใครเสียเงินเดิมพัน")
 
         # 4. หักเงินและโอนเงิน
-        player_model.increment_player_field(loser['user'].id, "cash", -2000)
-        player_model.increment_player_field(winner['user'].id, "cash", 2000)
+        bet = int(config_loader.get_balance("duel.bet", 2000))
+        player_model.increment_player_field(loser['user'].id, "cash", -bet)
+        player_model.increment_player_field(winner['user'].id, "cash", bet)
 
         log += f"🏆 **ผู้ชนะคือ: {winner['name']}!** (เหลือ HP {max(0, winner['hp'])})\n"
-        log += f"💸 {loser['name']} จ่ายค่าเดิมพัน 2,000 ทองให้ {winner['name']} แล้ว!"
+        log += f"💸 {loser['name']} จ่ายค่าเดิมพัน {bet:,} ทองให้ {winner['name']} แล้ว!"
         
         await interaction.channel.send(log)
 

@@ -83,7 +83,7 @@ class WorldAdmin(commands.Cog):
         if key is None:
             lines = "\n".join(
                 f"`{k}` — {cfg['label']} (default {cfg.get('default_turns', 1)} {'ไฟต์' if cfg.get('tick') == 'fight' else 'ก้าว'})"
-                for k, cfg in game_modifiers.STATUS_EFFECTS.items()
+                for k, cfg in ((k, game_modifiers.status_cfg(k)) for k in game_modifiers.STATUS_EFFECTS)
             )
             return await ctx.send(
                 f"🧬 **สถานะทั้งหมด:**\n{lines}\n\n"

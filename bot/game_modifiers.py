@@ -115,6 +115,32 @@ def parse_statuses(player):
     return {k: int(v) for k, v in (raw or {}).items() if k in STATUS_EFFECTS and int(v) > 0}
 
 
+def status_cfg(key):
+    """ค่าสถานะหลังทับด้วยค่าที่ตั้งใน Panel
+
+    ปรับได้เฉพาะ "จำนวนเทิร์น" กับ "ดาเมจต่อก้าว" ซึ่งเป็นค่าบาลานซ์จริง —
+    ที่เหลือ (blocks/transform/cleanse/ตัวคูณ) เป็นโครงสร้างกลไก ไม่เปิดให้แก้
+    ตั้งค่าเพี้ยนก็ตกกลับไปใช้ค่าเดิม เกมต้องไม่พังเพราะพิมพ์ผิดในพาแนล
+    """
+    base = STATUS_EFFECTS.get(key)
+    if not base:
+        return {}
+    ov = (_balance("status_overrides", {}) or {}).get(key)
+    if not isinstance(ov, dict):
+        return base
+    cfg = dict(base)
+    try:
+        if ov.get("turns") not in (None, ""):
+            cfg["default_turns"] = max(1, int(ov["turns"]))
+        lo, hi = ov.get("dmg_min"), ov.get("dmg_max")
+        if lo not in (None, "") and hi not in (None, ""):
+            lo, hi = max(0, int(lo)), max(0, int(hi))
+            cfg["step_damage"] = (min(lo, hi), max(lo, hi))
+    except (TypeError, ValueError):
+        return base
+    return cfg
+
+
 def apply_status(statuses, key, turns=None):
     """ติดสถานะ — ปกติ: ติดซ้ำ = รีเซ็ตตัวนับเป็นค่าใหม่ถ้ามากกว่าของเดิม
     สถานะแบบสะสม (stacking): ติดซ้ำ = สแตกเพิ่ม และครบ transform_at → แปลงร่างเป็นสถานะใหม่
@@ -127,7 +153,7 @@ def apply_status(statuses, key, turns=None):
         if key in STATUS_EFFECTS.get(existing, {}).get("blocks", []):
             return dict(statuses)
 
-    cfg = STATUS_EFFECTS[key]
+    cfg = status_cfg(key)
     out = dict(statuses)
 
     # ติดสถานะนี้แล้วล้างสถานะที่ระบุทิ้ง (เช่น อบอุ่นล้างหนาว)
@@ -289,7 +315,7 @@ def roll_step_damage(statuses, rng=None, max_hp=100):
         mult *= STATUS_EFFECTS[key].get("step_damage_mult", 1.0)
     total, details = 0, []
     for key in statuses:
-        cfg = STATUS_EFFECTS[key]
+        cfg = status_cfg(key)          # ดาเมจต่อก้าวปรับได้ที่ Panel
         dmg = 0
         if cfg.get("step_damage"):
             dmg += rng.randint(cfg["step_damage"][0], cfg["step_damage"][1])

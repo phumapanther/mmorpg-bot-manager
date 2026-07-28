@@ -26,6 +26,25 @@ EVENT_WEIGHTS = {
 }
 EVENT_LIST = ["monster", "village", "treasure", "dungeon", "npc", "trap"]
 
+
+def event_weights(last_evt):
+    """น้ำหนักอีเวนต์ของสถานการณ์นั้น — ตั้งได้ที่ Panel (ไม่ตั้ง/ตั้งไม่ครบ = ค่าเดิมในโค้ด)
+
+    รับได้ทั้งรูป dict จาก Panel {"monster": 25, ...} และ list เรียงตาม EVENT_LIST
+    """
+    if last_evt not in EVENT_WEIGHTS:
+        last_evt = "none"
+    default = list(EVENT_WEIGHTS[last_evt])
+    row = (config_loader.get_balance("events.weights", {}) or {}).get(last_evt)
+    try:
+        if isinstance(row, dict):
+            return [max(0, int(row.get(evt, default[i]))) for i, evt in enumerate(EVENT_LIST)]
+        if isinstance(row, list) and len(row) == len(EVENT_LIST):
+            return [max(0, int(w)) for w in row]
+    except (TypeError, ValueError):
+        pass                       # ค่าใน Panel เพี้ยน = ใช้ของเดิม ดีกว่าเกมพัง
+    return default
+
 # โครงสร้างข้อมูลระดับความโหดของมอนสเตอร์
 MONSTER_RANKS = {
     "Common":      {"name": "🟢 มอนสเตอร์ทั่วไป (Common)",      "dice_count": 1, "hp_range": (40, 100),   "flee_chance": 85,  "gold_mult": 2,   "exp_reward": 25},
@@ -2609,9 +2628,7 @@ class AdventureView(ActionView):
             elif game_modifiers.roll_calm_chance():
                 chosen_event = "calm"
             else:
-                if last_evt not in EVENT_WEIGHTS:
-                    last_evt = "none"
-                current_weights = list(EVENT_WEIGHTS[last_evt])
+                current_weights = event_weights(last_evt)
                 if current_cooldown > 0:
                     current_weights[1] = 0
                 # ตัวคูณน้ำหนักอีเวนต์จากทวีป/ธีมสัปดาห์ (mult ว่าง = น้ำหนักเดิมเป๊ะ)

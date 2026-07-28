@@ -38,7 +38,7 @@ def _item_effect_desc(it):
         labels = [game_modifiers.STATUS_EFFECTS[k]["label"] for k in keys if k in game_modifiers.STATUS_EFFECTS]
         return "ล้างสถานะ: " + ", ".join(labels) if labels else "ล้างสถานะ"
     if eff == "apply_status":
-        cfg = game_modifiers.STATUS_EFFECTS.get(str(val), {})
+        cfg = game_modifiers.status_cfg(str(val))   # โชว์เทิร์นตามที่ตั้งใน Panel
         unit = "ก้าว" if cfg.get("tick") == "step" else "ไฟต์"
         return f"ติดบัฟ {cfg.get('label', val)} ({cfg.get('default_turns', 1)} {unit})"
     if eff == "gamble_status":
@@ -570,7 +570,8 @@ def build_codex_embed(topic=""):
                 for k in game_modifiers.STATUS_EFFECTS.get(str(val), {}).get("blocks", []):
                     guards.setdefault(k, []).append(name)
         lines = []
-        for key, cfg in game_modifiers.STATUS_EFFECTS.items():
+        for key in game_modifiers.STATUS_EFFECTS:
+            cfg = game_modifiers.status_cfg(key)    # คู่มือต้องบอกเทิร์นตามที่ตั้งใน Panel
             if cfg.get("artifact"):
                 continue
             extra = []

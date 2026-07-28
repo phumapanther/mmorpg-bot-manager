@@ -1178,7 +1178,65 @@
     },
     "events": {
       "travel_chance": 8,
-      "calm_chance": 12
+      "calm_chance": 12,
+      "weights": {
+        "village": {
+          "monster": 2,
+          "village": 0,
+          "treasure": 3,
+          "dungeon": 1,
+          "npc": 90,
+          "trap": 4
+        },
+        "dungeon_inside": {
+          "monster": 45,
+          "village": 5,
+          "treasure": 35,
+          "dungeon": 0,
+          "npc": 5,
+          "trap": 10
+        },
+        "monster": {
+          "monster": 25,
+          "village": 25,
+          "treasure": 20,
+          "dungeon": 10,
+          "npc": 10,
+          "trap": 10
+        },
+        "treasure": {
+          "monster": 30,
+          "village": 20,
+          "treasure": 10,
+          "dungeon": 15,
+          "npc": 15,
+          "trap": 10
+        },
+        "npc": {
+          "monster": 20,
+          "village": 40,
+          "treasure": 15,
+          "dungeon": 10,
+          "npc": 5,
+          "trap": 10
+        },
+        "trap": {
+          "monster": 35,
+          "village": 15,
+          "treasure": 15,
+          "dungeon": 10,
+          "npc": 10,
+          "trap": 15
+        },
+        "none": {
+          "monster": 25,
+          "village": 25,
+          "treasure": 20,
+          "dungeon": 15,
+          "npc": 10,
+          "trap": 5
+        }
+      }
     },
     "cooldowns": {
       "play_sec": 3,
@@ -1217,7 +1275,153 @@
     },
     "village": {
       "rest_cost": 2000,
-      "rest_cost_per_level": 0
+      "rest_cost_per_level": 0,
+      "heal_fee": 300
+    },
+    "duel": {
+      "rounds": 5,
+      "bet": 2000
+    },
+    "casino": {
+      "slot_weights": [
+        30,
+        25,
+        20,
+        10,
+        10,
+        5
+      ]
+    },
+    "new_player": {
+      "cash": 20000,
+      "capacity": 50,
+      "max_hp": 100,
+      "hp": 100,
+      "sanity": 100
+    },
+    "status_overrides": {
+      "poison": {
+        "label": "☠️ พิษป่า",
+        "turns": 20,
+        "dmg_min": 3,
+        "dmg_max": 6
+      },
+      "numb": {
+        "label": "🥶 ชา",
+        "turns": 6
+      },
+      "emp": {
+        "label": "⚡ โดน EMP",
+        "turns": 1
+      },
+      "exp_blessing": {
+        "label": "🌟 พรบรรพชน",
+        "turns": 10
+      },
+      "bleed": {
+        "label": "🩸 เลือดไหล",
+        "turns": 5,
+        "dmg_min": 4,
+        "dmg_max": 8
+      },
+      "frostbite": {
+        "label": "🥶 หนาวกัดกระดูก",
+        "turns": 999,
+        "dmg_min": 2,
+        "dmg_max": 4
+      },
+      "illegal_buff": {
+        "label": "💪 ยาโด๊ปเถื่อน",
+        "turns": 15
+      },
+      "sealed_dice": {
+        "label": "🎲 เต๋าถูกผนึก",
+        "turns": 5
+      },
+      "fumble": {
+        "label": "🤲 เต๋าหลุดมือ",
+        "turns": 4
+      },
+      "burn": {
+        "label": "🔥 แผลแผดเผา",
+        "turns": 3
+      },
+      "entangled": {
+        "label": "🌱 รากไม้พันธนาการ",
+        "turns": 3
+      },
+      "odd_curse": {
+        "label": "🌑 คำสาปแต้มคี่",
+        "turns": 8
+      },
+      "even_curse": {
+        "label": "🌕 คำสาปแต้มคู่",
+        "turns": 8
+      },
+      "shock": {
+        "label": "⚡ ไฟฟ้าสถิต",
+        "turns": 2
+      },
+      "spores": {
+        "label": "🍄 สปอร์เห็ดรา",
+        "turns": 1
+      },
+      "mushroom_bloom": {
+        "label": "🍄 เห็ดงอกทั่วร่าง",
+        "turns": 6
+      },
+      "zombie_parasite": {
+        "label": "🧟 เชื้อซอมบี้",
+        "turns": 1
+      },
+      "zombie_frenzy": {
+        "label": "🧟 คลั่งซอมบี้",
+        "turns": 5
+      },
+      "element_flux": {
+        "label": "🧪 ธาตุวิปริต",
+        "turns": 1
+      },
+      "warm": {
+        "label": "🔆 อบอุ่น",
+        "turns": 10
+      },
+      "emp_shield": {
+        "label": "💾 เกราะกันคลื่น",
+        "turns": 1
+      },
+      "featherfall": {
+        "label": "🪶 ขนนก",
+        "turns": 30
+      },
+      "holy_guard": {
+        "label": "✝️ คุ้มครองศักดิ์สิทธิ์",
+        "turns": 3
+      },
+      "weighted_dice": {
+        "label": "🎲 เต๋าถ่วงน้ำหนัก",
+        "turns": 1
+      },
+      "clover": {
+        "label": "🍀 โคลเวอร์นำโชค",
+        "turns": 1
+      },
+      "convoy_compass": {
+        "label": "🧭 เข็มทิศขบวนหลวง",
+        "turns": 20
+      },
+      "monster_lure": {
+        "label": "🥩 กลิ่นเหยื่อล่อ",
+        "turns": 15
+      },
+      "monster_ward": {
+        "label": "🕯️ ควันธูปไล่มอน",
+        "turns": 15
+      },
+      "obsidian_edge": {
+        "label": "🌋 คมอัคนีเพลิง",
+        "turns": 1
+      }
     }
   },
   "monster_ranks": {
@@ -1335,53 +1539,288 @@
     "max_listings_per_player": 5
   },
   "pets": {
-    "tame_chance": { "Common": 1, "Mini-Boss": 8, "Main-Boss": 15, "Secret": 20, "Unbeatable": 30 },
+    "tame_chance": {
+      "Common": 1,
+      "Mini-Boss": 8,
+      "Main-Boss": 15,
+      "Secret": 20,
+      "Unbeatable": 30
+    },
     "list": [
-      { "key": "slime", "name": "🟢 สไลม์น้อย", "from_rank": "Common", "dice": 1, "desc": "เด้งดึ๋งอยู่ข้างเท้า คอยหนุนจังหวะทอยเต๋า" },
-      { "key": "batling", "name": "🦇 ค้างคาวจิ๋ว", "from_rank": "Common", "dice": 1, "desc": "บินวนรอบตัว ช่วยชี้จุดอ่อนศัตรู" },
-      { "key": "wolfpup", "name": "🐺 ลูกหมาป่า", "from_rank": "Mini-Boss", "dice": 2, "desc": "เห่าข่มขวัญศัตรูก่อนปะทะ" },
-      { "key": "imp", "name": "👺 ภูตน้อยจอมกวน", "from_rank": "Mini-Boss", "dice": 2, "desc": "แอบสะกิดแขนศัตรูตอนสวน" },
-      { "key": "griffin", "name": "🦅 ลูกกริฟฟิน", "from_rank": "Main-Boss", "dice": 3, "desc": "โฉบลงมาเปิดช่องว่างให้คุณเข้าทำ" },
-      { "key": "golemite", "name": "🪨 โกเลมจิ๋ว", "from_rank": "Main-Boss", "dice": 3, "desc": "ยืนบังแรงปะทะให้ครึ่งก้าว" },
-      { "key": "phantom", "name": "👻 เงาลึกลับ", "from_rank": "Secret", "dice": 4, "desc": "ไม่มีใครรู้ว่ามันมาจากไหน แต่มันอยู่ข้างคุณ" },
-      { "key": "dragonling", "name": "🐉 ลูกมังกร", "from_rank": "Unbeatable", "dice": 5, "desc": "ลูกของสิ่งที่ไม่ควรมีใครล้มได้ — สัญลักษณ์ของผู้พิชิต" }
+      {
+        "key": "slime",
+        "name": "🟢 สไลม์น้อย",
+        "from_rank": "Common",
+        "dice": 1,
+        "desc": "เด้งดึ๋งอยู่ข้างเท้า คอยหนุนจังหวะทอยเต๋า"
+      },
+      {
+        "key": "batling",
+        "name": "🦇 ค้างคาวจิ๋ว",
+        "from_rank": "Common",
+        "dice": 1,
+        "desc": "บินวนรอบตัว ช่วยชี้จุดอ่อนศัตรู"
+      },
+      {
+        "key": "wolfpup",
+        "name": "🐺 ลูกหมาป่า",
+        "from_rank": "Mini-Boss",
+        "dice": 2,
+        "desc": "เห่าข่มขวัญศัตรูก่อนปะทะ"
+      },
+      {
+        "key": "imp",
+        "name": "👺 ภูตน้อยจอมกวน",
+        "from_rank": "Mini-Boss",
+        "dice": 2,
+        "desc": "แอบสะกิดแขนศัตรูตอนสวน"
+      },
+      {
+        "key": "griffin",
+        "name": "🦅 ลูกกริฟฟิน",
+        "from_rank": "Main-Boss",
+        "dice": 3,
+        "desc": "โฉบลงมาเปิดช่องว่างให้คุณเข้าทำ"
+      },
+      {
+        "key": "golemite",
+        "name": "🪨 โกเลมจิ๋ว",
+        "from_rank": "Main-Boss",
+        "dice": 3,
+        "desc": "ยืนบังแรงปะทะให้ครึ่งก้าว"
+      },
+      {
+        "key": "phantom",
+        "name": "👻 เงาลึกลับ",
+        "from_rank": "Secret",
+        "dice": 4,
+        "desc": "ไม่มีใครรู้ว่ามันมาจากไหน แต่มันอยู่ข้างคุณ"
+      },
+      {
+        "key": "dragonling",
+        "name": "🐉 ลูกมังกร",
+        "from_rank": "Unbeatable",
+        "dice": 5,
+        "desc": "ลูกของสิ่งที่ไม่ควรมีใครล้มได้ — สัญลักษณ์ของผู้พิชิต"
+      }
     ]
   },
   "season_pass": {
     "enabled": true,
     "price_gold": 5000000,
     "tiers": [
-      { "points": 2000, "free": { "gold": 30000 }, "premium": { "gold": 80000, "exp": 1000 } },
-      { "points": 5000, "free": { "gold": 60000 }, "premium": { "gold": 150000, "item": "30" } },
-      { "points": 10000, "free": { "gold": 120000 }, "premium": { "gold": 300000, "exp": 3000 } },
-      { "points": 20000, "free": { "gold": 250000 }, "premium": { "gold": 600000, "item": "60" } },
-      { "points": 35000, "free": { "gold": 400000, "exp": 2000 }, "premium": { "gold": 1000000, "exp": 8000 } },
-      { "points": 60000, "free": { "gold": 700000 }, "premium": { "gold": 2000000, "item": "64" } },
-      { "points": 100000, "free": { "gold": 1200000, "exp": 5000 }, "premium": { "gold": 5000000, "exp": 20000 } }
+      {
+        "points": 2000,
+        "free": {
+          "gold": 30000
+        },
+        "premium": {
+          "gold": 80000,
+          "exp": 1000
+        }
+      },
+      {
+        "points": 5000,
+        "free": {
+          "gold": 60000
+        },
+        "premium": {
+          "gold": 150000,
+          "item": "30"
+        }
+      },
+      {
+        "points": 10000,
+        "free": {
+          "gold": 120000
+        },
+        "premium": {
+          "gold": 300000,
+          "exp": 3000
+        }
+      },
+      {
+        "points": 20000,
+        "free": {
+          "gold": 250000
+        },
+        "premium": {
+          "gold": 600000,
+          "item": "60"
+        }
+      },
+      {
+        "points": 35000,
+        "free": {
+          "gold": 400000,
+          "exp": 2000
+        },
+        "premium": {
+          "gold": 1000000,
+          "exp": 8000
+        }
+      },
+      {
+        "points": 60000,
+        "free": {
+          "gold": 700000
+        },
+        "premium": {
+          "gold": 2000000,
+          "item": "64"
+        }
+      },
+      {
+        "points": 100000,
+        "free": {
+          "gold": 1200000,
+          "exp": 5000
+        },
+        "premium": {
+          "gold": 5000000,
+          "exp": 20000
+        }
+      }
     ]
   },
   "achievements": [
-    { "key": "kills_50", "stat": "kills", "target": 50, "label": "🗡️ นักล่าฝึกหัด", "desc": "ล้มมอนสเตอร์ครบ 50 ตัว", "gold": 30000, "title": "นักล่าฝึกหัด" },
-    { "key": "kills_500", "stat": "kills", "target": 500, "label": "⚔️ นักล่ามือฉมัง", "desc": "ล้มมอนสเตอร์ครบ 500 ตัว", "gold": 200000, "title": "นักล่ามือฉมัง" },
-    { "key": "kills_2000", "stat": "kills", "target": 2000, "label": "💀 เพชฌฆาตแห่งพงไพร", "desc": "ล้มมอนสเตอร์ครบ 2,000 ตัว", "gold": 1000000, "title": "เพชฌฆาตแห่งพงไพร" },
-    { "key": "boss_10", "stat": "boss_kills", "target": 10, "label": "👑 นักล่าบอส", "desc": "ล้มบอสครบ 10 ตัว", "gold": 150000, "title": "นักล่าบอส" },
-    { "key": "boss_50", "stat": "boss_kills", "target": 50, "label": "🐉 ผู้สังหารมังกร", "desc": "ล้มบอสครบ 50 ตัว", "gold": 800000, "title": "ผู้สังหารมังกร" },
-    { "key": "level_50", "stat": "level", "target": 50, "label": "🌟 ผู้มากประสบการณ์", "desc": "ไปถึงเลเวล 50", "gold": 250000, "title": "ผู้มากประสบการณ์" },
-    { "key": "level_100", "stat": "level", "target": 100, "label": "🏆 ตำนานผู้ไร้เทียมทาน", "desc": "ไปถึงเลเวลสูงสุด 100", "gold": 2000000, "title": "ตำนานผู้ไร้เทียมทาน" },
-    { "key": "rich_10m", "stat": "wealth", "target": 10000000, "label": "💰 เศรษฐีสิบล้าน", "desc": "มีทรัพย์สินรวม 10,000,000 ทอง", "gold": 300000, "title": "เศรษฐีสิบล้าน" },
-    { "key": "rich_1b", "stat": "wealth", "target": 1000000000, "label": "💎 มหาเศรษฐีพันล้าน", "desc": "มีทรัพย์สินรวม 1,000,000,000 ทอง", "gold": 5000000, "title": "มหาเศรษฐีพันล้าน" },
-    { "key": "cont_5", "stat": "continents", "target": 5, "label": "🧭 นักเดินทาง", "desc": "ล่ามอนมาแล้ว 5 ทวีป", "gold": 200000, "title": "นักเดินทาง" },
-    { "key": "cont_9", "stat": "continents", "target": 9, "label": "🗺️ ผู้พิชิตทุกทวีป", "desc": "ล่ามอนครบทั้ง 9 ทวีป", "gold": 1500000, "title": "ผู้พิชิตทุกทวีป" },
-    { "key": "streak_7", "stat": "streak", "target": 7, "label": "🔥 ขาประจำ", "desc": "ล็อกอินต่อเนื่อง 7 วัน", "gold": 100000, "title": "ขาประจำ" },
-    { "key": "streak_30", "stat": "streak", "target": 30, "label": "🌙 ผู้ไม่เคยขาด", "desc": "ล็อกอินต่อเนื่อง 30 วัน", "gold": 1000000, "title": "ผู้ไม่เคยขาด" }
+    {
+      "key": "kills_50",
+      "stat": "kills",
+      "target": 50,
+      "label": "🗡️ นักล่าฝึกหัด",
+      "desc": "ล้มมอนสเตอร์ครบ 50 ตัว",
+      "gold": 30000,
+      "title": "นักล่าฝึกหัด"
+    },
+    {
+      "key": "kills_500",
+      "stat": "kills",
+      "target": 500,
+      "label": "⚔️ นักล่ามือฉมัง",
+      "desc": "ล้มมอนสเตอร์ครบ 500 ตัว",
+      "gold": 200000,
+      "title": "นักล่ามือฉมัง"
+    },
+    {
+      "key": "kills_2000",
+      "stat": "kills",
+      "target": 2000,
+      "label": "💀 เพชฌฆาตแห่งพงไพร",
+      "desc": "ล้มมอนสเตอร์ครบ 2,000 ตัว",
+      "gold": 1000000,
+      "title": "เพชฌฆาตแห่งพงไพร"
+    },
+    {
+      "key": "boss_10",
+      "stat": "boss_kills",
+      "target": 10,
+      "label": "👑 นักล่าบอส",
+      "desc": "ล้มบอสครบ 10 ตัว",
+      "gold": 150000,
+      "title": "นักล่าบอส"
+    },
+    {
+      "key": "boss_50",
+      "stat": "boss_kills",
+      "target": 50,
+      "label": "🐉 ผู้สังหารมังกร",
+      "desc": "ล้มบอสครบ 50 ตัว",
+      "gold": 800000,
+      "title": "ผู้สังหารมังกร"
+    },
+    {
+      "key": "level_50",
+      "stat": "level",
+      "target": 50,
+      "label": "🌟 ผู้มากประสบการณ์",
+      "desc": "ไปถึงเลเวล 50",
+      "gold": 250000,
+      "title": "ผู้มากประสบการณ์"
+    },
+    {
+      "key": "level_100",
+      "stat": "level",
+      "target": 100,
+      "label": "🏆 ตำนานผู้ไร้เทียมทาน",
+      "desc": "ไปถึงเลเวลสูงสุด 100",
+      "gold": 2000000,
+      "title": "ตำนานผู้ไร้เทียมทาน"
+    },
+    {
+      "key": "rich_10m",
+      "stat": "wealth",
+      "target": 10000000,
+      "label": "💰 เศรษฐีสิบล้าน",
+      "desc": "มีทรัพย์สินรวม 10,000,000 ทอง",
+      "gold": 300000,
+      "title": "เศรษฐีสิบล้าน"
+    },
+    {
+      "key": "rich_1b",
+      "stat": "wealth",
+      "target": 1000000000,
+      "label": "💎 มหาเศรษฐีพันล้าน",
+      "desc": "มีทรัพย์สินรวม 1,000,000,000 ทอง",
+      "gold": 5000000,
+      "title": "มหาเศรษฐีพันล้าน"
+    },
+    {
+      "key": "cont_5",
+      "stat": "continents",
+      "target": 5,
+      "label": "🧭 นักเดินทาง",
+      "desc": "ล่ามอนมาแล้ว 5 ทวีป",
+      "gold": 200000,
+      "title": "นักเดินทาง"
+    },
+    {
+      "key": "cont_9",
+      "stat": "continents",
+      "target": 9,
+      "label": "🗺️ ผู้พิชิตทุกทวีป",
+      "desc": "ล่ามอนครบทั้ง 9 ทวีป",
+      "gold": 1500000,
+      "title": "ผู้พิชิตทุกทวีป"
+    },
+    {
+      "key": "streak_7",
+      "stat": "streak",
+      "target": 7,
+      "label": "🔥 ขาประจำ",
+      "desc": "ล็อกอินต่อเนื่อง 7 วัน",
+      "gold": 100000,
+      "title": "ขาประจำ"
+    },
+    {
+      "key": "streak_30",
+      "stat": "streak",
+      "target": 30,
+      "label": "🌙 ผู้ไม่เคยขาด",
+      "desc": "ล็อกอินต่อเนื่อง 30 วัน",
+      "gold": 1000000,
+      "title": "ผู้ไม่เคยขาด"
+    }
   ],
   "weekly_ranking": {
     "enabled": true,
     "min_points": 100,
     "rewards": [
-      { "gold": 300000, "exp": 5000, "item": null },
-      { "gold": 150000, "exp": 2500, "item": null },
-      { "gold": 75000, "exp": 1000, "item": null }
+      {
+        "gold": 300000,
+        "exp": 5000,
+        "item": null
+      },
+      {
+        "gold": 150000,
+        "exp": 2500,
+        "item": null
+      },
+      {
+        "gold": 75000,
+        "exp": 1000,
+        "item": null
+      }
     ]
   }
 }

@@ -4,6 +4,7 @@ import random
 import asyncio
 
 import bot.models.player_model as player_model
+from bot import config_loader
 from bot.utils import not_arrested, allowed_channel, main_server_gate
 
 # ==========================================
@@ -185,7 +186,15 @@ class Casino(commands.Cog):
             is_rigged = random.random() < rig_chance
 
             emojis = ["🍒", "🍇", "🍊", "💎", "🔔", "💰"]
-            weights = [30, 25, 20, 10, 10, 5]
+            # น้ำหนักสล็อตตั้งได้ที่ Panel — ตั้งไม่ครบ 6 ช่องหรือเพี้ยน = ใช้ของเดิม
+            default_weights = [30, 25, 20, 10, 10, 5]
+            weights = config_loader.get_balance("casino.slot_weights", default_weights)
+            try:
+                weights = [max(1, int(w)) for w in weights]
+                if len(weights) != len(emojis):
+                    weights = default_weights
+            except (TypeError, ValueError):
+                weights = default_weights
 
             def check_win(s1, s2, s3):
                 return s1 == s2 or s2 == s3 or s1 == s3
