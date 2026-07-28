@@ -5,7 +5,7 @@ from discord.ext import commands
 
 import bot.models.player_model as player_model
 from bot import game_modifiers
-from bot.utils import allowed_channel
+from bot.utils import allowed_channel, is_main_server
 
 GUILD_CREATE_COST = 3_000_000_000
 # หมวดหมู่ห้องกิลด์ — ใช้ตัวที่มีอยู่แล้วในเซิร์ฟ (ชื่อต้องตรงเป๊ะ) ไม่มีค่อยสร้างใหม่
@@ -81,7 +81,9 @@ class GuildCog(commands.Cog):
         print("[LOG] [LOAD_COG] โหลดโมดูลระบบกิลด์เรียบร้อยแล้ว")
 
     async def cog_check(self, ctx):
-        """ทุกคำสั่ง !guild ใช้ได้เฉพาะห้องที่ตั้งใน channels.guild — ไม่ตั้ง = ใช้ได้ทุกห้อง"""
+        """เซิร์ฟหลักเท่านั้น (P8) + ห้องที่ตั้งใน channels.guild (ไม่ตั้ง = ทุกห้อง)"""
+        if not is_main_server(ctx):
+            return False
         return await _guild_channel_check(ctx)
 
     @commands.group(name="guild", aliases=["กิลด์"], invoke_without_command=True)

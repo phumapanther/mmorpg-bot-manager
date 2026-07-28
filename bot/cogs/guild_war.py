@@ -5,6 +5,7 @@ import time
 
 import discord
 from discord.ext import commands, tasks
+from bot.utils import is_main_server
 
 import bot.models.player_model as player_model
 from bot.cogs.guild import GUILD_CATEGORY, _is_leader
@@ -310,3 +311,7 @@ class GuildWarCog(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(GuildWarCog(bot))
+
+    async def cog_check(self, ctx):
+        """P8: ฟีเจอร์นี้เล่นได้เฉพาะเซิร์ฟหลัก (เซิร์ฟรองเล่นได้แค่ผจญภัย)"""
+        return is_main_server(ctx)

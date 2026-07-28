@@ -4,7 +4,7 @@ import random
 import asyncio
 
 import bot.models.player_model as player_model
-from bot.utils import not_arrested, allowed_channel
+from bot.utils import not_arrested, allowed_channel, is_main_server
 
 # ==========================================
 # 🎲 UI View สำหรับเกม ไฮโล (Hi-Lo)
@@ -120,6 +120,10 @@ class Casino(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         print(f"[LOG] [SETUP] 🎰 โหลดโมดูล Casino เรียบร้อยแล้ว")
+
+    async def cog_check(self, ctx):
+        """P8: ฟีเจอร์นี้เล่นได้เฉพาะเซิร์ฟหลัก (เซิร์ฟรองเล่นได้แค่ผจญภัย)"""
+        return is_main_server(ctx)
 
     @allowed_channel("casino_hilo") 
     @not_arrested() 

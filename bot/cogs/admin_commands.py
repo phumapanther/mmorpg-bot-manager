@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from bot.models import player_model  # ดึงโมเดลจัดการฐานข้อมูลมาใช้งาน
-from bot.utils import has_permission, allowed_channel, not_arrested
+from bot.utils import has_permission, allowed_channel, not_arrested, is_main_server
 from bot import config_loader
 import sqlite3
 import json  
@@ -13,6 +13,11 @@ class AdminCommands(commands.Cog):
 
     # 🔒 [ระบบตรวจสิทธิ์ + พิมพ์ LOG ลง Terminal เท่านั้น]
     async def cog_check(self, ctx):
+        # 🌍 P8: คำสั่งแอดมินใช้ได้เฉพาะเซิร์ฟหลักเสมอ — เช็คก่อนเช็คยศ/สิทธิ์
+        # (ไม่งั้นเจ้าของเซิร์ฟรองซึ่งเป็น owner/admin ของเซิร์ฟตัวเอง จะยิงคำสั่งแก้ DB ได้ทันที)
+        if not is_main_server(ctx):
+            print(f"🚨 [P8 BLOCK] {ctx.author.name} พยายามใช้คำสั่งแอดมินจากเซิร์ฟรอง: {ctx.message.content}")
+            return False
         is_owner = ctx.author.id == ctx.guild.owner_id
         is_admin = ctx.author.guild_permissions.administrator
         has_permission = is_owner or is_admin

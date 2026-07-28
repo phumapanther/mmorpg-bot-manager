@@ -4,7 +4,7 @@ from discord.ext import commands
 import bot.models.player_model as player_model
 import bot.models.payment_model as payment_model
 from bot import config_loader, promptpay
-from bot.utils import has_permission, allowed_channel
+from bot.utils import has_permission, allowed_channel, is_main_server
 
 
 class PaymentCommands(commands.Cog):
@@ -112,3 +112,7 @@ class PaymentCommands(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(PaymentCommands(bot))
+
+    async def cog_check(self, ctx):
+        """P8: ฟีเจอร์นี้เล่นได้เฉพาะเซิร์ฟหลัก (เซิร์ฟรองเล่นได้แค่ผจญภัย)"""
+        return is_main_server(ctx)

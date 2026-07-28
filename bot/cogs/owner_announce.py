@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from bot.utils import is_main_server
 
 class OwnerAnnounce(commands.Cog):
     def __init__(self, bot):
@@ -64,4 +65,8 @@ class OwnerAnnounce(commands.Cog):
 
 # ฟังก์ชันสำหรับให้บอทโหลดโมดูลนี้เข้าสู่ระบบ
 async def setup(bot):
+
+    async def cog_check(self, ctx):
+        """P8: ฟีเจอร์นี้เล่นได้เฉพาะเซิร์ฟหลัก (เซิร์ฟรองเล่นได้แค่ผจญภัย)"""
+        return is_main_server(ctx)
     await bot.add_cog(OwnerAnnounce(bot))

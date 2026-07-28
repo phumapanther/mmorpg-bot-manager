@@ -4,7 +4,7 @@ import bot.models.player_model as player_model
 from bot import config_loader
 from bot.views.profile_embed import create_profile_embed
 from bot.views.profile_embed import GAME_RACES, GAME_CLASSES
-from bot.utils import not_arrested, allowed_channel  # 👈 ใส่บรรทัดนี้ลงไป
+from bot.utils import not_arrested, allowed_channel, main_server_only
 
 class GameCommands(commands.Cog):
     def __init__(self, bot):
@@ -13,6 +13,7 @@ class GameCommands(commands.Cog):
 
     # ─── 🛒 คำสั่งเปิดร้านค้าและซื้อขายยศ + ระบบกาชาคู่ (สุ่มเผ่า/สุ่มคลาส) (!shop) ───
     @commands.command(name="shop")
+    @main_server_only()   # P8: ร้านค้าเล่นได้เฉพาะเซิร์ฟหลัก
     @allowed_channel("role_shop")
     @commands.cooldown(1, 3.0, commands.BucketType.user) # ⏱️ คูลดาวน์ 3 วินาที ต่อผู้เล่น 1 คน
     async def shop(self, ctx, action: str = None, item_num: int = None):

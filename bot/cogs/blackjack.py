@@ -3,7 +3,7 @@ import discord
 from discord.ext import commands
 import random
 import json
-from bot.utils import not_arrested, allowed_channel,has_permission
+from bot.utils import not_arrested, allowed_channel,has_permission, is_main_server
 from bot.controller.trainer import train_alpha_bot
 # นำเข้าระบบจัดการผู้เล่นของคุณอาเธอร์
 import bot.models.player_model as player_model
@@ -257,4 +257,8 @@ class BJ24Game(commands.Cog):
             await ctx.send(f"❌ เทรนล้มเหลว: {e}")
 
 async def setup(bot):
+
+    async def cog_check(self, ctx):
+        """P8: ฟีเจอร์นี้เล่นได้เฉพาะเซิร์ฟหลัก (เซิร์ฟรองเล่นได้แค่ผจญภัย)"""
+        return is_main_server(ctx)
     await bot.add_cog(BJ24Game(bot))

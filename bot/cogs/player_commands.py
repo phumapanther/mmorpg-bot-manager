@@ -6,7 +6,7 @@ import bot.models.player_model as player_model
 import time
 import sqlite3
 from contextlib import contextmanager
-from bot.utils import not_arrested, allowed_channel
+from bot.utils import not_arrested, allowed_channel, main_server_only
 from bot.views.profile_embed import GAME_CLASSES
 from bot import config_loader
 from bot import game_modifiers
@@ -701,6 +701,7 @@ class PlayerCommands(commands.Cog):
     
     # 2. โอนเงิน: โอนจาก Bank -> ผู้เล่นอื่น
     @not_arrested() 
+    @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
     @commands.command(name="transfer")
     @allowed_channel("bank")
     async def transfer(self, ctx, member: discord.Member, amount: int):
@@ -709,6 +710,7 @@ class PlayerCommands(commands.Cog):
 
     # 3. ขอเงิน (Beg)
     @not_arrested() 
+    @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
     @commands.command(name="beg")
     @allowed_channel("bank")
     async def beg(self, ctx):
@@ -727,6 +729,7 @@ class PlayerCommands(commands.Cog):
 
     # 4. ปล้น (Rob)
     @not_arrested() 
+    @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
     @commands.command(name="rob")
     @allowed_channel("bank")
     async def rob(self, ctx, member: discord.Member):
@@ -753,6 +756,7 @@ class PlayerCommands(commands.Cog):
             await ctx.send(f"👮 **ปล้นพลาด!** คุณถูกตำรวจจับ! ถูกขังคุกเป็นเวลา 3 นาที")
 
     # 5. rich
+    @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
     @commands.command(name="rich")
     @allowed_channel("bank")
     async def rich(self, ctx):
@@ -777,6 +781,7 @@ class PlayerCommands(commands.Cog):
         await ctx.send(msg)
 
     # 6. toplvl
+    @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
     @commands.command(name="toplvl")
     @allowed_channel("bank")
     async def toplvl(self, ctx):
@@ -803,6 +808,7 @@ class PlayerCommands(commands.Cog):
     # ==========================================
     # 💬 คำสั่งเช็กสถิติการพิมพ์ของตัวเอง (!mytext)
     # ==========================================
+    @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
     @commands.command(name="mytext")
     @allowed_channel("bank")
     async def check_my_text(self, ctx):
@@ -831,6 +837,7 @@ class PlayerCommands(commands.Cog):
     # ==========================================
     # 🏆 คำสั่งเช็ก 10 อันดับคนพิมพ์เยอะที่สุด (!toptext)
     # ==========================================
+    @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
     @commands.command(name="toptext")
     @allowed_channel("bank")
     async def top_text_leaderboard(self, ctx):
@@ -878,6 +885,7 @@ class PlayerCommands(commands.Cog):
     # ponytail: คูลดาวน์เดียวรวมทุกยศ (ไม่ใช่แยกคูลดาวน์ต่อยศ) — ง่ายกว่าและพอสำหรับสเปกปัจจุบัน
     # ==========================================
     @not_arrested()
+    @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
     @commands.command(name="reward")
     async def claim_rank_reward(self, ctx):
         user_id = ctx.author.id
@@ -962,6 +970,7 @@ class PlayerCommands(commands.Cog):
         await ctx.send(embed=embed)
 
     # --- 🎯 !bounty: กระดานล่าค่าหัว (คนสติติดลบ = อาชญากร) ---
+    @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
     @commands.command(name="bounty", aliases=["wanted", "ล่าหัว"])
     async def bounty_board(self, ctx):
         outlaws = player_model.get_outlaws()
@@ -999,6 +1008,7 @@ class PlayerCommands(commands.Cog):
         await ctx.send(embed=embed)
     
     # ⏱️ เช็กเวลาออนไลน์ของตัวเอง
+    @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
     @commands.command(name="mytime")
     @allowed_channel("bank")
     async def check_my_time(self, ctx):
@@ -1013,6 +1023,7 @@ class PlayerCommands(commands.Cog):
         await ctx.send(f"👤 **{ctx.author.name}**\n⏱️ เวลาออนไลน์ทั้งหมดของคุณ: **{hours} ชั่วโมง {minutes} นาที**")
 
     # 🏆 เช็กอันดับ Top 10 เวลาออนไลน์
+    @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
     @commands.command(name="toptime")
     @allowed_channel("bank")
     async def top_online_time(self, ctx):
@@ -1218,6 +1229,7 @@ class PlayerCommands(commands.Cog):
     # ==========================================
     @allowed_channel("arena") # 🛠️ ใช้ Decorator บล็อกห้อง
     @not_arrested() # 🛠️ บล็อกคนติดคุก
+    @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
     @commands.command(name="att")
     async def pvp_attack(self, ctx, member: discord.Member):
         # 1. ป้องกันการตีตัวเอง
@@ -1521,6 +1533,7 @@ class PlayerCommands(commands.Cog):
     # สแกนผู้เล่นว่าตีได้หรือไม่
     @allowed_channel("arena") # 🛠️ ใช้ Decorator บล็อกห้อง
     @not_arrested() # 🛠️ บล็อกคนติดคุก
+    @main_server_only()   # P8: เซิร์ฟหลักเท่านั้น
     @commands.command(name="scan")
     async def scan_target(self, ctx, member: discord.Member):
         # 1. โหลดข้อมูลเป้าหมายจาก DB

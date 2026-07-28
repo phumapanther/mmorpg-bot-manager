@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands, tasks
 import bot.models.player_model as player_model
-from bot.utils import not_arrested, allowed_channel
+from bot.utils import not_arrested, allowed_channel, is_main_server
 
 class PrivateRoom(commands.Cog):
     def __init__(self, bot):
@@ -101,4 +101,8 @@ class PrivateRoom(commands.Cog):
                 await ctx.send("❌ กรุณาระบุจำนวนคนเป็นตัวเลข!")
 
 async def setup(bot):
+
+    async def cog_check(self, ctx):
+        """P8: ฟีเจอร์นี้เล่นได้เฉพาะเซิร์ฟหลัก (เซิร์ฟรองเล่นได้แค่ผจญภัย)"""
+        return is_main_server(ctx)
     await bot.add_cog(PrivateRoom(bot))
