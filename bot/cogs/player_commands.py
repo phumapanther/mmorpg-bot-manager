@@ -562,7 +562,7 @@ def build_codex_embed(topic=""):
             "`!shop` ร้านไอเทม • `!darkshop` / `!lightshop` ร้านยศสองฝ่าย\n"
             "`!rent` เช่าห้องส่วนตัว (`!extend` ต่ออายุ, `!set_room` ตั้งค่า)\n"
             "`!guild` ระบบกิลด์: create/invite/deposit/pay (ก่อตั้ง 3,000,000,000 ทองสด)\n"
-            "`!marry @คน` **ชวนเป็นคู่หู** • `!partner` สถานะคู่ • `!divorce` เลิก\n"
+            "`!marry @คน` **ชวนเป็นคู่หู** (ต้องมี 💍 แหวนแต่งงานจาก `!shop`) • `!partner` • `!divorce`\n"
             "`!payment` เติมเงิน • `!my_orders` เช็คคำสั่งซื้อ • `!menu` เมนูปุ่มลัด"))
         return embed
 

@@ -939,9 +939,56 @@ class AdminCommands(commands.Cog):
         await ctx.send(f"🎉 **[ADMIN GLOBAL]** แจกของขวัญสำเร็จ!\nเสก `{item_name}` x`{amount}` ให้ผู้เล่นทุกคนในฐานข้อมูลเรียบร้อย! (รวมทั้งหมด `{count_players}` คน)")
     
     # ==========================================
+    # 🎁 3. แจกไอเทมให้ "เฉพาะคนที่มียศนี้" (!giverole) — สำหรับกิจกรรมที่แจกยศผู้เข้าร่วม
+    # ==========================================
+    @has_permission("admin")
+    @commands.command(name="giverole", aliases=["แจกตามยศ"])
+    @commands.has_permissions(administrator=True)
+    async def give_item_to_role(self, ctx, role: discord.Role = None, item_id: str = None, amount: int = 1):
+        if role is None or item_id is None:
+            return await ctx.send(
+                "❌ วิธีใช้: `!giverole @ยศ [เลขไอเทม] [จำนวน]`\n"
+                "💡 เช่น: `!giverole @แฟนเดย์ 65 1` — แจกแหวนแต่งงานให้ทุกคนที่มียศแฟนเดย์")
+
+        item = config_loader.get_item_config(item_id)
+        if not item:
+            return await ctx.send(f"❌ ไม่พบไอเทมรหัส `{item_id}` ในระบบ!")
+        if amount <= 0:
+            return await ctx.send("❌ จำนวนต้องมากกว่า 0 ครับแอดมิน!")
+
+        members = [m for m in role.members if not m.bot]
+        if not members:
+            return await ctx.send(f"❌ ไม่มีใครถือยศ {role.mention} อยู่เลย")
+
+        await ctx.send(f"⏳ กำลังแจก `{item['name']}` ให้คนที่มียศ **{role.name}** ({len(members)} คน)...")
+
+        conn = sqlite3.connect(getattr(player_model, "DB_NAME", "game_data.db"))
+        cursor = conn.cursor()
+        updates, skipped = [], []
+        for member in members:
+            row = cursor.execute("SELECT inventory FROM players WHERE user_id = ?", (member.id,)).fetchone()
+            if row is None:
+                skipped.append(member.display_name)      # ยังไม่เคยเล่น = ไม่มีกระเป๋าให้ใส่
+                continue
+            inv = player_model.load_inventory(row[0])
+            inv.extend([str(item_id)] * amount)
+            updates.append((json.dumps(inv), member.id))
+        cursor.executemany("UPDATE players SET inventory = ? WHERE user_id = ?", updates)
+        conn.commit()
+        conn.close()
+
+        msg = (f"🎁 **[ADMIN]** แจก `{item['name']}` ×`{amount}` "
+               f"ให้คนที่มียศ **{role.name}** เรียบร้อย — สำเร็จ `{len(updates)}` คน")
+        if skipped:
+            names = ", ".join(skipped[:10]) + (f" และอีก {len(skipped) - 10} คน" if len(skipped) > 10 else "")
+            msg += f"\n⚠️ ข้าม `{len(skipped)}` คนที่ยังไม่เคยเริ่มเล่น (ให้พิมพ์ `!play` ก่อนแล้วค่อยแจกใหม่): {names}"
+        await ctx.send(msg)
+
+    # ==========================================
     # 🛡️ ระบบดัก Error กรณีผู้เล่นทั่วไปแอบใช้คำสั่งแอดมิน
     # ==========================================
     @spawn_item.error
+    @give_item_to_role.error
     @give_item_to_all.error
     async def admin_commands_error(self, ctx, error):
         if isinstance(error, commands.MissingPermissions):
