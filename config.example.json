@@ -1321,6 +1321,13 @@
     ],
     "streak_daily_gold": 1000
   },
+  "market": {
+    "enabled": true,
+    "tax_percent": 5,
+    "min_price": 100,
+    "max_price": 1000000000,
+    "max_listings_per_player": 5
+  },
   "pets": {
     "tame_chance": { "Common": 1, "Mini-Boss": 8, "Main-Boss": 15, "Secret": 20, "Unbeatable": 30 },
     "list": [

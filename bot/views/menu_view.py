@@ -135,6 +135,33 @@ class TopBoardView(discord.ui.View):
         return cb
 
 
+class MarketBuySelect(discord.ui.Select):
+    """เลือกซื้อของจากตลาด (C5) — ของตัวเองไม่ขึ้นในลิสต์ให้กดพลาด"""
+    def __init__(self, user_id):
+        from bot import market
+        rows = [r for r in market.open_listings() if r[1] != user_id][:25]
+        options = [discord.SelectOption(
+            label=f"#{lid} {market._item_name(item)}"[:100],
+            value=str(lid),
+            description=f"{price:,} ทอง") for lid, _seller, item, price in rows]
+        super().__init__(placeholder="เลือกของที่จะซื้อ...", options=options or
+                         [discord.SelectOption(label="ยังไม่มีของขาย", value="none")],
+                         disabled=not options)
+
+    async def callback(self, interaction: discord.Interaction):
+        from bot import market
+        _ok, msg = market.buy_listing(interaction.user.id, int(self.values[0]))
+        await interaction.response.edit_message(
+            content=msg, embed=market.build_market_embed(interaction.user.id),
+            view=MarketView(interaction.user.id))
+
+
+class MarketView(discord.ui.View):
+    def __init__(self, user_id):
+        super().__init__(timeout=180)
+        self.add_item(MarketBuySelect(user_id))
+
+
 class PetSelect(discord.ui.Select):
     """เลือกสัตว์เลี้ยงที่จะติดตัว (C4) — ponytail: 24 ตัวแรก ลิมิต Select คือ 25"""
     def __init__(self, user_id):
@@ -384,6 +411,13 @@ class GameMenuView(discord.ui.View):
         await interaction.response.send_message(
             embed=daily.build_daily_embed(interaction.user.id, interaction.user.display_name),
             view=DailyView(interaction.user.id), ephemeral=True)
+
+    @discord.ui.button(label="🏪 ตลาดผู้เล่น", style=discord.ButtonStyle.secondary, custom_id="game_menu:market")
+    async def market_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        from bot import market
+        await interaction.response.send_message(
+            embed=market.build_market_embed(interaction.user.id),
+            view=MarketView(interaction.user.id), ephemeral=True)
 
     @discord.ui.button(label="🐾 สัตว์เลี้ยง", style=discord.ButtonStyle.secondary, custom_id="game_menu:pet")
     async def pet_button(self, interaction: discord.Interaction, button: discord.ui.Button):

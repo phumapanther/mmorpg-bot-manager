@@ -965,6 +965,43 @@ class PlayerCommands(commands.Cog):
         await ctx.send(embed=build_bestiary_embed(
             ctx.author.id, ctx.author.display_name, ctx.author.display_avatar.url))
 
+    # --- 🏪 !market: ตลาดผู้เล่น (C5) ---
+    @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
+    @commands.command(name="market", aliases=["ตลาด"])
+    async def market_board(self, ctx, action: str = None, arg1: str = None, arg2: str = None):
+        from bot import market
+        from bot.views.menu_view import MarketView
+
+        if action in ("sell", "ขาย"):
+            if not arg1 or not arg2:
+                return await ctx.send("❓ **วิธีใช้:** `!market sell [เลขไอเทม] [ราคา]`")
+            _ok, msg = market.list_item(ctx.author.id, arg1, arg2)
+            return await ctx.send(msg)
+
+        if action in ("cancel", "ยกเลิก"):
+            if not arg1 or not arg1.lstrip("#").isdigit():
+                return await ctx.send("❓ **วิธีใช้:** `!market cancel [เลขรายการ]`")
+            _ok, msg = market.cancel_listing(ctx.author.id, int(arg1.lstrip("#")))
+            return await ctx.send(msg)
+
+        if action in ("mine", "ของฉัน"):
+            rows = market.my_listings(ctx.author.id)
+            if not rows:
+                return await ctx.send("📭 คุณไม่มีของลงขายอยู่")
+            lines = [f"`#{lid}` {market._item_name(item)} — 🪙 `{price:,}` ทอง"
+                     for lid, item, price in rows]
+            return await ctx.send("🏪 **ของที่คุณลงขายอยู่:**\n" + "\n".join(lines)
+                                  + "\n*ยกเลิก: `!market cancel [เลขรายการ]`*")
+
+        if action in ("buy", "ซื้อ"):
+            if not arg1 or not arg1.lstrip("#").isdigit():
+                return await ctx.send("❓ **วิธีใช้:** `!market buy [เลขรายการ]`")
+            _ok, msg = market.buy_listing(ctx.author.id, int(arg1.lstrip("#")))
+            return await ctx.send(msg)
+
+        await ctx.send(embed=market.build_market_embed(ctx.author.id),
+                       view=MarketView(ctx.author.id))
+
     # --- 🐾 !pet: สัตว์เลี้ยงที่จับมาได้ + เลือกตัวติดตาม (C4) ---
     @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
     @commands.command(name="pet", aliases=["pets", "สัตว์เลี้ยง"])
