@@ -530,10 +530,10 @@ def build_codex_embed(topic=""):
             "`!codex <หมวด>` สารานุกรมกติกา • `!reward` รับรางวัลประจำยศ\n"
             "`!bestiary` สมุดสะสมมอนสเตอร์ (ล่าครบมีโบนัสทอง)"))
         embed.add_field(name="🎒 กระเป๋า & ไอเทม", inline=False, value=(
-            "`!bag` ดูกระเป๋า • `!use <เลข>` ใช้ไอเทม • `!drop <เลข>` ทิ้ง\n"
+            "`!bag` ดูกระเป๋า *(มีปุ่ม 🔨 คราฟ · 🗑️ ทิ้ง · 🧱 ขายวัสดุ ในตัว)* • `!use <เลข>` • `!drop <เลข>`\n"
             "`!give @คน <เลข>` ส่งของให้เพื่อน • `!recipes` สูตรคราฟ • `!craft <เลข>` คราฟของ"))
         embed.add_field(name="💰 เงิน & ธนาคาร", inline=False, value=(
-            "`!bank` ยอดธนาคาร • `!deposit <จำนวน>` ฝาก • `!withdraw <จำนวน>` ถอน\n"
+            "`!bank` ยอดธนาคาร *(มีปุ่ม 💰 ฝาก · 💸 ถอน · 🤝 โอน ในตัว)* • `!deposit` • `!withdraw`\n"
             "`!transfer @คน <จำนวน>` โอน • `!beg` ขอทาน • `!rob @คน` ปล้น (เสี่ยงติดคุก!)\n"
             "`!rich` `!toplvl` `!mytext` `!toptext` `!mytime` `!toptime` อันดับ/แต้มกิจกรรม"))
         embed.add_field(name="🎰 คาสิโน & PvP", inline=False, value=(
