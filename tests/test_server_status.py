@@ -1,6 +1,8 @@
 """แจ้งเตือนเปิด-ปิดเซิร์ฟ: config + การจับมือผ่านไฟล์ธง"""
+import asyncio
 import json
 import subprocess
+import time
 from types import SimpleNamespace
 
 import panel.process_manager as pmgr
@@ -12,19 +14,41 @@ def test_server_status_channel_in_config():
     assert "เปิด-ปิดเซิร์ฟ" in ch["server_status"]["label"]
 
 
-def test_cog_importable_and_flag_path():
+def test_flag_lives_outside_the_synced_project_folder():
+    """ธงต้องไม่อยู่ในโฟลเดอร์โปรเจกต์ — OneDrive ซิงค์ไฟล์กลับมาเองแล้วบอทหลักดับกลางอากาศ
+    และ panel กับบอทต้องชี้ path เดียวกันเสมอ (คนละ path = ปุ่ม Stop ไม่ทำงาน)"""
     import bot.cogs.server_status as ss
-    assert ss.SHUTDOWN_FLAG.endswith("shutdown_request.flag")
+    from app_paths import get_app_root, get_shutdown_flag
+    assert ss.SHUTDOWN_FLAG == get_shutdown_flag()
+    assert not ss.SHUTDOWN_FLAG.startswith(get_app_root())
+
+
+def test_stale_flag_is_ignored(tmp_path, monkeypatch):
+    """ธงเก่า (ไฟล์ค้าง/ถูกซิงค์กลับมา) ต้องถูกทิ้ง ไม่ใช่สั่งปิดบอท"""
+    import bot.cogs.server_status as ss
+    flag = tmp_path / "stale.flag"
+    flag.write_text("")
+    monkeypatch.setattr(ss, "SHUTDOWN_FLAG", str(flag))
+    monkeypatch.setattr(ss.os.path, "getmtime", lambda p: time.time() - 999)
+
+    closed = []
+    cog = ss.ServerStatus.__new__(ss.ServerStatus)          # ข้าม __init__ (มันสตาร์ท loop)
+    cog.bot = SimpleNamespace(close=lambda: closed.append(1), get_channel=lambda cid: None)
+    asyncio.run(ss.ServerStatus.watch_shutdown.coro(cog))
+
+    assert not closed, "ธงเก่าห้ามทำให้บอทปิดตัวเอง"
+    assert not flag.exists(), "ธงเก่าต้องถูกเก็บกวาดทิ้ง"
 
 
 def test_panel_stop_writes_flag_and_waits(tmp_path, monkeypatch):
     """stop() ต้องวางธงก่อน แล้วรอบอทปิดเอง — บอทตอบทัน = ไม่โดน terminate"""
-    monkeypatch.setattr(pmgr, "_ROOT", str(tmp_path))
+    flag = tmp_path / "shutdown.flag"
+    monkeypatch.setattr(pmgr, "get_shutdown_flag", lambda: str(flag))
     events = []
 
     def wait(timeout=None):
         # จำลองบอทเห็นธงแล้วปิดตัวเองทันเวลา
-        events.append(("wait", (tmp_path / "shutdown_request.flag").exists()))
+        events.append(("wait", flag.exists()))
         return 0
 
     fake = SimpleNamespace(poll=lambda: None, wait=wait,
@@ -32,13 +56,13 @@ def test_panel_stop_writes_flag_and_waits(tmp_path, monkeypatch):
                            kill=lambda: events.append(("kill", None)))
     monkeypatch.setattr(pmgr, "_proc", fake)
     pmgr.stop()
-    assert events == [("wait", True)]                       # ธงถูกวางก่อนรอ และไม่มีการฆ่า
-    assert not (tmp_path / "shutdown_request.flag").exists()  # ธงถูกเก็บกวาด
+    assert events == [("wait", True)]     # ธงถูกวางก่อนรอ และไม่มีการฆ่า
+    assert not flag.exists()              # ธงถูกเก็บกวาด
 
 
 def test_panel_stop_falls_back_to_terminate(tmp_path, monkeypatch):
     """บอทไม่ตอบใน 6 วิ → terminate ตามเดิม"""
-    monkeypatch.setattr(pmgr, "_ROOT", str(tmp_path))
+    monkeypatch.setattr(pmgr, "get_shutdown_flag", lambda: str(tmp_path / "shutdown.flag"))
     events = []
     calls = {"n": 0}
 

@@ -1,6 +1,6 @@
 import os, sys, subprocess, threading, collections
 
-from app_paths import get_app_root
+from app_paths import get_app_root, get_shutdown_flag
 
 _ROOT = get_app_root()
 # default: run the packaged/launcher bot; overridable in tests
@@ -34,7 +34,7 @@ def stop():
     with _lock:
         if _proc and _proc.poll() is None:
             # ขอปิดแบบสุภาพก่อน: วางไฟล์ธงให้บอทประกาศ 🔴 ในห้อง server_status แล้วปิดตัวเอง
-            flag = os.path.join(_ROOT, "shutdown_request.flag")
+            flag = get_shutdown_flag()
             try:
                 open(flag, "w").close()
                 _proc.wait(timeout=6)

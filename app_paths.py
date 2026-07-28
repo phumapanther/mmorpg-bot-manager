@@ -6,9 +6,21 @@
 """
 import os
 import sys
+import tempfile
 
 
 def get_app_root():
     if getattr(sys, "frozen", False):
         return os.path.dirname(os.path.abspath(sys.executable))
     return os.path.dirname(os.path.abspath(__file__))
+
+
+def get_shutdown_flag():
+    """ธง 'ขอปิดบอท' ที่ panel วางไว้ให้บอทเห็น — ต้องอยู่นอกโฟลเดอร์ที่ถูกคลาวด์ซิงค์
+
+    บั๊กที่แก้: โปรเจกต์อยู่ใน OneDrive ธงเป็นไฟล์ชั่วคราวที่สร้างแล้วลบใน 6 วินาที
+    ถ้า OneDrive อัปโหลดทันก่อนลบ มันจะซิงค์ไฟล์กลับลงมาเองทีหลัง บอทหลักเห็นธงแล้ว
+    ปิดตัวเองกลางอากาศทั้งที่ไม่มีใครสั่ง (บอทรองไม่โหลด cog นี้เลยไม่ดับตาม)
+    เก็บไว้ในเทมป์ของเครื่องแทน — panel กับบอทรันเครื่องเดียวกันเสมอ จึงเห็นไฟล์เดียวกัน
+    """
+    return os.path.join(tempfile.gettempdir(), "mmorpg_bot_shutdown.flag")

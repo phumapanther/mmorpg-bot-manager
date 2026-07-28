@@ -1,13 +1,15 @@
 # 📡 แจ้งเตือนเปิด-ปิดเซิร์ฟ — ตั้งห้องได้ในแท็บ Channels ของ panel (key: server_status)
 # เปิด: ประกาศตอนบอทออนไลน์ | ปิด: panel วางไฟล์ธง shutdown_request.flag → บอทประกาศแล้วปิดตัวเองอย่างสุภาพ
 import os
+import time
 
 from discord.ext import commands, tasks
 
-from app_paths import get_app_root
+from app_paths import get_shutdown_flag
 from bot import config_loader
 
-SHUTDOWN_FLAG = os.path.join(get_app_root(), "shutdown_request.flag")
+SHUTDOWN_FLAG = get_shutdown_flag()
+FLAG_MAX_AGE = 30   # ธงเก่ากว่านี้ = ไม่ใช่คำสั่งสดจาก panel (ไฟล์ค้าง/ถูกซิงค์กลับมา) ห้ามเชื่อ
 
 
 class ServerStatus(commands.Cog):
@@ -42,12 +44,18 @@ class ServerStatus(commands.Cog):
     @tasks.loop(seconds=2)
     async def watch_shutdown(self):
         """เฝ้าไฟล์ธงจากปุ่ม Stop ของ panel — เจอแล้วประกาศลา + ปิดตัวเองอย่างสุภาพ"""
-        if not os.path.exists(SHUTDOWN_FLAG):
-            return
+        try:
+            age = time.time() - os.path.getmtime(SHUTDOWN_FLAG)
+        except OSError:
+            return                      # ไม่มีธง = ปกติ (เคสส่วนใหญ่)
         try:
             os.remove(SHUTDOWN_FLAG)
         except OSError:
             pass
+        if age > FLAG_MAX_AGE:
+            print(f"⚠️ [SHUTDOWN] เจอธงปิดเซิร์ฟค้างเก่า {int(age)} วิ — ไม่ใช่คำสั่งจริง ทิ้งแล้วรันต่อ")
+            return
+        print("🔴 [SHUTDOWN] ได้รับคำสั่งปิดจาก Panel — กำลังประกาศแล้วปิดตัวเอง")
         channel = self._channel()
         if channel:
             try:
