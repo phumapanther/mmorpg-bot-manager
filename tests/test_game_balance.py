@@ -49,3 +49,23 @@ def test_panel_values_actually_apply(monkeypatch):
     assert soldier[1] == 10 and soldier[2] == 7                     # โอกาส/แต้มจาก Panel
     common = gv._rank_stats("Common")
     assert common["hp_range"] == (5, 6) and common["gold_mult"] == 42
+
+
+def test_panel_balance_tab_exists():
+    """หน้า Panel ต้องมีแท็บ Balance ครบทุกส่วน + JS ผูกปุ่มบันทึกแล้ว"""
+    import pathlib
+    html = pathlib.Path("panel/static/index.html").read_text(encoding="utf-8")
+    js = pathlib.Path("panel/static/app.js").read_text(encoding="utf-8")
+    assert 'data-tab="balance"' in html and 'id="tab-balance"' in html
+    for box in ("balRoleKing", "balRoleDivider", "balRoleLeader", "balGuild", "balGuildWar",
+                "balPvp", "balRewards", "balMisc", "balRanksTable", "balanceSaveBtn"):
+        assert f'id="{box}"' in html, f"หน้า Panel ไม่มี {box}"
+    assert "renderBalance()" in js and "balanceSave" in js
+    # ทุก path ที่ Panel แก้ ต้องมีอยู่จริงใน config
+    import json, re
+    cfg = json.load(open("config.example.json", encoding="utf-8"))
+    for path in re.findall(r'\["([a-z_]+\.[a-z_.]+)",', js):
+        node = cfg["game_balance"]
+        for k in path.split("."):
+            assert k in node, f"Panel อ้าง game_balance.{path} แต่ config ไม่มี"
+            node = node[k]

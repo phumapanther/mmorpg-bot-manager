@@ -20,6 +20,7 @@
   <button class="tab-btn" data-tab="skills">Skills</button>
   <button class="tab-btn" data-tab="items">Items</button>
   <button class="tab-btn" data-tab="rank-rewards">Rank Rewards</button>
+  <button class="tab-btn" data-tab="balance">⚖️ Balance</button>
   <button class="tab-btn" data-tab="payment">Payment</button>
 </nav>
 
@@ -189,6 +190,35 @@
   </table>
   <button id="rankRewardAddBtn" type="button">+ เพิ่มยศ</button>
   <button id="rankRewardsSaveBtn" class="save-btn">บันทึก</button>
+</section>
+
+
+<section id="tab-balance" class="tab-panel">
+  <h2>⚖️ Balance — ค่าสมดุลเกม</h2>
+  <p class="hint">ค่าทั้งหมดในนี้เดิมฟิกอยู่ในโค้ด ตอนนี้แก้ได้เอง — เว้นว่าง/ไม่แตะ = ใช้ค่าเริ่มต้นเดิม กด Restart บอทหลังบันทึกทุกครั้ง</p>
+
+  <h3>👑 ยศสำคัญ (จำเป็นสำหรับเซิร์ฟใหม่)</h3>
+  <div class="field"><label>ยศราชา (คำสั่งแอดมิน)</label><span id="balRoleKing"></span></div>
+  <div class="field"><label>ยศคั่น "ยศกิลด์" (ยศกิลด์ใหม่เรียงใต้ตัวนี้)</label><span id="balRoleDivider"></span></div>
+  <div class="field"><label>ยศหัวหน้ากิลด์ (แจก/ถอนอัตโนมัติ)</label><span id="balRoleLeader"></span></div>
+
+  <h3>🏰 กิลด์</h3>
+  <div id="balGuild" class="bal-grid"></div>
+  <h3>⚔️ กิลด์วอร์</h3>
+  <div id="balGuildWar" class="bal-grid"></div>
+  <h3>🗡️ PvP / สติ / คุก</h3>
+  <div id="balPvp" class="bal-grid"></div>
+  <h3>🎯 ค่าหัว / 📕 สมุดมอน / ⚔️ สงครามฝ่าย</h3>
+  <div id="balRewards" class="bal-grid"></div>
+  <h3>🎲 ดรอป / ตาย / อีเวนต์ / คูลดาวน์</h3>
+  <div id="balMisc" class="bal-grid"></div>
+
+  <h3>👾 แรงค์มอนสเตอร์</h3>
+  <table id="balRanksTable"><thead><tr>
+    <th>แรงค์</th><th>เต๋า</th><th>HP ต่ำสุด</th><th>HP สูงสุด</th><th>โอกาสหนี %</th><th>ตัวคูณทอง</th><th>EXP</th>
+  </tr></thead><tbody></tbody></table>
+
+  <button id="balanceSaveBtn" class="save-btn">บันทึก</button>
 </section>
 
 <section id="tab-payment" class="tab-panel">

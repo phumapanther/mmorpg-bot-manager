@@ -1184,6 +1184,7 @@ async function init() {
   document.getElementById("verifyBtn").addEventListener("click", verifyToken);
   document.getElementById("guildSelect").addEventListener("change", onGuildChange);
   document.getElementById("setupSaveBtn").addEventListener("click", setupSave);
+  document.getElementById("balanceSaveBtn").addEventListener("click", balanceSave);
 
   document.getElementById("startBtn").addEventListener("click", startBot);
   document.getElementById("stopBtn").addEventListener("click", stopBot);
@@ -1249,6 +1250,7 @@ async function init() {
   renderItemsCatalog();
   renderRankRewards();
   renderPayment();
+  renderBalance();
 
   await refreshStatus();
   setInterval(refreshStatus, 1500);
@@ -1257,3 +1259,127 @@ async function init() {
 }
 
 document.addEventListener("DOMContentLoaded", init);
+
+// ---------- ⚖️ balance tab (กลุ่ม A: ค่าที่เคยฟิกในโค้ด) ----------
+
+const BAL_FIELDS = {
+  balGuild: [
+    ["guild.create_cost", "ค่าก่อตั้งกิลด์ (ทองสด)"],
+    ["guild.rename_cost", "ค่าเปลี่ยนชื่อกิลด์"],
+  ],
+  balGuildWar: [
+    ["guild_war.duration_min", "ระยะเวลาศึก (นาที)"],
+    ["guild_war.idle_warn_sec", "เงียบกี่วินาทีถึงเตือน"],
+    ["guild_war.idle_grace_sec", "หลังเตือน รออีกกี่วินาทีถึงจบ"],
+    ["guild_war.fight_cooldown_sec", "คูลดาวน์ !fight (วิ)"],
+    ["guild_war.chances.soldier", "โอกาสเจอทหาร %"],
+    ["guild_war.chances.leader", "โอกาสเจอหัวหน้า %"],
+    ["guild_war.chances.fort", "โอกาสเจอป้อม %"],
+    ["guild_war.chances.castle", "โอกาสเจอปราสาท %"],
+    ["guild_war.points.soldier", "แต้มล้มทหาร"],
+    ["guild_war.points.leader", "แต้มล้มหัวหน้า"],
+    ["guild_war.points.fort", "แต้มทำลายป้อม (ติดลบ=หักศัตรู)"],
+    ["guild_war.points.castle", "แต้มทำลายปราสาท"],
+  ],
+  balPvp: [
+    ["pvp.min_level", "เลเวลขั้นต่ำที่ PvP ได้"],
+    ["pvp.reward_exp_base", "EXP ฐานเมื่อฆ่าสำเร็จ"],
+    ["pvp.reward_exp_per_level", "EXP ต่อเลเวลเหยื่อ"],
+    ["pvp.reward_gold_base", "ทองฐานเมื่อฆ่าสำเร็จ"],
+    ["pvp.reward_gold_per_level", "ทองต่อเลเวลเหยื่อ"],
+    ["pvp.kill_cooldown_min_sec", "คูลดาวน์หลังฆ่า ต่ำสุด (วิ)"],
+    ["pvp.kill_cooldown_max_sec", "คูลดาวน์หลังฆ่า สูงสุด (วิ)"],
+    ["pvp.sanity_loss_base", "สติที่เสียต่อครั้ง (ฐาน)"],
+    ["pvp.sanity_loss_per_level", "สติที่เสียต่อเลเวลผู้โจมตี"],
+    ["pvp.jail_base_min", "ติดคุกฐาน (นาที)"],
+    ["pvp.jail_per_deficit_min", "ติดคุกเพิ่มต่อสติติดลบ 1"],
+    ["pvp.fine_base", "ค่าปรับวิสามัญ (ฐาน)"],
+    ["pvp.fine_per_deficit", "ค่าปรับเพิ่มต่อสติติดลบ 1"],
+  ],
+  balRewards: [
+    ["bounty.base", "ค่าหัวฐาน"],
+    ["bounty.per_deficit", "ค่าหัวเพิ่มต่อสติติดลบ 1"],
+    ["bounty.cap", "เพดานค่าหัว"],
+    ["bounty.hunt_sanity_reward", "สติที่ได้คืนเมื่อล่าโจรสำเร็จ"],
+    ["bestiary.continent_reward", "รางวัลสมุดครบ 1 ทวีป"],
+    ["bestiary.star_reward", "รางวัลดาวไร้พ่าย"],
+    ["bestiary.complete_reward", "รางวัลสมุดครบทั้งเล่ม"],
+    ["faction_war.gold_mult", "สงครามฝ่าย: ตัวคูณทอง"],
+    ["faction_war.exp_mult", "สงครามฝ่าย: ตัวคูณ EXP"],
+    ["faction_war.encounter_chance", "โอกาสเจอแชมเปี้ยน %"],
+  ],
+  balMisc: [
+    ["drops.normal_chance", "โอกาสดรอปของทั่วไป %"],
+    ["drops.rare_chance", "โอกาสดรอปของหายาก %"],
+    ["drops.respawn_hp_percent", "HP ที่ได้ตอนฟื้นจากตาย %"],
+    ["events.travel_chance", "โอกาสเจอพาหนะข้ามทวีป %"],
+    ["events.calm_chance", "โอกาสเจออีเวนต์สงบ %"],
+    ["cooldowns.play_sec", "คูลดาวน์ !play (วิ)"],
+    ["cooldowns.profile_sec", "คูลดาวน์ !profile (วิ)"],
+    ["cooldowns.adv_sec", "คูลดาวน์ !adv (วิ)"],
+    ["cooldowns.shop_sec", "คูลดาวน์ !shop (วิ)"],
+  ],
+};
+
+const BAL_RANK_COLS = ["dice_count", "hp_min", "hp_max", "flee_chance", "gold_mult", "exp_reward"];
+
+function balGet(path) {
+  let node = state.config.game_balance || {};
+  for (const k of path.split(".")) {
+    if (node == null || typeof node !== "object") return "";
+    node = node[k];
+  }
+  return node == null ? "" : node;
+}
+
+function balSet(path, value) {
+  if (!state.config.game_balance) state.config.game_balance = {};
+  const keys = path.split(".");
+  let node = state.config.game_balance;
+  for (const k of keys.slice(0, -1)) {
+    if (typeof node[k] !== "object" || node[k] == null) node[k] = {};
+    node = node[k];
+  }
+  node[keys[keys.length - 1]] = value === "" ? null : Number(value);
+}
+
+function renderBalance() {
+  for (const [containerId, fields] of Object.entries(BAL_FIELDS)) {
+    const box = document.getElementById(containerId);
+    if (!box) continue;
+    box.innerHTML = fields.map(([path, label]) =>
+      `<label>${label}<input type="number" step="any" data-bal="${path}" value="${balGet(path)}"></label>`
+    ).join("");
+  }
+  // ยศสำคัญ — ใช้ dropdown ยศเดียวกับแท็บอื่น
+  const roleFields = [["balRoleKing", "king_role_id"], ["balRoleDivider", "guild_divider_role_id"],
+                      ["balRoleLeader", "guild_leader_role_id"]];
+  for (const [elId, key] of roleFields) {
+    const el = document.getElementById(elId);
+    if (el) el.innerHTML = roleSelectHtml(balGet(`roles.${key}`) || null).replace("<select", `<select data-bal-role="${key}"`);
+  }
+  // ตารางแรงค์มอนสเตอร์
+  const tbody = document.querySelector("#balRanksTable tbody");
+  if (tbody) {
+    const ranks = state.config.monster_ranks || {};
+    tbody.innerHTML = Object.entries(ranks).map(([name, r]) =>
+      `<tr><td>${name}</td>` + BAL_RANK_COLS.map(c =>
+        `<td><input type="number" step="any" data-rank="${name}" data-col="${c}" value="${r[c] ?? ""}"></td>`).join("") + "</tr>"
+    ).join("");
+  }
+}
+
+async function balanceSave() {
+  document.querySelectorAll("[data-bal]").forEach(inp => balSet(inp.dataset.bal, inp.value));
+  document.querySelectorAll("[data-bal-role]").forEach(sel => {
+    if (!state.config.game_balance) state.config.game_balance = {};
+    if (!state.config.game_balance.roles) state.config.game_balance.roles = {};
+    state.config.game_balance.roles[sel.dataset.balRole] = sel.value ? Number(sel.value) : null;
+  });
+  document.querySelectorAll("[data-rank]").forEach(inp => {
+    if (!state.config.monster_ranks) state.config.monster_ranks = {};
+    const r = state.config.monster_ranks[inp.dataset.rank] || (state.config.monster_ranks[inp.dataset.rank] = {});
+    if (inp.value !== "") r[inp.dataset.col] = Number(inp.value);
+  });
+  await saveConfig();
+}
