@@ -73,3 +73,57 @@ def test_trap_survives_a_step_tick():
     for _ in range(5):
         statuses, expired = gm.tick_statuses(statuses, "step")
         assert "monster_trap" in statuses and not expired
+
+
+# ── เรทหนีตั้งใน Panel ได้ + ตารางคราฟในคู่มือ ──
+
+def test_flee_rate_is_configurable_per_element(monkeypatch):
+    from bot import config_loader
+    monkeypatch.setattr(config_loader, "get_config",
+                        lambda: {"game_balance": {"element_flee_chance": {"light": 0, "dark": 75}}})
+    assert gm.element_flee_chance("light") == 0, "ตั้ง 0 = ธาตุแสงเลิกหนี"
+    assert gm.element_flee_chance("dark") == 75, "เปิดให้ธาตุอื่นหนีได้"
+    assert gm.get_element_data({}, "dark")["monster_flee_chance"] == 75
+
+
+def test_flee_rate_survives_bad_input(monkeypatch):
+    from bot import config_loader
+    for junk in ("มาก", None, 999, -5):
+        monkeypatch.setattr(config_loader, "get_config",
+                            lambda: {"game_balance": {"element_flee_chance": {"light": junk}}})
+        v = gm.element_flee_chance("light")
+        assert 0 <= v <= 100, f"ค่า {junk!r} ทำให้เรทหนีเพี้ยน ({v})"
+
+
+def test_config_has_every_element():
+    cfg = json.load(open("config.example.json", encoding="utf-8"))["game_balance"]["element_flee_chance"]
+    assert set(cfg) == set(gm.ELEMENTS)
+    assert cfg["light"] == 40, "ค่าเริ่มต้นต้องเท่าของเดิมในโค้ด"
+
+
+def test_codex_shows_the_effective_flee_rate(monkeypatch):
+    from bot import config_loader
+    from bot.cogs.player_commands import build_codex_embed
+    monkeypatch.setattr(config_loader, "get_config",
+                        lambda: {"game_balance": {"element_flee_chance": {"light": 7}}})
+    text = " ".join(f.value for f in build_codex_embed("ธาตุ").fields)
+    assert "หนีเก่ง 7%" in text, "คู่มือต้องบอกเลขที่ตั้งใน Panel ไม่ใช่เลขในโค้ด"
+
+
+def test_craft_codex_page_highlights_hunting_gear():
+    from bot.cogs.player_commands import build_codex_embed
+    from bot.views.menu_view import CODEX_TOPICS
+    embed = build_codex_embed("คราฟ")
+    assert ("🔨 ตารางคราฟของ", "คราฟ") in CODEX_TOPICS
+    hunt = embed.fields[0]
+    assert "สายล่ามอน" in hunt.name
+    for needed in ("ใบเชิญบอสไร้พ่าย", "กับดักมอนสเตอร์"):
+        assert needed in hunt.value, f"หน้าคราฟต้องชูของสำคัญ: {needed}"
+    body = " ".join(f.value for f in embed.fields)
+    recipes = json.load(open("config.example.json", encoding="utf-8"))["item_catalog"]["crafting_recipes"]
+    assert len(body.split("`" )) - 1 >= len(recipes), "ต้องแสดงทุกสูตร ไม่ตกหล่น"
+
+
+def test_trap_is_craftable():
+    recipes = json.load(open("config.example.json", encoding="utf-8"))["item_catalog"]["crafting_recipes"]
+    assert "66" in recipes and recipes["66"]["recipe"], "กับดักต้องคราฟได้ ไม่งั้นคู่มือโกหก"

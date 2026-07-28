@@ -1124,6 +1124,14 @@
           "29": 5
         },
         "fail_rate": 0.25
+      },
+      "66": {
+        "recipe": {
+          "9": 4,
+          "12": 3,
+          "11": 1
+        },
+        "fail_rate": 0.2
       }
     }
   },
@@ -1492,6 +1500,15 @@
         "turns": 1,
         "unit": "ก้าว"
       }
+    },
+    "element_flee_chance": {
+      "fire": 0,
+      "water": 0,
+      "earth": 0,
+      "wind": 0,
+      "wood": 0,
+      "dark": 0,
+      "light": 40
     }
   },
   "monster_ranks": {

@@ -93,7 +93,21 @@ def get_element_data(mods, element_key):
     if base is None:
         return {}
     override = (mods.get("element_overrides") or {}).get(element_key, {})
-    return {**base, **override}
+    data = {**base, **override}
+    # 🏃 เรทหนีของมอนรายธาตุ ตั้งได้ที่ Panel — ทับทั้งค่าเริ่มต้นและ override ของทวีป/ธีม
+    # (ตั้ง 0 = ธาตุนั้นหนีไม่ได้เลย, ตั้งให้ธาตุอื่น = เปิดให้ธาตุนั้นหนีเป็นได้)
+    panel = (_balance("element_flee_chance", {}) or {}).get(element_key)
+    if panel is not None:
+        try:
+            data["monster_flee_chance"] = max(0, min(100, int(panel)))
+        except (TypeError, ValueError):
+            pass          # ค่าเพี้ยนใน Panel = ใช้ของเดิม
+    return data
+
+
+def element_flee_chance(element_key):
+    """เรทหนีที่มีผลจริงของธาตุนั้น (ไม่คิด override รายทวีป) — ใช้โชว์ในคู่มือให้ตรงกับที่ตั้งไว้"""
+    return int(get_element_data({}, element_key).get("monster_flee_chance", 0) or 0)
 
 
 # ===== ระบบสถานะติดตัว (Status Effects) =====

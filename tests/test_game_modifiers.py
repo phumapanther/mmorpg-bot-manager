@@ -346,8 +346,9 @@ def test_roll_element_valid_and_respects_weights():
 
 
 def test_get_element_data_with_overrides():
-    # ไม่มี override = ค่ามาตรฐานเป๊ะ
-    assert gm.get_element_data(gm.DEFAULT_MODS, "wood") == gm.ELEMENTS["wood"]
+    # ไม่มี override = ค่ามาตรฐานเป๊ะ (ยกเว้นเรทหนีที่ Panel เติมให้ทุกธาตุ)
+    assert gm.get_element_data(gm.DEFAULT_MODS, "wood") == {
+        **gm.ELEMENTS["wood"], "monster_flee_chance": gm.element_flee_chance("wood")}
     # override ทับเฉพาะพารามิเตอร์ที่ระบุ พารามิเตอร์อื่นของธาตุเดิมอยู่ครบ
     mods = {"element_overrides": {"wood": {"root_chance": 50, "exp_mult": 2.0}}}
     wood = gm.get_element_data(mods, "wood")
@@ -356,7 +357,8 @@ def test_get_element_data_with_overrides():
     assert wood["dice_bonus"] == (2, 4)          # ของเดิมไม่หาย
     assert gm.ELEMENTS["wood"]["root_chance"] == 25  # ตารางกลางไม่ถูกแก้
     # ธาตุอื่นไม่กระทบ
-    assert gm.get_element_data(mods, "fire") == gm.ELEMENTS["fire"]
+    assert gm.get_element_data(mods, "fire") == {
+        **gm.ELEMENTS["fire"], "monster_flee_chance": gm.element_flee_chance("fire")}
     # ธาตุไม่รู้จัก/None = ว่าง
     assert gm.get_element_data(mods, None) == {}
     assert gm.get_element_data(mods, "void?") == {}
@@ -509,7 +511,8 @@ def test_volcanic_continent_numbers(monkeypatch):
     assert mods["element_weights"] == {"fire": 35, "earth": 15}
     # Searing Heat: ไฟที่นี่ตีแรง 1.8 (override จาก 1.5 มาตรฐาน) — ธาตุอื่นไม่กระทบ
     assert gm.get_element_data(mods, "fire")["dmg_mult"] == 1.8
-    assert gm.get_element_data(mods, "water") == gm.ELEMENTS["water"]
+    assert gm.get_element_data(mods, "water") == {
+        **gm.ELEMENTS["water"], "monster_flee_chance": gm.element_flee_chance("water")}
     eruption = mods["special_events"][0]
     assert eruption["key"] == "volcanic_eruption" and eruption["pass_roll"] == 12
     assert eruption["success"]["items"][:2] == [{"id": "11", "qty": 10}, {"id": "40", "qty": 1}]  # อัญมณี + หินอัคนี (T2; แหวนแรร์เช็คที่ test_t2_drop_sources)

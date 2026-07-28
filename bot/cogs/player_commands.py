@@ -116,7 +116,7 @@ def _monster_element_desc(data):
     if data.get("pre_enraged"):
         parts.append("คลั่งตั้งแต่เทิร์นแรก")
     if data.get("monster_flee_chance"):
-        parts.append(f"หนีเก่ง {data['monster_flee_chance']}%")
+        parts.append(f"หนีเก่ง {data['monster_flee_chance']}% *(🪤 กับดักล็อกไว้ได้)*")
     if data.get("gold_mult", 1.0) > 1.0:
         parts.append(f"ล้มได้ทอง ×{data['gold_mult']:g}")
     return ", ".join(parts) or "-"
@@ -470,7 +470,8 @@ def build_codex_embed(topic=""):
         embed = discord.Embed(
             title="📖 Codex — ธาตุทั้ง 7", color=0x9b59b6,
             description="ธาตุประจำตัวมาจาก **ยศเผ่า** — ถือหลายเผ่าได้หลายธาตุ, สองธาตุข่มเป้าเดียวกัน = ดาเมจ ×2.0")
-        for key, data in game_modifiers.ELEMENTS.items():
+        # ใช้ค่าที่ "มีผลจริง" (ทับด้วย Panel แล้ว) — คู่มือจะได้ไม่บอกเรทหนีคนละเลขกับในเกม
+        for key, data in ((k, game_modifiers.get_element_data({}, k)) for k in game_modifiers.ELEMENTS):
             prey = [game_modifiers.ELEMENTS[t]["label"] for t in game_modifiers.ELEMENT_ADVANTAGE.get(key, [])]
             resist = [game_modifiers.ELEMENTS[t]["label"] for t in game_modifiers.ELEMENT_RESIST.get(key, [])]
             lines = [f"👤 ติดตัวผู้เล่น: {data['player']['desc']}",
@@ -650,6 +651,34 @@ def build_codex_embed(topic=""):
             embed.add_field(name=c["label"], value=f"ธาตุชุกชุม: {elem_txt}", inline=True)
         return embed
 
+    if topic in ("คราฟ", "craft", "สูตร", "recipes"):
+        all_items = config_loader.get_all_items()
+        recipes = config_loader.get_config().get("item_catalog", {}).get("crafting_recipes", {}) or {}
+        embed = discord.Embed(
+            title="📖 Codex — ตารางคราฟของ", color=0x9b59b6,
+            description=("เก็บวัสดุจากการล่ามอนแล้วเอามาคราฟ — พิมพ์ `!craft <เลขไอเทม>` "
+                         "หรือกดปุ่ม 🔨 ในหน้า `!bag` (ปุ่มจะโชว์เฉพาะสูตรที่วัตถุดิบครบแล้ว)\n"
+                         "⚠️ คราฟพลาด = **เสียวัสดุฟรี** ยิ่งของแรงยิ่งพลาดง่าย"))
+
+        def _line(out_id, r):
+            mats = " + ".join(f"{all_items.get(m, {}).get('name', m)}×**{n}**"
+                              for m, n in (r.get("recipe") or {}).items())
+            fail = int(float(r.get("fail_rate", 0)) * 100)
+            return f"`{out_id}` {all_items.get(out_id, {}).get('name', out_id)}\n　└ {mats} · พลาด {fail}%"
+
+        # แยกของที่ใช้ปั๊มสมุด/ล่ามอนออกมาเด่น ๆ เพราะเป็นตัวที่คนมองข้ามบ่อยสุด
+        hunt_keys = [k for k in ("24", "25", "26", "66", "27") if k in recipes]
+        if hunt_keys:
+            embed.add_field(name="🎯 ของสายล่ามอน (คราฟเองได้ ไม่ต้องรอดรอป!)", inline=False,
+                            value="\n".join(_line(k, recipes[k]) for k in hunt_keys))
+        rest = [k for k in recipes if k not in hunt_keys]
+        for i in range(0, len(rest), 5):
+            chunk = rest[i:i + 5]
+            embed.add_field(name="🔨 สูตรอื่น ๆ" if i == 0 else "​", inline=False,
+                            value="\n".join(_line(k, recipes[k]) for k in chunk))
+        embed.set_footer(text="วัสดุหาได้จากการล้มมอน/เปิดหีบ — ดูของในกระเป๋าด้วย !bag")
+        return embed
+
     if topic in ("รางวัล", "กิจกรรม", "daily", "season"):
         cfg = config_loader.get_config()
         embed = discord.Embed(
@@ -764,7 +793,8 @@ def build_codex_embed(topic=""):
                      "`!codex กิลด์` — ก่อตั้งกิลด์ คลังกิลด์ และกิลด์วอร์\n"
                      "`!codex รางวัล` — ภารกิจรายวัน ซีซั่นพาส อันดับสัปดาห์\n"
                      "`!codex สะสม` — ความสำเร็จ + สัตว์เลี้ยง\n"
-                     "`!codex สังคม` — ตลาดผู้เล่น + ระบบคู่หู"))
+                     "`!codex สังคม` — ตลาดผู้เล่น + ระบบคู่หู\n"
+                     "`!codex คราฟ` — ตารางคราฟของทั้งหมด (ใบเชิญบอส/กับดัก คราฟเองได้!)"))
     return embed
 
 
