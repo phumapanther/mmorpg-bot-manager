@@ -343,6 +343,57 @@ class MonsterEventView(ActionView):
             return False
         return True
 
+    def _record_element_book(self, cont_key, db_updates):
+        """🧬 สมุดธาตุ: จดช่อง (ทวีป × แรงค์ × ธาตุ) แล้วแจกรางวัลตามลำดับขั้น
+
+        ครบ 7 ธาตุของแรงค์ → ทอง | ครบทุกแรงค์ในทวีป → อาร์ติแฟกต์ประจำทวีป |
+        ครบทุกทวีป → สัตว์เลี้ยงระดับสูงสุด — ทุกชั้นรับได้ครั้งเดียวผ่านสมุดจอง claim_once
+        คืนข้อความประกาศ (ไม่มีอะไรปลด = สตริงว่าง)
+        """
+        element = getattr(self, "element", None)
+        if not element:
+            return ""
+        player_model.record_element_kill(self.user_id, cont_key, self.monster_rank, element)
+        book = player_model.get_element_book(self.user_id)
+        cont_label = game_modifiers.CONTINENTS.get(cont_key, game_modifiers.CONTINENTS["main"])["label"]
+        msg = ""
+
+        # ① ครบทุกธาตุของแรงค์นี้ ในทวีปนี้
+        if game_modifiers.element_rank_done(book, cont_key, self.monster_rank) \
+                and player_model.claim_once(self.user_id, f"elem:{cont_key}:{self.monster_rank}"):
+            gold = int((config_loader.get_balance("bestiary.element_rank_rewards", {}) or {})
+                       .get(self.monster_rank, 0))
+            db_updates["cash"] = db_updates.get("cash", 0) + gold
+            rank_name = _rank_stats(self.monster_rank).get("name", self.monster_rank)
+            msg += (f"\n🧬 **สมุดธาตุครบชุด!** ล้ม {rank_name} ครบทั้ง 7 ธาตุแห่ง {cont_label} "
+                    f"— โบนัส `+{gold:,}` ทอง")
+
+        # ② ครบทุกแรงค์ทุกธาตุในทวีปนี้ → อาร์ติแฟกต์ประจำทวีป
+        if game_modifiers.element_continent_done(book, cont_key) \
+                and player_model.claim_once(self.user_id, f"elem:cont:{cont_key}"):
+            item_id = str((config_loader.get_balance("bestiary.continent_artifacts", {}) or {}).get(cont_key, ""))
+            if item_id:
+                fresh = player_model.get_player(self.user_id) or {}
+                inv = player_model.load_inventory(db_updates.get("inventory") or fresh.get("inventory", ""))
+                inv.append(item_id)
+                db_updates["inventory"] = json.dumps(inv)
+                art_name = config_loader.get_item_config(item_id).get("name", "อาร์ติแฟกต์")
+                msg += (f"\n🏺 **พิชิตสมุดธาตุแห่ง {cont_label} ครบทั้งทวีป!** "
+                        f"ได้รับ **{art_name}** เป็นรางวัล!")
+
+        # ③ ครบทุกทวีป → สัตว์เลี้ยงระดับสูงสุด
+        if game_modifiers.element_book_complete(book) \
+                and player_model.claim_once(self.user_id, "elem:all"):
+            from bot import pets as _pets
+            pet_key = str(config_loader.get_balance("bestiary.element_complete_pet", "") or "")
+            pet = next((p for p in _pets.all_pets() if p.get("key") == pet_key), None)
+            if pet and player_model.claim_once(self.user_id, f"pet:{pet_key}"):
+                msg += (f"\n🐉 **สมุดธาตุสมบูรณ์ทั้ง 9 ทวีป!!** ตำนานที่ไม่มีใครทำได้ — "
+                        f"ได้รับสัตว์เลี้ยงขั้นสูงสุด **{pet['name']}**!")
+            elif pet:
+                msg += f"\n🐉 **สมุดธาตุสมบูรณ์ทั้ง 9 ทวีป!!** (คุณมี {pet['name']} อยู่แล้ว)"
+        return msg
+
     async def process_turn(self, interaction: discord.Interaction, skill_used=None):
         try:
             player = player_model.get_player(self.user_id)
@@ -918,6 +969,8 @@ class MonsterEventView(ActionView):
                 try:
                     cont_key = player.get("continent") or "main"
                     player_model.record_bestiary_kill(self.user_id, cont_key, self.monster_rank)
+                    # 🧬 สมุดธาตุ: จดแยกตามธาตุของมอน + แจกรางวัล 3 ชั้น (แรงค์ → ทวีป → ทั้งเล่ม)
+                    dropped_item_msg += self._record_element_book(cont_key, db_updates)
                     book = player_model.get_bestiary(self.user_id)
                     cont_label = game_modifiers.CONTINENTS.get(cont_key, game_modifiers.CONTINENTS["main"])["label"]
                     if self.monster_rank == "Unbeatable":

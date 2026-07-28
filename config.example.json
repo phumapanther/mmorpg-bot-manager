@@ -1172,7 +1172,26 @@
     "bestiary": {
       "continent_reward": 100000,
       "star_reward": 200000,
-      "complete_reward": 1000000
+      "complete_reward": 1000000,
+      "element_rank_rewards": {
+        "Common": 50000,
+        "Mini-Boss": 150000,
+        "Main-Boss": 300000,
+        "Secret": 500000,
+        "Unbeatable": 1000000
+      },
+      "continent_artifacts": {
+        "main": "49",
+        "demon": "48",
+        "frozen": "46",
+        "nether": "47",
+        "volcanic": "45",
+        "sylvan": "44",
+        "mechanized": "42",
+        "skyward": "43",
+        "ocean": "50"
+      },
+      "element_complete_pet": "dragonling"
     },
     "faction_war": {
       "gold_mult": 2.0,

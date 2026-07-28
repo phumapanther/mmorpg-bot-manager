@@ -645,6 +645,32 @@ BESTIARY_REWARD_COMPLETE = 1_000_000
 BESTIARY_COMPLETE_ITEM = "60"  # 💊 ยาครอบจักรวาล
 
 
+# 🧬 สมุดธาตุ (ส่วนขยาย): ทวีป × แรงค์ × ธาตุ — นับครบทั้ง 5 แรงค์รวมไร้พ่าย
+ELEMENT_BOOK_RANKS = ["Common", "Mini-Boss", "Main-Boss", "Secret", "Unbeatable"]
+
+
+def element_rank_done(elem_book, continent, rank):
+    """ครบทุกธาตุของแรงค์นี้ ในทวีปนี้หรือยัง"""
+    return all((continent, rank, e) in elem_book for e in ELEMENTS)
+
+
+def element_continent_done(elem_book, continent):
+    """ครบทุกแรงค์ทุกธาตุในทวีปนี้หรือยัง"""
+    return all(element_rank_done(elem_book, continent, r) for r in ELEMENT_BOOK_RANKS)
+
+
+def element_book_complete(elem_book):
+    """ครบทุกทวีป = จบสมุดธาตุทั้งเล่ม"""
+    return all(element_continent_done(elem_book, c) for c in CONTINENTS)
+
+
+def element_progress(elem_book, continent):
+    """ความคืบหน้าของทวีปนี้ — (เก็บได้กี่ช่อง, ทั้งหมดกี่ช่อง)"""
+    total = len(ELEMENT_BOOK_RANKS) * len(ELEMENTS)
+    got = sum(1 for r in ELEMENT_BOOK_RANKS for e in ELEMENTS if (continent, r, e) in elem_book)
+    return got, total
+
+
 def bestiary_continent_done(book, continent):
     """ทวีปนี้เก็บครบ 4 แรงค์หลักหรือยัง — book = {(continent, rank): kills}"""
     return all((continent, r) in book for r in BESTIARY_RANKS)

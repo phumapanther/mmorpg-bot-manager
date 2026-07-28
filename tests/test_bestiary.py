@@ -53,10 +53,12 @@ def test_bestiary_embed(tmp_path, monkeypatch):
         id=1, display_name="T", display_avatar=SimpleNamespace(url="https://x/a.png")))
     asyncio.run(PlayerCommands.bestiary.callback(None, ctx))
     embed = sent["e"]
-    assert len(embed.fields) == 10  # 9 ทวีป + สรุป
+    assert len(embed.fields) == 11  # 9 ทวีป + สรุป + สมุดธาตุ
     demon_field = [f for f in embed.fields if "ปีศาจ" in f.name][0]
     assert "✅" in demon_field.value and "⭐" in demon_field.value
-    assert "1/36" in embed.fields[-1].value and "1/9" in embed.fields[-1].value
+    summary = [f for f in embed.fields if "ความคืบหน้า" in f.name][0]
+    assert "1/36" in summary.value and "1/9" in summary.value
+    assert "0/315" in embed.fields[-1].value      # 🧬 สมุดธาตุ 9 ทวีป × 5 แรงค์ × 7 ธาตุ
 
 
 def test_bestiary_menu_button():

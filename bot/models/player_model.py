@@ -394,6 +394,39 @@ def get_bestiary(user_id):
     return rows
 
 
+def _ensure_element_book(cursor):
+    """สมุดธาตุ (ทวีป × แรงค์ × ธาตุ) — ตารางแยกจากสมุดเดิม ของเก่าไม่ต้องย้ายข้อมูล"""
+    cursor.execute("""CREATE TABLE IF NOT EXISTS bestiary_elements (
+        user_id INTEGER, continent TEXT, rank TEXT, element TEXT, kills INTEGER DEFAULT 0,
+        PRIMARY KEY (user_id, continent, rank, element))""")
+
+
+def record_element_kill(user_id, continent, rank, element):
+    if not element:
+        return                      # มอนไม่มีธาตุ (ของเก่า/อีเวนต์พิเศษ) = ไม่ต้องจด
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_element_book(cursor)
+    cursor.execute("""INSERT INTO bestiary_elements (user_id, continent, rank, element, kills)
+                      VALUES (?, ?, ?, ?, 1)
+                      ON CONFLICT(user_id, continent, rank, element) DO UPDATE SET kills = kills + 1""",
+                   (user_id, continent, rank, element))
+    conn.commit()
+    conn.close()
+
+
+def get_element_book(user_id):
+    """คืน {(ทวีป, แรงค์, ธาตุ): จำนวนที่ล้ม}"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_element_book(cursor)
+    cursor.execute("SELECT continent, rank, element, kills FROM bestiary_elements WHERE user_id = ?",
+                   (user_id,))
+    rows = {(c, r, e): k for c, r, e, k in cursor.fetchall()}
+    conn.close()
+    return rows
+
+
 def get_claimed_rewards(user_id):
     """คีย์รางวัลทั้งหมดที่ผู้เล่นเคยรับแล้ว (ใช้เช็คว่าปลดความสำเร็จอะไรไปบ้าง)"""
     conn = sqlite3.connect(DB_NAME)

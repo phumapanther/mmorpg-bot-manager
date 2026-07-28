@@ -702,6 +702,14 @@ def build_codex_embed(topic=""):
                 + (f"\n*...และอีก {len(achs) - 6} รายการ ดูครบที่ `!ach`*" if len(achs) > 6 else "")
                 + "\n🎖️ ปลดแล้วได้ **ตำแหน่ง** เลือกติดโชว์ใต้ชื่อในโปรไฟล์"))
 
+        rank_rw = config_loader.get_balance("bestiary.element_rank_rewards", {}) or {}
+        embed.add_field(name="🧬 สมุดธาตุ (`!bestiary` → ปุ่ม 🧬)", inline=False, value=(
+            "มอนทุกตัวมีธาตุ — **เก็บแยกทีละธาตุ** ในทุกแรงค์ ทุกทวีป (5 แรงค์ × 7 ธาตุ × 9 ทวีป)\n"
+            + " · ".join(f"{lbl.split()[1]} 🪙 {int(rank_rw.get(r, 0)):,}" for r, lbl in ELEM_RANK_ICON)
+            + "\n🏺 ครบทุกแรงค์ทุกธาตุใน 1 ทวีป → **อาร์ติแฟกต์ประจำทวีปนั้น**\n"
+              "🐉 ครบทั้ง 9 ทวีป → **สัตว์เลี้ยงขั้นสูงสุด**\n"
+              "*ใช้ 📃 ใบเชิญบอส เรียกแรงค์ที่ต้องการมาปั๊มได้ ไม่ต้องรอสุ่มเจอ*"))
+
         pets = (cfg.get("pets", {}) or {}).get("list", []) or []
         chances = (cfg.get("pets", {}) or {}).get("tame_chance", {}) or {}
         if pets:
@@ -784,7 +792,61 @@ def build_bestiary_embed(user_id, display_name, avatar_url):
     embed.add_field(name="📊 ความคืบหน้า",
                     value=f"ช่องสมุด `{done_slots}/36` | ดาวไร้พ่าย `{stars}/9` | ล้มรวมทั้งหมด `{total_kills:,}` ตัว",
                     inline=False)
+    elem = player_model.get_element_book(user_id)
+    got = sum(game_modifiers.element_progress(elem, c)[0] for c in game_modifiers.CONTINENTS)
+    per = game_modifiers.element_progress(elem, "main")[1]
+    embed.add_field(name="🧬 สมุดธาตุ",
+                    value=(f"เก็บได้ `{got}/{per * len(game_modifiers.CONTINENTS)}` ช่อง "
+                           f"— กดปุ่ม **🧬 สมุดธาตุ** ด้านล่างเพื่อดูรายทวีป"), inline=False)
     embed.set_thumbnail(url=avatar_url)
+    return embed
+
+
+ELEM_RANK_ICON = [("Common", "🟢 มอนธรรมดา"), ("Mini-Boss", "🟡 มินิบอส"),
+                  ("Main-Boss", "🔴 บอสใหญ่"), ("Secret", "🟣 มอนลับ"),
+                  ("Unbeatable", "💀 ไร้พ่าย")]
+
+
+def build_element_book_embed(user_id, display_name, continent=None):
+    """🧬 สมุดธาตุ — ไม่ระบุทวีป = สรุปทุกทวีป | ระบุ = ตาราง 5 แรงค์ × 7 ธาตุของทวีปนั้น"""
+    book = player_model.get_element_book(user_id)
+    els = list(game_modifiers.ELEMENTS)
+    rewards = config_loader.get_balance("bestiary.element_rank_rewards", {}) or {}
+
+    if continent and continent in game_modifiers.CONTINENTS:
+        c = game_modifiers.CONTINENTS[continent]
+        got, total = game_modifiers.element_progress(book, continent)
+        art_id = str((config_loader.get_balance("bestiary.continent_artifacts", {}) or {}).get(continent, ""))
+        art = config_loader.get_item_config(art_id).get("name", "อาร์ติแฟกต์") if art_id else "—"
+        embed = discord.Embed(
+            title=f"🧬 สมุดธาตุ — {c['label']}", color=0x8d6e63,
+            description=(f"ล้มมอนแต่ละแรงค์ให้ครบทั้ง 7 ธาตุ · เก็บได้ `{got}/{total}` ช่อง\n"
+                         f"🏺 ครบทั้งทวีปนี้ได้ **{art}**"))
+        header = "　" + " ".join(game_modifiers.ELEMENTS[e]["label"].split()[0] for e in els)
+        embed.add_field(name="ธาตุ", value=header, inline=False)
+        for rank, label in ELEM_RANK_ICON:
+            marks = " ".join("✅" if (continent, rank, e) in book else "▫️" for e in els)
+            done = game_modifiers.element_rank_done(book, continent, rank)
+            bonus = " · **ครบแล้ว!**" if done else f" · ครบแล้วรับ 🪙 {int(rewards.get(rank, 0)):,}"
+            embed.add_field(name=label, value=f"{marks}{bonus}", inline=False)
+        return embed
+
+    embed = discord.Embed(
+        title=f"🧬 สมุดธาตุของ {display_name}", color=0x8d6e63,
+        description=("มอนแต่ละแรงค์เก็บแยกทีละธาตุ (5 แรงค์ × 7 ธาตุ ต่อทวีป)\n"
+                     "ครบ 1 แรงค์ = ทอง · ครบ 1 ทวีป = **อาร์ติแฟกต์ประจำทวีป** · "
+                     "ครบทุกทวีป = **สัตว์เลี้ยงขั้นสูงสุด**"))
+    total_got = 0
+    for key, c in game_modifiers.CONTINENTS.items():
+        got, total = game_modifiers.element_progress(book, key)
+        total_got += got
+        bar = "█" * round(got / total * 10) + "░" * (10 - round(got / total * 10))
+        done_ranks = sum(1 for r, _lbl in ELEM_RANK_ICON if game_modifiers.element_rank_done(book, key, r))
+        flag = " 🏺" if game_modifiers.element_continent_done(book, key) else ""
+        embed.add_field(name=c["label"],
+                        value=f"`{bar}` {got}/{total} · แรงค์ที่ครบ {done_ranks}/5{flag}", inline=True)
+    embed.set_footer(text=f"รวมทั้งเล่ม {total_got}/{35 * len(game_modifiers.CONTINENTS)} ช่อง "
+                          "— เลือกทวีปจากเมนูด้านล่างเพื่อดูรายละเอียด")
     return embed
 
 
@@ -1069,8 +1131,10 @@ class PlayerCommands(commands.Cog):
     @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
     @commands.command(name="bestiary", aliases=["สมุดมอน"])
     async def bestiary(self, ctx):
+        from bot.views.menu_view import BestiaryView
         await ctx.send(embed=build_bestiary_embed(
-            ctx.author.id, ctx.author.display_name, ctx.author.display_avatar.url))
+            ctx.author.id, ctx.author.display_name, ctx.author.display_avatar.url),
+            view=BestiaryView())
 
     # --- 💍 !marry / !partner / !divorce: คู่หู (C7) ---
     @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว

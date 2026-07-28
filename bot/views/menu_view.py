@@ -250,6 +250,48 @@ class SeasonView(discord.ui.View):
         await self._refresh(interaction, season.claim_all(interaction.user.id))
 
 
+class ElementBookSelect(discord.ui.Select):
+    """เลือกทวีปเพื่อดูตารางธาตุ 5 แรงค์ × 7 ธาตุ ของทวีปนั้น"""
+    def __init__(self):
+        from bot import game_modifiers
+        super().__init__(placeholder="เลือกทวีปเพื่อดูตารางธาตุ...", options=[
+            discord.SelectOption(label=c["label"][:100], value=key)
+            for key, c in list(game_modifiers.CONTINENTS.items())[:25]])
+
+    async def callback(self, interaction: discord.Interaction):
+        from bot.cogs.player_commands import build_element_book_embed
+        await interaction.response.edit_message(
+            embed=build_element_book_embed(interaction.user.id, interaction.user.display_name,
+                                           self.values[0]),
+            view=ElementBookView())
+
+
+class ElementBookView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=180)
+        self.add_item(ElementBookSelect())
+
+    @discord.ui.button(label="🗺️ ดูสรุปทุกทวีป", style=discord.ButtonStyle.secondary, row=1)
+    async def overview(self, interaction: discord.Interaction, button: discord.ui.Button):
+        from bot.cogs.player_commands import build_element_book_embed
+        await interaction.response.edit_message(
+            embed=build_element_book_embed(interaction.user.id, interaction.user.display_name),
+            view=ElementBookView())
+
+
+class BestiaryView(discord.ui.View):
+    """ปุ่มสลับระหว่างสมุดเดิมกับสมุดธาตุ"""
+    def __init__(self):
+        super().__init__(timeout=180)
+
+    @discord.ui.button(label="🧬 สมุดธาตุ", style=discord.ButtonStyle.primary)
+    async def element_book(self, interaction: discord.Interaction, button: discord.ui.Button):
+        from bot.cogs.player_commands import build_element_book_embed
+        await interaction.response.send_message(
+            embed=build_element_book_embed(interaction.user.id, interaction.user.display_name),
+            view=ElementBookView(), ephemeral=True)
+
+
 class TitleSelect(discord.ui.Select):
     """เลือกตำแหน่งอวดจากที่ปลดล็อกแล้ว (C8) — ponytail: 24 อันแรกพอ ลิมิต Select คือ 25"""
     def __init__(self, user_id):
@@ -472,7 +514,7 @@ class GameMenuView(discord.ui.View):
     async def bestiary_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = build_bestiary_embed(
             interaction.user.id, interaction.user.display_name, interaction.user.display_avatar.url)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, view=BestiaryView(), ephemeral=True)
 
     @discord.ui.button(label="📖 คู่มือ", style=discord.ButtonStyle.secondary, custom_id="game_menu:codex")
     async def codex_button(self, interaction: discord.Interaction, button: discord.ui.Button):
