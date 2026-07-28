@@ -1181,6 +1181,35 @@
       "profile_sec": 30,
       "adv_sec": 5,
       "shop_sec": 3
+    },
+    "death": {
+      "respawn_fee_tiers": [
+        [
+          100,
+          10000
+        ],
+        [
+          90,
+          5000
+        ],
+        [
+          50,
+          2500
+        ],
+        [
+          20,
+          1000
+        ],
+        [
+          10,
+          500
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "force_respawn_fee": 1000
     }
   },
   "monster_ranks": {

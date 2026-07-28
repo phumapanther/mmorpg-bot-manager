@@ -1211,8 +1211,9 @@ class DeathRespawnView(ActionView):
     async def force_respawn(self, interaction: discord.Interaction, button: discord.ui.Button):
         player = player_model.get_player(self.user_id)
         
-        # หักเงิน 1,000 ทองตามเงื่อนไข (และคำนวณเลือดพื้นฐาน 30% ให้เหมือนระบบปกติ)
-        new_cash = player.get("cash", 0) - 1000
+        # หักค่าธรรมเนียมชุบฉุกเฉิน (ตั้งได้ที่ Panel) + เลือดพื้นฐานตามเรทเดียวกับระบบปกติ
+        fee = int(config_loader.get_balance("death.force_respawn_fee", 1000))
+        new_cash = player.get("cash", 0) - fee
         respawn_hp = int(player.get("max_hp", 100) * int(config_loader.get_balance("drops.respawn_hp_percent", 30)) / 100)
         
         # อัปเดตข้อมูลกลับเข้า Database
@@ -1227,7 +1228,7 @@ class DeathRespawnView(ActionView):
         # 1. แจ้งเตือนผู้เล่นแบบส่วนตัว (Ephemeral) ว่าชุบชีวิตสำเร็จแล้ว
         await interaction.response.send_message(
             content=f"✨ **ฟื้นคืนชีพสำเร็จ!** วิญญาณของคุณถูกดึงกลับมาที่หมู่บ้านอุ่นใจ\n"
-                    f"💸 หักค่าธรรมเนียมชุบชีวิตฉุกเฉิน `-1,000` ทอง (เงินคงเหลือ: {cash_text})",
+                    f"💸 หักค่าธรรมเนียมชุบชีวิตฉุกเฉิน `-{fee:,}` ทอง (เงินคงเหลือ: {cash_text})",
             ephemeral=True
         )
         
@@ -1949,39 +1950,47 @@ class RespawnView(ActionView):
     async def respawn(self, interaction: discord.Interaction, button: discord.ui.Button):
         player = player_model.get_player(self.user_id)
         player_level = player.get("level", 0)
-        respawn_hp = int(player["max_hp"] * 0.3)
-        # 🛠️ คำนวณค่าธรรมเนียมชุบชีวิตตามเลเวล
-        if player_level >= 100:
-            penalty_fee = 10000  # เลเวล 100+ จ่ายหนักสุด
-        elif player_level >= 90:
-            penalty_fee = 5000   # เลเวล 90-99
-        elif player_level >= 50:
-            penalty_fee = 2500   # เลเวล 50-89
-        elif player_level >= 20:
-            penalty_fee = 1000    # เลเวล 20-49
-        elif player_level >= 10:
-            penalty_fee = 500    # เลเวล 10-19
-        else:
-            penalty_fee = 0      # เลเวล 0-9 ชุบฟรี! (ช่วยเหลือผู้เล่นใหม่)
+        hp_pct = int(config_loader.get_balance("drops.respawn_hp_percent", 30))
+        respawn_hp = max(1, int(player["max_hp"] * hp_pct / 100))
+        # 🛠️ ค่าธรรมเนียมชุบชีวิตตามเลเวล — ตารางตั้งได้ที่ Panel (เรียงจากเลเวลสูงลงต่ำ)
+        tiers = config_loader.get_balance("death.respawn_fee_tiers",
+                                          [[100, 10000], [90, 5000], [50, 2500], [20, 1000], [10, 500], [0, 0]])
+        penalty_fee = next((int(fee) for lv, fee in tiers if player_level >= int(lv)), 0)
 
-        new_cash = player.get("cash", 0) - penalty_fee
-        
-        player_model.update_player_field(self.user_id, "hp", respawn_hp)
-        player_model.update_player_field(self.user_id, "cash", new_cash) 
-        player_model.update_player_field(self.user_id, "current_state", "village")
-        player_model.update_player_field(self.user_id, "last_event", "village")
-        player_model.update_player_field(self.user_id, "dungeon_steps", 0) 
+        old_cash = player.get("cash", 0)
+        new_cash = old_cash - penalty_fee
+        lost_steps = player.get("dungeon_steps", 0)
 
-        cash_status = f"`{new_cash}` ทอง" if new_cash >= 0 else f"`{new_cash}` ทอง ⚠️ (คุณกำลังติดหนี้สมาคมนักผจญภัย!)"
+        player_model.update_player_fields(self.user_id, {
+            "hp": respawn_hp, "cash": new_cash,
+            "current_state": "village", "last_event": "village", "dungeon_steps": 0})
 
-        await interaction.response.edit_message(
-            content=f"😇 **ปาฏิหาริย์!** มีนักเดินทางใจดีช่วยแบกร่างอันหมดสติของคุณมาส่งที่ **'หมู่บ้านอุ่นใจ'**...\n"
-                    f"🩸 คุณฟื้นตัวขึ้นมาพร้อมพลังชีวิตเบื้องต้น `❤️ {respawn_hp}` หน่วย\n"
-                    f"💸 เสียค่าธรรมเนียมชุบชีวิตและย้ายส่งโรงหมอ `- {penalty_fee}` ทอง (เงินคงเหลือปัจจุบัน: {cash_status})\n"
-                    f"----------------------------------------\n"
-                    f"ตอนนี้คุณอยู่ในหมู่บ้านแล้ว จะเอาอย่างไรต่อดี?",
-            view=VillageEventView(self.user_id) 
-        )
+        # 💀 B7: หน้าตายสรุปชัด — เสียอะไร เหลืออะไร ทำอะไรต่อ
+        embed = discord.Embed(
+            title="😇 ปาฏิหาริย์! คุณฟื้นคืนสติที่หมู่บ้านอุ่นใจ",
+            color=0xe67e22,
+            description="มีนักเดินทางใจดีแบกร่างอันหมดสติของคุณมาส่งถึงโรงหมอ...")
+        lost = [f"💸 ค่าชุบชีวิต **-{penalty_fee:,}** ทอง"]
+        if lost_steps:
+            lost.append(f"🕳️ ความคืบหน้าดันเจี้ยน **{lost_steps} ชั้น** (เริ่มใหม่จากหมู่บ้าน)")
+        embed.add_field(name="📉 สิ่งที่เสียไป", value="\n".join(lost), inline=False)
+
+        debt = "  ⚠️ **ติดหนี้สมาคมนักผจญภัย!**" if new_cash < 0 else ""
+        embed.add_field(
+            name="📊 สถานะปัจจุบัน",
+            value=(f"❤️ พลังชีวิต `{hp_bar(respawn_hp, player['max_hp'])}` "
+                   f"`{respawn_hp:,}/{player['max_hp']:,}` *(ฟื้นมา {hp_pct}%)*\n"
+                   f"💰 เงินสด `{new_cash:,}` ทอง{debt}\n"
+                   f"🎒 ของในกระเป๋า **ปลอดภัยครบ** (ตายไม่ทำของหาย)"),
+            inline=False)
+        embed.add_field(
+            name="👉 ทำอะไรต่อดี",
+            value=("• 💊 ซื้อยาฮีลเติมเลือดก่อนออกเดินทาง (`!shop`)\n"
+                   "• 🛠️ เช็คความทนทานอาวุธ/เกราะที่ `!profile`\n"
+                   "• 🧭 พร้อมแล้วกดปุ่มด้านล่างเพื่อลุยต่อ!"),
+            inline=False)
+        await interaction.response.edit_message(content=None, embed=embed,
+                                                view=VillageEventView(self.user_id))
 
 
 # 🧭 VIEW หลักในการเริ่มเดินทาง (!play)

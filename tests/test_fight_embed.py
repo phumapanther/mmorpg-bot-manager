@@ -52,3 +52,27 @@ def test_embed_survives_long_event_log():
 def test_embed_without_optional_parts():
     embed = gv.build_fight_embed(_view(statuses={}), {"hp": 50, "max_hp": 50}, None, None, "", 1)
     assert isinstance(embed, discord.Embed) and len(embed.fields) == 1   # เหลือแค่แถบเลือด
+
+
+# ── B7: หน้าตายสรุปชัด ──
+
+def test_respawn_fee_tiers_from_config(monkeypatch):
+    """ค่าชุบชีวิตอ่านจาก Panel และเลือก tier ตามเลเวลถูกต้อง"""
+    from bot import config_loader
+    tiers = config_loader.get_balance("death.respawn_fee_tiers")
+    assert tiers and tiers[0][0] >= tiers[-1][0]          # เรียงจากเลเวลสูงลงต่ำ
+
+    def fee_for(level):
+        return next((int(f) for lv, f in tiers if level >= int(lv)), 0)
+
+    assert fee_for(120) == 10000 and fee_for(95) == 5000
+    assert fee_for(60) == 2500 and fee_for(25) == 1000
+    assert fee_for(12) == 500 and fee_for(3) == 0          # ผู้เล่นใหม่ชุบฟรี
+
+
+def test_death_screen_sections_exist():
+    """หน้าตายต้องมีครบ 3 ส่วน: เสียอะไร / เหลืออะไร / ทำอะไรต่อ"""
+    import pathlib
+    src = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
+    assert "📉 สิ่งที่เสียไป" in src and "📊 สถานะปัจจุบัน" in src and "👉 ทำอะไรต่อดี" in src
+    assert "ของในกระเป๋า **ปลอดภัยครบ**" in src           # บอกชัดว่าของไม่หาย
