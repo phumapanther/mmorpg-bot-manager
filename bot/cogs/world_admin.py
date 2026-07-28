@@ -9,7 +9,7 @@ from discord.ext import commands
 import bot.models.player_model as player_model
 from bot import game_modifiers
 from bot.cogs import weekly_event
-from bot.utils import has_permission, is_main_server
+from bot.utils import has_permission, main_server_gate
 
 
 def load_theme_override():
@@ -130,4 +130,4 @@ async def setup(bot):
 
     async def cog_check(self, ctx):
         """P8: ฟีเจอร์นี้เล่นได้เฉพาะเซิร์ฟหลัก (เซิร์ฟรองเล่นได้แค่ผจญภัย)"""
-        return is_main_server(ctx)
+        return await main_server_gate(ctx)

@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from bot.utils import is_main_server
+from bot.utils import main_server_gate
 
 class OwnerAnnounce(commands.Cog):
     def __init__(self, bot):
@@ -68,5 +68,5 @@ async def setup(bot):
 
     async def cog_check(self, ctx):
         """P8: ฟีเจอร์นี้เล่นได้เฉพาะเซิร์ฟหลัก (เซิร์ฟรองเล่นได้แค่ผจญภัย)"""
-        return is_main_server(ctx)
+        return await main_server_gate(ctx)
     await bot.add_cog(OwnerAnnounce(bot))

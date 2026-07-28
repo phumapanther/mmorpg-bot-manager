@@ -48,7 +48,7 @@ def test_locked_cogs_have_main_server_gate():
                  "admin_commands"]
     for name in must_gate:
         src = pathlib.Path(f"bot/cogs/{name}.py").read_text(encoding="utf-8")
-        assert "is_main_server(ctx)" in src, f"{name} ไม่มีด่านเซิร์ฟหลัก!"
+        assert ("main_server_gate(ctx)" in src or "is_main_server(ctx)" in src), \n            f"{name} ไม่มีด่านเซิร์ฟหลัก!"
 
 
 def test_adventure_commands_stay_open():
@@ -108,3 +108,27 @@ def test_all_player_commands_have_a_room_gate():
                 continue
             assert ("allowed_channel" in block or "adventure_room_only" in block), \
                 f"!{name.group(1)} ยังไม่มีด่านห้อง"
+
+
+def test_gate_explains_instead_of_silent(monkeypatch):
+    """cog_check ต้องไม่บล็อกเงียบ — ผู้เล่นต้องได้ข้อความบอกเหตุผล"""
+    import asyncio
+    monkeypatch.setattr(config_loader, "get_main_guild_id", lambda: 999)
+    monkeypatch.setattr(config_loader, "get_main_server_invite", lambda: "https://discord.gg/x")
+    sent = []
+
+    async def send(msg=None, **kw):
+        sent.append(msg)
+
+    ctx = SimpleNamespace(guild=SimpleNamespace(id=111), send=send)
+    assert asyncio.run(utils.main_server_gate(ctx)) is False
+    assert "เซิร์ฟหลัก" in sent[0] and "discord.gg/x" in sent[0]
+    assert asyncio.run(utils.main_server_gate(SimpleNamespace(guild=SimpleNamespace(id=999), send=send))) is True
+
+
+def test_no_cog_blocks_silently():
+    """กันลืม: cog ที่ล็อกเซิร์ฟหลักต้องใช้ main_server_gate (ไม่ใช่ return is_main_server เฉย ๆ)"""
+    import pathlib
+    for f in pathlib.Path("bot/cogs").glob("*.py"):
+        src = f.read_text(encoding="utf-8")
+        assert "return is_main_server(ctx)" not in src, f"{f.name} บล็อกเงียบ — ใช้ main_server_gate แทน"

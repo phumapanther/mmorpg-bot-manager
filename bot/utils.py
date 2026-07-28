@@ -81,6 +81,20 @@ def adventure_room_only():
     return commands.check(predicate)
 
 
+async def main_server_gate(ctx):
+    """ด่านเซิร์ฟหลักสำหรับ cog_check — บล็อกพร้อมบอกเหตุผล
+    (เดิม cog_check คืน False เฉย ๆ ผู้เล่นเห็นคำสั่งเงียบสนิท นึกว่าบอทพัง)"""
+    if is_main_server(ctx):
+        return True
+    invite = config_loader.get_main_server_invite()
+    link = f"\n🌏 เข้าเซิร์ฟหลักที่นี่: {invite}" if invite else ""
+    try:
+        await ctx.send(f"🔒 **ฟีเจอร์นี้เล่นได้เฉพาะเซิร์ฟหลักเท่านั้น!**{link}", delete_after=15)
+    except Exception:
+        pass
+    return False
+
+
 def main_server_only():
     """คำสั่งที่ใช้ได้เฉพาะเซิร์ฟหลัก (P8) — ร้านค้า/คาสิโน/PvP/กิลด์/บอส/เติมเงิน/คำสั่งแอดมิน
     ⚠️ ต้องเช็ค "เซิร์ฟ" ก่อนเช็ค "ยศ" เสมอ — ไม่งั้นเจ้าของเซิร์ฟรองสร้างยศชื่อเดียวกันแล้วยิงคำสั่งแอดมินได้"""

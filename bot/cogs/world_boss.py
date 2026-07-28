@@ -3,7 +3,7 @@ from discord.ext import commands
 import random
 import time
 from collections import defaultdict
-from bot.utils import has_permission, is_main_server
+from bot.utils import has_permission, main_server_gate
 
 import bot.models.player_model as player_model
 from bot import config_loader
@@ -203,7 +203,7 @@ class WorldBoss(commands.Cog):
 
     async def cog_check(self, ctx):
         """P8: ฟีเจอร์นี้เล่นได้เฉพาะเซิร์ฟหลัก (เซิร์ฟรองเล่นได้แค่ผจญภัย)"""
-        return is_main_server(ctx)
+        return await main_server_gate(ctx)
 
     @has_permission("admin")
     @commands.command(name="spawn_boss")
