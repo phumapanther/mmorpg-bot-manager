@@ -618,3 +618,46 @@ def rename_guild(guild_id, new_name):
         return False
     finally:
         conn.close()
+
+
+# ===== 🌍 ห้องผจญภัยรายเซิร์ฟ (P8) — เซิร์ฟรองตั้งได้หลายห้อง =====
+
+def _ensure_guild_settings(cursor):
+    cursor.execute("""CREATE TABLE IF NOT EXISTS guild_adv_channels (
+        guild_id INTEGER, channel_id INTEGER,
+        PRIMARY KEY (guild_id, channel_id))""")
+
+
+def add_adv_channel(guild_id, channel_id):
+    """เพิ่มห้องเล่นของเซิร์ฟนั้น — False = มีอยู่แล้ว"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_guild_settings(cursor)
+    cursor.execute("INSERT OR IGNORE INTO guild_adv_channels VALUES (?, ?)", (guild_id, channel_id))
+    added = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return added
+
+
+def remove_adv_channel(guild_id, channel_id):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_guild_settings(cursor)
+    cursor.execute("DELETE FROM guild_adv_channels WHERE guild_id = ? AND channel_id = ?",
+                   (guild_id, channel_id))
+    removed = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return removed
+
+
+def get_adv_channels(guild_id):
+    """ห้องเล่นทั้งหมดของเซิร์ฟนี้ — ว่าง = ยังไม่ตั้ง"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_guild_settings(cursor)
+    cursor.execute("SELECT channel_id FROM guild_adv_channels WHERE guild_id = ?", (guild_id,))
+    rows = [r[0] for r in cursor.fetchall()]
+    conn.close()
+    return rows

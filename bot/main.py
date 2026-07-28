@@ -149,6 +149,14 @@ def create_bot(bot_type: str):
                 await bot.load_extension("bot.cogs.guild_war")
                 print("⚔️[Guild War] โหลดระบบกิลด์วอร์สำเร็จ!")
 
+            # 🌍 [P8] บอทแจกสำหรับเซิร์ฟรอง — เล่นผจญภัยได้อย่างเดียว ไม่มีร้านค้า/คาสิโน/กิลด์/แอดมิน
+            elif bot_type == "guest":
+                await bot.load_extension("bot.cogs.game_commands")     # !play (+ !shop ล็อกเซิร์ฟหลักในตัว)
+                await bot.load_extension("bot.cogs.player_commands")   # !bag !use !codex !bestiary (คำสั่งเซิร์ฟหลักถูกล็อกรายตัว)
+                await bot.load_extension("bot.cogs.adventure_zone")    # !adv
+                await bot.load_extension("bot.cogs.guest_server")      # ด่านห้อง + !set_adv_channel
+                print("🌍 [Guest Bot] โหลดโหมดเซิร์ฟรอง (ผจญภัยอย่างเดียว) สำเร็จ!")
+
             elif bot_type == "chat":
                 await bot.load_extension("bot.cogs.voice_chat_tracker")
                 print("🎙️ [Chat/Voice Bot] โหลดระบบลูปห้องเสียงและฟาร์มแชทสำเร็จ!")
@@ -186,10 +194,17 @@ async def main():
 
     # สั่งสร้างตัวรันบอทเกม (Arthur)
     run_game_bot = create_bot("game")
+    runners = [run_game_bot(TOKEN_GAME)]
+
+    # 🌍 [P8] บอทแจกสำหรับเซิร์ฟรอง — รันคู่กันถ้าตั้ง guest_bot_token ไว้ (ไม่ตั้ง = ข้าม)
+    guest_token = config_loader.get_guest_token()
+    if guest_token:
+        print("🌍 กำลังเปิดบอทแจก (โหมดเซิร์ฟรอง) คู่ไปด้วย...")
+        runners.append(create_bot("guest")(guest_token))
 
     # 🔥 [สั่งรันเฉพาะบอทแรก] บายพาสตัวที่ 2 และ 3 ออกไปก่อนชั่วคราว
     await asyncio.gather(
-        run_game_bot(TOKEN_GAME),
+        *runners,
         # run_game_bot(TOKEN_CHAT_VOICE), # 💤 ปิดคอมเมนต์ไว้ชั่วคราว
         # run_game_bot(TOKEN_ADMIN)      # 💤 ปิดคอมเมนต์ไว้ชั่วคราว
     )
