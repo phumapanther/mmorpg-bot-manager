@@ -48,7 +48,7 @@ def test_locked_cogs_have_main_server_gate():
                  "admin_commands"]
     for name in must_gate:
         src = pathlib.Path(f"bot/cogs/{name}.py").read_text(encoding="utf-8")
-        assert ("main_server_gate(ctx)" in src or "is_main_server(ctx)" in src), \n            f"{name} ไม่มีด่านเซิร์ฟหลัก!"
+        assert ("main_server_gate(ctx)" in src or "is_main_server(ctx)" in src), f"{name} ไม่มีด่านเซิร์ฟหลัก!"
 
 
 def test_adventure_commands_stay_open():
