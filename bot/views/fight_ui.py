@@ -62,3 +62,29 @@ def build_fight_embed(view, player, dice, damage_line, events, turn):
     return embed
 
 
+
+
+def build_respawn_embed(player, respawn_hp, max_hp, penalty_fee, new_cash, lost_steps=0, hp_pct=30):
+    """หน้าจอฟื้นคืนชีพ (O3) — ใช้ร่วมกันทุกเส้นทางตาย เพื่อให้ค่าธรรมเนียม/หน้าตาตรงกันเสมอ"""
+    import discord
+    embed = discord.Embed(
+        title="😇 ปาฏิหาริย์! คุณฟื้นคืนสติที่หมู่บ้านอุ่นใจ", color=0xe67e22,
+        description="มีนักเดินทางใจดีแบกร่างอันหมดสติของคุณมาส่งถึงโรงหมอ...")
+    lost = [f"💸 ค่าชุบชีวิต **-{penalty_fee:,}** ทอง"]
+    if lost_steps:
+        lost.append(f"🕳️ ความคืบหน้าดันเจี้ยน **{lost_steps} ชั้น** (เริ่มใหม่จากหมู่บ้าน)")
+    embed.add_field(name="📉 สิ่งที่เสียไป", value="\n".join(lost), inline=False)
+    debt = "  ⚠️ **ติดหนี้สมาคมนักผจญภัย!**" if new_cash < 0 else ""
+    embed.add_field(
+        name="📊 สถานะปัจจุบัน",
+        value=(f"❤️ พลังชีวิต `{hp_bar(respawn_hp, max_hp)}` `{respawn_hp:,}/{max_hp:,}` *(ฟื้นมา {hp_pct}%)*\n"
+               f"💰 เงินสด `{new_cash:,}` ทอง{debt}\n"
+               f"🎒 ของในกระเป๋า **ปลอดภัยครบ** (ตายไม่ทำของหาย)"),
+        inline=False)
+    embed.add_field(
+        name="👉 ทำอะไรต่อดี",
+        value=("• 💊 ซื้อยาฮีลเติมเลือดก่อนออกเดินทาง (`!shop`)\n"
+               "• 🛠️ เช็คความทนทานอาวุธ/เกราะที่ `!profile`\n"
+               "• 🧭 พร้อมแล้วกดปุ่มด้านล่างเพื่อลุยต่อ!"),
+        inline=False)
+    return embed

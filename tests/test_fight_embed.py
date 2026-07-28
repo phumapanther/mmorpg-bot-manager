@@ -73,6 +73,45 @@ def test_respawn_fee_tiers_from_config(monkeypatch):
 def test_death_screen_sections_exist():
     """หน้าตายต้องมีครบ 3 ส่วน: เสียอะไร / เหลืออะไร / ทำอะไรต่อ"""
     import pathlib
-    src = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
+    src = pathlib.Path("bot/views/fight_ui.py").read_text(encoding="utf-8")   # O3: ย้ายมาไฟล์ UI กลาง
     assert "📉 สิ่งที่เสียไป" in src and "📊 สถานะปัจจุบัน" in src and "👉 ทำอะไรต่อดี" in src
     assert "ของในกระเป๋า **ปลอดภัยครบ**" in src           # บอกชัดว่าของไม่หาย
+
+
+
+# ── O3+O4: ตายทางไหนก็จ่ายเท่ากัน + ค่าพักแรมตั้งได้ ──
+
+def test_all_death_paths_share_one_logic():
+    """ทั้ง RespawnView และ DeathRespawnView ต้องเรียก respawn_player ตัวเดียวกัน"""
+    import pathlib, re
+    src = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
+    assert src.count("respawn_player(self.user_id)") == 2, "ยังมีเส้นทางตายที่ไม่ได้ใช้ตรรกะกลาง"
+    assert 'player.get("cash", 0) - 1000' not in src   # ไม่มีค่าชุบคงที่ 1,000 หลงเหลือ
+    assert "force_respawn_fee" not in src              # เลิกใช้ค่าธรรมเนียมแยกของเส้นทางที่สอง
+
+
+def test_respawn_player_uses_config(tmp_path, monkeypatch):
+    import bot.views.game_views as gv
+    from bot import config_loader
+    saved = {}
+    monkeypatch.setattr(gv.player_model, "get_player",
+                        lambda uid: {"level": 95, "max_hp": 200, "cash": 50000, "dungeon_steps": 3})
+    monkeypatch.setattr(gv.player_model, "update_player_fields", lambda uid, u: saved.update(u))
+    monkeypatch.setattr(config_loader, "get_config", lambda: {"game_balance": {
+        "drops": {"respawn_hp_percent": 50},
+        "death": {"respawn_fee_tiers": [[90, 7777], [0, 0]]}}})
+
+    embed, info = gv.respawn_player(1)
+    assert info["fee"] == 7777 and info["hp"] == 100          # tier เลเวล 90+ / ฟื้น 50%
+    assert saved["cash"] == 50000 - 7777 and saved["dungeon_steps"] == 0
+    text = " ".join(f.value for f in embed.fields)
+    assert "7,777" in text and "3 ชั้น" in text                # บอกค่าปรับ + ชั้นที่เสีย
+
+
+def test_village_rest_cost_from_config():
+    import json, pathlib
+    cfg = json.load(open("config.example.json", encoding="utf-8"))
+    assert cfg["game_balance"]["village"]["rest_cost"] == 2000
+    assert "rest_cost_per_level" in cfg["game_balance"]["village"]
+    src = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
+    assert 'village.rest_cost' in src and 'player["cash"] < 2000' not in src

@@ -1210,6 +1210,10 @@
         ]
       ],
       "force_respawn_fee": 1000
+    },
+    "village": {
+      "rest_cost": 2000,
+      "rest_cost_per_level": 0
     }
   },
   "monster_ranks": {

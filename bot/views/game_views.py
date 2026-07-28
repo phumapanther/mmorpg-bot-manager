@@ -7,7 +7,8 @@ import traceback # เอาไว้ดูว่า Error บรรทัดไ
 import json
 from bot import config_loader
 from bot import game_modifiers
-from bot.views.fight_ui import ELEMENT_COLORS, RANK_BADGES, build_fight_embed, hp_bar  # noqa: F401 (B6)
+from bot.views.fight_ui import (ELEMENT_COLORS, RANK_BADGES, build_fight_embed,  # noqa: F401 (B6)
+                                build_respawn_embed, hp_bar)
 
 def _holy_aura_chance(p_lvl):
     cfg = config_loader.get_skill_config("Cleric", "holy_aura")
@@ -36,6 +37,29 @@ MONSTER_RANKS = {
 
 
 
+
+
+
+def respawn_player(user_id):
+    """💀 O3: ชุบชีวิตผู้เล่น — ตรรกะเดียวใช้ทุกเส้นทางตาย (ค่าธรรมเนียม/หน้าจอตรงกันเสมอ)
+    คืน (embed, ข้อมูลสรุป) — ค่าธรรมเนียมตามเลเวลจาก Panel"""
+    player = player_model.get_player(user_id)
+    if not player:
+        return None, None
+    level = player.get("level", 0)
+    max_hp = player.get("max_hp", 100)
+    hp_pct = int(config_loader.get_balance("drops.respawn_hp_percent", 30))
+    respawn_hp = max(1, int(max_hp * hp_pct / 100))
+    tiers = config_loader.get_balance("death.respawn_fee_tiers",
+                                      [[100, 10000], [90, 5000], [50, 2500], [20, 1000], [10, 500], [0, 0]])
+    fee = next((int(f) for lv, f in tiers if level >= int(lv)), 0)
+    new_cash = player.get("cash", 0) - fee
+    lost_steps = player.get("dungeon_steps", 0)
+    player_model.update_player_fields(user_id, {
+        "hp": respawn_hp, "cash": new_cash,
+        "current_state": "village", "last_event": "village", "dungeon_steps": 0})
+    embed = build_respawn_embed(player, respawn_hp, max_hp, fee, new_cash, lost_steps, hp_pct)
+    return embed, {"fee": fee, "hp": respawn_hp, "cash": new_cash}
 
 
 def _rank_stats(rank_key):
@@ -1089,11 +1113,14 @@ class VillageEventView(ActionView):
             return False
         return True
 
-    @discord.ui.button(label="🛏️ พักแรม (2000 ทอง)", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="🛏️ พักแรม", style=discord.ButtonStyle.primary)
     async def rest(self, interaction: discord.Interaction, button: discord.ui.Button):
         player = player_model.get_player(self.user_id)
-        if player["cash"] < 2000:
-            await interaction.response.send_message("❌ เงินสดกลางไม่พอจ่ายค่าห้องนอน!", ephemeral=True)
+        # O4: ค่าพักแรมตั้งได้ที่ Panel (+ คิดเพิ่มตามเลเวลได้ถ้าตั้ง rest_cost_per_level)
+        rest_cost = (int(config_loader.get_balance("village.rest_cost", 2000))
+                     + int(config_loader.get_balance("village.rest_cost_per_level", 0)) * player.get("level", 1))
+        if player["cash"] < rest_cost:
+            await interaction.response.send_message(f"❌ เงินสดไม่พอจ่ายค่าห้องนอน (ต้องมี `{rest_cost:,}` ทอง)!", ephemeral=True)
             return
         
         # ดึงข้อมูลจากฐานข้อมูล
@@ -1112,13 +1139,13 @@ class VillageEventView(ActionView):
         # คำนวณ HP รวม
         max_hp_total = player["max_hp"] + effective_hp_bonus
             
-        player_model.update_player_field(self.user_id, "cash", player["cash"] - 2000)
+        player_model.update_player_field(self.user_id, "cash", player["cash"] - rest_cost)
         player_model.update_player_field(self.user_id, "hp", max_hp_total)
         player_model.update_player_field(self.user_id, "current_state", "idle")
         player_model.update_player_field(self.user_id, "last_event", "village")
         
         await interaction.response.edit_message(
-            content="💤 คุณนอนพักผ่อนอย่างเต็มอิ่ม ฟื้นฟู HP จนเต็ม!\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?", 
+            content=f"💤 คุณนอนพักผ่อนอย่างเต็มอิ่ม ฟื้นฟู HP จนเต็ม! *(จ่าย {rest_cost:,} ทอง)*\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?", 
             view=AdventureView(author_id=self.user_id)
         )
 
@@ -1153,30 +1180,11 @@ class DeathRespawnView(ActionView):
 
     @discord.ui.button(label="🏥 กลับไปเกิดที่หมู่บ้าน (-1000 ทอง)", style=discord.ButtonStyle.danger)
     async def force_respawn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        player = player_model.get_player(self.user_id)
-        
-        # หักค่าธรรมเนียมชุบฉุกเฉิน (ตั้งได้ที่ Panel) + เลือดพื้นฐานตามเรทเดียวกับระบบปกติ
-        fee = int(config_loader.get_balance("death.force_respawn_fee", 1000))
-        new_cash = player.get("cash", 0) - fee
-        respawn_hp = int(player.get("max_hp", 100) * int(config_loader.get_balance("drops.respawn_hp_percent", 30)) / 100)
-        
-        # อัปเดตข้อมูลกลับเข้า Database
-        player_model.update_player_field(self.user_id, "hp", respawn_hp)
-        player_model.update_player_field(self.user_id, "cash", new_cash)
-        player_model.update_player_field(self.user_id, "current_state", "village")
-        player_model.update_player_field(self.user_id, "last_event", "village") # 👈 เพิ่มบรรทัดนี้เพื่อรีเซ็ตความจำ
-        player_model.update_player_field(self.user_id, "dungeon_steps", 0)
-        
-        cash_text = f"`{new_cash:,}` ทอง" if new_cash >= 0 else f"`{new_cash:,}` ทอง ⚠️ (ติดหนี้สมาคม!)"
-            
-        # 1. แจ้งเตือนผู้เล่นแบบส่วนตัว (Ephemeral) ว่าชุบชีวิตสำเร็จแล้ว
-        await interaction.response.send_message(
-            content=f"✨ **ฟื้นคืนชีพสำเร็จ!** วิญญาณของคุณถูกดึงกลับมาที่หมู่บ้านอุ่นใจ\n"
-                    f"💸 หักค่าธรรมเนียมชุบชีวิตฉุกเฉิน `-{fee:,}` ทอง (เงินคงเหลือ: {cash_text})",
-            ephemeral=True
-        )
-        
-        # 2. ลบข้อความแจ้งเตือนที่มีปุ่มนี้ทิ้งไปจากหน้าแชทหลัก
+        # O3: ใช้ตรรกะ/หน้าจอเดียวกับการตายทางอื่น — เดิมคิดค่าคงที่ 1,000 และหน้าตาคนละแบบ
+        embed, _info = respawn_player(self.user_id)
+        if not embed:
+            return await interaction.response.send_message("❌ ไม่พบข้อมูลตัวละคร!", ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         await interaction.message.delete()
         
     async def on_timeout(self):
@@ -1892,47 +1900,9 @@ class RespawnView(ActionView):
 
     @discord.ui.button(label="🏥 ฟื้นตัวและกลับหมู่บ้าน", style=discord.ButtonStyle.green)
     async def respawn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        player = player_model.get_player(self.user_id)
-        player_level = player.get("level", 0)
-        hp_pct = int(config_loader.get_balance("drops.respawn_hp_percent", 30))
-        respawn_hp = max(1, int(player["max_hp"] * hp_pct / 100))
-        # 🛠️ ค่าธรรมเนียมชุบชีวิตตามเลเวล — ตารางตั้งได้ที่ Panel (เรียงจากเลเวลสูงลงต่ำ)
-        tiers = config_loader.get_balance("death.respawn_fee_tiers",
-                                          [[100, 10000], [90, 5000], [50, 2500], [20, 1000], [10, 500], [0, 0]])
-        penalty_fee = next((int(fee) for lv, fee in tiers if player_level >= int(lv)), 0)
-
-        old_cash = player.get("cash", 0)
-        new_cash = old_cash - penalty_fee
-        lost_steps = player.get("dungeon_steps", 0)
-
-        player_model.update_player_fields(self.user_id, {
-            "hp": respawn_hp, "cash": new_cash,
-            "current_state": "village", "last_event": "village", "dungeon_steps": 0})
-
-        # 💀 B7: หน้าตายสรุปชัด — เสียอะไร เหลืออะไร ทำอะไรต่อ
-        embed = discord.Embed(
-            title="😇 ปาฏิหาริย์! คุณฟื้นคืนสติที่หมู่บ้านอุ่นใจ",
-            color=0xe67e22,
-            description="มีนักเดินทางใจดีแบกร่างอันหมดสติของคุณมาส่งถึงโรงหมอ...")
-        lost = [f"💸 ค่าชุบชีวิต **-{penalty_fee:,}** ทอง"]
-        if lost_steps:
-            lost.append(f"🕳️ ความคืบหน้าดันเจี้ยน **{lost_steps} ชั้น** (เริ่มใหม่จากหมู่บ้าน)")
-        embed.add_field(name="📉 สิ่งที่เสียไป", value="\n".join(lost), inline=False)
-
-        debt = "  ⚠️ **ติดหนี้สมาคมนักผจญภัย!**" if new_cash < 0 else ""
-        embed.add_field(
-            name="📊 สถานะปัจจุบัน",
-            value=(f"❤️ พลังชีวิต `{hp_bar(respawn_hp, player['max_hp'])}` "
-                   f"`{respawn_hp:,}/{player['max_hp']:,}` *(ฟื้นมา {hp_pct}%)*\n"
-                   f"💰 เงินสด `{new_cash:,}` ทอง{debt}\n"
-                   f"🎒 ของในกระเป๋า **ปลอดภัยครบ** (ตายไม่ทำของหาย)"),
-            inline=False)
-        embed.add_field(
-            name="👉 ทำอะไรต่อดี",
-            value=("• 💊 ซื้อยาฮีลเติมเลือดก่อนออกเดินทาง (`!shop`)\n"
-                   "• 🛠️ เช็คความทนทานอาวุธ/เกราะที่ `!profile`\n"
-                   "• 🧭 พร้อมแล้วกดปุ่มด้านล่างเพื่อลุยต่อ!"),
-            inline=False)
+        embed, _info = respawn_player(self.user_id)
+        if not embed:
+            return await interaction.response.send_message("❌ ไม่พบข้อมูลตัวละคร!", ephemeral=True)
         await interaction.response.edit_message(content=None, embed=embed,
                                                 view=VillageEventView(self.user_id))
 

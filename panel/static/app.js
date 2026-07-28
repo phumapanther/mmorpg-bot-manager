@@ -1326,6 +1326,9 @@ const BAL_FIELDS = {
     ["cooldowns.profile_sec", "คูลดาวน์ !profile (วิ)"],
     ["cooldowns.adv_sec", "คูลดาวน์ !adv (วิ)"],
     ["cooldowns.shop_sec", "คูลดาวน์ !shop (วิ)"],
+    ["village.rest_cost", "ค่าพักแรมในหมู่บ้าน"],
+    ["village.rest_cost_per_level", "ค่าพักแรมเพิ่มต่อเลเวล (0 = คิดเท่ากันทุกเลเวล)"],
+    ["death.force_respawn_fee", "(ไม่ใช้แล้ว — ค่าชุบใช้ตารางตามเลเวล)"],
   ],
 };
 
