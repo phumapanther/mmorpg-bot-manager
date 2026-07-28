@@ -112,6 +112,9 @@ def create_profile_embed(target_member, player_data, page="status"):
                   "progress": "📊 ความคืบหน้า"}.get(page, "👤 ข้อมูลตัวละคร")
     embed = discord.Embed(title=f"{page_title}: {target_member.display_name}", color=profile_color)
     embed.set_thumbnail(url=target_member.display_avatar.url)
+    title_text = (player_data.get("title") or "").strip()      # 🏅 C8: ตำแหน่งอวดจากความสำเร็จ
+    if title_text:
+        embed.description = f"🎖️ **「{title_text}」**"
     
     # 📊 สเตตัสหลัก
     embed.add_field(name="🎯 เลเวล", value=f"⭐ Lv. {player_level} ({rank})", inline=True)

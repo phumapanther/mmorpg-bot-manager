@@ -965,6 +965,15 @@ class PlayerCommands(commands.Cog):
         await ctx.send(embed=build_bestiary_embed(
             ctx.author.id, ctx.author.display_name, ctx.author.display_avatar.url))
 
+    # --- 🏅 !ach: ความสำเร็จ + เลือกตำแหน่งอวด (C8) ---
+    @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
+    @commands.command(name="ach", aliases=["achievement", "title", "ความสำเร็จ", "ตำแหน่ง"])
+    async def achievements_board(self, ctx):
+        from bot import achievements
+        from bot.views.menu_view import AchievementView
+        await ctx.send(embed=achievements.build_achievement_embed(ctx.author.id, ctx.author.display_name),
+                       view=AchievementView(ctx.author.id))
+
     # --- โค้ดคำสั่ง !bag ---
     @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
     @commands.command(name="bag")

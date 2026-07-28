@@ -35,7 +35,8 @@ NEW_PLAYER_DEFAULTS = {
     "status_effects": "{}",
     "profile_color": 0,
     "race": "",        # P8: เผ่าจาก DB (ใช้เมื่อไม่มียศ เช่นเซิร์ฟรอง)
-    "class_name": ""   # P8: คลาสจาก DB
+    "class_name": "",  # P8: คลาสจาก DB
+    "title": ""        # C8: ตำแหน่งอวดที่ติดอยู่ (ปลดจากความสำเร็จ)
 }
     
 def init_db():
@@ -381,8 +382,23 @@ def get_bestiary(user_id):
     return rows
 
 
+def get_claimed_rewards(user_id):
+    """คีย์รางวัลทั้งหมดที่ผู้เล่นเคยรับแล้ว (ใช้เช็คว่าปลดความสำเร็จอะไรไปบ้าง)"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_bestiary(cursor)
+    cursor.execute("SELECT reward_key FROM bestiary_rewards WHERE user_id = ?", (user_id,))
+    keys = {r[0] for r in cursor.fetchall()}
+    conn.close()
+    return keys
+
+
 def claim_bestiary_reward(user_id, reward_key):
-    """จองรางวัลครั้งเดียวต่อ key — True = เพิ่งได้สิทธิ์ (ยังไม่เคยรับ), False = รับไปแล้ว"""
+    """จองรางวัลครั้งเดียวต่อ key — True = เพิ่งได้สิทธิ์ (ยังไม่เคยรับ), False = รับไปแล้ว
+
+    เป็นสมุดจอง "ครั้งเดียวต่อคีย์" ทั่วไป ไม่ผูกกับสมุดล่าอย่างเดียว —
+    ความสำเร็จ (C8) ใช้ตัวนี้ด้วยผ่านชื่อ claim_once() คีย์ขึ้นต้น "ach:"
+    """
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     _ensure_bestiary(cursor)
@@ -858,3 +874,18 @@ def touch_login_streak(user_id, day=None):
     conn.commit()
     conn.close()
     return streak, best, True
+
+
+def get_best_streak(user_id):
+    """สถิติล็อกอินต่อเนื่องสูงสุด — อ่านอย่างเดียว ไม่เช็คอินให้ (ต่างจาก touch_login_streak)"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    _ensure_daily(cursor)
+    cursor.execute("SELECT best FROM login_streak WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return (row[0] if row else 0) or 0
+
+
+# สมุดจอง "ครั้งเดียวต่อคีย์" ใช้ร่วมกันได้ทุกระบบ — ความสำเร็จ (C8) เรียกผ่านชื่อนี้
+claim_once = claim_bestiary_reward

@@ -1321,6 +1321,21 @@
     ],
     "streak_daily_gold": 1000
   },
+  "achievements": [
+    { "key": "kills_50", "stat": "kills", "target": 50, "label": "🗡️ นักล่าฝึกหัด", "desc": "ล้มมอนสเตอร์ครบ 50 ตัว", "gold": 30000, "title": "นักล่าฝึกหัด" },
+    { "key": "kills_500", "stat": "kills", "target": 500, "label": "⚔️ นักล่ามือฉมัง", "desc": "ล้มมอนสเตอร์ครบ 500 ตัว", "gold": 200000, "title": "นักล่ามือฉมัง" },
+    { "key": "kills_2000", "stat": "kills", "target": 2000, "label": "💀 เพชฌฆาตแห่งพงไพร", "desc": "ล้มมอนสเตอร์ครบ 2,000 ตัว", "gold": 1000000, "title": "เพชฌฆาตแห่งพงไพร" },
+    { "key": "boss_10", "stat": "boss_kills", "target": 10, "label": "👑 นักล่าบอส", "desc": "ล้มบอสครบ 10 ตัว", "gold": 150000, "title": "นักล่าบอส" },
+    { "key": "boss_50", "stat": "boss_kills", "target": 50, "label": "🐉 ผู้สังหารมังกร", "desc": "ล้มบอสครบ 50 ตัว", "gold": 800000, "title": "ผู้สังหารมังกร" },
+    { "key": "level_50", "stat": "level", "target": 50, "label": "🌟 ผู้มากประสบการณ์", "desc": "ไปถึงเลเวล 50", "gold": 250000, "title": "ผู้มากประสบการณ์" },
+    { "key": "level_100", "stat": "level", "target": 100, "label": "🏆 ตำนานผู้ไร้เทียมทาน", "desc": "ไปถึงเลเวลสูงสุด 100", "gold": 2000000, "title": "ตำนานผู้ไร้เทียมทาน" },
+    { "key": "rich_10m", "stat": "wealth", "target": 10000000, "label": "💰 เศรษฐีสิบล้าน", "desc": "มีทรัพย์สินรวม 10,000,000 ทอง", "gold": 300000, "title": "เศรษฐีสิบล้าน" },
+    { "key": "rich_1b", "stat": "wealth", "target": 1000000000, "label": "💎 มหาเศรษฐีพันล้าน", "desc": "มีทรัพย์สินรวม 1,000,000,000 ทอง", "gold": 5000000, "title": "มหาเศรษฐีพันล้าน" },
+    { "key": "cont_5", "stat": "continents", "target": 5, "label": "🧭 นักเดินทาง", "desc": "ล่ามอนมาแล้ว 5 ทวีป", "gold": 200000, "title": "นักเดินทาง" },
+    { "key": "cont_9", "stat": "continents", "target": 9, "label": "🗺️ ผู้พิชิตทุกทวีป", "desc": "ล่ามอนครบทั้ง 9 ทวีป", "gold": 1500000, "title": "ผู้พิชิตทุกทวีป" },
+    { "key": "streak_7", "stat": "streak", "target": 7, "label": "🔥 ขาประจำ", "desc": "ล็อกอินต่อเนื่อง 7 วัน", "gold": 100000, "title": "ขาประจำ" },
+    { "key": "streak_30", "stat": "streak", "target": 30, "label": "🌙 ผู้ไม่เคยขาด", "desc": "ล็อกอินต่อเนื่อง 30 วัน", "gold": 1000000, "title": "ผู้ไม่เคยขาด" }
+  ],
   "weekly_ranking": {
     "enabled": true,
     "min_points": 100,

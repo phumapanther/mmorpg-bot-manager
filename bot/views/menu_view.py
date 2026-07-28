@@ -135,6 +135,32 @@ class TopBoardView(discord.ui.View):
         return cb
 
 
+class TitleSelect(discord.ui.Select):
+    """เลือกตำแหน่งอวดจากที่ปลดล็อกแล้ว (C8) — ponytail: 24 อันแรกพอ ลิมิต Select คือ 25"""
+    def __init__(self, user_id):
+        from bot import achievements
+        options = [discord.SelectOption(label="— ถอดตำแหน่งออก —", value="")]
+        options += [discord.SelectOption(label=t, value=t)
+                    for t in achievements.unlocked_titles(user_id)[:24]]
+        super().__init__(placeholder="เลือกตำแหน่งที่จะติดหน้าโปรไฟล์...", options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        from bot import achievements
+        _ok, msg = achievements.set_title(interaction.user.id, self.values[0])
+        await interaction.response.edit_message(
+            content=msg,
+            embed=achievements.build_achievement_embed(interaction.user.id, interaction.user.display_name),
+            view=AchievementView(interaction.user.id))
+
+
+class AchievementView(discord.ui.View):
+    def __init__(self, user_id):
+        super().__init__(timeout=180)
+        from bot import achievements
+        if achievements.unlocked_titles(user_id):     # ยังไม่ปลดตำแหน่งไหนเลย = ไม่ต้องมี dropdown ว่าง
+            self.add_item(TitleSelect(user_id))
+
+
 class DailyView(discord.ui.View):
     """ปุ่มรับรางวัลภารกิจรายวัน (C1)"""
     def __init__(self, user_id):
@@ -298,6 +324,13 @@ class GameMenuView(discord.ui.View):
         await interaction.response.send_message(
             embed=daily.build_daily_embed(interaction.user.id, interaction.user.display_name),
             view=DailyView(interaction.user.id), ephemeral=True)
+
+    @discord.ui.button(label="🏅 ความสำเร็จ", style=discord.ButtonStyle.secondary, custom_id="game_menu:ach")
+    async def ach_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        from bot import achievements
+        await interaction.response.send_message(
+            embed=achievements.build_achievement_embed(interaction.user.id, interaction.user.display_name),
+            view=AchievementView(interaction.user.id), ephemeral=True)
 
     @discord.ui.button(label="📕 สมุดมอน", style=discord.ButtonStyle.secondary, custom_id="game_menu:bestiary")
     async def bestiary_button(self, interaction: discord.Interaction, button: discord.ui.Button):

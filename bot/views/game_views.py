@@ -858,6 +858,13 @@ class MonsterEventView(ActionView):
                 except Exception as e:
                     print(f"⚠️ [daily] นับเควสล่ามอนพัง: {e}")
 
+                # 🏅 C8: ปลดล็อกความสำเร็จทันทีที่ถึงเกณฑ์ (คำนวณจากสมุดล่า/สถิติที่มีอยู่ ไม่มีตัวนับใหม่)
+                try:
+                    from bot import achievements as _ach
+                    dropped_item_msg += _ach.unlock_message(_ach.check_and_unlock(self.user_id))
+                except Exception as e:
+                    print(f"⚠️ [ach] เช็คความสำเร็จพัง: {e}")
+
                 # 📕 สมุดสะสมมอน (Bestiary): จดแต้ม + แจกโบนัสครั้งเดียวเมื่อครบชุด — พังต้องไม่ล้มไฟต์
                 try:
                     cont_key = player.get("continent") or "main"
