@@ -111,6 +111,11 @@ async function onGuildChange() {
 
 async function setupSave() {
   state.config.license_key = document.getElementById("licenseKeyInput").value.trim();
+  // 🌍 โหมดหลายเซิร์ฟ (P8)
+  state.config.guest_bot_token = document.getElementById("guestTokenInput").value.trim();
+  const mainId = document.getElementById("mainGuildIdInput").value.trim();
+  state.config.main_guild_id = mainId ? Number(mainId) : null;
+  state.config.main_server_invite = document.getElementById("mainInviteInput").value.trim();
   await saveConfig();
 }
 
@@ -1218,6 +1223,9 @@ async function init() {
   await loadConfig();
   document.getElementById("tokenInput").value = state.config.bot_token || "";
   document.getElementById("licenseKeyInput").value = state.config.license_key || "";
+  document.getElementById("guestTokenInput").value = state.config.guest_bot_token || "";
+  document.getElementById("mainGuildIdInput").value = state.config.main_guild_id || "";
+  document.getElementById("mainInviteInput").value = state.config.main_server_invite || "";
 
   // best-effort auto-restore: if a token + guild are already configured,
   // silently fetch guilds/channels/roles so tabs are pre-populated.

@@ -40,6 +40,22 @@
     <label for="guildSelect">Guild</label>
     <select id="guildSelect"><option value="">-- เลือกกิลด์ --</option></select>
   </div>
+
+  <h3>🌍 โหมดหลายเซิร์ฟ (บอทแจก)</h3>
+  <p class="hint">เปิดให้เซิร์ฟอื่นดึงบอทไปเล่นเกมผจญภัยได้ — ฟีเจอร์เต็ม (ร้านค้า/คาสิโน/กิลด์/แอดมิน) ยังล็อกไว้เฉพาะเซิร์ฟหลัก เว้นว่างไว้ = ปิดระบบนี้</p>
+  <div class="field">
+    <label for="guestTokenInput">Guest Bot Token</label>
+    <input type="password" id="guestTokenInput" placeholder="โทเค็นบอทตัวที่ให้เซิร์ฟอื่นดึงไปใช้">
+  </div>
+  <div class="field">
+    <label for="mainGuildIdInput">Main Guild ID</label>
+    <input type="text" id="mainGuildIdInput" placeholder="ไอดีเซิร์ฟหลัก (ปล่อยว่าง = ทุกเซิร์ฟถือเป็นเซิร์ฟหลัก)">
+  </div>
+  <div class="field">
+    <label for="mainInviteInput">ลิงก์เชิญเซิร์ฟหลัก</label>
+    <input type="text" id="mainInviteInput" placeholder="https://discord.gg/xxxxx">
+  </div>
+
   <button id="setupSaveBtn" class="save-btn">บันทึก</button>
 </section>
 

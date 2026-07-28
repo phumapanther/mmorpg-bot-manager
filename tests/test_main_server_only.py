@@ -59,3 +59,15 @@ def test_adventure_commands_stay_open():
     assert "@main_server_only()" in gc              # แต่ล็อก !shop
     adv = pathlib.Path("bot/cogs/adventure_zone.py").read_text(encoding="utf-8")
     assert "is_main_server" not in adv              # !adv เปิดให้เซิร์ฟรอง
+
+
+def test_panel_ui_has_multi_server_fields():
+    """หน้า Panel ต้องมีช่องกรอกครบ 3 ค่าของโหมดหลายเซิร์ฟ + โค้ดอ่าน/เขียนถูก key"""
+    import pathlib
+    html = pathlib.Path("panel/static/index.html").read_text(encoding="utf-8")
+    js = pathlib.Path("panel/static/app.js").read_text(encoding="utf-8")
+    for el in ("guestTokenInput", "mainGuildIdInput", "mainInviteInput"):
+        assert f'id="{el}"' in html, f"ไม่มีช่อง {el} ในหน้า Panel"
+        assert el in js, f"app.js ไม่ได้อ่าน/เขียน {el}"
+    for key in ("guest_bot_token", "main_guild_id", "main_server_invite"):
+        assert f"state.config.{key}" in js
