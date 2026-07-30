@@ -226,6 +226,17 @@ def status_combat_mult(statuses, param):
     return mult
 
 
+def worn_artifacts(statuses):
+    """คีย์อาร์ติแฟกต์ที่สวมอยู่ตอนนี้ (เรียงตามที่เก็บไว้)"""
+    return [k for k in statuses if STATUS_EFFECTS.get(k, {}).get("artifact")]
+
+
+def artifact_slots(player):
+    """จำนวนช่องอาร์ติแฟกต์ของผู้เล่น — อย่างน้อย 1 และไม่เกินเพดานที่ตั้งใน Panel"""
+    cap = int(_balance("artifact.max_slots", 5) or 5)
+    return max(1, min(cap, int((player or {}).get("artifact_slots", 1) or 1)))
+
+
 def status_forced_event(statuses):
     """อีเวนต์ที่สถานะบังคับให้เจอในก้าวถัดไป (เช่น กับดักมอน) — คืน (คีย์อีเวนต์, คีย์สถานะ) หรือ (None, None)"""
     for key in statuses:

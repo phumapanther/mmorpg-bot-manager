@@ -855,6 +855,23 @@ class MonsterEventView(ActionView):
                 if status_exp_mult > 1.0:
                     combat_log += "🌟 **พรบรรพชนหนุนนำ!** ประสบการณ์ที่ได้รับเพิ่มขึ้นเป็นพิเศษ!\n"
                 
+                # 💠 สว่านเจาะรูอาร์ติแฟกต์ — ดรอปจากบอสไร้พ่ายเท่านั้น เรทสูงมาก
+                if self.monster_rank == "Unbeatable":
+                    try:
+                        punch_id = str(config_loader.get_balance("artifact.punch_item", "") or "")
+                        chance = int(config_loader.get_balance("artifact.punch_drop_chance", 0) or 0)
+                        if punch_id and random.randint(1, 100) <= chance:
+                            fresh_p = player_model.get_player(self.user_id) or {}
+                            inv_p = player_model.load_inventory(
+                                db_updates.get("inventory") or fresh_p.get("inventory", ""))
+                            inv_p.append(punch_id)
+                            db_updates["inventory"] = json.dumps(inv_p)
+                            pname = config_loader.get_item_config(punch_id).get("name", "สว่านเจาะรู")
+                            dropped_item_msg += (f"\n💠 **{pname}** ร่วงจากซากไร้พ่าย! "
+                                                 "— ใช้เพิ่มช่องอาร์ติแฟกต์ได้อีก 1 ช่อง")
+                    except Exception as e:
+                        print(f"⚠️ [artifact] ดรอปสว่านพัง: {e}")
+
                 # 🪤 กับดักถูกใช้ไปแล้ว — ปลดออกตอนล้มมอนได้ (หนีออกมาเฉย ๆ กับดักยังอยู่ ใช้ต่อได้)
                 if "monster_trap" in self.statuses:
                     self.statuses.pop("monster_trap", None)
@@ -2314,6 +2331,68 @@ DYE_COLORS = [
     ("🤍 ขาวบริสุทธิ์", 0xECF0F1),
     ("🌈 สุ่มสีรุ้ง (วัดดวง)", "rainbow"),
 ]
+
+
+class ArtifactRemoveSelect(discord.ui.Select):
+    """เลือกอาร์ติแฟกต์ที่จะถอด — ถอดแล้วของกลับเข้ากระเป๋า ไม่ได้หายไปไหน"""
+    def __init__(self, worn):
+        super().__init__(placeholder="เลือกอาร์ติแฟกต์ที่จะถอด...", options=[
+            discord.SelectOption(label=game_modifiers.STATUS_EFFECTS[k]["label"][:100], value=k)
+            for k in worn[:25]])
+
+    async def callback(self, interaction: discord.Interaction):
+        view: "ArtifactRemoveView" = self.view
+        art_key = self.values[0]
+        player = player_model.get_player(view.user_id)
+        if not player:
+            return await interaction.response.edit_message(content="❌ ไม่พบข้อมูลตัวละคร!", view=None)
+
+        inv = player_model.load_inventory(player.get("inventory", ""))
+        if view.item_id not in inv:
+            return await interaction.response.edit_message(
+                content="❌ ชุดถอดอาร์ติแฟกต์ไม่อยู่ในกระเป๋าแล้ว!", view=None)
+
+        statuses = game_modifiers.parse_statuses(player)
+        if art_key not in statuses:
+            return await interaction.response.edit_message(
+                content="❌ คุณไม่ได้สวมอาร์ติแฟกต์ชิ้นนี้อยู่แล้ว (ชุดถอดยังอยู่ในกระเป๋า)", view=None)
+
+        # หาไอเทมต้นทางของอาร์ติแฟกต์ เพื่อคืนกลับเข้ากระเป๋า
+        back_id = next((iid for iid, it in config_loader.get_all_items().items()
+                        if it.get("effect") == "equip_artifact"
+                        and str(it.get("effect_value")) == art_key), None)
+        statuses.pop(art_key, None)
+        inv.remove(view.item_id)                 # ชุดถอดถูกใช้ไป
+        if back_id:
+            inv.append(back_id)
+        player_model.update_player_fields(view.user_id, {
+            "status_effects": json.dumps(statuses),
+            "inventory": json.dumps(inv),
+        })
+        label = game_modifiers.STATUS_EFFECTS[art_key]["label"]
+        back_note = (f"\n🎒 **{config_loader.get_item_config(back_id).get('name', label)}** กลับเข้ากระเป๋าแล้ว "
+                     "— เอาไปใส่ใหม่ ขาย หรือส่งต่อได้" if back_id else "")
+        left = len(game_modifiers.worn_artifacts(statuses))
+        slots = game_modifiers.artifact_slots(player)
+        await interaction.response.edit_message(
+            content=f"🔧 **ถอด {label} ออกเรียบร้อย!** (เหลือใช้ {left}/{slots} ช่อง){back_note}",
+            view=None)
+
+
+class ArtifactRemoveView(View):
+    """🔧 ชุดถอดอาร์ติแฟกต์ — ของถูกหักตอนเลือกเท่านั้น (หมดเวลา/เปลี่ยนใจ = ของอยู่ครบ)"""
+    def __init__(self, user_id, item_id, worn):
+        super().__init__(timeout=60)
+        self.user_id = user_id
+        self.item_id = str(item_id)
+        self.message = None
+        self.add_item(ArtifactRemoveSelect(worn))
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ นี่ไม่ใช่ของคุณ!", ephemeral=True)
+            return False
+        return True
 
 
 class ProfileDyeView(View):

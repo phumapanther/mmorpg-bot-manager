@@ -346,22 +346,43 @@ def apply_item_effect(user_id, item_id):
     elif item_info.get("effect") == "dye_profile":
         return False, "🎨 ไอเทมนี้ใช้ผ่านคำสั่ง `!use` ในห้องแชทเท่านั้น — จะมีเมนูให้เลือกสีย้อมโปรไฟล์"
 
-    # 🏺 กรณี: สวมอาร์ติแฟกต์ (effect: "equip_artifact" — ช่องเดียว สวมทับ = ของเก่าถูกทำลายถาวร)
+    # 🏺 กรณี: สวมอาร์ติแฟกต์ — ใส่ได้เท่าจำนวนช่องที่มี (เจาะเพิ่มได้ด้วยสว่าน)
     elif item_info.get("effect") == "equip_artifact":
         art_key = str(item_info.get("effect_value", ""))
         art_cfg = game_modifiers.STATUS_EFFECTS.get(art_key)
         if not art_cfg or not art_cfg.get("artifact"):
             return False, "❌ ไอเทมนี้ตั้งค่าอาร์ติแฟกต์ไว้ไม่ถูกต้อง (แจ้งแอดมินตรวจ config)"
         statuses = game_modifiers.parse_statuses(player)
-        destroyed = [k for k in statuses if game_modifiers.STATUS_EFFECTS[k].get("artifact")]
-        statuses = {k: v for k, v in statuses.items() if k not in destroyed}
+        worn = game_modifiers.worn_artifacts(statuses)
+        if art_key in worn:
+            return False, f"❌ คุณสวม **{item_name}** อยู่แล้ว!"
+        slots = game_modifiers.artifact_slots(player)
+        if len(worn) >= slots:
+            names = " ".join(game_modifiers.STATUS_EFFECTS[k]["label"] for k in worn)
+            return False, (f"❌ **ช่องอาร์ติแฟกต์เต็มแล้ว** ({len(worn)}/{slots})\n"
+                           f"สวมอยู่: {names}\n"
+                           "→ เจาะช่องเพิ่มด้วย 💠 สว่านเจาะรูอาร์ติแฟกต์ (ดรอปจากบอสไร้พ่าย)\n"
+                           "→ หรือถอดของเก่าออกด้วย 🔧 ชุดถอดอาร์ติแฟกต์ (ซื้อที่ `!shop`)")
         statuses = game_modifiers.apply_status(statuses, art_key)
         player_model.update_player_field(user_id, "status_effects", statuses)
-        destroy_note = ""
-        if destroyed:
-            names = " ".join(game_modifiers.STATUS_EFFECTS[k]["label"] for k in destroyed)
-            destroy_note = f"\n💥 **{names} ที่สวมอยู่แตกสลายเป็นผุยผง!** (สวมทับแล้วไม่มีวันได้คืน)"
-        msg = f"🏺 คุณสวม **{item_name}** เข้าช่องอาร์ติแฟกต์ — พลังถาวรไหลเวียนทั่วร่าง!{destroy_note}"
+        msg = (f"🏺 คุณสวม **{item_name}** เข้าช่องอาร์ติแฟกต์ — พลังถาวรไหลเวียนทั่วร่าง! "
+               f"(ใช้ไป {len(worn) + 1}/{slots} ช่อง)")
+
+    # 💠 กรณี: สว่านเจาะรูอาร์ติแฟกต์ — เพิ่มช่องถาวร (เพดานตั้งใน Panel)
+    elif item_info.get("effect") == "artifact_slot_up":
+        cap = int(config_loader.get_balance("artifact.max_slots", 5) or 5)
+        current = game_modifiers.artifact_slots(player)
+        if current >= cap:
+            return False, (f"❌ ร่างคุณเจาะได้สูงสุด **{cap} ช่อง** แล้ว เจาะเพิ่มไม่ได้อีก "
+                           "(สว่านยังอยู่ในกระเป๋า)")
+        player_model.update_player_field(user_id, "artifact_slots", current + 1)
+        msg = (f"💠 **เจาะรูอาร์ติแฟกต์สำเร็จ!** ช่องอาร์ติแฟกต์ {current} → **{current + 1}** "
+               f"(สูงสุด {cap})")
+
+    elif item_info.get("effect") == "artifact_remove":
+        # 🔧 ต้องเปิดเมนูเลือกว่าจะถอดชิ้นไหน — ทำผ่าน !use เท่านั้น (ของถูกหักตอนยืนยัน)
+        return False, ("🔧 ไอเทมนี้ใช้ผ่านคำสั่ง `!use` ในห้องแชทเท่านั้น — "
+                       "จะมีเมนูให้เลือกว่าจะถอดอาร์ติแฟกต์ชิ้นไหน")
 
     elif item_info.get("effect") == "wedding_ring":
         # 💍 ไม่ใช่ของกดใช้ — ถูกใช้ไปเองตอนอีกฝ่ายกดตกลงเป็นคู่หู
@@ -651,6 +672,28 @@ def build_codex_embed(topic=""):
             embed.add_field(name=c["label"], value=f"ธาตุชุกชุม: {elem_txt}", inline=True)
         return embed
 
+    if topic in ("อาร์ติแฟกต์", "อาติแฟก", "artifact", "artifacts"):
+        cap = int(config_loader.get_balance("artifact.max_slots", 5) or 5)
+        chance = int(config_loader.get_balance("artifact.punch_drop_chance", 0) or 0)
+        punch = config_loader.get_item_config(str(config_loader.get_balance("artifact.punch_item", "") or ""))
+        remover = next((i for i in config_loader.get_all_items().values()
+                        if i.get("effect") == "artifact_remove"), {})
+        embed = discord.Embed(
+            title="📖 Codex — อาร์ติแฟกต์ & ช่องสวมใส่", color=0x9b59b6,
+            description=(f"อาร์ติแฟกต์คือของถาวร ใส่แล้วมีผลตลอด ไม่หมดอายุ\n"
+                         f"เริ่มต้นมี **1 ช่อง** เจาะเพิ่มได้สูงสุด **{cap} ช่อง**"))
+        embed.add_field(name=f"{punch.get('name', '💠 สว่านเจาะรู')} — เพิ่มช่อง", inline=False, value=(
+            f"**ดรอปจากบอสไร้พ่ายเท่านั้น** โอกาส `{chance}%` ต่อการล้ม 1 ตัว (แทบได้ทุกครั้ง)\n"
+            "ซื้อไม่ได้ · คราฟไม่ได้ · ใช้แล้วช่องเพิ่มถาวร 1 ช่อง"))
+        embed.add_field(name=f"{remover.get('name', '🔧 ชุดถอด')} — ถอดออก", inline=False, value=(
+            f"ซื้อที่ `!shop` ราคา 🪙 {int(remover.get('buy', 0)):,} ทอง (ไม่มีดรอป)\n"
+            "พิมพ์ `!use` แล้วเลือกชิ้นที่จะถอด — **ของกลับเข้ากระเป๋า** เอาไปใส่ใหม่/ขาย/ส่งต่อได้"))
+        embed.add_field(name="ℹ️ กติกา", inline=False, value=(
+            "• ช่องเต็มแล้วสวมชิ้นใหม่ไม่ได้ (ของเก่าไม่แตกแล้ว — ต้องถอดเองก่อน)\n"
+            "• อาร์ติแฟกต์ไม่โดนล้างด้วยยาถอนพิษ/หมู่บ้าน · ไม่หายตอนตาย\n"
+            "• ดูช่องที่ใช้อยู่ได้ที่ `!profile`"))
+        return embed
+
     if topic in ("คราฟ", "craft", "สูตร", "recipes"):
         all_items = config_loader.get_all_items()
         recipes = config_loader.get_config().get("item_catalog", {}).get("crafting_recipes", {}) or {}
@@ -794,7 +837,8 @@ def build_codex_embed(topic=""):
                      "`!codex รางวัล` — ภารกิจรายวัน ซีซั่นพาส อันดับสัปดาห์\n"
                      "`!codex สะสม` — ความสำเร็จ + สัตว์เลี้ยง\n"
                      "`!codex สังคม` — ตลาดผู้เล่น + ระบบคู่หู\n"
-                     "`!codex คราฟ` — ตารางคราฟของทั้งหมด (ใบเชิญบอส/กับดัก คราฟเองได้!)"))
+                     "`!codex คราฟ` — ตารางคราฟของทั้งหมด (ใบเชิญบอส/กับดัก คราฟเองได้!)\n"
+                     "`!codex อาร์ติแฟกต์` — ช่องสวมใส่ เจาะเพิ่ม และวิธีถอด"))
     return embed
 
 
@@ -1336,6 +1380,23 @@ class PlayerCommands(commands.Cog):
             from bot.views.game_views import ProfileDyeView
             view = ProfileDyeView(ctx.author.id, item_id)
             view.message = await ctx.send("🎨 **เทผงสีรุ้งลงจานผสม** — เลือกสีที่จะย้อมโปรไฟล์ (ผงถูกใช้เมื่อยืนยัน):", view=view)
+            return
+
+        # 🔧 ชุดถอดอาร์ติแฟกต์: เปิดเมนูเลือกชิ้นที่จะถอด (ของถูกหักตอนเลือกใน view)
+        if item_cfg and item_cfg.get("effect") == "artifact_remove":
+            player = player_model.get_player(ctx.author.id)
+            inv = player_model.load_inventory(player.get("inventory", ""))
+            if str(item_id) not in inv:
+                return await ctx.send(f"❌ คุณไม่มีไอเทมหมายเลข `{item_id}` ในกระเป๋า! (พิมพ์ `!bag` เพื่อเช็ก)")
+            worn = game_modifiers.worn_artifacts(game_modifiers.parse_statuses(player))
+            if not worn:
+                return await ctx.send("❌ คุณยังไม่ได้สวมอาร์ติแฟกต์สักชิ้น — ไม่มีอะไรให้ถอด (ชุดถอดยังอยู่ครบ)")
+            from bot.views.game_views import ArtifactRemoveView
+            view = ArtifactRemoveView(ctx.author.id, item_id, worn)
+            view.message = await ctx.send(
+                f"🔧 **กางชุดถอดอาร์ติแฟกต์** — สวมอยู่ {len(worn)}/"
+                f"{game_modifiers.artifact_slots(player)} ช่อง เลือกชิ้นที่จะถอด "
+                "(ถอดแล้วของกลับเข้ากระเป๋า ชุดถอดถูกใช้ไป):", view=view)
             return
 
         # 🎫 ตั๋วเรือเหมาลำ: เปิดเมนูเลือกทวีป (ตั๋วถูกหักตอนยืนยันใน view ไม่ใช่ตอนนี้)

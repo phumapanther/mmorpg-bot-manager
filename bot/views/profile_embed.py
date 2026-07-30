@@ -173,7 +173,10 @@ def create_profile_embed(target_member, player_data, page="status"):
     statuses = game_modifiers.parse_statuses(player_data)
     artifact_keys = [k for k in statuses if game_modifiers.STATUS_EFFECTS[k].get("artifact")]
     normal_statuses = {k: v for k, v in statuses.items() if k not in artifact_keys}
-    artifact_text = game_modifiers.STATUS_EFFECTS[artifact_keys[0]]["label"] if artifact_keys else "- ว่าง -"
+    # 🏺 ใส่ได้หลายชิ้นตามจำนวนช่องที่เจาะไว้ — โชว์ครบทุกชิ้น + บอกว่าใช้ไปกี่ช่อง
+    _slots = game_modifiers.artifact_slots(player_data)
+    artifact_text = ("\n".join(game_modifiers.STATUS_EFFECTS[k]["label"] for k in artifact_keys)
+                     + f"\n`{len(artifact_keys)}/{_slots}` ช่อง") if artifact_keys else f"- ว่าง - `0/{_slots}` ช่อง"
 
     if page == "progress":
         # 📊 B2/B4: หน้าความคืบหน้า — EXP / สมุดล่า / กิลด์

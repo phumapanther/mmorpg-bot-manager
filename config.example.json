@@ -964,6 +964,22 @@
         "purchasable": true,
         "effect": "apply_status",
         "effect_value": "monster_trap"
+      },
+      "67": {
+        "name": "💠 สว่านเจาะรูอาร์ติแฟกต์",
+        "buy": 0,
+        "sell": 1,
+        "type": "use",
+        "purchasable": false,
+        "effect": "artifact_slot_up"
+      },
+      "68": {
+        "name": "🔧 ชุดถอดอาร์ติแฟกต์",
+        "buy": 25000000,
+        "sell": 1,
+        "type": "use",
+        "purchasable": true,
+        "effect": "artifact_remove"
       }
     },
     "armor_stats": {
@@ -1509,6 +1525,11 @@
       "wood": 0,
       "dark": 0,
       "light": 40
+    },
+    "artifact": {
+      "max_slots": 5,
+      "punch_item": "67",
+      "punch_drop_chance": 90
     }
   },
   "monster_ranks": {

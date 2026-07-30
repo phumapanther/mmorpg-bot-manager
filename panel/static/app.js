@@ -1316,6 +1316,8 @@ const BAL_FIELDS = {
     ["bestiary.continent_reward", "รางวัลสมุดครบ 1 ทวีป"],
     ["bestiary.star_reward", "รางวัลดาวไร้พ่าย"],
     ["bestiary.complete_reward", "รางวัลสมุดครบทั้งเล่ม"],
+    ["artifact.max_slots", "🏺 ช่องอาร์ติแฟกต์สูงสุด (เจาะได้กี่รู)"],
+    ["artifact.punch_drop_chance", "💠 โอกาสดรอปสว่านเจาะรูจากบอสไร้พ่าย %"],
     ["bestiary.element_rank_rewards.Common", "🧬 สมุดธาตุ: ครบมอนธรรมดา 7 ธาตุ"],
     ["bestiary.element_rank_rewards.Mini-Boss", "🧬 สมุดธาตุ: ครบมินิบอส 7 ธาตุ"],
     ["bestiary.element_rank_rewards.Main-Boss", "🧬 สมุดธาตุ: ครบบอสใหญ่ 7 ธาตุ"],
