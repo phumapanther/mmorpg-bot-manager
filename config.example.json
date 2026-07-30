@@ -1530,6 +1530,50 @@
       "max_slots": 5,
       "punch_item": "67",
       "punch_drop_chance": 90
+    },
+    "spawn_weights": {
+      "100": {
+        "Common": 10,
+        "Mini-Boss": 30,
+        "Main-Boss": 20,
+        "Secret": 25,
+        "Unbeatable": 15
+      },
+      "90": {
+        "Common": 30,
+        "Mini-Boss": 20,
+        "Main-Boss": 20,
+        "Secret": 20,
+        "Unbeatable": 10
+      },
+      "50": {
+        "Common": 50,
+        "Mini-Boss": 20,
+        "Main-Boss": 20,
+        "Secret": 8,
+        "Unbeatable": 2
+      },
+      "20": {
+        "Common": 70,
+        "Mini-Boss": 20,
+        "Main-Boss": 5,
+        "Secret": 3,
+        "Unbeatable": 2
+      },
+      "10": {
+        "Common": 80,
+        "Mini-Boss": 10,
+        "Main-Boss": 5,
+        "Secret": 3,
+        "Unbeatable": 2
+      },
+      "0": {
+        "Common": 95,
+        "Mini-Boss": 2,
+        "Main-Boss": 1,
+        "Secret": 1,
+        "Unbeatable": 1
+      }
     }
   },
   "monster_ranks": {

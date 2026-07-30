@@ -722,12 +722,25 @@ const ITEM_TYPES = [
   { value: "drop", label: "ดรอปพิเศษ" },
 ];
 
+// ⚠️ ต้องมี effect ครบทุกแบบที่เกมรองรับ — เดิมมีแค่ 5 แบบ ทำให้ไอเทม 38 ชิ้นที่ใช้ effect
+// นอกลิสต์ถูกล้างค่าทิ้งเงียบ ๆ ทันทีที่กดบันทึกแท็บนี้ (ยาเลิกฮีล อาร์ติแฟกต์เลิกใส่ได้)
 const ITEM_EFFECTS = [
   { value: "", label: "-- ไม่มี --" },
   { value: "heal", label: "ฟื้น HP (heal)" },
   { value: "repair", label: "ซ่อมอุปกรณ์ (repair)" },
   { value: "revive", label: "ชุบชีวิต (revive)" },
   { value: "set_state", label: "ตั้งค่าเหตุการณ์ (set_state)" },
+  { value: "apply_status", label: "ติดสถานะ (apply_status)" },
+  { value: "cure_status", label: "ล้างสถานะ (cure_status)" },
+  { value: "equip_artifact", label: "สวมอาร์ติแฟกต์ (equip_artifact)" },
+  { value: "artifact_slot_up", label: "💠 เจาะช่องอาร์ติแฟกต์ (artifact_slot_up)" },
+  { value: "artifact_remove", label: "🔧 ถอดอาร์ติแฟกต์ (artifact_remove)" },
+  { value: "gamble_status", label: "สุ่มสถานะดี/ร้าย (gamble_status)" },
+  { value: "emergency_ration", label: "เสบียงฉุกเฉิน (emergency_ration)" },
+  { value: "dye_profile", label: "ย้อมสีโปรไฟล์ (dye_profile)" },
+  { value: "random_continent", label: "วาร์ปสุ่มทวีป (random_continent)" },
+  { value: "choose_continent", label: "เลือกทวีปเอง (choose_continent)" },
+  { value: "wedding_ring", label: "💍 แหวนแต่งงาน (wedding_ring)" },
 ];
 
 function renderItemsCatalog() {
@@ -809,6 +822,13 @@ function renderItemsTable(items) {
       opt.value = e.value;
       opt.textContent = e.label;
       effectSel.appendChild(opt);
+    }
+    // effect แปลกที่ไม่มีในลิสต์ (ของที่แอดมินเพิ่มเอง) — ใส่เป็นตัวเลือกไว้ จะได้ไม่โดนล้างตอนบันทึก
+    if (item.effect && !ITEM_EFFECTS.some(e => e.value === item.effect)) {
+      const custom = document.createElement("option");
+      custom.value = item.effect;
+      custom.textContent = `${item.effect} (กำหนดเอง)`;
+      effectSel.appendChild(custom);
     }
     effectSel.value = item.effect || "";
     const effectValInput = document.createElement("input");
@@ -1415,6 +1435,7 @@ function renderBalance() {
     el.appendChild(sel);
   }
   renderEventWeights();
+  renderSpawnTable();
   renderStatusTable();
   // ตารางแรงค์มอนสเตอร์
   const tbody = document.querySelector("#balRanksTable tbody");
@@ -1446,6 +1467,20 @@ function renderEventWeights() {
   ).join("");
 }
 
+const SPAWN_RANKS = ["Common", "Mini-Boss", "Main-Boss", "Secret", "Unbeatable"];
+
+function renderSpawnTable() {
+  const tbody = document.querySelector("#balSpawnTable tbody");
+  if (!tbody) return;
+  const rows = balGet("spawn_weights") || {};
+  const levels = Object.keys(rows).sort((a, b) => Number(b) - Number(a));
+  tbody.innerHTML = levels.map(lv =>
+    `<tr><td>เลเวล ${lv}+</td>` + SPAWN_RANKS.map(rank =>
+      `<td><input type="number" min="0" data-spawn="${lv}" data-col="${rank}"
+        value="${rows[lv][rank] ?? 0}"></td>`).join("") + "</tr>"
+  ).join("");
+}
+
 function renderStatusTable() {
   const tbody = document.querySelector("#balStatusTable tbody");
   if (!tbody) return;
@@ -1462,6 +1497,11 @@ async function balanceSave() {
     const row = balGet(`events.weights.${inp.dataset.evt}`) || {};
     row[inp.dataset.col] = Number(inp.value || 0);
     balSetRaw(`events.weights.${inp.dataset.evt}`, row);
+  });
+  document.querySelectorAll("[data-spawn]").forEach(inp => {
+    const row = balGet(`spawn_weights.${inp.dataset.spawn}`) || {};
+    row[inp.dataset.col] = Number(inp.value || 0);
+    balSetRaw(`spawn_weights.${inp.dataset.spawn}`, row);
   });
   document.querySelectorAll("[data-status]").forEach(inp => {
     if (inp.disabled || inp.value === "") return;

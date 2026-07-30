@@ -27,6 +27,49 @@ EVENT_WEIGHTS = {
 EVENT_LIST = ["monster", "village", "treasure", "dungeon", "npc", "trap"]
 
 
+# เรทเกิดมอนรายแรงค์ตามช่วงเลเวล (ค่าเดิมในโค้ด — ใช้เมื่อ Panel ไม่ได้ตั้ง)
+DEFAULT_SPAWN_WEIGHTS = {
+    100: [10, 30, 20, 25, 15],
+    90:  [30, 20, 20, 20, 10],
+    50:  [50, 20, 20, 8, 2],
+    20:  [70, 20, 5, 3, 2],
+    10:  [80, 10, 5, 3, 2],
+    0:   [95, 2, 1, 1, 1],
+}
+
+
+def spawn_weights_for(player_level, rank_keys):
+    """น้ำหนักสุ่มแรงค์มอนตามเลเวลผู้เล่น — ตั้งได้ที่ Panel (ตั้งไม่ครบ/เพี้ยน = ค่าเดิม)
+
+    คอนฟิกเป็น {"ช่วงเลเวลขั้นต่ำ": {"Common": 50, ...}} — เลือกช่วงที่สูงสุดที่ไม่เกินเลเวล
+    """
+    table = config_loader.get_balance("spawn_weights", {}) or {}
+    if not isinstance(table, dict):
+        table = {}                 # คอนฟิกพังทั้งก้อน (สตริง/ลิสต์) = ใช้ตารางเดิม
+    tiers = {}
+    for key, row in table.items():
+        try:
+            tiers[int(key)] = row
+        except (TypeError, ValueError):
+            continue
+    if not tiers:
+        tiers = DEFAULT_SPAWN_WEIGHTS
+    threshold = max((lv for lv in tiers if player_level >= lv), default=0)
+    row = tiers.get(threshold, DEFAULT_SPAWN_WEIGHTS[0])
+    try:
+        if isinstance(row, dict):
+            weights = [max(0, int(row.get(rank, 0))) for rank in rank_keys]
+        else:
+            weights = [max(0, int(w)) for w in row]
+        if len(weights) == len(rank_keys) and sum(weights) > 0:
+            return weights
+    except (TypeError, ValueError):
+        pass
+    # ค่าใน Panel ใช้ไม่ได้ = ตกกลับตารางเดิม ห้ามปล่อยให้น้ำหนักเป็นศูนย์ทั้งแถว (random.choices จะพัง)
+    fallback = max((lv for lv in DEFAULT_SPAWN_WEIGHTS if player_level >= lv), default=0)
+    return list(DEFAULT_SPAWN_WEIGHTS[fallback])
+
+
 def event_weights(last_evt):
     """น้ำหนักอีเวนต์ของสถานการณ์นั้น — ตั้งได้ที่ Panel (ไม่ตั้ง/ตั้งไม่ครบ = ค่าเดิมในโค้ด)
 
@@ -192,21 +235,9 @@ class MonsterEventView(ActionView):
                 player_model.update_player_field(user_id, "last_event", "monster")
                 
             else:
-                # ถ้าไม่ได้ใช้ใบเรียกบอส ให้สุ่มตามช่วงเลเวลปกติ
-                if player_level >= 100:
-                    spawn_weights = [10, 30, 20, 25, 15]
-                elif player_level >= 90:
-                    spawn_weights = [30, 20, 20, 20, 10]
-                elif player_level >= 50:
-                    spawn_weights = [50, 20, 20, 8, 2]
-                elif player_level >= 20:
-                    spawn_weights = [70, 20, 5, 3, 2]
-                elif player_level >= 10:
-                    spawn_weights = [80, 10, 5, 3, 2]
-                else:
-                    # กรณีเลเวล 0 ถึง 9 (เจอมอนสเตอร์ระดับต่ำสุด)
-                    spawn_weights = [95, 2, 1, 1, 1]
-                
+                # ถ้าไม่ได้ใช้ใบเรียกบอส ให้สุ่มตามช่วงเลเวลปกติ (ตารางตั้งได้ที่ Panel)
+                spawn_weights = spawn_weights_for(player_level, rank_keys)
+
             # ตัวคูณน้ำหนักแรงค์จากทวีป/ธีม (เช่น Eclipse ดัน Secret ×3) — แรงค์ที่ถูกล็อก 100% จากใบเรียกไม่กระทบ
             rank_mult = self.mods.get("rank_weight_mult") or {}
             if rank_mult:
