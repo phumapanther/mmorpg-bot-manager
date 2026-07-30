@@ -234,7 +234,12 @@ class SeasonView(discord.ui.View):
     async def interaction_check(self, interaction):
         return interaction.user.id == self.user_id
 
-    async def _refresh(self, interaction, msg):
+    async def show_season(self, interaction, msg):
+        """วาดหน้าซีซั่นใหม่พร้อมข้อความผลลัพธ์
+
+        ⚠️ ห้ามตั้งชื่อเมธอดขึ้นต้นด้วย _ ที่ซ้ำกับของ discord.py (เคยชื่อ _refresh
+        แล้วไปทับเมธอดภายในของ View ทำให้บอททั้งตัวล่มตอนมีคนแก้ข้อความ)
+        """
         from bot import season
         await interaction.response.edit_message(
             content=msg,
@@ -244,12 +249,12 @@ class SeasonView(discord.ui.View):
     async def _buy(self, interaction: discord.Interaction):
         from bot import season
         _ok, msg = season.buy_premium(interaction.user.id)
-        await self._refresh(interaction, msg)
+        await self.show_season(interaction, msg)
 
     @discord.ui.button(label="🎁 รับรางวัลที่ปลดแล้ว", style=discord.ButtonStyle.success)
     async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
         from bot import season
-        await self._refresh(interaction, season.claim_all(interaction.user.id))
+        await self.show_season(interaction, season.claim_all(interaction.user.id))
 
 
 class ElementBookSelect(discord.ui.Select):
