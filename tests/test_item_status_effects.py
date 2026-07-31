@@ -208,7 +208,8 @@ def test_new_cure_items_56_to_60():
     assert items["59"]["effect_value"] == ["odd_curse", "even_curse"]
     panacea = set(items["60"]["effect_value"])
     negatives = {"poison", "numb", "emp", "frostbite", "sealed_dice", "fumble", "burn",
-                 "entangled", "odd_curse", "even_curse", "shock", "zombie_parasite", "zombie_frenzy"}
+                 "entangled", "mushroom_bloom", "odd_curse", "even_curse", "shock",
+                 "zombie_parasite", "zombie_frenzy"}
     assert panacea == negatives
     # ยาครอบจักรวาลต้องไม่แตะบัฟดี/อาร์ติแฟกต์
     assert not any(gm.STATUS_EFFECTS[k].get("artifact") for k in panacea)
