@@ -66,7 +66,6 @@ def build_fight_embed(view, player, dice, damage_line, events, turn):
 
 def build_respawn_embed(player, respawn_hp, max_hp, penalty_fee, new_cash, lost_steps=0, hp_pct=30):
     """หน้าจอฟื้นคืนชีพ (O3) — ใช้ร่วมกันทุกเส้นทางตาย เพื่อให้ค่าธรรมเนียม/หน้าตาตรงกันเสมอ"""
-    import discord
     embed = discord.Embed(
         title="😇 ปาฏิหาริย์! คุณฟื้นคืนสติที่หมู่บ้านอุ่นใจ", color=0xe67e22,
         description="มีนักเดินทางใจดีแบกร่างอันหมดสติของคุณมาส่งถึงโรงหมอ...")

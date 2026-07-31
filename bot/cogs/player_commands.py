@@ -1443,7 +1443,6 @@ class PlayerCommands(commands.Cog):
         # 2. 🧳 กรณีที่พิมพ์แค่ !drop (แสดงรายการกระเป๋า)
         # ---------------------------------------------------------
         if item_id is None:
-            from collections import Counter
             item_counts = Counter(inv_array)
             
             embed = discord.Embed(title="🗑️ โยนไอเทมทิ้ง", color=discord.Color.red())

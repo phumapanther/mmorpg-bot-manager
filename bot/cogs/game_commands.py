@@ -1,3 +1,5 @@
+import random
+
 import discord
 from discord.ext import commands
 import bot.models.player_model as player_model
@@ -17,8 +19,7 @@ class GameCommands(commands.Cog):
     @allowed_channel("role_shop")
     @commands.cooldown(1, float(config_loader.get_balance("cooldowns.shop_sec", 3)), commands.BucketType.user)
     async def shop(self, ctx, action: str = None, item_num: int = None):
-        import random
-        from bot.views.profile_embed import GAME_RACES, MONSTER_RACES, GAME_CLASSES
+        from bot.views.profile_embed import MONSTER_RACES
 
         user_id = ctx.author.id
         player = player_model.get_player(user_id)

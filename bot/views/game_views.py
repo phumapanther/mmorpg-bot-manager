@@ -932,7 +932,6 @@ class MonsterEventView(ActionView):
                     
                     if isinstance(raw_inv, str):
                         try:
-                            import json
                             parsed_inv = json.loads(raw_inv)
                             if isinstance(parsed_inv, list): inv_list = parsed_inv
                             else: inv_list = [str(parsed_inv)] 
@@ -967,7 +966,6 @@ class MonsterEventView(ActionView):
                         
                         if capacity == 0 or current_count < capacity:
                             inv_list.append(str(dropped_item_id))
-                            import json
                             db_updates["inventory"] = json.dumps(inv_list)
                             
                             capacity_display = "(Unlimited)" if capacity == 0 else f"({current_count + 1}/{capacity})"
@@ -1040,13 +1038,12 @@ class MonsterEventView(ActionView):
                             dropped_item_msg += f"\n📕 **สมุดล่า {cont_label} ครบชุด!** โบนัส `+{int(config_loader.get_balance("bestiary.continent_reward", game_modifiers.BESTIARY_REWARD_CONTINENT)):,}` ทอง (ดูสมุด: `!bestiary`)"
                     if game_modifiers.bestiary_complete(book) and player_model.claim_bestiary_reward(self.user_id, "complete"):
                         db_updates["cash"] += int(config_loader.get_balance("bestiary.complete_reward", game_modifiers.BESTIARY_REWARD_COMPLETE))
-                        import json as _json
                         if db_updates.get("inventory") is not None:
-                            final_inv = _json.loads(db_updates["inventory"])
+                            final_inv = json.loads(db_updates["inventory"])
                         else:
                             final_inv = player_model.load_inventory(player.get("inventory", ""))
                         final_inv.append(game_modifiers.BESTIARY_COMPLETE_ITEM)  # รางวัลใหญ่ ไม่เช็คความจุ
-                        db_updates["inventory"] = _json.dumps(final_inv)
+                        db_updates["inventory"] = json.dumps(final_inv)
                         dropped_item_msg += f"\n🏆 **สมุดล่าสมบูรณ์ทั้ง 9 ทวีป!** ตำนานนักล่าจารึกชื่อคุณ — `+{int(config_loader.get_balance("bestiary.complete_reward", game_modifiers.BESTIARY_REWARD_COMPLETE)):,}` ทอง + 💊 ยาครอบจักรวาล!"
                 except Exception as e:
                     print(f"❌ [ERROR] ระบบสมุดล่าพัง: {e}")
@@ -1222,7 +1219,6 @@ class MonsterEventView(ActionView):
         # 🚨 CATCH-ALL: ดักจับ Error ขั้นรุนแรง 🚨
         except Exception as global_e:
             print(f"💥 [CRITICAL ERROR] ฟังก์ชัน process_turn ล่มสลาย!: {global_e}")
-            import traceback
             traceback.print_exc() 
             
             try:
