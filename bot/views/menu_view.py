@@ -9,6 +9,9 @@ from bot.cogs.player_commands import (apply_item_effect, bank_action, build_bag_
                                       sell_all_junk)
 from bot.views.profile_embed import create_profile_embed
 
+# ค่าแทน "ไม่เลือกอะไร" ใน dropdown — ห้ามใช้สตริงว่าง Discord ปฏิเสธทั้ง dropdown
+NONE_CHOICE = "__none__"
+
 # หัวข้อคู่มือในปุ่ม 📖 — ค่า value ตรงกับ topic ของ !codex เป๊ะ
 CODEX_TOPICS = [
     ("📘 วิธีเล่น (เริ่มต้นที่นี่)", "วิธีเล่น"),
@@ -197,7 +200,9 @@ class PetSelect(discord.ui.Select):
     def __init__(self, user_id):
         from bot import pets
         have = pets.owned(user_id)
-        options = [discord.SelectOption(label="— ไม่ติดตัวไหน —", value="")]
+        # ⚠️ value ห้ามเป็นสตริงว่าง — Discord ตอบ 400 "Must be between 1 and 100 in length"
+        # แล้ว dropdown ทั้งอันส่งไม่ออก (ตรวจฝั่ง Discord ไม่ใช่ตอนสร้างใน Python)
+        options = [discord.SelectOption(label="— ไม่ติดตัวไหน —", value=NONE_CHOICE)]
         options += [discord.SelectOption(label=p["name"], value=p["key"],
                                          description=f"เต๋า +{int(p.get('dice', 0))}")
                     for p in pets.all_pets() if p["key"] in have][:24]
@@ -205,7 +210,8 @@ class PetSelect(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         from bot import pets
-        _ok, msg = pets.set_active(interaction.user.id, self.values[0])
+        chosen = "" if self.values[0] == NONE_CHOICE else self.values[0]
+        _ok, msg = pets.set_active(interaction.user.id, chosen)
         await interaction.response.edit_message(
             content=msg,
             embed=pets.build_pet_embed(interaction.user.id, interaction.user.display_name),
@@ -303,14 +309,15 @@ class TitleSelect(discord.ui.Select):
     """เลือกตำแหน่งอวดจากที่ปลดล็อกแล้ว (C8) — ponytail: 24 อันแรกพอ ลิมิต Select คือ 25"""
     def __init__(self, user_id):
         from bot import achievements
-        options = [discord.SelectOption(label="— ถอดตำแหน่งออก —", value="")]
+        options = [discord.SelectOption(label="— ถอดตำแหน่งออก —", value=NONE_CHOICE)]
         options += [discord.SelectOption(label=t, value=t)
                     for t in achievements.unlocked_titles(user_id)[:24]]
         super().__init__(placeholder="เลือกตำแหน่งที่จะติดหน้าโปรไฟล์...", options=options)
 
     async def callback(self, interaction: discord.Interaction):
         from bot import achievements
-        _ok, msg = achievements.set_title(interaction.user.id, self.values[0])
+        chosen = "" if self.values[0] == NONE_CHOICE else self.values[0]
+        _ok, msg = achievements.set_title(interaction.user.id, chosen)
         await interaction.response.edit_message(
             content=msg,
             embed=achievements.build_achievement_embed(interaction.user.id, interaction.user.display_name),
