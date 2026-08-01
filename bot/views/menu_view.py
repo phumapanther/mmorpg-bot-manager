@@ -458,6 +458,20 @@ class GameMenuView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
+    async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item):
+        """ปุ่มเมนูพังห้ามเงียบ — เดิมกดแล้วขึ้นแค่ 'interaction failed' ตามหาสาเหตุไม่ได้เลย"""
+        import traceback
+        traceback.print_exception(type(error), error, error.__traceback__)
+        msg = (f"⚠️ ปุ่ม **{getattr(item, 'label', '?')}** ขัดข้อง (`{type(error).__name__}: {error}`)\n"
+               "ส่งข้อความนี้ให้แอดมินดูได้เลย")
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(msg, ephemeral=True)
+        except Exception:
+            pass
+
     @discord.ui.button(label="🎒 กระเป๋า", style=discord.ButtonStyle.primary, custom_id="game_menu:bag")
     async def bag_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         player = player_model.get_player(interaction.user.id)

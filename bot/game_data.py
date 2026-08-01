@@ -489,10 +489,14 @@ STATUS_EFFECTS = {
     },
     "art_sylvan_cloak": {
         "label": "🧥 เสื้อคลุมเปลือกไม้", "tick": "step", "default_turns": 1,
-        "desc": "พิษ/เลือดไหลรายก้าวเหลือ 20% + กันรากไม้ถาวร",
+        "desc": "พิษ/เลือดไหลรายก้าวเหลือ 20% + กันรากไม้ถาวร (ทั้งล็อกเต๋าและรากพันธนาการ)",
         "artifact": True, "no_tick": True,
         "step_damage_mult": 0.2,             # เลือดไหลจากพิษ/สถานะเหลือ 20%
-        "block_root": True,                  # กันรากธาตุไม้ถาวร (ไม่สลายแบบโคลเวอร์)
+        "block_root": True,                  # ① กันธาตุไม้ล็อกเต๋าเหลือ 0 (ไม่สลายแบบโคลเวอร์)
+        # ② กันสถานะ 🌱 รากไม้พันธนาการ ที่มอนธาตุไม้ตีติด — "ราก" ในเกมมี 2 กลไก
+        # เดิมกันแค่ ① ผู้เล่นเลยเจออาการ "บางครั้งเสื้อคลุมกันรากไม่ได้"
+        "blocks": ["entangled"],
+        "cleanse_on_apply": ["entangled"],   # สวมตอนติดรากอยู่ = สลัดหลุดทันที
     },
     "art_fire_ring": {
         "label": "💍 แหวนหินอัคนี", "tick": "step", "default_turns": 1,
@@ -508,7 +512,7 @@ STATUS_EFFECTS = {
     },
     "art_nether_amulet": {
         "label": "📿 สร้อยวิญญาณเนเธอร์", "tick": "step", "default_turns": 1,
-        "desc": "แปลง Life Drain เป็นฮีล 3%/เทิร์น + กันสาปคี่",
+        "desc": "อยู่ทวีปเนเธอร์: แปลงพลังดูดชีวิตเป็นฮีล 3% MaxHP/เทิร์น + กันสาปคี่ (ทุกที่)",
         "artifact": True, "no_tick": True,
         "hp_drain_heal": 0.03,                                   # แปลง Life Drain เป็นฮีล +3% MaxHP/เทิร์น (ตามสเปก)
         "blocks": ["odd_curse"], "cleanse_on_apply": ["odd_curse"],
@@ -527,7 +531,7 @@ STATUS_EFFECTS = {
     },
     "art_masquerade_monocle": {
         "label": "🎭 แว่นเดี่ยวหน้ากาก", "tick": "step", "default_turns": 1,
-        "desc": "ตรวจสอบ NPC ฟรีตลอดกาล",
+        "desc": "ส่อง NPC ฟรีตลอดกาล — ใช้ได้เฉพาะสัปดาห์ธีม 🎭 เทศกาลหน้ากากสวมรอย",
         "artifact": True, "no_tick": True,
         "free_inspect": True,                                    # ตรวจสอบ NPC ฟรีตลอดกาล
     },
