@@ -63,3 +63,65 @@ def test_file_kwargs():
         pass
     f = FakeFile()
     assert ei.file_kwargs(f) == {"file": f}
+
+
+def _load_gen_script():
+    import importlib.util
+    import pathlib
+    spec = importlib.util.spec_from_file_location(
+        "gen_event_images", pathlib.Path("scripts/gen_event_images.py"))
+    gen = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gen)
+    return gen
+
+
+def _iter_items(cfg):
+    """หา dict ไอเทม (ตาราง id→item ที่มี 'name') ใน config — โครงสร้างซ้อนตรงไหนก็เจอ"""
+    if isinstance(cfg, dict):
+        if cfg and all(isinstance(v, dict) and "name" in v for v in cfg.values()):
+            yield from cfg.values()
+        else:
+            for v in cfg.values():
+                yield from _iter_items(v)
+
+
+def test_build_prompts_covers_everything():
+    """ตาราง prompt ต้องครอบคลุมคีย์ภาพทุกใบที่เกมใช้ — กันเพิ่มทวีป/มอน/ธีมแล้วลืมเจนภาพ"""
+    import json
+    import pathlib
+    gen = _load_gen_script()
+    prompts = gen.build_prompts()
+
+    from bot.game_data import CONTINENTS, WEEKLY_THEMES
+    from bot.views.game_views import MONSTER_RANKS
+    events = ["monster", "village", "treasure", "dungeon", "npc", "trap", "calm"]
+    for c in CONTINENTS:
+        for e in events:
+            assert f"{c}_{e}" in prompts, f"{c}_{e}"
+        assert f"arrival_{c}" in prompts
+    for t in WEEKLY_THEMES:
+        assert f"theme_{t['key']}" in prompts
+    for r in MONSTER_RANKS.values():
+        assert f"monster_{ei.monster_slug(r['name'])}" in prompts, r["name"]
+    pools = [c["mods"].get("monster_pool", {}) for c in CONTINENTS.values()]
+    pools += [t.get("mods", {}).get("monster_pool", {}) for t in WEEKLY_THEMES]
+    for pool in pools:
+        for names in pool.values():
+            for n in names:
+                assert f"monster_{ei.monster_slug(n)}" in prompts, n
+    for k in ("mini_summon", "main_summon", "unbeatable_summon", "death", "respawn",
+              "vehicle_airship", "vehicle_ship", "vehicle_portal", "vehicle_caravan",
+              "item_wedding_ring", "item_dye_profile", "item_convoy_compass",
+              "item_monster_lure", "item_monster_ward", "item_monster_trap",
+              "item_legend_weapon", "item_magic_bag",
+              "blizzard_ambush", "ancestral_feast", "volcanic_eruption", "poison_thicket",
+              "emp_field", "ancient_excavation", "falling_island", "goddess_gamble",
+              "black_market_dealer", "zombie_parasite"):
+        assert k in prompts, k
+    items = json.loads(pathlib.Path("config.example.json").read_text(encoding="utf-8"))
+    arts = [v["effect_value"] for v in _iter_items(items) if v.get("effect") == "equip_artifact"]
+    assert len(arts) >= 10
+    for a in arts:
+        assert f"item_{a}" in prompts, a
+    for p in prompts.values():   # ทุก prompt ลงท้ายสไตล์เดียวกัน
+        assert p.endswith(gen.STYLE)
