@@ -2537,13 +2537,14 @@ class ContinentWarpView(ActionView):
             "current_state": "idle",
         })
         self.stop()
+        arr_f = event_image(f"arrival_{dest}")
         await interaction.response.edit_message(
             content=(
                 f"🎫 **เรือเหมาลำออกเดินทาง!** กัปตันฉีกตั๋วของคุณแล้วมุ่งหน้าเต็มใบ...\n"
                 f"{dest_info['arrival_text']}\n"
                 f"🗺️ ถึงแล้ว: {dest_info['label']} (พิมพ์ `!play` เพื่อออกสำรวจ)"
             ),
-            view=None)
+            view=None, **({"attachments": [arr_f]} if arr_f else {}))
 
 
 class TravelEventView(ActionView):
@@ -2606,7 +2607,11 @@ class TravelEventView(ActionView):
             description=f"{dest_info['arrival_text']}\n\n💰 จ่ายค่าโดยสาร `{fare:,}` ทอง\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
             color=0x9f7aea,
         )
-        await interaction.response.edit_message(content=None, embed=embed, view=AdventureView(author_id=self.user_id))
+        # ภาพทวีปปลายทางแทนภาพยานพาหนะเดิมบนข้อความ
+        arr_f = event_image(f"arrival_{dest}")
+        if arr_f:
+            embed.set_image(url=f"attachment://arrival_{dest}.png")
+        await interaction.response.edit_message(content=None, embed=embed, view=AdventureView(author_id=self.user_id), **({"attachments": [arr_f]} if arr_f else {}))
 
     async def decline(self, interaction: discord.Interaction):
         player_model.update_player_field(self.user_id, "current_state", "idle")
