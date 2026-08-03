@@ -14,7 +14,7 @@
 - มอนสเตอร์: **ภาพต่อมอน 1 ใบ** (~50 ตัว) — ธาตุที่สุ่มได้แสดงด้วย**สีขอบ embed** ตามธาตุ + ข้อความเดิม
   (ตัดทางเลือก มอน×ธาตุ ~350 ภาพทิ้ง — เจนนาน/คัดไม่ไหว/repo บวม)
 
-## ขอบเขตภาพ (~171 ภาพ, รวม ~7MB)
+## ขอบเขตภาพ (~172 ภาพ, รวม ~7MB)
 
 | ชุด | จำนวน | รูปแบบชื่อไฟล์ใน `assets/events/` |
 |---|---|---|
@@ -25,7 +25,8 @@
 | ยานพาหนะเดินทางข้ามทวีป | 4 | `vehicle_<key>.png` (airship, ship, portal, caravan) |
 | มาถึงทวีปใหม่ | 9 | `arrival_<continent>.png` (main, demon, frozen, nether, volcanic, sylvan, mechanized, skyward, ocean) |
 | มอนสเตอร์รายตัว | ~50 | `monster_<slug>.png` — slug จากชื่ออังกฤษในวงเล็บ เช่น `monster_ice_dragon.png` รวมภาพแรงค์พื้นฐาน 5 ใบ (Common/Mini-Boss/Main-Boss/Secret/Unbeatable) สำหรับมอนที่ไม่มีชื่อเฉพาะ |
-| ใช้ไอเทมพิเศษสำเร็จ | ~19 | `item_wedding_ring.png` (พิธีแต่งงานสำเร็จ), `item_revive.png` (ชุบชีวิต), `item_dye_profile.png` (ย้อมสีโปรไฟล์), `item_artifact_<id>.png` (อาร์ติแฟกต์ 10 ชิ้น ตอนสวมสำเร็จ), ไอเทมเห็นผลตอนเดิน 4 ตัว: `item_convoy_compass.png` `item_monster_lure.png` `item_monster_ward.png` `item_monster_trap.png` (ภาพตอนใช้/วางสำเร็จ), อุปกรณ์ระดับตำนาน 2 ชิ้น: `item_legend_weapon.png` `item_magic_bag.png` (ภาพตอนสวม/ได้ครอบครองสำเร็จ) — บทเรียกบอสโชว์ภาพ summon ซ้ำตอนใช้, ตั๋ว/คัมภีร์เดินทางใช้ภาพ arrival ซ้ำ, ยาทั่วไป (เลือด/ซ่อม/แก้สถานะ) **ไม่ใส่** กันแชทรกเพราะใช้บ่อย |
+| ใช้ไอเทมพิเศษสำเร็จ | ~18 | `item_wedding_ring.png` (พิธีแต่งงานสำเร็จ), `item_dye_profile.png` (ย้อมสีโปรไฟล์), `item_artifact_<id>.png` (อาร์ติแฟกต์ 10 ชิ้น ตอนสวมสำเร็จ), ไอเทมเห็นผลตอนเดิน 4 ตัว: `item_convoy_compass.png` `item_monster_lure.png` `item_monster_ward.png` `item_monster_trap.png` (ภาพตอนใช้/วางสำเร็จ), อุปกรณ์ระดับตำนาน 2 ชิ้น: `item_legend_weapon.png` `item_magic_bag.png` (ภาพตอนสวม/ได้ครอบครองสำเร็จ) — บทเรียกบอสโชว์ภาพ summon ซ้ำตอนใช้, ตั๋ว/คัมภีร์เดินทางใช้ภาพ arrival ซ้ำ, ใบวาป/บังคับเหตุการณ์ (📜 วาปเมือง → ภาพ village, 🔑 กุญแจดันเจี้ยน → ภาพ dungeon, 📡 เรดาร์สแกนกล่อง → ภาพ treasure ของทวีปปัจจุบัน) **ใช้ภาพอีเวนต์ซ้ำ ไม่เจนเพิ่ม**, ยาทั่วไป (เลือด/ซ่อม/แก้สถานะ) **ไม่ใส่** กันแชทรกเพราะใช้บ่อย |
+| ตาย / เกิดใหม่ | 2 | `death.png` (วิญญาณล่องลอย — โชว์ทุกจุดที่ตายแล้วขึ้น RespawnView), `respawn.png` (แสงชุบชีวิต — โชว์ตอนกดเกิดใหม่/ใช้ใบชุบชีวิตสำเร็จ แทน `item_revive.png` เดิม → ตัดออก ใช้ใบเดียวกัน) |
 
 ## สถาปัตยกรรม
 
