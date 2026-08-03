@@ -1209,11 +1209,19 @@ class MonsterEventView(ActionView):
                          "monster": monster_roll, "monster_parts": mon_parts},
                         locals().get("damage_line"), f"{skill_log}{combat_log}", self.turn_count)
                     next_msg = None
-                    
+
+                    # 🖼️ เทิร์นแรก: อัปโหลดภาพมอนแทนภาพเงาปริศนา (เทิร์นถัดไปไม่อัปซ้ำ — attachment เดิมค้างอยู่)
+                    img_kwargs = {}
+                    if self.turn_count == 1:
+                        mon_f = monster_image(self.m_stats.get("name", ""), self.monster_rank)
+                        if mon_f:
+                            mon_f.filename = "monster.png"   # ให้ตรง attachment://monster.png ใน embed เสมอ
+                            img_kwargs = {"attachments": [mon_f]}
+
                     if not interaction.response.is_done():
-                        await interaction.response.edit_message(content=None, embed=fight_embed, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses, infused=getattr(self, "infused", False), faction_war_side=getattr(self, "faction_war_side", None), fight_grace=getattr(self, "fight_grace", None), monster_hp_max=getattr(self, "monster_hp_max", None)))
+                        await interaction.response.edit_message(content=None, embed=fight_embed, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses, infused=getattr(self, "infused", False), faction_war_side=getattr(self, "faction_war_side", None), fight_grace=getattr(self, "fight_grace", None), monster_hp_max=getattr(self, "monster_hp_max", None)), **img_kwargs)
                     else:
-                        await interaction.followup.edit_message(message_id=interaction.message.id, content=None, embed=fight_embed, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses, infused=getattr(self, "infused", False), faction_war_side=getattr(self, "faction_war_side", None), fight_grace=getattr(self, "fight_grace", None), monster_hp_max=getattr(self, "monster_hp_max", None)))
+                        await interaction.followup.edit_message(message_id=interaction.message.id, content=None, embed=fight_embed, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses, infused=getattr(self, "infused", False), faction_war_side=getattr(self, "faction_war_side", None), fight_grace=getattr(self, "fight_grace", None), monster_hp_max=getattr(self, "monster_hp_max", None)), **img_kwargs)
                 except Exception as e:
                     print(f"❌ [ERROR] การไปเทิร์นถัดไปพัง: {e}")
 

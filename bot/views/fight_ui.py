@@ -27,6 +27,8 @@ def build_fight_embed(view, player, dice, damage_line, events, turn):
     embed = discord.Embed(
         title=f"⚔️ เทิร์น {turn} · {view.m_stats.get('name', 'มอนสเตอร์')}",
         color=ELEMENT_COLORS.get(getattr(view, "element", None), 0x95a5a6))
+    # ภาพมอนรายตัว — ไฟล์ถูกแนบครั้งเดียวตอนเทิร์นแรก (game_views) เทิร์นถัดไป attachment เดิมค้างบนข้อความ
+    embed.set_thumbnail(url="attachment://monster.png")
 
     badge = RANK_BADGES.get(view.monster_rank, view.monster_rank)
     embed.add_field(

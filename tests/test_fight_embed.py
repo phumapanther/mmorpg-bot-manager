@@ -54,6 +54,13 @@ def test_embed_without_optional_parts():
     assert isinstance(embed, discord.Embed) and len(embed.fields) == 1   # เหลือแค่แถบเลือด
 
 
+def test_embed_monster_thumbnail_every_turn():
+    """ภาพมอนโชว์เป็น thumbnail ทุกเทิร์น — ไฟล์ถูกอัปโหลดแค่เทิร์นแรก attachment ค้างบนข้อความ"""
+    for turn in (1, 2, 7):
+        embed = gv.build_fight_embed(_view(), {"hp": 50, "max_hp": 50}, None, None, "", turn)
+        assert embed.thumbnail.url == "attachment://monster.png"
+
+
 # ── B7: หน้าตายสรุปชัด ──
 
 def test_respawn_fee_tiers_from_config(monkeypatch):
