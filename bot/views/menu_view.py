@@ -3,7 +3,7 @@ from collections import Counter
 
 import bot.models.player_model as player_model
 from bot import config_loader
-from bot.cogs.player_commands import (apply_item_effect, bank_action, build_bag_embed,
+from bot.cogs.player_commands import (apply_item_effect, bank_action, build_bag_embed, item_use_file,
                                       build_bank_embed, build_bestiary_embed, build_codex_embed,
                                       build_top_embed, craft_for, craftable_now, drop_item_for,
                                       sell_all_junk)
@@ -159,8 +159,11 @@ class ProposalView(discord.ui.View):
     @discord.ui.button(label="💍 ตกลงเป็นคู่หู", style=discord.ButtonStyle.success)
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
         from bot import partner
+        from bot.event_images import event_image
         _ok, msg = partner.marry(self.proposer_id, self.target_id)
-        await interaction.response.edit_message(content=msg, view=None)
+        ring_f = event_image("item_wedding_ring") if _ok else None
+        await interaction.response.edit_message(content=msg, view=None,
+                                                **({"attachments": [ring_f]} if ring_f else {}))
 
     @discord.ui.button(label="💔 ขอบคุณ แต่ไม่", style=discord.ButtonStyle.secondary)
     async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -448,7 +451,9 @@ class ItemUseSelect(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         ok, msg = apply_item_effect(interaction.user.id, self.values[0])
-        await interaction.response.send_message(msg, ephemeral=True)
+        from bot.event_images import file_kwargs
+        await interaction.response.send_message(msg, ephemeral=True,
+                                                **file_kwargs(item_use_file(ok, self.values[0], interaction.user.id)))
 
 
 class ItemUseView(discord.ui.View):

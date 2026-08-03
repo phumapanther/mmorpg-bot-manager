@@ -3,6 +3,7 @@
 import discord
 
 from bot import game_modifiers
+from bot.event_images import event_image
 
 def hp_bar(current, maximum, length=10):
     """แถบเลือดแบบข้อความ ███████░░░ — กันหารศูนย์และค่าติดลบ"""
@@ -71,6 +72,9 @@ def build_respawn_embed(player, respawn_hp, max_hp, penalty_fee, new_cash, lost_
     embed = discord.Embed(
         title="😇 ปาฏิหาริย์! คุณฟื้นคืนสติที่หมู่บ้านอุ่นใจ", color=0xe67e22,
         description="มีนักเดินทางใจดีแบกร่างอันหมดสติของคุณมาส่งถึงโรงหมอ...")
+    # ภาพแสงชุบชีวิต — ผู้ส่ง embed นี้ต้องแนบไฟล์ respawn.png มาด้วย (ไม่มีไฟล์ = embed เดิม)
+    if event_image("respawn"):
+        embed.set_image(url="attachment://respawn.png")
     lost = [f"💸 ค่าชุบชีวิต **-{penalty_fee:,}** ทอง"]
     if lost_steps:
         lost.append(f"🕳️ ความคืบหน้าดันเจี้ยน **{lost_steps} ชั้น** (เริ่มใหม่จากหมู่บ้าน)")

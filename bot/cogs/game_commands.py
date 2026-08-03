@@ -306,8 +306,9 @@ class GameCommands(commands.Cog):
                 color=0xe53e3e
             )
             from bot.views.game_views import RespawnView
-            await ctx.send(embed=embed, view=RespawnView(user_id), ephemeral=True)
-            return 
+            from bot.event_images import event_image, file_kwargs
+            await ctx.send(embed=embed, view=RespawnView(user_id), ephemeral=True, **file_kwargs(event_image("death")))
+            return
 
         lock_states = ["npc_choice", "treasure_choice", "dungeon_choice", "trap_defense", "village", "shopping", "travel_choice", "special_choice"]
         if player["current_state"] in lock_states:

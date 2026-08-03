@@ -1186,10 +1186,11 @@ class MonsterEventView(ActionView):
                     player_model.update_player_fields(self.user_id, db_updates)
                     
                     fail_msg = f"{skill_log}{combat_log}💀 **คุณหมดสติลงกลางสนามรบเนื่องจากทนความโกรธของบอสไม่ไหว...**"
+                    death_kw = {"attachments": [f]} if (f := event_image("death")) else {}
                     if not interaction.response.is_done():
-                        await interaction.response.edit_message(content=fail_msg, view=RespawnView(self.user_id))
+                        await interaction.response.edit_message(content=fail_msg, view=RespawnView(self.user_id), **death_kw)
                     else:
-                        await interaction.followup.edit_message(message_id=interaction.message.id, content=fail_msg, view=RespawnView(self.user_id))
+                        await interaction.followup.edit_message(message_id=interaction.message.id, content=fail_msg, view=RespawnView(self.user_id), **death_kw)
                 except Exception as e:
                     print(f"❌ [ERROR] การแจ้งเตือนความตายพัง: {e}")
 
@@ -1301,7 +1302,7 @@ class MonsterEventView(ActionView):
             if new_hp <= 0:
                 db_updates["current_state"] = "dead"
                 player_model.update_player_fields(self.user_id, db_updates)
-                await interaction.response.edit_message(content="💥 หนีไม่พ้นและโดนตบตายคาที่!", view=RespawnView(self.user_id))
+                await interaction.response.edit_message(content="💥 หนีไม่พ้นและโดนตบตายคาที่!", view=RespawnView(self.user_id), **({"attachments": [f]} if (f := event_image("death")) else {}))
             else:
                 player_model.update_player_fields(self.user_id, db_updates)
                 next_turn = self.turn_count + 1
@@ -1418,7 +1419,7 @@ class DeathRespawnView(ActionView):
         embed, _info = respawn_player(self.user_id)
         if not embed:
             return await interaction.response.send_message("❌ ไม่พบข้อมูลตัวละคร!", ephemeral=True)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=True, **file_kwargs(event_image("respawn")))
         await interaction.message.delete()
         
     async def on_timeout(self):
@@ -1833,7 +1834,7 @@ class NpcEventView(ActionView):
             player_model.update_player_fields(self.user_id, {"hp": 0, "current_state": "dead"})
             return await interaction.response.edit_message(
                 content=f"🎭 **'NPC' ฉีกคราบออก — มันคือมอนสเตอร์ปลอมตัวมา!** จู่โจมจากระยะประชิด `-{dmg}` HP... คุณหมดสติ!",
-                view=RespawnView(self.user_id))
+                view=RespawnView(self.user_id), **({"attachments": [f]} if (f := event_image("death")) else {}))
         player_model.update_player_fields(self.user_id, {"hp": new_hp, "current_state": "fighting"})
         next_view = MonsterEventView(self.user_id, interaction.user.roles)
         await interaction.response.edit_message(
@@ -2140,7 +2141,7 @@ class RespawnView(ActionView):
         if not embed:
             return await interaction.response.send_message("❌ ไม่พบข้อมูลตัวละคร!", ephemeral=True)
         village = VillageEventView(self.user_id)
-        await interaction.response.edit_message(content=None, embed=embed, view=village)
+        await interaction.response.edit_message(content=None, embed=embed, view=village, **({"attachments": [f]} if (f := event_image("respawn")) else {}))
         village.message = interaction.message
 
 
@@ -2342,7 +2343,7 @@ class SpecialEventView(ActionView):
             lines = [prefix] + lines
         body = "\n".join(lines) if lines else "…ไม่มีอะไรเกิดขึ้น"
         if died:
-            await interaction.response.edit_message(content=body, view=RespawnView(self.user_id))
+            await interaction.response.edit_message(content=body, view=RespawnView(self.user_id), **({"attachments": [f]} if (f := event_image("death")) else {}))
         elif outcome.get("start_fight"):
             # ⚔️ เหตุการณ์ลากเข้าสู่การต่อสู้ทันที (เช่น โดนซุ่มโจมตี)
             player_model.update_player_field(self.user_id, "current_state", "fighting")
@@ -2741,7 +2742,7 @@ class AdventureView(ActionView):
                         description="\n".join(status_notes) + "\n\n📌 กดปุ่มด้านล่างเพื่อฟื้นตัวและยอมรับบทลงโทษกลับหมู่บ้าน",
                         color=0xe53e3e,
                     )
-                    await interaction.followup.send(embed=embed, view=RespawnView(user_id))
+                    await interaction.followup.send(embed=embed, view=RespawnView(user_id), **file_kwargs(event_image("death")))
                     return
 
             for key in expired:

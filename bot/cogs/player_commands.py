@@ -11,6 +11,7 @@ from bot.views.profile_embed import GAME_CLASSES
 from bot import config_loader
 from bot import game_modifiers
 from bot.views.game_views import DeathRespawnView
+from bot.event_images import event_image, item_use_image, file_kwargs
 import json
 import traceback # อย่าลืม import อันนี้ที่ด้านบนสุดของไฟล์นะครับ
 
@@ -137,6 +138,18 @@ def _monster_element_desc(data):
     if data.get("gold_mult", 1.0) > 1.0:
         parts.append(f"ล้มได้ทอง ×{data['gold_mult']:g}")
     return ", ".join(parts) or "-"
+
+
+def item_use_file(ok, item_id, user_id):
+    """ภาพประกอบหลังใช้ไอเทมสำเร็จ — จุดเดียวให้ทั้ง !use และปุ่มเมนูใช้ร่วมกัน (คืน discord.File|None)"""
+    if not ok:
+        return None
+    info = config_loader.get_item_config(item_id) or {}
+    player = player_model.get_player(user_id) or {}
+    cont = player.get("continent") or "main"   # ตั๋ววาร์ปสุ่ม: continent ถูกอัปเดตไปแล้ว → ได้ภาพทวีปปลายทางพอดี
+    if info.get("effect") == "random_continent":
+        return event_image(f"arrival_{cont}")
+    return item_use_image(info, cont)
 
 
 def apply_item_effect(user_id, item_id):
@@ -1441,7 +1454,7 @@ class PlayerCommands(commands.Cog):
             return
 
         ok, msg = apply_item_effect(ctx.author.id, item_id)
-        await ctx.send(msg)
+        await ctx.send(msg, **file_kwargs(item_use_file(ok, item_id, ctx.author.id)))
 
     @adventure_room_only()   # P8: เซิร์ฟหลักใช้ได้เฉพาะมิติส่วนตัว
     @commands.command(name="drop")
@@ -1805,7 +1818,7 @@ class PlayerCommands(commands.Cog):
                 warning_msg = await message.channel.send(
                     f"👻 {message.author.mention} **คุณเสียชีวิตอยู่!** วิญญาณไม่สามารถสื่อสารในช่องทางนี้ได้\n"
                     f"ต้องการจ่ายเงิน `1,000` ทอง เพื่อกลับไปเกิดใหม่ หรือใช้ใบชุบชีวิต (`!use 28`) หรือไม่?",
-                    view=view
+                    view=view, **file_kwargs(event_image("death"))
                 )
                 view.message = warning_msg
                 player_model.update_player_field(message.author.id, "last_event", "death_warned")
