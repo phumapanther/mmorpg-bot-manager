@@ -20,6 +20,7 @@ from bot.event_images import ASSETS_DIR, monster_slug          # noqa: E402
 from bot.game_data import CONTINENTS, WEEKLY_THEMES            # noqa: E402
 
 STYLE = "pixel art, 16-bit retro fantasy game style, vibrant colors"
+PIXEL_GRID = 128   # บังคับเม็ดพิกเซลจริง: ย่อเหลือกริดนี้แล้วขยายกลับแบบ NEAREST (เลขน้อย = เม็ดหยาบขึ้น)
 URL = "https://image.pollinations.ai/prompt/{prompt}?width=512&height=512&nologo=true&seed={seed}"
 
 # บรรยากาศประจำทวีป (จาก arrival_text/ธีมทวีปใน game_data)
@@ -157,11 +158,14 @@ def build_prompts():
 def generate(stem, prompt, seed):
     from PIL import Image
     url = URL.format(prompt=urllib.parse.quote(prompt), seed=seed)
-    data = urllib.request.urlopen(url, timeout=120).read()
+    # Pollinations บล็อก UA ของ Python-urllib (403) — ต้องส่ง UA แบบเบราว์เซอร์
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+    data = urllib.request.urlopen(req, timeout=120).read()
     img = Image.open(io.BytesIO(data)).convert("RGB")
-    if img.size != (512, 512):
-        img = img.resize((512, 512))
-    img = img.quantize(colors=256)   # PNG 256 สี — พิกเซลอาร์ตแทบไม่เสีย ขนาดตก ~20-60KB
+    # โมเดลชอบวาดเนียนเกิน — บังคับพิกเซลจริง: ย่อ→ขยาย NEAREST แล้วลดสี (ได้ลุคเรโทร + ไฟล์เล็ก)
+    img = img.resize((PIXEL_GRID, PIXEL_GRID), Image.LANCZOS)
+    img = img.resize((512, 512), Image.NEAREST)
+    img = img.quantize(colors=128)
     out = ASSETS_DIR / f"{stem}.png"
     img.save(out, optimize=True)
     return out.stat().st_size
