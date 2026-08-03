@@ -9,6 +9,7 @@ from bot import config_loader
 from bot import game_modifiers
 from bot.views.fight_ui import (ELEMENT_COLORS, RANK_BADGES, build_fight_embed,  # noqa: F401 (B6)
                                 build_respawn_embed, hp_bar)
+from bot.event_images import event_image, monster_image, item_use_image, file_kwargs  # noqa: F401
 
 def _holy_aura_chance(p_lvl):
     cfg = config_loader.get_skill_config("Cleric", "holy_aura")
@@ -2826,6 +2827,8 @@ class AdventureView(ActionView):
         # ==========================================
         # 🛠️ จุดที่แก้ไข: ท่าส่งข้อความแบบฝัง Timeout ให้เหตุการณ์ถัดไป
         # ==========================================
+        cur_continent = player.get("continent") or "main"
+
         if chosen_event == "monster":
             player_model.update_player_field(user_id, "current_state", "fighting")
             status_msg = f"*(เหลืออีก {dg_steps} ตาในดันเจี้ยน)*" if dg_steps > 0 or player.get("dungeon_steps", 0) > 0 else f"*(คูลดาวน์หมู่บ้านเหลือ: {current_cooldown} ตา)*"
@@ -2834,9 +2837,12 @@ class AdventureView(ActionView):
             if game_modifiers.has_status_flag(statuses, "disable_skills"):
                 emp_note = "\n⚡ **คลื่น EMP รบกวนร่างกาย! สกิลถูกปิดในไฟต์นี้ — ใช้ได้แค่โจมตีปกติ**"
 
+            # ภาพประกอบ: บอสที่ถูกอัญเชิญใช้ภาพ summon, มอนปกติใช้ภาพเงาปริศนาของทวีป
+            evt_img = event_image(last_evt) if last_evt in summon_events else event_image("monster", cur_continent)
+
             # สร้าง View -> ส่งข้อความรอรับค่า -> ยัดข้อความกลับเข้า View
             next_view = MonsterEventView(user_id, interaction.user.roles)
-            sent_msg = await interaction.followup.send(content=f"👹 มีเงาปริศนาพุ่งออกมากระโจนขวางทางคุณ! เลือกแอคชั่นหรือคลาสสกิลของคุณ: {status_msg}{emp_note}", view=next_view, wait=True)
+            sent_msg = await interaction.followup.send(content=f"👹 มีเงาปริศนาพุ่งออกมากระโจนขวางทางคุณ! เลือกแอคชั่นหรือคลาสสกิลของคุณ: {status_msg}{emp_note}", view=next_view, wait=True, **file_kwargs(evt_img))
             next_view.message = sent_msg
             
         elif chosen_event == "village":
@@ -2850,7 +2856,7 @@ class AdventureView(ActionView):
                 cleanse_note = f"\n✨ หมอสมุนไพรประจำหมู่บ้านรักษาคุณ — {names} หายเป็นปกติ!"
 
             next_view = VillageEventView(user_id)
-            sent_msg = await interaction.followup.send(content=f"🏡 คุณเดินทางมาพบ **'หมู่บ้านอุ่นใจ'** เลือกแอคชั่นของคุณ:{cleanse_note}", view=next_view, wait=True)
+            sent_msg = await interaction.followup.send(content=f"🏡 คุณเดินทางมาพบ **'หมู่บ้านอุ่นใจ'** เลือกแอคชั่นของคุณ:{cleanse_note}", view=next_view, wait=True, **file_kwargs(event_image("village", cur_continent)))
             next_view.message = sent_msg
 
         elif chosen_event == "treasure":
@@ -2858,7 +2864,7 @@ class AdventureView(ActionView):
             
             next_view = TreasureEventView(user_id)
             treasure_text = mods["theme_texts"].get("treasure", "📦 คุณพบ **'หีบสมบัติปริศนาลงอักขระโบราณ'**")
-            sent_msg = await interaction.followup.send(content=f"{treasure_text} เลือกแอคชั่นของคุณ: *(คูลดาวน์หมู่บ้านเหลือ: {current_cooldown} ตา)*", view=next_view, wait=True)
+            sent_msg = await interaction.followup.send(content=f"{treasure_text} เลือกแอคชั่นของคุณ: *(คูลดาวน์หมู่บ้านเหลือ: {current_cooldown} ตา)*", view=next_view, wait=True, **file_kwargs(event_image("treasure", cur_continent)))
             next_view.message = sent_msg
 
         elif chosen_event == "npc":
@@ -2872,7 +2878,7 @@ class AdventureView(ActionView):
                 cleanse_note = f"\n✨ นักเดินทางแบ่งยาสมุนไพรให้คุณ — {names} หายเป็นปกติ!"
 
             next_view = NpcEventView(user_id)
-            sent_msg = await interaction.followup.send(content=f"🧓 คุณเจอนักเดินทางพเนจร (NPC) นั่งอยู่ข้างกองไฟ เลือกแอคชั่นของคุณ: *(คูลดาวน์หมู่บ้านเหลือ: {current_cooldown} ตา)*{cleanse_note}", view=next_view, wait=True)
+            sent_msg = await interaction.followup.send(content=f"🧓 คุณเจอนักเดินทางพเนจร (NPC) นั่งอยู่ข้างกองไฟ เลือกแอคชั่นของคุณ: *(คูลดาวน์หมู่บ้านเหลือ: {current_cooldown} ตา)*{cleanse_note}", view=next_view, wait=True, **file_kwargs(event_image("npc", cur_continent)))
             next_view.message = sent_msg
 
         elif chosen_event == "dungeon":
@@ -2886,7 +2892,7 @@ class AdventureView(ActionView):
                 cleanse_note = f"\n🔥 ไออุ่นจากใต้พิภพแผ่ซ่านไปทั่วร่าง — {names} หายเป็นปกติ!"
 
             next_view = DungeonEventView(user_id)
-            sent_msg = await interaction.followup.send(content=f"💀 คุณส่องเห็น **'ช่องอุโมงค์ถ้ำใต้พิภพ (Dungeon)'** เลือกแอคชั่นของคุณ: *(คูลดาวน์หมู่บ้านเหลือ: {current_cooldown} ตา)*{cleanse_note}", view=next_view, wait=True)
+            sent_msg = await interaction.followup.send(content=f"💀 คุณส่องเห็น **'ช่องอุโมงค์ถ้ำใต้พิภพ (Dungeon)'** เลือกแอคชั่นของคุณ: *(คูลดาวน์หมู่บ้านเหลือ: {current_cooldown} ตา)*{cleanse_note}", view=next_view, wait=True, **file_kwargs(event_image("dungeon", cur_continent)))
             next_view.message = sent_msg
 
         elif chosen_event == "trap":
@@ -2894,7 +2900,7 @@ class AdventureView(ActionView):
 
             next_view = TrapEventView(user_id, interaction.user.roles)
             trap_text = mods["theme_texts"].get("trap", "⚠️ *แก๊ก!* คุณพลาดก้าวขาไปเกี่ยวสายสลิง **'กับดักโบราณ'** เข้าให้แล้ว!")
-            sent_msg = await interaction.followup.send(content=f"{trap_text} เตรียมรับมือแอคชั่นหลบหลีก: *(คูลดาวน์หมู่บ้านเหลือ: {current_cooldown} ตา)*", view=next_view, wait=True)
+            sent_msg = await interaction.followup.send(content=f"{trap_text} เตรียมรับมือแอคชั่นหลบหลีก: *(คูลดาวน์หมู่บ้านเหลือ: {current_cooldown} ตา)*", view=next_view, wait=True, **file_kwargs(event_image("trap", cur_continent)))
             next_view.message = sent_msg
 
         elif chosen_event == "calm":
@@ -2915,35 +2921,36 @@ class AdventureView(ActionView):
                 calm_text += "\n⚠️ **เลือดต่ำกว่า 30% — หยุดเดินรวดเพื่อความปลอดภัย** (กินยาก่อนไปต่อ!)"
             sent_msg = await interaction.followup.send(
                 content=f"{calm_text}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
-                view=next_view, wait=True)
+                view=next_view, wait=True, **file_kwargs(event_image("calm", cur_continent)))
             next_view.message = sent_msg
 
         elif chosen_event == "special":
             intro = special_event.get("intro", "✨ มีบางอย่างเกิดขึ้นตรงหน้าคุณ...")
+            sp_img = event_image(special_event.get("key", ""))
             if special_event.get("template") == "instant":
                 # ไม่มีสิทธิ์เลือก — จ่ายผลทันที (เช่น งานเลี้ยงบรรพชน)
                 outcome = resolve_instant_special(special_event)
                 lines, died = execute_special_outcome(user_id, outcome)
                 body = intro + "\n" + "\n".join(lines)
                 if died:
-                    await interaction.followup.send(content=body, view=RespawnView(user_id))
+                    await interaction.followup.send(content=body, view=RespawnView(user_id), **file_kwargs(event_image("death")))
                 elif outcome.get("start_fight"):
                     player_model.update_player_field(user_id, "current_state", "fighting")
                     next_view = MonsterEventView(user_id, interaction.user.roles)
                     sent_msg = await interaction.followup.send(
                         content=f"{body}\n👹 **ศัตรูไม่ให้เวลาคุณหายใจ — เข้าสู่การต่อสู้ทันที!**",
-                        view=next_view, wait=True)
+                        view=next_view, wait=True, **file_kwargs(sp_img))
                     next_view.message = sent_msg
                 else:
                     next_view = AdventureView(author_id=user_id)
                     sent_msg = await interaction.followup.send(
                         content=f"{body}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
-                        view=next_view, wait=True)
+                        view=next_view, wait=True, **file_kwargs(sp_img))
                     next_view.message = sent_msg
             else:
                 player_model.update_player_field(user_id, "current_state", "special_choice")
                 next_view = SpecialEventView(user_id, special_event)
-                sent_msg = await interaction.followup.send(content=intro, view=next_view, wait=True)
+                sent_msg = await interaction.followup.send(content=intro, view=next_view, wait=True, **file_kwargs(sp_img))
                 next_view.message = sent_msg
 
         elif chosen_event == "travel":
@@ -2957,5 +2964,5 @@ class AdventureView(ActionView):
                     f"💰 ค่าโดยสาร: `{encounter['fare']:,}` ทอง (จ่ายจากเงินสดในกระเป๋า)\n"
                     f"🎲 ปลายทางจะรู้ก็ต่อเมื่อไปถึงแล้วเท่านั้น — จะร่วมเดินทางไหม?"
                 ),
-                view=next_view, wait=True)
+                view=next_view, wait=True, **file_kwargs(event_image(f"vehicle_{encounter['vehicle']}")))
             next_view.message = sent_msg
