@@ -11,6 +11,7 @@ from discord.ext import commands, tasks
 
 import bot.models.player_model as player_model
 from bot import config_loader, game_modifiers
+from bot.event_images import event_image, file_kwargs
 
 
 def _connect():
@@ -89,6 +90,9 @@ def build_announce_embed(theme):
         description=theme.get("description", ""),
         color=0xed8936,
     )
+    # ภาพประกอบธีม — อ้างชื่อไฟล์ที่ผู้ส่งแนบมาด้วย (ไม่มีไฟล์ = embed เดิมเฉยๆ)
+    if event_image(f"theme_{theme.get('key', '')}"):
+        embed.set_image(url=f"attachment://theme_{theme['key']}.png")
     embed.set_footer(text="ธีมจะเปลี่ยนใหม่ทุกวันจันทร์ — มีผลอัตโนมัติทั้งเซิร์ฟ")
     return embed
 
@@ -122,7 +126,8 @@ class WeeklyEvent(commands.Cog):
                 print(f"⚠️ [WeeklyEvent] หาห้องประกาศ id={channel_id} ไม่เจอ")
                 return
 
-            await channel.send(embed=build_announce_embed(theme))
+            await channel.send(embed=build_announce_embed(theme),
+                               **file_kwargs(event_image(f"theme_{theme.get('key', '')}")))
             set_state("announced_week", week_key)
             print(f"📅 [WeeklyEvent] ประกาศธีมสัปดาห์ {week_key}: {theme['label']}")
         except Exception as e:
