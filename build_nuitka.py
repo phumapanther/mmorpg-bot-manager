@@ -24,6 +24,7 @@ CMD = [
     # ponytail: ห้ามใส่ --include-package=license_server ตรงนี้ — นั่นคือโปรแกรมฝั่งผู้ขาย/แอดมิน
     # (เจนคีย์ + เก็บ licenses.db) ต้องอยู่แค่เครื่องผู้ขายเท่านั้น ห้ามติดไปกับ exe ที่แจกลูกค้า
     "--include-data-dir=panel/static=panel/static",
+    "--include-data-dir=assets=assets",   # ภาพพิกเซลอาร์ตประกอบเหตุการณ์ (assets/events)
     "--include-data-files=config.example.json=config.example.json",
     "--include-data-files=VERSION=VERSION",
     "--include-data-files=LICENSE_SERVER_URL.txt=LICENSE_SERVER_URL.txt",

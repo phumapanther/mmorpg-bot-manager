@@ -11,6 +11,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('panel/static', 'panel/static'),
+        ('assets', 'assets'),   # ภาพพิกเซลอาร์ตประกอบเหตุการณ์ (assets/events)
         ('config.example.json', '.'),
         ('VERSION', '.'),
         ('LICENSE_SERVER_URL.txt', '.'),
