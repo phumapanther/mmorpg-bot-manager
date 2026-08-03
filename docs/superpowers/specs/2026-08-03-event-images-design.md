@@ -14,7 +14,7 @@
 - มอนสเตอร์: **ภาพต่อมอน 1 ใบ** (~50 ตัว) — ธาตุที่สุ่มได้แสดงด้วย**สีขอบ embed** ตามธาตุ + ข้อความเดิม
   (ตัดทางเลือก มอน×ธาตุ ~350 ภาพทิ้ง — เจนนาน/คัดไม่ไหว/repo บวม)
 
-## ขอบเขตภาพ (~152 ภาพ, รวม ~6MB)
+## ขอบเขตภาพ (~165 ภาพ, รวม ~6-7MB)
 
 | ชุด | จำนวน | รูปแบบชื่อไฟล์ใน `assets/events/` |
 |---|---|---|
@@ -25,6 +25,7 @@
 | ยานพาหนะเดินทางข้ามทวีป | 4 | `vehicle_<key>.png` (airship, ship, portal, caravan) |
 | มาถึงทวีปใหม่ | 9 | `arrival_<continent>.png` (main, demon, frozen, nether, volcanic, sylvan, mechanized, skyward, ocean) |
 | มอนสเตอร์รายตัว | ~50 | `monster_<slug>.png` — slug จากชื่ออังกฤษในวงเล็บ เช่น `monster_ice_dragon.png` รวมภาพแรงค์พื้นฐาน 5 ใบ (Common/Mini-Boss/Main-Boss/Secret/Unbeatable) สำหรับมอนที่ไม่มีชื่อเฉพาะ |
+| ใช้ไอเทมพิเศษสำเร็จ | ~13 | `item_wedding_ring.png` (พิธีแต่งงานสำเร็จ), `item_revive.png` (ชุบชีวิต), `item_dye_profile.png` (ย้อมสีโปรไฟล์), `item_artifact_<id>.png` (อาร์ติแฟกต์ 10 ชิ้น ตอนสวมสำเร็จ) — บทเรียกบอสใช้ภาพ summon ซ้ำ, ตั๋ว/คัมภีร์เดินทางใช้ภาพ arrival ซ้ำ, ยาทั่วไป (เลือด/ซ่อม/แก้สถานะ) **ไม่ใส่** กันแชทรกเพราะใช้บ่อย |
 
 ## สถาปัตยกรรม
 
@@ -62,6 +63,7 @@ def monster_image(monster_name, rank):
 | ประกาศธีมสัปดาห์ | `weekly_event.py` `build_announce_embed` | แนบไฟล์ + `embed.set_image` |
 | เจอยานพาหนะ | จุดสร้างข้อความ travel encounter (`game_views.py` ~2546) | `vehicle_<key>.png` |
 | มาถึงทวีป | embed arrival (`game_views.py` ~2597, `player_commands.py` ~354) | `arrival_<continent>.png` |
+| ใช้ไอเทมพิเศษสำเร็จ | จุดส่งข้อความสำเร็จใน `player_commands.py` (use item) + ยืนยันแต่งงานใน flow `partner` | helper `item_use_image(item_info)` map effect→ไฟล์ (equip_artifact ต่อท้าย item id) — effect อื่นนอกลิสต์คืน `None` |
 
 ### 4. Fallback / Error handling
 
