@@ -125,3 +125,10 @@ def test_build_prompts_covers_everything():
         assert f"item_{a}" in prompts, a
     for p in prompts.values():   # ทุก prompt ลงท้ายสไตล์เดียวกัน
         assert p.endswith(gen.STYLE)
+
+
+def test_all_images_exist_on_disk():
+    """ทุกคีย์ใน build_prompts ต้องมีไฟล์จริง — กันลืมเจน/ลืม commit/เผลอลบ"""
+    gen = _load_gen_script()
+    missing = [k for k in gen.build_prompts() if not (ei.ASSETS_DIR / f"{k}.png").is_file()]
+    assert not missing, f"ภาพหาย {len(missing)} ใบ — รัน python scripts/gen_event_images.py: {missing[:10]}"
