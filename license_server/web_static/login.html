@@ -24,6 +24,7 @@
       <div class="big-code" id="codeBox"></div>
       <div class="btn-row">
         <button class="btn btn-primary" id="copyBtn">📋 คัดลอกคำสั่ง !weblogin</button>
+        <button class="btn btn-ghost" id="refreshBtn">🔄 ขอโค้ดใหม่</button>
       </div>
       <p style="margin-top:16px"><b>ขั้นที่ 2:</b> ไปวางในห้องแชทเซิร์ฟเกมใน Discord แล้วส่ง</p>
       <p class="notice" id="waitNote">⏳ กำลังรอการยืนยันจากในเกม... (หน้านี้จะเข้าสู่ระบบให้อัตโนมัติ)</p>
@@ -37,17 +38,28 @@
 <script>
   renderChrome("");
   fillDiscordInvite();
-  let code = "", timer = null;
+  let code = "", timer = null, expireTimer = null;
 
-  document.getElementById("getCodeBtn").addEventListener("click", async () => {
+  async function requestCode() {
+    clearInterval(timer); clearTimeout(expireTimer);
     const d = await api("POST", "/api/web/login/code");
     code = d.code;
     document.getElementById("codeBox").textContent = code;
     document.getElementById("step1").classList.add("hidden");
     document.getElementById("step2").classList.remove("hidden");
+    document.getElementById("copyBtn").textContent = "📋 คัดลอกคำสั่ง !weblogin";
+    document.getElementById("waitNote").textContent = "⏳ กำลังรอการยืนยันจากในเกม... (หน้านี้จะเข้าสู่ระบบให้อัตโนมัติ)";
     timer = setInterval(poll, 2500);
-    setTimeout(() => { if (timer) { clearInterval(timer); document.getElementById("waitNote").textContent = "⌛ โค้ดหมดอายุแล้ว — รีเฟรชหน้าเพื่อขอใหม่"; } }, 5 * 60 * 1000);
-  });
+    expireTimer = setTimeout(expired, 5 * 60 * 1000);
+  }
+
+  function expired() {
+    clearInterval(timer); timer = null;
+    document.getElementById("waitNote").textContent = "⌛ โค้ดหมดอายุแล้ว — กดปุ่ม 🔄 ขอโค้ดใหม่ได้เลย";
+  }
+
+  document.getElementById("getCodeBtn").addEventListener("click", requestCode);
+  document.getElementById("refreshBtn").addEventListener("click", requestCode);
 
   document.getElementById("copyBtn").addEventListener("click", () => {
     navigator.clipboard.writeText(`!weblogin ${code}`);
@@ -62,8 +74,7 @@
         location.href = "/me";
       }
     } catch (e) {
-      clearInterval(timer); timer = null;
-      document.getElementById("waitNote").textContent = "⌛ โค้ดหมดอายุแล้ว — รีเฟรชหน้าเพื่อขอใหม่";
+      expired();
     }
   }
 </script>
