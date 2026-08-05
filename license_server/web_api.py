@@ -104,6 +104,13 @@ class AdminLogin(BaseModel):
     secret: str
 
 
+@router.get("/admin/ping")
+def admin_ping(request: Request):
+    """เช็คว่า cookie แอดมินยังใช้ได้ — หน้า /admin ใช้ข้ามฟอร์ม login"""
+    require_admin(request)
+    return {"ok": True}
+
+
 @router.post("/admin/login")
 def admin_login(body: AdminLogin, response: Response):
     from license_server.api import get_or_create_admin_secret

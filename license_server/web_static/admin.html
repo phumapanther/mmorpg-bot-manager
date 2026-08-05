@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>หลังบ้าน — PanTher Adventure</title>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="nav-wrap"><header id="navbar"></header></div>
+
+<section class="block"><div class="container">
+
+  <div id="loginBox" style="max-width:420px">
+    <h2 class="sec">🔐 หลังบ้านแอดมิน</h2>
+    <p class="sec-sub">ใส่ admin secret (ไฟล์ license_server/admin_secret.txt บนเครื่องเซิร์ฟ)</p>
+    <input type="password" id="secretInput" placeholder="admin secret">
+    <p class="notice hidden" id="loginErr"></p>
+    <button class="btn btn-primary" id="loginBtn" style="margin-top:14px">เข้าสู่ระบบ</button>
+  </div>
+
+  <div id="panelBox" class="hidden">
+    <h2 class="sec">📝 จัดการข่าว</h2>
+    <div class="card" style="padding:22px;margin:16px 0">
+      <input type="hidden" id="editId">
+      <label class="f">หัวข้อข่าว</label>
+      <input type="text" id="newsTitle" placeholder="เช่น แพทช์ใหม่ 1.2 มาแล้ว!">
+      <label class="f">หมวด</label>
+      <select id="newsCat">
+        <option value="news">📢 ข่าว</option>
+        <option value="patch">🛠️ แพทช์</option>
+        <option value="event">🎪 อีเวนต์</option>
+      </select>
+      <label class="f">เนื้อหา (markdown: # หัวข้อ · **หนา** · - ลิสต์ · [ลิงก์](url) · ![รูป](/assets/events/xxx.png))</label>
+      <textarea id="newsBody" rows="10"></textarea>
+      <div class="btn-row" style="margin-top:14px">
+        <button class="btn btn-primary" id="saveNewsBtn">💾 บันทึกข่าว</button>
+        <button class="btn btn-ghost" id="previewBtn">👁️ ดูตัวอย่าง</button>
+        <button class="btn btn-ghost hidden" id="cancelEditBtn">ยกเลิกแก้ไข</button>
+      </div>
+      <div class="article hidden" id="previewBox" style="margin-top:16px"></div>
+    </div>
+    <div class="table-scroll"><table class="data" id="newsTable">
+      <thead><tr><th>#</th><th>หมวด</th><th>หัวข้อ</th><th>วันที่</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+
+    <h2 class="sec" style="margin-top:44px">💰 คิวเติมเงินรออนุมัติ</h2>
+    <p class="sec-sub">ตรวจยอดโอนเข้าบัญชีจริงก่อนกดอนุมัติเสมอ — อนุมัติแล้วทองเข้าธนาคารผู้เล่นทันที</p>
+    <div class="table-scroll"><table class="data" id="topupTable">
+      <thead><tr><th>#</th><th>Discord ID</th><th>จำนวน (บาท)</th><th>ทองที่จะได้</th><th>เวลา</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div>
+
+</div></section>
+
+<footer id="footer"></footer>
+
+<script src="/web.js"></script>
+<script>
+  renderChrome("");
+  fillDiscordInvite();
+
+  async function loadNews() {
+    const rows = (await api("GET", "/api/web/news")).news;
+    document.querySelector("#newsTable tbody").innerHTML = rows.map((n) => `
+      <tr><td>${n.id}</td><td>${CATEGORY_LABEL[n.category] || n.category}</td>
+      <td>${esc(n.title)}</td><td>${esc(n.created_at)}</td>
+      <td><button class="btn btn-ghost" data-edit="${n.id}">✏️</button>
+          <button class="btn btn-ghost" data-del="${n.id}">🗑️</button></td></tr>`).join("");
+    document.querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => editNews(b.dataset.edit)));
+    document.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", () => delNews(b.dataset.del)));
+  }
+
+  async function editNews(id) {
+    const n = await api("GET", `/api/web/news/${id}`);
+    document.getElementById("editId").value = n.id;
+    document.getElementById("newsTitle").value = n.title;
+    document.getElementById("newsCat").value = n.category;
+    document.getElementById("newsBody").value = n.body;
+    document.getElementById("cancelEditBtn").classList.remove("hidden");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function delNews(id) {
+    if (!confirm(`ลบข่าว #${id} ถาวร?`)) return;
+    await api("DELETE", `/api/web/admin/news/${id}`);
+    loadNews();
+  }
+
+  async function loadTopups() {
+    try {
+      const rows = (await api("GET", "/api/web/admin/topups?status=pending")).topups;
+      document.querySelector("#topupTable tbody").innerHTML = rows.length ? rows.map((t) => `
+        <tr><td>${t.id}</td><td>${esc(t.discord_id)}</td><td>${t.amount_thb}</td>
+        <td>🪙 ${t.gold.toLocaleString()}</td><td>${esc(t.created_at)}</td>
+        <td><button class="btn btn-primary" data-ok="${t.id}">✅ อนุมัติ</button>
+            <button class="btn btn-ghost" data-no="${t.id}">❌</button></td></tr>`).join("")
+        : '<tr><td colspan="6">ไม่มีรายการค้าง 🎉</td></tr>';
+      document.querySelectorAll("[data-ok]").forEach((b) => b.addEventListener("click", () => decide(b.dataset.ok, "approve")));
+      document.querySelectorAll("[data-no]").forEach((b) => b.addEventListener("click", () => decide(b.dataset.no, "reject")));
+    } catch (e) { /* ระบบเติมเงินยังไม่เปิด — ปล่อยตารางว่าง */ }
+  }
+
+  async function decide(id, action) {
+    const note = action === "reject" ? (prompt("เหตุผลที่ปฏิเสธ:") || "") : "";
+    if (action === "reject" && note === null) return;
+    try {
+      await api("POST", `/api/web/admin/topups/${id}/${action}`, { note });
+      alert(action === "approve" ? "อนุมัติแล้ว — ทองเข้าธนาคารผู้เล่นเรียบร้อย" : "ปฏิเสธรายการแล้ว");
+    } catch (e) { alert("ทำรายการไม่สำเร็จ: " + e.message); }
+    loadTopups();
+  }
+
+  document.getElementById("loginBtn").addEventListener("click", async () => {
+    try {
+      await api("POST", "/api/web/admin/login", { secret: document.getElementById("secretInput").value.trim() });
+      enter();
+    } catch (e) {
+      const el = document.getElementById("loginErr");
+      el.textContent = "รหัสไม่ถูกต้อง";
+      el.classList.remove("hidden");
+    }
+  });
+
+  document.getElementById("saveNewsBtn").addEventListener("click", async () => {
+    const id = document.getElementById("editId").value;
+    const body = {
+      title: document.getElementById("newsTitle").value.trim(),
+      category: document.getElementById("newsCat").value,
+      body: document.getElementById("newsBody").value,
+    };
+    if (!body.title) return alert("ใส่หัวข้อข่าวก่อนครับ");
+    if (id) await api("PUT", `/api/web/admin/news/${id}`, body);
+    else await api("POST", "/api/web/admin/news", body);
+    resetForm();
+    loadNews();
+  });
+
+  document.getElementById("previewBtn").addEventListener("click", () => {
+    const box = document.getElementById("previewBox");
+    box.innerHTML = md(document.getElementById("newsBody").value);
+    box.classList.toggle("hidden");
+  });
+  document.getElementById("cancelEditBtn").addEventListener("click", resetForm);
+
+  function resetForm() {
+    ["editId", "newsTitle", "newsBody"].forEach((i) => document.getElementById(i).value = "");
+    document.getElementById("cancelEditBtn").classList.add("hidden");
+  }
+
+  function enter() {
+    document.getElementById("loginBox").classList.add("hidden");
+    document.getElementById("panelBox").classList.remove("hidden");
+    loadNews();
+    loadTopups();
+  }
+
+  // มี cookie อยู่แล้ว (เคยล็อกอิน) → ข้ามหน้า login
+  api("GET", "/api/web/admin/ping").then(enter).catch(() => {});
+</script>
+</body>
+</html>
