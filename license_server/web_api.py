@@ -377,6 +377,22 @@ def reject_topup(topup_id: int, body: DecideBody, request: Request):
     return {"ok": True}
 
 
+@router.get("/admin/cmdlog")
+def admin_cmdlog(request: Request, q: str = ""):
+    """log คำสั่งแอดมินในเกม — ค้นด้วยเศษชื่อคน/discord_id/ชื่อคำสั่ง/ข้อความ"""
+    require_admin(request)
+    sql = "SELECT * FROM admin_logs"
+    args = []
+    if q.strip():
+        like = f"%{q.strip()}%"
+        sql += " WHERE discord_id LIKE ? OR user_name LIKE ? OR command LIKE ? OR full_text LIKE ?"
+        args = [like, like, like, like]
+    with web_db.connect() as conn:
+        rows = conn.execute(sql + " ORDER BY id DESC LIMIT 300", args).fetchall()
+        total = conn.execute("SELECT COUNT(*) FROM admin_logs").fetchone()[0]
+    return {"logs": [dict(r) for r in rows], "total": total}
+
+
 # ── Codex (คู่มือเกมชุดเดียวกับ !codex ในเกม — เว็บตรงกับเกมเสมอ) ──
 
 _CODEX_TOPICS = ["วิธีเล่น", "ทวีป", "ธาตุ", "สถานะ", "ไอเทม", "คราฟ",

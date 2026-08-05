@@ -59,6 +59,32 @@ def test_save_slip_from_chat(env):
     assert max(Image.open(p).size) <= 1280                      # ย่อรูปให้เล็ก
 
 
+def test_admin_command_logging(env):
+    """log คำสั่งแอดมิน: จดลง web.db + ตัวจับคำสั่งที่ล็อกสิทธิ์แอดมินทำงานถูก"""
+    assert web_link.log_admin_command("99", "Watch#1", "spawn", "!spawn @cat 66 1", "แชทหลัก", "เซิร์ฟหลัก")
+    with web_db.connect() as conn:
+        row = conn.execute("SELECT * FROM admin_logs").fetchone()
+    assert row["command"] == "spawn" and row["full_text"] == "!spawn @cat 66 1"
+    assert row["used_at"] and row["guild"] == "เซิร์ฟหลัก"
+
+    # ตัวจับ: check ที่มาจาก has_permission/has_permissions → ถือเป็นคำสั่งแอดมิน
+    class FakeCmd:
+        checks = []
+    def predicate(ctx):
+        pass
+    predicate.__qualname__ = "has_permission.<locals>.predicate"
+    FakeCmd.checks = [predicate]
+    assert web_link.is_admin_gated(FakeCmd)
+    predicate.__qualname__ = "has_permissions.<locals>.predicate"
+    assert web_link.is_admin_gated(FakeCmd)
+    def normal(ctx):
+        pass
+    FakeCmd.checks = [normal]
+    assert not web_link.is_admin_gated(FakeCmd)
+    FakeCmd.checks = []
+    assert not web_link.is_admin_gated(FakeCmd)
+
+
 def test_save_slip_guards(env):
     _ok, _msg, data = web_link.create_topup("111222333", 50)
     ok, msg = web_link.save_slip("999", data["id"], _png())     # คนอื่นแนบแทนไม่ได้

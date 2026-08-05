@@ -327,6 +327,18 @@ def test_admin_topup_history_filter_and_search(client, tmp_path, monkeypatch):
     assert client.get("/api/web/admin/topups?status=all&q=ไม่มีจริง").json()["topups"] == []
 
 
+def test_admin_cmdlog_endpoint(client):
+    from bot.cogs import web_link
+    web_link.log_admin_command("111", "Watch", "spawn", "!spawn @cat 66", "main", "เซิร์ฟหลัก")
+    web_link.log_admin_command("222", "Mod", "giverole", "!giverole @ยศ 65", "main", "เซิร์ฟหลัก")
+    assert client.get("/api/web/admin/cmdlog").status_code == 401       # ต้องเป็นแอดมิน
+    _admin(client)
+    d = client.get("/api/web/admin/cmdlog").json()
+    assert d["total"] == 2 and d["logs"][0]["command"] == "giverole"    # ใหม่สุดก่อน
+    hit = client.get("/api/web/admin/cmdlog?q=spawn").json()["logs"]
+    assert len(hit) == 1 and hit[0]["discord_id"] == "111"
+
+
 def test_codex_endpoint(client):
     topics = client.get("/api/web/codex").json()["topics"]
     assert len(topics) == 12

@@ -139,9 +139,43 @@ class TopupModal(discord.ui.Modal, title="💎 เติมเงินเข้
         await interaction.response.send_message(embed=embed, file=f, ephemeral=True)
 
 
+def is_admin_gated(command):
+    """คำสั่งนี้ล็อกสิทธิ์แอดมินไหม — ดูจากชื่อ check ที่ decorator แปะไว้
+    ครอบทั้ง has_permission(กลุ่มยศ) ของโปรเจ็ค และ @commands.has_permissions ของ discord.py"""
+    for chk in getattr(command, "checks", []):
+        q = getattr(chk, "__qualname__", "")
+        if "has_permission" in q:   # ครอบ has_permission + has_permissions
+            return True
+    return False
+
+
+def log_admin_command(discord_id, user_name, command, full_text, channel="", guild=""):
+    """จดการใช้คำสั่งแอดมินลง web.db — พังเงียบ ไม่มีทางทำให้คำสั่งจริงล้ม"""
+    try:
+        from license_server import web_db
+        with web_db.connect() as conn:
+            conn.execute(
+                "INSERT INTO admin_logs(discord_id, user_name, command, full_text, channel, guild) "
+                "VALUES (?,?,?,?,?,?)",
+                (str(discord_id), str(user_name)[:100], str(command)[:100],
+                 str(full_text)[:500], str(channel)[:100], str(guild)[:100]))
+        return True
+    except Exception:
+        return False
+
+
 class WebLink(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+
+    @commands.Cog.listener()
+    async def on_command(self, ctx):
+        """🛡️ log ทุกคำสั่งที่ล็อกสิทธิ์แอดมิน — ใคร ใช้อะไร เมื่อไหร่ พิมพ์ว่าอะไร (ดูได้ที่เว็บ /admin)"""
+        if ctx.command and is_admin_gated(ctx.command):
+            log_admin_command(ctx.author.id, ctx.author, ctx.command.qualified_name,
+                              ctx.message.content or "",
+                              getattr(ctx.channel, "name", "DM"),
+                              getattr(ctx.guild, "name", "-"))
 
     # ⚠️ ไม่ล็อกเซิร์ฟหลัก — บอทแจก (เซิร์ฟรอง) ก็ยืนยันล็อกอิน/รับสลิปได้
     # ปลอดภัยเพราะตัวตนอิงจากบัญชี Discord ผู้พิมพ์เสมอ และ cog โหลดเฉพาะเครื่องที่มี license_server

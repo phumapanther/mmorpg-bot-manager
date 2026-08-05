@@ -70,6 +70,14 @@
         <th>ขอเมื่อ</th><th>ตัดสินเมื่อ / โดย</th><th>เครื่องที่ทำรายการ</th><th>หมายเหตุ</th></tr></thead>
       <tbody></tbody>
     </table></div>
+
+    <h2 class="sec" style="margin-top:44px">🛡️ Log คำสั่งแอดมินในเกม</h2>
+    <p class="sec-sub" id="cmdSummary">—</p>
+    <div class="field"><input type="text" id="cmdSearch" placeholder="🔍 ค้นหาด้วยชื่อคน / Discord ID / ชื่อคำสั่ง / ข้อความ"></div>
+    <div class="table-scroll"><table class="data" id="cmdTable">
+      <thead><tr><th>เมื่อ</th><th>ใคร</th><th>คำสั่ง</th><th>ข้อความเต็มที่พิมพ์</th><th>เซิร์ฟ / ห้อง</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
   </div>
 
 </div></section>
@@ -155,9 +163,27 @@
     }
   }
 
+  // ── log คำสั่งแอดมินในเกม ──
+  async function loadCmdLog() {
+    const q = encodeURIComponent(document.getElementById("cmdSearch").value.trim());
+    try {
+      const d = await api("GET", `/api/web/admin/cmdlog?q=${q}`);
+      document.getElementById("cmdSummary").textContent =
+        `บันทึกทั้งหมด ${d.total.toLocaleString()} ครั้ง (โชว์ล่าสุด ≤300 แถว)`;
+      document.querySelector("#cmdTable tbody").innerHTML = d.logs.length ? d.logs.map((l) => `
+        <tr><td>${esc(l.used_at)}</td><td>${esc(l.user_name)}<br><small>${esc(l.discord_id)}</small></td>
+        <td><code>!${esc(l.command)}</code></td><td>${esc(l.full_text)}</td>
+        <td>${esc(l.guild)}<br><small>#${esc(l.channel)}</small></td></tr>`).join("")
+        : '<tr><td colspan="5">ยังไม่มีบันทึก / ไม่พบตามคำค้น</td></tr>';
+    } catch (e) {
+      document.getElementById("cmdSummary").textContent = "⚠️ โหลดไม่สำเร็จ: " + e.message + " (ลองรีสตาร์ท License Server)";
+    }
+  }
+
   document.querySelectorAll("#histFilters .btn").forEach((b) =>
     b.addEventListener("click", () => { histStatus = b.dataset.st; loadHistory(); }));
   document.getElementById("histSearch").addEventListener("input", () => loadHistory());
+  document.getElementById("cmdSearch").addEventListener("input", () => loadCmdLog());
 
   async function decide(id, action) {
     const note = action === "reject" ? (prompt("เหตุผลที่ปฏิเสธ:") || "") : "";
@@ -213,6 +239,7 @@
     loadNews();
     loadTopups();
     loadHistory();
+    loadCmdLog();
   }
 
   document.getElementById("adminLogoutBtn").addEventListener("click", async () => {

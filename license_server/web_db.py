@@ -25,6 +25,16 @@ CREATE TABLE IF NOT EXISTS login_codes (
     expires_at REAL NOT NULL,
     used INTEGER DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS admin_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    discord_id TEXT NOT NULL,
+    user_name TEXT DEFAULT '',
+    command TEXT NOT NULL,
+    full_text TEXT DEFAULT '',
+    channel TEXT DEFAULT '',
+    guild TEXT DEFAULT '',
+    used_at TEXT DEFAULT (datetime('now', 'localtime'))
+);
 CREATE TABLE IF NOT EXISTS topups (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     discord_id TEXT NOT NULL,
