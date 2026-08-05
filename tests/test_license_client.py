@@ -60,6 +60,7 @@ def test_check_license_invalid_key(monkeypatch):
 
 def test_check_license_server_unreachable(monkeypatch):
     _use_configured_server(monkeypatch)
+    monkeypatch.setattr(license_client.os.path, "isdir", lambda p: False)   # เครื่องลูกค้า — ไม่มี fallback
 
     def fake_post(url, json, timeout=None):
         raise httpx.ConnectError("refused", request=httpx.Request("POST", url))
@@ -67,3 +68,20 @@ def test_check_license_server_unreachable(monkeypatch):
     ok, msg = license_client.check_license("ABCD-1234", "token")
     assert ok is False
     assert "License Server" in msg
+
+
+def test_check_license_falls_back_to_localhost_on_owner_machine(monkeypatch):
+    """เครื่องเจ้าของเกม (มีโฟลเดอร์ license_server): tunnel ตาย → เช็คผ่าน localhost ต่ออัตโนมัติ"""
+    _use_configured_server(monkeypatch)
+    calls = []
+
+    def fake_post(url, json, timeout=None):
+        calls.append(url)
+        if "localhost" not in url:
+            raise httpx.ConnectError("dead tunnel", request=httpx.Request("POST", url))
+        return httpx.Response(200, json={"ok": True}, request=httpx.Request("POST", url))
+    monkeypatch.setattr(license_client.httpx, "post", fake_post)
+    ok, _msg = license_client.check_license("ABCD-1234", "token")
+    assert ok is True                                       # ผ่านด้วย localhost
+    assert any("localhost:8790" in u for u in calls)
+    assert calls[0].startswith("http://test-license-server")  # ลอง URL หลักก่อนเสมอ

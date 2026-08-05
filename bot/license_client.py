@@ -45,13 +45,24 @@ def check_license(license_key, bot_token):
     machine_id = get_machine_id()
     bot_token_hash = hashlib.sha256(bot_token.encode("utf-8")).hexdigest() if bot_token else ""
 
-    try:
-        resp = httpx.post(
-            f"{LICENSE_SERVER_URL}/redeem",
-            json={"key": license_key.strip(), "machine_id": machine_id, "bot_token_hash": bot_token_hash},
-            timeout=8,
-        )
-    except httpx.HTTPError:
+    # เครื่องที่รัน License Server เองอยู่แล้ว (มีโฟลเดอร์ license_server = เครื่องเจ้าของเกม):
+    # tunnel ล่ม/ลิงก์ในไฟล์เก่า ก็ยังเช็คผ่าน localhost ได้เสมอ — เครื่องลูกค้าไม่มีโฟลเดอร์นี้ จึงไม่มีทางบายพาส
+    urls = [LICENSE_SERVER_URL]
+    if os.path.isdir(os.path.join(os.path.dirname(_HERE), "license_server")):
+        urls.append("http://localhost:8790")
+
+    resp = None
+    for base in urls:
+        try:
+            resp = httpx.post(
+                f"{base}/redeem",
+                json={"key": license_key.strip(), "machine_id": machine_id, "bot_token_hash": bot_token_hash},
+                timeout=8,
+            )
+            break
+        except httpx.HTTPError:
+            continue
+    if resp is None:
         return False, "⚠️ ติดต่อ License Server ไม่ได้ — ต้องเปิดโปรแกรม License Server/KeyGen ทิ้งไว้ก่อนสตาร์ทบอท"
 
     if resp.status_code == 200:
