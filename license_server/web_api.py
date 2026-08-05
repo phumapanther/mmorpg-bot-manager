@@ -98,6 +98,47 @@ def gamedata():
             "invite": config_loader.get_main_server_invite() or ""}
 
 
+# ── ล็อกอินผ่านบอท (device-code — ไม่ต้องมีโดเมน/OAuth) ──
+
+import re
+import secrets
+
+_CODE_RE = re.compile(r"^[A-Z0-9]{6}$")
+_CODE_TTL = 300  # โค้ดอายุ 5 นาที
+_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # ตัดตัวที่อ่านสับสน (I/O/0/1)
+
+
+@router.post("/login/code")
+def login_code():
+    code = "".join(secrets.choice(_CODE_CHARS) for _ in range(6))
+    with web_db.connect() as conn:
+        conn.execute("INSERT INTO login_codes(code, expires_at) VALUES (?, ?)",
+                     (code, time.time() + _CODE_TTL))
+    return {"code": code, "expires_in": _CODE_TTL}
+
+
+@router.get("/login/status")
+def login_status(code: str, response: Response):
+    if not _CODE_RE.match((code or "").upper()):
+        raise HTTPException(400, "รูปแบบโค้ดไม่ถูกต้อง")
+    code = code.upper()
+    with web_db.connect() as conn:
+        row = conn.execute("SELECT * FROM login_codes WHERE code=?", (code,)).fetchone()
+        if not row or row["used"] or row["expires_at"] < time.time():
+            raise HTTPException(400, "โค้ดหมดอายุหรือถูกใช้แล้ว — กดขอโค้ดใหม่")
+        if not row["discord_id"]:
+            return {"status": "waiting"}
+        conn.execute("UPDATE login_codes SET used=1 WHERE code=?", (code,))
+    _set_cookie(response, "web_session", {"uid": str(row["discord_id"]),
+                                          "exp": time.time() + _SESSION_TTL})
+    return {"status": "ok"}
+
+
+@router.get("/me/session")
+def me_session(request: Request):
+    return {"discord_id": require_player(request)["uid"]}
+
+
 # ── แอดมิน ──
 
 class AdminLogin(BaseModel):

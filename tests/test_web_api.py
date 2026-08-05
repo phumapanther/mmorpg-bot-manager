@@ -90,3 +90,39 @@ def test_news_category_filter(client):
     client.post("/api/web/admin/news", json={"title": "แพทช์", "category": "patch", "body": ""})
     only = client.get("/api/web/news?category=patch").json()["news"]
     assert len(only) == 1 and only[0]["title"] == "แพทช์"
+
+
+# ── ล็อกอิน device-code ──
+
+def _bot_confirm(code, discord_id="123456789"):
+    """จำลองบอทเขียน discord_id ลงโค้ด (เหมือน !weblogin)"""
+    from bot.cogs.web_link import confirm_login_code
+    return confirm_login_code(code, discord_id, db_path=str(web_db.DB_PATH))
+
+
+def test_login_full_flow(client):
+    code = client.post("/api/web/login/code").json()["code"]
+    assert client.get(f"/api/web/login/status?code={code}").json()["status"] == "waiting"
+
+    ok, _msg = _bot_confirm(code)
+    assert ok
+    r = client.get(f"/api/web/login/status?code={code}")
+    assert r.json()["status"] == "ok" and "web_session" in client.cookies
+    assert client.get("/api/web/me/session").json()["discord_id"] == "123456789"
+    # โค้ดใช้แล้วใช้ซ้ำไม่ได้
+    assert client.get(f"/api/web/login/status?code={code}").status_code == 400
+
+
+def test_login_bad_codes(client):
+    assert client.get("/api/web/login/status?code=ผิดๆ").status_code == 400
+    assert client.get("/api/web/login/status?code=ZZZZZZ").status_code == 400   # ไม่มีจริง
+    import time
+    with web_db.connect() as conn:
+        conn.execute("INSERT INTO login_codes(code, expires_at) VALUES ('AAAAAA', ?)", (time.time() - 1,))
+    ok, msg = _bot_confirm("AAAAAA")
+    assert not ok and "หมดอายุ" in msg                                          # บอทปฏิเสธโค้ดหมดอายุ
+    assert client.get("/api/web/login/status?code=AAAAAA").status_code == 400
+
+
+def test_session_endpoint_requires_login(client):
+    assert client.get("/api/web/me/session").status_code == 401

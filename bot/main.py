@@ -154,6 +154,9 @@ def create_bot(bot_type: str):
                 await bot.load_extension("bot.cogs.guild_war")
                 print("⚔️[Guild War] โหลดระบบกิลด์วอร์สำเร็จ!")
 
+                await bot.load_extension("bot.cogs.web_link")
+                print("🌐[Web] โหลดสะพานเว็บไซต์ (!web / !weblogin) สำเร็จ!")
+
             # 🌍 [P8] บอทแจกสำหรับเซิร์ฟรอง — เล่นผจญภัยได้อย่างเดียว ไม่มีร้านค้า/คาสิโน/กิลด์/แอดมิน
             elif bot_type == "guest":
                 await bot.load_extension("bot.cogs.game_commands")     # !play (+ !shop ล็อกเซิร์ฟหลักในตัว)
