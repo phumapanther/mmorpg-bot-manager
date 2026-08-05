@@ -56,6 +56,21 @@ def test_item_use_image_mapping(tmp_path, monkeypatch):
     assert ei.item_use_image({"effect": "heal"}) is None
 
 
+def test_disabled_switch_turns_everything_off(tmp_path, monkeypatch):
+    """Panel ปิดระบบรูป → ทุก helper คืน None แม้ไฟล์มีจริง (จุดเช็คเดียวใน _file)"""
+    from bot import config_loader
+    monkeypatch.setattr(ei, "ASSETS_DIR", tmp_path)
+    for name in ("village", "monster_ice_dragon", "item_wedding_ring"):
+        (tmp_path / f"{name}.png").write_bytes(b"png")
+    monkeypatch.setattr(config_loader, "get_config", lambda: {"event_images": {"enabled": False}})
+    assert ei.event_image("village") is None
+    assert ei.monster_image("🐉 มังกรน้ำแข็ง (Ice Dragon)") is None
+    assert ei.item_use_image({"effect": "wedding_ring"}) is None
+    # เปิด (หรือไม่มี key เลย = ค่า default) → กลับมาทำงานปกติ
+    monkeypatch.setattr(config_loader, "get_config", lambda: {})
+    assert ei.event_image("village") is not None
+
+
 def test_file_kwargs():
     assert ei.file_kwargs(None) == {}
 

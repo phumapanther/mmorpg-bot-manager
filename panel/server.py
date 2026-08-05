@@ -1,13 +1,14 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 import os
-from panel import config_store, routes_config, routes_discord, routes_bot
+from panel import config_store, routes_config, routes_discord, routes_bot, routes_images
 
 app = FastAPI(title="MMORPG Bot Manager")
 config_store.ensure_exists()
 app.include_router(routes_config.router)
 app.include_router(routes_discord.router)
 app.include_router(routes_bot.router)
+app.include_router(routes_images.router)
 _static = os.path.join(os.path.dirname(__file__), "static")
 
 

@@ -21,6 +21,10 @@ _LEGENDARY_EQUIP = {"Legen_Weapon": "item_legend_weapon", "Magic_Bag": "item_mag
 
 
 def _file(stem):
+    # สวิตช์เปิด/ปิดทั้งระบบจาก Panel — ไม่มี key = เปิด (config เก่าไม่พัง)
+    from bot import config_loader
+    if not config_loader.get_config().get("event_images", {}).get("enabled", True):
+        return None
     p = ASSETS_DIR / f"{stem}.png"
     if p.is_file():
         return discord.File(str(p), filename=f"{stem}.png")

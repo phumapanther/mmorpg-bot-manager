@@ -4,6 +4,9 @@
   "license_key": "",
   "guild_id": null,
   "panel_port": 8770,
+  "event_images": {
+    "enabled": true
+  },
   "channels": {
     "bank": {
       "label": "ธนาคาร / เศรษฐกิจ",
