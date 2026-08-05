@@ -139,6 +139,18 @@ def me_session(request: Request):
     return {"discord_id": require_player(request)["uid"]}
 
 
+@router.post("/logout")
+def logout(response: Response):
+    response.delete_cookie("web_session")
+    return {"ok": True}
+
+
+@router.post("/admin/logout")
+def admin_logout(response: Response):
+    response.delete_cookie("web_admin")
+    return {"ok": True}
+
+
 # ── โปรไฟล์ผู้เล่น (อ่าน game_data.db แบบ read-only เท่านั้น) ──
 
 import sqlite3
@@ -216,6 +228,27 @@ def create_topup(body: TopupBody, request: Request):
             "promptpay_name": pp.get("name", ""), "promptpay_id": pp.get("id", "")}
 
 
+@router.get("/topup/{topup_id}/qr")
+def topup_qr(topup_id: int, request: Request):
+    """เปิด QR ของรายการตัวเองซ้ำ — เฉพาะรายการที่ยังรอตรวจ (จบแล้วไม่ควรมีใครโอนเพิ่ม)"""
+    uid = require_player(request)["uid"]
+    with web_db.connect() as conn:
+        row = conn.execute("SELECT * FROM topups WHERE id=? AND discord_id=?",
+                           (topup_id, uid)).fetchone()
+    if not row:
+        raise HTTPException(404, "ไม่พบรายการนี้ของคุณ")
+    if row["status"] != "pending":
+        raise HTTPException(400, "รายการนี้ถูกตัดสินไปแล้ว — สร้างรายการใหม่ได้ที่หน้าเติมเกม")
+    from bot import config_loader
+    pp = config_loader.get_config().get("payment", {}).get("promptpay", {})
+    if not pp.get("id"):
+        raise HTTPException(400, "ระบบเติมเงินปิดอยู่")
+    from bot.promptpay import build_qr_png
+    qr = base64.b64encode(build_qr_png(pp["id"], row["amount_thb"]).getvalue()).decode()
+    return {"id": row["id"], "gold": row["gold"], "amount_thb": row["amount_thb"], "qr": qr,
+            "promptpay_name": pp.get("name", ""), "promptpay_id": pp.get("id", "")}
+
+
 @router.get("/admin/topups")
 def list_topups(request: Request, status: str = "pending"):
     require_admin(request)
@@ -265,6 +298,23 @@ def reject_topup(topup_id: int, body: DecideBody, request: Request):
     require_admin(request)
     _decide_topup(topup_id, "rejected", body.note)
     return {"ok": True}
+
+
+# ── Codex (คู่มือเกมชุดเดียวกับ !codex ในเกม — เว็บตรงกับเกมเสมอ) ──
+
+_CODEX_TOPICS = ["วิธีเล่น", "ทวีป", "ธาตุ", "สถานะ", "ไอเทม", "คราฟ",
+                 "อาร์ติแฟกต์", "กิลด์", "รางวัล", "สะสม", "สังคม", "คำสั่ง"]
+
+
+@router.get("/codex")
+def codex():
+    from bot.cogs.player_commands import build_codex_embed
+    topics = []
+    for t in _CODEX_TOPICS:
+        e = build_codex_embed(t)
+        topics.append({"topic": t, "title": e.title or t, "description": e.description or "",
+                       "fields": [{"name": f.name, "value": f.value} for f in e.fields]})
+    return {"topics": topics}
 
 
 # ── แอดมิน ──

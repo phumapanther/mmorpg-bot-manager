@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>หลังบ้าน — PanTher Adventure</title>
+  <title>หลังบ้าน — Fragment Rift</title>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
 </head>
@@ -21,7 +21,10 @@
   </div>
 
   <div id="panelBox" class="hidden">
-    <h2 class="sec">📝 จัดการข่าว</h2>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h2 class="sec">📝 จัดการข่าว</h2>
+      <button class="btn btn-ghost" id="adminLogoutBtn">🚪 ออกจากระบบ</button>
+    </div>
     <div class="card" style="padding:22px;margin:16px 0">
       <input type="hidden" id="editId">
       <label class="f">หัวข้อข่าว</label>
@@ -157,6 +160,11 @@
     loadNews();
     loadTopups();
   }
+
+  document.getElementById("adminLogoutBtn").addEventListener("click", async () => {
+    await api("POST", "/api/web/admin/logout");
+    location.reload();
+  });
 
   // มี cookie อยู่แล้ว (เคยล็อกอิน) → ข้ามหน้า login
   api("GET", "/api/web/admin/ping").then(enter).catch(() => {});

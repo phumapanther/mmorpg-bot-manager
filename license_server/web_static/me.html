@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>โปรไฟล์ — PanTher Adventure</title>
+  <title>โปรไฟล์ — Fragment Rift</title>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
 </head>
@@ -34,14 +34,23 @@
       <div class="btn-row" style="margin-top:18px">
         <a class="btn btn-primary" href="/topup">💎 เติมเกม</a>
         <a class="btn btn-ghost" href="/game">📖 ข้อมูลเกม</a>
+        <button class="btn btn-ghost" id="logoutBtn">🚪 ออกจากระบบ</button>
       </div>
     </div>
 
     <h2 class="sec" style="margin-top:36px">🧾 ประวัติเติมเงินล่าสุด</h2>
+    <p class="sec-sub">รายการ ⏳ รอตรวจ กดปุ่ม 🧾 เพื่อเปิด QR สแกนโอนอีกครั้งได้</p>
     <div class="table-scroll"><table class="data">
-      <thead><tr><th>#</th><th>จำนวน (บาท)</th><th>ทอง</th><th>สถานะ</th><th>เวลา</th></tr></thead>
-      <tbody id="topupRows"><tr><td colspan="5">ยังไม่เคยเติม</td></tr></tbody>
+      <thead><tr><th>#</th><th>จำนวน (บาท)</th><th>ทอง</th><th>สถานะ</th><th>เวลา</th><th></th></tr></thead>
+      <tbody id="topupRows"><tr><td colspan="6">ยังไม่เคยเติม</td></tr></tbody>
     </table></div>
+
+    <div class="card hidden" style="padding:26px;margin-top:18px;text-align:center" id="qrBox">
+      <h3>สแกนจ่ายรายการ #<span id="qrId"></span></h3>
+      <img id="qrImg" style="width:260px;margin:14px auto;border-radius:12px" alt="PromptPay QR">
+      <p id="qrDetail"></p>
+      <button class="btn btn-ghost" id="qrCloseBtn">ปิด</button>
+    </div>
   </div>
 </div></section>
 
@@ -70,12 +79,34 @@
       if (d.topups.length) {
         document.getElementById("topupRows").innerHTML = d.topups.map((t) =>
           `<tr><td>${t.id}</td><td>${t.amount_thb}</td><td>🪙 ${t.gold.toLocaleString()}</td>
-           <td>${STATUS_TH[t.status] || t.status}</td><td>${esc(t.created_at)}</td></tr>`).join("");
+           <td>${STATUS_TH[t.status] || t.status}</td><td>${esc(t.created_at)}</td>
+           <td>${t.status === "pending" ? `<button class="btn btn-ghost" data-qr="${t.id}">🧾 ดู QR</button>` : ""}</td></tr>`).join("");
+        document.querySelectorAll("[data-qr]").forEach((b) =>
+          b.addEventListener("click", () => showQr(b.dataset.qr)));
       }
     } catch (e) {
       document.getElementById("needLogin").classList.remove("hidden");
     }
   })();
+
+  async function showQr(id) {
+    try {
+      const d = await api("GET", `/api/web/topup/${id}/qr`);
+      document.getElementById("qrBox").classList.remove("hidden");
+      document.getElementById("qrId").textContent = d.id;
+      document.getElementById("qrImg").src = `data:image/png;base64,${d.qr}`;
+      document.getElementById("qrDetail").innerHTML =
+        `โอน <b>${d.amount_thb}</b> บาท ไป PromptPay <b>${esc(d.promptpay_id)}</b> (${esc(d.promptpay_name)})<br>จะได้รับ <b>🪙 ${d.gold.toLocaleString()}</b> ทอง`;
+      document.getElementById("qrBox").scrollIntoView({ behavior: "smooth" });
+    } catch (e) { alert(e.message); }
+  }
+  document.getElementById("qrCloseBtn").addEventListener("click", () =>
+    document.getElementById("qrBox").classList.add("hidden"));
+
+  document.getElementById("logoutBtn").addEventListener("click", async () => {
+    await api("POST", "/api/web/logout");
+    location.href = "/";
+  });
 </script>
 </body>
 </html>

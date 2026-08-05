@@ -1,7 +1,7 @@
 // เว็บไซต์เกม — ตัวช่วยร่วมทุกหน้า (navbar/footer/api/markdown)
 // 🎨 แก้ชื่อเกม/คำโปรยได้ที่นี่จุดเดียว
 const SITE = {
-  name: "PanTher Adventure",
+  name: "Fragment Rift",
   tagline: "MMORPG ผจญภัยเต็มรูปแบบใน Discord — 9 ทวีป 7 ธาตุ บอสลับ กิลด์วอร์ และเพื่อนร่วมทาง",
 };
 
@@ -29,6 +29,7 @@ function md(src) {
   h = h.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, t, u) => `<a href="${safeUrl(u)}" target="_blank" rel="noopener">${t}</a>`);
   h = h.replace(/^### (.*)$/gm, "<h3>$1</h3>").replace(/^## (.*)$/gm, "<h2>$1</h2>").replace(/^# (.*)$/gm, "<h1>$1</h1>");
   h = h.replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>").replace(/\*([^*\n]+)\*/g, "<i>$1</i>");
+  h = h.replace(/`([^`\n]+)`/g, "<code>$1</code>");
   h = h.replace(/(?:^- .*(?:\n|$))+/gm, (m) => `<ul>${m.trim().split("\n").map((l) => `<li>${l.slice(2)}</li>`).join("")}</ul>`);
   return h.split(/\n{2,}/).map((b) => (/^<(h\d|ul|img)/.test(b.trim()) ? b : `<p>${b.replace(/\n/g, "<br>")}</p>`)).join("\n");
 }

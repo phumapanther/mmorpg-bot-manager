@@ -73,6 +73,8 @@ p.sec-sub { color: var(--muted); margin-bottom: 26px; }
   background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
   overflow: hidden; transition: transform .15s;
 }
+a.card { color: inherit; display: block; }
+code { background: #f1eee6; border-radius: 6px; padding: 1px 7px; font-size: .92em; }
 .card:hover { transform: translateY(-4px); }
 .card img.cover { width: 100%; aspect-ratio: 1; object-fit: cover; image-rendering: pixelated; }
 .card .pad { padding: 18px 20px 22px; }

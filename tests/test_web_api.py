@@ -81,7 +81,7 @@ def test_gamedata_complete(client):
 
 def test_homepage_serves(client):
     r = client.get("/")
-    assert r.status_code == 200 and "PanTher" in r.text
+    assert r.status_code == 200 and "Fragment Rift" in r.text
 
 
 def test_news_category_filter(client):
@@ -240,3 +240,33 @@ def test_topup_disabled_without_promptpay(client, tmp_path, monkeypatch):
     monkeypatch.setattr(config_loader, "get_config", lambda: {"payment": {}})
     _login(client)
     assert client.post("/api/web/topup", json={"amount_thb": 50}).status_code == 400
+
+
+def test_topup_qr_revisit_only_own_pending(client, tmp_path, monkeypatch):
+    _fake_game_db(tmp_path, monkeypatch)
+    _payment_config(monkeypatch)
+    _login(client)
+    tid = client.post("/api/web/topup", json={"amount_thb": 40}).json()["id"]
+    r = client.get(f"/api/web/topup/{tid}/qr")
+    assert r.status_code == 200 and r.json()["qr"]              # เปิด QR ซ้ำได้ตอนยัง pending
+    _admin(client)
+    client.post(f"/api/web/admin/topups/{tid}/reject", json={"note": ""})
+    assert client.get(f"/api/web/topup/{tid}/qr").status_code == 400   # จบแล้วดู QR ไม่ได้
+    _login(client, discord_id="777")                            # คนอื่นดูรายการเราไม่ได้
+    tid2 = None
+    assert client.get(f"/api/web/topup/{tid}/qr").status_code in (400, 404)
+
+
+def test_codex_endpoint(client):
+    topics = client.get("/api/web/codex").json()["topics"]
+    assert len(topics) == 12
+    assert all(t["title"] and (t["fields"] or t["description"]) for t in topics)
+    assert any("ธาตุ" in t["title"] for t in topics)
+
+
+def test_logout_clears_session(client, tmp_path, monkeypatch):
+    _fake_game_db(tmp_path, monkeypatch)
+    _login(client)
+    assert client.get("/api/web/me/session").status_code == 200
+    client.post("/api/web/logout")
+    assert client.get("/api/web/me/session").status_code == 401

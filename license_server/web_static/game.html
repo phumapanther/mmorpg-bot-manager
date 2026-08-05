@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ข้อมูลเกม — PanTher Adventure</title>
+  <title>ข้อมูลเกม — Fragment Rift</title>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <div class="nav-wrap"><header id="navbar"></header></div>
 
-<section class="block">
+<section class="block" id="sec-continents">
   <div class="container">
     <h2 class="sec">🗺️ ทวีปทั้ง 9</h2>
     <p class="sec-sub">แต่ละทวีปมีบรรยากาศ มอนสเตอร์ และของดรอปเป็นของตัวเอง — ข้อมูลนี้ดึงจากเกมจริงเสมอ</p>
@@ -31,6 +31,15 @@
     <h2 class="sec">🎪 ธีมสัปดาห์</h2>
     <p class="sec-sub">ทุกวันจันทร์โลกเปลี่ยน — อีเวนต์พิเศษหมุนเวียนตลอดทั้งปี</p>
     <div class="grid c3" id="themes"></div>
+  </div>
+</section>
+
+<section class="block" id="sec-codex">
+  <div class="container">
+    <h2 class="sec">📖 Codex — คู่มือเกมฉบับเต็ม</h2>
+    <p class="sec-sub">เนื้อหาชุดเดียวกับคำสั่ง <code>!codex</code> ในเกม — อัพเดทตามเกมเสมอ</p>
+    <div class="btn-row" style="margin-bottom:22px" id="codexTabs"></div>
+    <div class="article" id="codexBody"><p>กำลังโหลด...</p></div>
   </div>
 </section>
 
@@ -61,6 +70,37 @@
         <img class="cover" style="aspect-ratio:2/1" src="/assets/events/theme_${t.key}.png" alt="${esc(t.label)}" loading="lazy">
         <div class="pad"><h3>${esc(t.label)}</h3><p>${esc(t.description)}</p></div>
       </div>`).join("");
+  })();
+
+  // ── Codex — เนื้อหาชุดเดียวกับ !codex ในเกม ──
+  (async () => {
+    let topics = [];
+    try {
+      topics = (await api("GET", "/api/web/codex")).topics;
+    } catch (e) {
+      document.getElementById("codexBody").innerHTML = "<p>โหลดคู่มือไม่สำเร็จ</p>";
+      return;
+    }
+    const tabs = document.getElementById("codexTabs");
+    tabs.innerHTML = topics.map((t, i) =>
+      `<button class="btn btn-ghost" data-i="${i}">${esc(t.topic)}</button>`).join("");
+
+    function show(i) {
+      const t = topics[i];
+      tabs.querySelectorAll("button").forEach((b) =>
+        b.className = "btn " + (+b.dataset.i === i ? "btn-primary" : "btn-ghost"));
+      document.getElementById("codexBody").innerHTML =
+        `<h1>${esc(t.title)}</h1>` + (t.description ? md(t.description) : "") +
+        t.fields.map((f) => `<h2>${esc(f.name)}</h2>${md(f.value)}`).join("");
+    }
+    tabs.querySelectorAll("button").forEach((b) =>
+      b.addEventListener("click", () => show(+b.dataset.i)));
+
+    // เปิดหัวข้อตามลิงก์ ?codex=<ชื่อหัวข้อ> (การ์ดหน้าแรกลิงก์มาแบบนี้)
+    const want = new URLSearchParams(location.search).get("codex");
+    const idx = Math.max(0, topics.findIndex((t) => t.topic === want));
+    show(idx);
+    if (want) document.getElementById("sec-codex").scrollIntoView();
   })();
 </script>
 </body>
