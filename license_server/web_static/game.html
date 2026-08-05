@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ข้อมูลเกม — PanTher Adventure</title>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="nav-wrap"><header id="navbar"></header></div>
+
+<section class="block">
+  <div class="container">
+    <h2 class="sec">🗺️ ทวีปทั้ง 9</h2>
+    <p class="sec-sub">แต่ละทวีปมีบรรยากาศ มอนสเตอร์ และของดรอปเป็นของตัวเอง — ข้อมูลนี้ดึงจากเกมจริงเสมอ</p>
+    <div class="grid c2" id="continents"><p>กำลังโหลด...</p></div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="container">
+    <h2 class="sec">🔮 ธาตุทั้ง 7</h2>
+    <p class="sec-sub">มอนสเตอร์ทุกตัวเกิดมาพร้อมธาตุ — รู้จุดแข็งจุดอ่อนก่อนบุก</p>
+    <div class="grid c4" id="elements"></div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="container">
+    <h2 class="sec">🎪 ธีมสัปดาห์</h2>
+    <p class="sec-sub">ทุกวันจันทร์โลกเปลี่ยน — อีเวนต์พิเศษหมุนเวียนตลอดทั้งปี</p>
+    <div class="grid c3" id="themes"></div>
+  </div>
+</section>
+
+<footer id="footer"></footer>
+
+<script src="/web.js"></script>
+<script>
+  renderChrome("/game");
+  (async () => {
+    const g = await fillDiscordInvite();
+    if (!g) { document.getElementById("continents").innerHTML = "<p>โหลดข้อมูลไม่สำเร็จ</p>"; return; }
+
+    document.getElementById("continents").innerHTML = g.continents.map((c) => `
+      <div class="card">
+        <img class="cover" style="aspect-ratio:2/1" src="/assets/events/arrival_${c.key}.png" alt="${esc(c.label)}" loading="lazy">
+        <div class="pad">
+          <h3>${esc(c.label)}</h3>
+          <p>${esc(c.arrival_text)}</p>
+          <div style="margin-top:10px">${c.monsters.map((m) => `<span class="chip">${esc(m.name)}</span>`).join("") || '<span class="chip">มอนสเตอร์มาตรฐานทุกแรงค์</span>'}</div>
+        </div>
+      </div>`).join("");
+
+    document.getElementById("elements").innerHTML = g.elements.map((e) => `
+      <div class="card"><div class="pad"><h3>${esc(e.label)}</h3><p>${esc(e.desc)}</p></div></div>`).join("");
+
+    document.getElementById("themes").innerHTML = g.themes.map((t) => `
+      <div class="card">
+        <img class="cover" style="aspect-ratio:2/1" src="/assets/events/theme_${t.key}.png" alt="${esc(t.label)}" loading="lazy">
+        <div class="pad"><h3>${esc(t.label)}</h3><p>${esc(t.description)}</p></div>
+      </div>`).join("");
+  })();
+</script>
+</body>
+</html>

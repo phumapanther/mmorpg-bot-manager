@@ -67,6 +67,23 @@ def test_news_crud_and_public_read(client):
     assert client.get(f"/api/web/news/{nid}").status_code == 404
 
 
+# ── ข้อมูลเกม + หน้าเว็บ ──
+
+def test_gamedata_complete(client):
+    g = client.get("/api/web/gamedata").json()
+    assert len(g["continents"]) == 9
+    assert len(g["elements"]) == 7
+    assert len(g["themes"]) == 13
+    keys = {c["key"] for c in g["continents"]}
+    assert {"main", "frozen", "demon", "ocean"} <= keys
+    assert all(t["label"] for t in g["themes"])
+
+
+def test_homepage_serves(client):
+    r = client.get("/")
+    assert r.status_code == 200 and "PanTher" in r.text
+
+
 def test_news_category_filter(client):
     _admin(client)
     client.post("/api/web/admin/news", json={"title": "ข่าว", "category": "news", "body": ""})

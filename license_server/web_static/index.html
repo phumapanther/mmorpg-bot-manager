@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PanTher Adventure — MMORPG ใน Discord</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="nav-wrap"><header id="navbar"></header></div>
+
+<section class="hero">
+  <div class="bg" style="background-image:url('/assets/events/arrival_main.png')"></div>
+  <div class="container inner">
+    <h1 id="heroTitle">ออกผจญภัย<br>ได้ทุกที่ใน Discord</h1>
+    <p class="tagline" id="heroTagline"></p>
+    <div class="btn-row">
+      <a class="btn btn-primary js-invite" href="#" target="_blank" rel="noopener">💬 เข้าเล่นใน Discord</a>
+      <a class="btn btn-ghost" href="/news">📰 อ่านข่าวสาร</a>
+    </div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="container">
+    <h2 class="sec">ข่าวสารล่าสุด</h2>
+    <p class="sec-sub">อัพเดทแพทช์ อีเวนต์ และประกาศจากทีมงาน</p>
+    <div class="grid c3" id="latestNews"><p>กำลังโหลด...</p></div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="container">
+    <h2 class="sec">โลกใบใหญ่รอคุณอยู่</h2>
+    <p class="sec-sub">ระบบเกมแน่นๆ ที่เล่นได้จากแชท Discord ตรงๆ ไม่ต้องลงอะไรเพิ่ม</p>
+    <div class="grid c4">
+      <div class="card"><img class="cover" src="/assets/events/arrival_skyward.png" alt="ทวีป" loading="lazy">
+        <div class="pad"><h3>🗺️ 9 ทวีป 7 ธาตุ</h3><p>เดินสำรวจตั้งแต่ทุ่งหญ้าจนถึงเกาะลอยฟ้า มอนสเตอร์และสมบัติต่างกันทุกแดน</p></div></div>
+      <div class="card"><img class="cover" src="/assets/events/unbeatable_summon.png" alt="บอส" loading="lazy">
+        <div class="pad"><h3>💀 บอสไร้พ่าย</h3><p>อัญเชิญบอสระดับตำนานมาท้าดวล ของดรอปหายากที่สุดในเกม</p></div></div>
+      <div class="card"><img class="cover" src="/assets/events/theme_faction_war.png" alt="กิลด์วอร์" loading="lazy">
+        <div class="pad"><h3>⚔️ กิลด์วอร์ & สงครามฝ่าย</h3><p>รวมพลตีป้อม ชิงอันดับ รับรางวัลประจำสัปดาห์กับเพื่อนทั้งกิลด์</p></div></div>
+      <div class="card"><img class="cover" src="/assets/events/theme_black_market.png" alt="ตลาด" loading="lazy">
+        <div class="pad"><h3>🏪 ตลาดผู้เล่น</h3><p>ซื้อขายของแรร์กันเอง เศรษฐกิจขับเคลื่อนด้วยผู้เล่นจริง</p></div></div>
+    </div>
+  </div>
+</section>
+
+<footer id="footer"></footer>
+
+<script src="/web.js"></script>
+<script>
+  renderChrome("/");
+  document.getElementById("heroTagline").textContent = SITE.tagline;
+  fillDiscordInvite();
+
+  (async () => {
+    const box = document.getElementById("latestNews");
+    try {
+      const items = (await api("GET", "/api/web/news")).news.slice(0, 3);
+      box.innerHTML = items.length ? items.map((n) => `
+        <a class="card" href="/news?id=${n.id}">
+          <div class="pad">
+            <span class="badge">${CATEGORY_LABEL[n.category] || n.category}</span>
+            <h3>${esc(n.title)}</h3>
+            <p>${esc(n.excerpt).slice(0, 90)}…</p>
+            <p style="margin-top:8px;font-size:.85rem">${esc(n.created_at)}</p>
+          </div>
+        </a>`).join("") : "<p>ยังไม่มีข่าว — ติดตามเร็วๆ นี้!</p>";
+    } catch (e) { box.innerHTML = "<p>โหลดข่าวไม่สำเร็จ</p>"; }
+  })();
+</script>
+</body>
+</html>

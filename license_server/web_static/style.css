@@ -1,0 +1,131 @@
+/* เว็บไซต์เกม — ธีมสว่างครีม+แดงส้ม ตามตัวอย่าง Tripo Games (spec 2026-08-05) */
+:root {
+  --bg: #f5f1ea;
+  --ink: #2d2a4a;
+  --muted: #6b6880;
+  --accent: #d93b2b;
+  --accent-dark: #b32e21;
+  --card: #ffffff;
+  --radius: 24px;
+  --shadow: 0 8px 30px rgba(45, 42, 74, .10);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Prompt", "Segoe UI", "Leelawadee UI", sans-serif;
+  line-height: 1.65;
+}
+img { max-width: 100%; display: block; }
+a { color: var(--accent); text-decoration: none; }
+.container { max-width: 1140px; margin: 0 auto; padding: 0 20px; }
+
+/* ── navbar ขาวลอย sticky ── */
+.nav-wrap { position: sticky; top: 0; z-index: 50; padding: 12px 20px; }
+.nav {
+  max-width: 1140px; margin: 0 auto; background: #fff; border-radius: 16px;
+  box-shadow: var(--shadow); display: flex; align-items: center; gap: 8px; padding: 10px 18px;
+}
+.nav .logo {
+  background: var(--accent); color: #fff; font-weight: 700; padding: 8px 16px;
+  border-radius: 10px; font-size: 1.05rem; white-space: nowrap;
+}
+.nav .links { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+.nav a.nav-link {
+  color: var(--ink); padding: 8px 14px; border-radius: 10px; font-weight: 500; white-space: nowrap;
+}
+.nav a.nav-link:hover { background: #f4f1ff; }
+.nav a.nav-link.active { color: var(--accent); font-weight: 700; text-decoration: underline; text-underline-offset: 6px; }
+
+/* ── hero ── */
+.hero { position: relative; overflow: hidden; padding: 90px 0 70px; }
+.hero .bg {
+  position: absolute; inset: 0; background-size: cover; background-position: center;
+  image-rendering: pixelated; opacity: .28; filter: saturate(1.1);
+}
+.hero .bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 30%, var(--bg)); }
+.hero .inner { position: relative; }
+.hero h1 { font-size: clamp(2.4rem, 6vw, 4.2rem); font-weight: 800; line-height: 1.15; }
+.hero p.tagline { font-size: 1.25rem; color: var(--muted); margin: 14px 0 28px; }
+
+/* ── ปุ่ม ── */
+.btn {
+  display: inline-block; padding: 13px 28px; border-radius: 12px; font-weight: 700;
+  font-size: 1rem; border: none; cursor: pointer; transition: transform .12s, box-shadow .12s;
+  font-family: inherit;
+}
+.btn:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-dark); }
+.btn-ghost { background: #fff; color: var(--ink); border: 2px solid #e5e0d6; }
+.btn-row { display: flex; gap: 12px; flex-wrap: wrap; }
+
+/* ── section / การ์ด ── */
+section.block { padding: 48px 0; }
+h2.sec { font-size: 1.9rem; font-weight: 800; margin-bottom: 6px; }
+p.sec-sub { color: var(--muted); margin-bottom: 26px; }
+.grid { display: grid; gap: 22px; }
+.grid.c2 { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.grid.c3 { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.grid.c4 { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.card {
+  background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+  overflow: hidden; transition: transform .15s;
+}
+.card:hover { transform: translateY(-4px); }
+.card img.cover { width: 100%; aspect-ratio: 1; object-fit: cover; image-rendering: pixelated; }
+.card .pad { padding: 18px 20px 22px; }
+.card h3 { font-size: 1.15rem; margin-bottom: 6px; }
+.card p { color: var(--muted); font-size: .95rem; }
+.badge {
+  display: inline-block; background: #ffe9e6; color: var(--accent); border-radius: 999px;
+  padding: 2px 12px; font-size: .8rem; font-weight: 600; margin-bottom: 8px;
+}
+.chip {
+  display: inline-block; background: #f1eee6; border-radius: 999px; padding: 3px 12px;
+  font-size: .85rem; margin: 3px 3px 0 0;
+}
+
+/* ── ฟอร์ม ── */
+input[type=text], input[type=number], input[type=password], textarea, select {
+  width: 100%; padding: 12px 14px; border: 2px solid #e5e0d6; border-radius: 12px;
+  font-family: inherit; font-size: 1rem; background: #fff; color: var(--ink);
+}
+input:focus, textarea:focus { outline: none; border-color: var(--accent); }
+label.f { display: block; font-weight: 600; margin: 14px 0 6px; }
+
+/* ── โค้ดล็อกอิน / สถิติ ── */
+.big-code {
+  font-family: Consolas, monospace; font-size: 2.6rem; letter-spacing: .35em; font-weight: 700;
+  background: #fff; border: 3px dashed var(--accent); border-radius: 16px;
+  padding: 18px 10px 18px 24px; text-align: center; margin: 18px 0;
+}
+.stat-bar { background: #eee9df; border-radius: 999px; height: 14px; overflow: hidden; }
+.stat-bar > div { height: 100%; border-radius: 999px; }
+table.data { width: 100%; border-collapse: collapse; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); }
+table.data th { background: #2d2a4a; color: #fff; padding: 10px 14px; text-align: left; font-weight: 600; }
+table.data td { padding: 10px 14px; border-top: 1px solid #f0ece3; vertical-align: middle; }
+
+/* ── บทความข่าว ── */
+.article { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); padding: 34px 38px; }
+.article h1 { margin-bottom: 4px; }
+.article .meta { color: var(--muted); margin-bottom: 22px; }
+.article h2 { margin: 22px 0 8px; }
+.article ul { margin: 8px 0 8px 24px; }
+.article img { border-radius: 14px; margin: 12px 0; }
+.article p { margin: 10px 0; }
+
+/* ── footer ── */
+footer { background: #fff; margin-top: 60px; padding: 44px 0 30px; border-top: 1px solid #eee7da; }
+footer .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 28px; }
+footer h4 { margin-bottom: 12px; font-size: 1.05rem; }
+footer a, footer p { display: block; color: var(--muted); padding: 3px 0; font-size: .95rem; }
+footer .tiny { text-align: center; color: #b6b1a5; margin-top: 30px; font-size: .85rem; }
+
+.notice { background: #fff7e6; border: 1px solid #f2dfb6; border-radius: 12px; padding: 12px 16px; margin: 14px 0; }
+.hidden { display: none !important; }
+@media (max-width: 640px) {
+  .nav { flex-wrap: wrap; }
+  .article { padding: 22px; }
+}

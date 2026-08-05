@@ -68,6 +68,36 @@ def require_player(request: Request):
     return data
 
 
+# ── ข้อมูลเกม (อ่านจากข้อมูลเกมจริง — อัพเดทเกมแล้วเว็บตรงเสมอ) ──
+
+_ELEMENT_DESC = {
+    "fire": "สายบู๊ ตีแรงขึ้น 50%", "water": "ดูดเลือดคืน 35% ของดาเมจ",
+    "earth": "ถึกอึด เลือดหนา 2 เท่า", "wind": "ไวเป็นพายุ โบนัสแต้มเต๋า",
+    "wood": "รากพันธนาการล็อกเต๋าศัตรู", "dark": "คลั่งตั้งแต่เทิร์นแรก",
+    "light": "หายากสุด ล้มได้ทองมหาศาล",
+}
+
+
+@router.get("/gamedata")
+def gamedata():
+    from bot.game_data import CONTINENTS, WEEKLY_THEMES
+    from bot.game_modifiers import ELEMENTS
+    from bot import config_loader
+
+    continents = []
+    for key, c in CONTINENTS.items():
+        pool = c.get("mods", {}).get("monster_pool", {})
+        monsters = [{"name": n, "rank": rank} for rank, names in pool.items() for n in names]
+        continents.append({"key": key, "label": c["label"],
+                           "arrival_text": c.get("arrival_text", ""), "monsters": monsters})
+    elements = [{"key": k, "label": v["label"], "desc": _ELEMENT_DESC.get(k, "")}
+                for k, v in ELEMENTS.items()]
+    themes = [{"key": t["key"], "label": t["label"], "description": t.get("description", "")}
+              for t in WEEKLY_THEMES]
+    return {"continents": continents, "elements": elements, "themes": themes,
+            "invite": config_loader.get_main_server_invite() or ""}
+
+
 # ── แอดมิน ──
 
 class AdminLogin(BaseModel):
