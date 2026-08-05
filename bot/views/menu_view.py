@@ -559,6 +559,20 @@ class GameMenuView(discord.ui.View):
                      "เล่นได้ที่**เซิร์ฟหลัก**เท่านั้น — กดปุ่ม 🌏 ด้านล่างเพื่อข้ามมิติไปเลย!*")
         await interaction.response.send_message(text, view=CodexView(show_portal=on_guest), ephemeral=True)
 
+    @discord.ui.button(label="🌐 เว็บไซต์", style=discord.ButtonStyle.secondary, custom_id="game_menu:website")
+    async def website_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # อ่านลิงก์สดทุกครั้งที่กด — tunnel รีสตาร์ทแล้วลิงก์ใหม่มาเองโดยไม่ต้องโพสต์เมนูใหม่
+        from bot.cogs.web_link import website_url
+        url = website_url()
+        if not url:
+            return await interaction.response.send_message("🌐 เว็บไซต์ยังไม่เปิดให้บริการตอนนี้ครับ", ephemeral=True)
+        embed = discord.Embed(
+            title="🌐 เว็บไซต์เกม Fragment Rift",
+            description=(f"ข่าวสาร · อัพเดทแพทช์ · ข้อมูลเกม · เติมเกม · โปรไฟล์\n{url}\n\n"
+                         f"🔑 ล็อกอินเว็บ: กดขอโค้ดที่หน้าเว็บ แล้วพิมพ์ `!weblogin <โค้ด>` ในเซิร์ฟนี้"),
+            color=0xd93b2b)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
     @discord.ui.button(label="🧪 ใช้ไอเทม", style=discord.ButtonStyle.danger, custom_id="game_menu:use_item")
     async def use_item_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         player = player_model.get_player(interaction.user.id)
