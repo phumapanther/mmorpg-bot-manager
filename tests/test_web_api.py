@@ -168,3 +168,75 @@ def test_profile_unknown_player(client, tmp_path, monkeypatch):
     _fake_game_db(tmp_path, monkeypatch)
     _login(client, discord_id="999")
     assert client.get("/api/web/me/profile").json().get("new_player") is True
+
+
+# ── เติมเงินผ่านเว็บ ──
+
+def _payment_config(monkeypatch):
+    from bot import config_loader
+    monkeypatch.setattr(config_loader, "get_config", lambda: {"payment": {
+        "exchange_rate": 100, "min_amount": 20, "max_amount": 1000,
+        "promptpay": {"enabled": True, "id": "0812345678", "name": "ร้านเกม"},
+    }})
+
+
+def test_topup_requires_login(client):
+    assert client.post("/api/web/topup", json={"amount_thb": 50}).status_code == 401
+
+
+def test_topup_create_and_approve_once(client, tmp_path, monkeypatch):
+    import sqlite3
+    gdb = _fake_game_db(tmp_path, monkeypatch)
+    _payment_config(monkeypatch)
+    _login(client)
+
+    r = client.post("/api/web/topup", json={"amount_thb": 50})
+    assert r.status_code == 200
+    d = r.json()
+    assert d["gold"] == 5000 and d["qr"]                       # 50 บาท × เรท 100
+
+    _admin(client)
+    rows = client.get("/api/web/admin/topups?status=pending").json()["topups"]
+    assert rows and rows[0]["id"] == d["id"]
+
+    assert client.post(f"/api/web/admin/topups/{d['id']}/approve", json={"note": ""}).status_code == 200
+    conn = sqlite3.connect(gdb)
+    bank = conn.execute("SELECT bank FROM players WHERE user_id=555000111").fetchone()[0]
+    conn.close()
+    assert bank == 99000 + 5000                                # ทองเข้าธนาคารถูกคนถูกจำนวน
+
+    # อนุมัติซ้ำ → 409 และทองต้องไม่เข้าซ้ำ
+    assert client.post(f"/api/web/admin/topups/{d['id']}/approve", json={"note": ""}).status_code == 409
+    conn = sqlite3.connect(gdb)
+    assert conn.execute("SELECT bank FROM players WHERE user_id=555000111").fetchone()[0] == 104000
+    conn.close()
+
+
+def test_topup_reject_no_gold(client, tmp_path, monkeypatch):
+    import sqlite3
+    gdb = _fake_game_db(tmp_path, monkeypatch)
+    _payment_config(monkeypatch)
+    _login(client)
+    tid = client.post("/api/web/topup", json={"amount_thb": 30}).json()["id"]
+    _admin(client)
+    assert client.post(f"/api/web/admin/topups/{tid}/reject", json={"note": "สลิปปลอม"}).status_code == 200
+    conn = sqlite3.connect(gdb)
+    assert conn.execute("SELECT bank FROM players WHERE user_id=555000111").fetchone()[0] == 99000
+    conn.close()
+    assert client.post(f"/api/web/admin/topups/{tid}/approve", json={"note": ""}).status_code == 409
+
+
+def test_topup_amount_limits(client, tmp_path, monkeypatch):
+    _fake_game_db(tmp_path, monkeypatch)
+    _payment_config(monkeypatch)
+    _login(client)
+    for bad in (-5, 0, 5, 5000):                               # ติดลบ/ศูนย์/ต่ำกว่า min/เกิน max
+        assert client.post("/api/web/topup", json={"amount_thb": bad}).status_code == 400
+
+
+def test_topup_disabled_without_promptpay(client, tmp_path, monkeypatch):
+    from bot import config_loader
+    _fake_game_db(tmp_path, monkeypatch)
+    monkeypatch.setattr(config_loader, "get_config", lambda: {"payment": {}})
+    _login(client)
+    assert client.post("/api/web/topup", json={"amount_thb": 50}).status_code == 400

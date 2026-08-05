@@ -181,6 +181,92 @@ def me_profile(request: Request):
     return {"profile": profile, "topups": [dict(t) for t in tops]}
 
 
+# ── เติมเงินผ่านเว็บ (เงินทุกบาทต้องผ่านมือแอดมิน — ไม่มีอนุมัติอัตโนมัติ) ──
+
+class TopupBody(BaseModel):
+    amount_thb: float
+
+
+class DecideBody(BaseModel):
+    note: str = ""
+
+
+@router.post("/topup")
+def create_topup(body: TopupBody, request: Request):
+    uid = require_player(request)["uid"]
+    from bot import config_loader
+    pay = config_loader.get_config().get("payment", {})
+    pp = pay.get("promptpay", {})
+    if not pp.get("enabled") or not pp.get("id"):
+        raise HTTPException(400, "ยังไม่เปิดรับเติมเงินผ่านเว็บ (แอดมินยังไม่ตั้งค่า PromptPay)")
+    amt = float(body.amount_thb)
+    mn = float(pay.get("min_amount") or 0)
+    mx = float(pay.get("max_amount") or 0)
+    if amt <= 0 or (mn and amt < mn) or (mx and amt > mx):
+        raise HTTPException(400, f"จำนวนเงินต้องอยู่ระหว่าง {mn:g} - {mx:g} บาท")
+    gold = int(amt * float(pay.get("exchange_rate") or 0))
+    if gold <= 0:
+        raise HTTPException(400, "อัตราแลกเปลี่ยนยังไม่ถูกตั้งค่า — แจ้งแอดมิน")
+    from bot.promptpay import build_qr_png
+    qr = base64.b64encode(build_qr_png(pp["id"], amt).getvalue()).decode()
+    with web_db.connect() as conn:
+        cur = conn.execute("INSERT INTO topups(discord_id, amount_thb, gold) VALUES (?,?,?)",
+                           (uid, amt, gold))
+    return {"id": cur.lastrowid, "gold": gold, "qr": qr,
+            "promptpay_name": pp.get("name", ""), "promptpay_id": pp.get("id", "")}
+
+
+@router.get("/admin/topups")
+def list_topups(request: Request, status: str = "pending"):
+    require_admin(request)
+    with web_db.connect() as conn:
+        rows = conn.execute("SELECT * FROM topups WHERE status=? ORDER BY id", (status,)).fetchall()
+    return {"topups": [dict(r) for r in rows]}
+
+
+def _decide_topup(topup_id, new_status, note):
+    """CAS เปลี่ยนสถานะจาก pending — คืนแถวเดิม; ถูกตัดสินไปแล้ว → 409 (กันอนุมัติ/ทองเข้าซ้ำ)"""
+    with web_db.connect() as conn:
+        row = conn.execute("SELECT * FROM topups WHERE id=?", (topup_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "ไม่พบรายการนี้")
+        cur = conn.execute(
+            "UPDATE topups SET status=?, decided_at=datetime('now','localtime'), "
+            "decided_by='admin', note=? WHERE id=? AND status='pending'",
+            (new_status, note, topup_id))
+        if cur.rowcount == 0:
+            raise HTTPException(409, f"รายการนี้ถูกตัดสินไปแล้ว (สถานะ: {row['status']})")
+    return row
+
+
+@router.post("/admin/topups/{topup_id}/approve")
+def approve_topup(topup_id: int, body: DecideBody, request: Request):
+    require_admin(request)
+    row = _decide_topup(topup_id, "approved", body.note)
+    # เพิ่มทองเข้าธนาคารผู้เล่น — จุดเดียวที่เว็บเขียน game_data.db
+    gconn = _game_conn(readonly=False)
+    try:
+        with gconn:
+            cur = gconn.execute("UPDATE players SET bank = bank + ? WHERE user_id=?",
+                                (row["gold"], int(row["discord_id"])))
+        if cur.rowcount == 0:
+            # ผู้เล่นหายจากเกม — คืนสถานะ pending ให้แอดมินตามเรื่องต่อ (ทองยังไม่เข้า)
+            with web_db.connect() as conn:
+                conn.execute("UPDATE topups SET status='pending', decided_at=NULL WHERE id=?",
+                             (topup_id,))
+            raise HTTPException(400, "ไม่พบผู้เล่นนี้ในเกม — ทองยังไม่ถูกเพิ่ม รายการกลับเป็นรอตรวจ")
+    finally:
+        gconn.close()
+    return {"ok": True, "gold": row["gold"]}
+
+
+@router.post("/admin/topups/{topup_id}/reject")
+def reject_topup(topup_id: int, body: DecideBody, request: Request):
+    require_admin(request)
+    _decide_topup(topup_id, "rejected", body.note)
+    return {"ok": True}
+
+
 # ── แอดมิน ──
 
 class AdminLogin(BaseModel):

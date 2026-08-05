@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>เติมเกม — PanTher Adventure</title>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="nav-wrap"><header id="navbar"></header></div>
+
+<section class="block"><div class="container" style="max-width:620px">
+  <h2 class="sec">💎 เติมเกม</h2>
+  <p class="sec-sub">เติมทองผ่าน PromptPay — โอนแล้วแอดมินตรวจสอบและอนุมัติ ทองเข้าธนาคารในเกมอัตโนมัติ</p>
+
+  <div id="needLogin" class="hidden">
+    <p class="notice">ต้องล็อกอินก่อนเติมเกม — <a href="/login">ล็อกอินด้วยไอดี Discord</a></p>
+    <div class="card" style="padding:22px;margin-top:16px">
+      <h3>วิธีเติมเกม 3 ขั้น</h3>
+      <p>1️⃣ ล็อกอินเว็บด้วยไอดี Discord (ปุ่มด้านบน)<br>
+         2️⃣ ใส่จำนวนเงิน → สแกน QR PromptPay โอนได้เลย<br>
+         3️⃣ แอดมินตรวจยอด → ทองเข้าธนาคารในเกมอัตโนมัติ</p>
+    </div>
+  </div>
+
+  <div id="formBox" class="hidden">
+    <div class="card" style="padding:26px">
+      <label class="f">จำนวนเงิน (บาท)</label>
+      <input type="number" id="amount" min="1" placeholder="เช่น 100">
+      <p style="color:var(--muted);margin-top:6px" id="rateNote"></p>
+      <button class="btn btn-primary" id="payBtn" style="margin-top:14px">🧾 สร้าง QR โอนเงิน</button>
+      <p class="notice hidden" id="errBox"></p>
+    </div>
+
+    <div class="card hidden" style="padding:26px;margin-top:18px;text-align:center" id="qrBox">
+      <h3>สแกนจ่ายด้วยแอปธนาคาร</h3>
+      <img id="qrImg" style="width:260px;margin:14px auto;border-radius:12px" alt="PromptPay QR">
+      <p id="qrDetail"></p>
+      <p class="notice">โอนแล้วรอแอดมินตรวจสอบ (ดูสถานะได้ที่<a href="/me">หน้าโปรไฟล์</a>) — รายการ #<span id="qrId"></span></p>
+    </div>
+  </div>
+</div></section>
+
+<footer id="footer"></footer>
+
+<script src="/web.js"></script>
+<script>
+  renderChrome("/topup");
+  fillDiscordInvite();
+
+  api("GET", "/api/web/me/session")
+    .then(() => document.getElementById("formBox").classList.remove("hidden"))
+    .catch(() => document.getElementById("needLogin").classList.remove("hidden"));
+
+  document.getElementById("payBtn").addEventListener("click", async () => {
+    const err = document.getElementById("errBox");
+    err.classList.add("hidden");
+    try {
+      const d = await api("POST", "/api/web/topup", { amount_thb: parseFloat(document.getElementById("amount").value) || 0 });
+      document.getElementById("qrBox").classList.remove("hidden");
+      document.getElementById("qrImg").src = `data:image/png;base64,${d.qr}`;
+      document.getElementById("qrDetail").innerHTML =
+        `PromptPay: <b>${esc(d.promptpay_id)}</b> (${esc(d.promptpay_name)})<br>จะได้รับ <b>🪙 ${d.gold.toLocaleString()}</b> ทอง`;
+      document.getElementById("qrId").textContent = d.id;
+    } catch (e) {
+      err.textContent = e.message;
+      err.classList.remove("hidden");
+    }
+  });
+</script>
+</body>
+</html>
