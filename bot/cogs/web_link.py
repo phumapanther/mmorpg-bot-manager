@@ -137,7 +137,7 @@ class TopupModal(discord.ui.Modal, title="💎 เติมเงินเข้
                          f"`!slip {data['id']}` พร้อมแนบรูปสลิป\n"
                          f"3️⃣ แอดมินตรวจ → ทองเข้าธนาคารในเกมอัตโนมัติ"),
             color=0xd93b2b)
-        embed.set_image(url="attachment://topup_qr.png")
+        # แนบ QR เป็นไฟล์ตรงๆ (ไม่อ้าง attachment:// ใน embed) — ephemeral บางทีไม่เรนเดอร์ภาพใน embed
         await interaction.response.send_message(embed=embed, file=f, ephemeral=True)
 
 
