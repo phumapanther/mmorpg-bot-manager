@@ -24,6 +24,7 @@
       <div class="big-code" id="codeBox"></div>
       <div class="btn-row">
         <button class="btn btn-primary" id="copyBtn">📋 คัดลอกคำสั่ง !weblogin</button>
+        <button class="btn btn-ghost" id="checkBtn">✅ พิมพ์ในเกมแล้ว — เช็คสถานะ</button>
         <button class="btn btn-ghost" id="refreshBtn">🔄 ขอโค้ดใหม่</button>
       </div>
       <p style="margin-top:16px"><b>ขั้นที่ 2:</b> ไปวางในห้องแชทเซิร์ฟเกมใน Discord แล้วส่ง</p>
@@ -60,21 +61,31 @@
 
   document.getElementById("getCodeBtn").addEventListener("click", requestCode);
   document.getElementById("refreshBtn").addEventListener("click", requestCode);
+  document.getElementById("checkBtn").addEventListener("click", () => poll());
 
   document.getElementById("copyBtn").addEventListener("click", () => {
     navigator.clipboard.writeText(`!weblogin ${code}`);
     document.getElementById("copyBtn").textContent = "✅ คัดลอกแล้ว — ไปวางใน Discord ได้เลย";
   });
 
+  // มือถือสลับแอปแล้วกลับมา → เช็คสถานะทันที (timer โดนพักตอนอยู่เบื้องหลัง)
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && code) poll();
+  });
+
   async function poll() {
+    if (!code) return;
+    let res;
     try {
-      const s = await api("GET", `/api/web/login/status?code=${code}`);
-      if (s.status === "ok") {
-        clearInterval(timer); timer = null;
-        location.href = "/me";
-      }
+      res = await fetch(`/api/web/login/status?code=${code}`);
     } catch (e) {
-      expired();
+      return;   // เน็ตสะดุดชั่วคราว (เช่นตอนสลับแอปบนมือถือ) — ไม่ใช่โค้ดหมดอายุ รอรอบถัดไป
+    }
+    if (res.status === 400) return expired();          // เซิร์ฟเวอร์ยืนยันว่าโค้ดหมดอายุ/ถูกใช้แล้วจริง
+    const s = await res.json().catch(() => ({}));
+    if (s.status === "ok") {
+      clearInterval(timer); timer = null;
+      location.href = "/me";
     }
   }
 </script>

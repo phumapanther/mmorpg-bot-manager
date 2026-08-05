@@ -162,6 +162,7 @@ def create_bot(bot_type: str):
                 await bot.load_extension("bot.cogs.game_commands")     # !play (+ !shop ล็อกเซิร์ฟหลักในตัว)
                 await bot.load_extension("bot.cogs.player_commands")   # !bag !use !codex !bestiary (คำสั่งเซิร์ฟหลักถูกล็อกรายตัว)
                 await bot.load_extension("bot.cogs.adventure_zone")    # !adv
+                await bot.load_extension("bot.cogs.web_link")          # 🌐 !web !weblogin !slip + ปุ่มเติมเงิน (เครื่องไม่มี license_server = ข้ามเอง)
                 await bot.load_extension("bot.cogs.guest_server")      # ด่านห้อง + !set_adv_channel
                 print("🌍 [Guest Bot] โหลดโหมดเซิร์ฟรอง (ผจญภัยอย่างเดียว) สำเร็จ!")
 

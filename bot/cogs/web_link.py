@@ -12,8 +12,6 @@ import time
 import discord
 from discord.ext import commands
 
-from bot.utils import main_server_only
-
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 WEB_DB = os.path.join(_ROOT, "license_server", "web.db")
 URL_FILE = os.path.join(_ROOT, "LICENSE_SERVER_URL.txt")
@@ -145,8 +143,9 @@ class WebLink(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    # ⚠️ ไม่ล็อกเซิร์ฟหลัก — บอทแจก (เซิร์ฟรอง) ก็ยืนยันล็อกอิน/รับสลิปได้
+    # ปลอดภัยเพราะตัวตนอิงจากบัญชี Discord ผู้พิมพ์เสมอ และ cog โหลดเฉพาะเครื่องที่มี license_server
     @commands.command(name="weblogin")
-    @main_server_only()
     async def weblogin(self, ctx, code: str = ""):
         ok, msg = confirm_login_code(code, ctx.author.id)
         try:
@@ -156,7 +155,6 @@ class WebLink(commands.Cog):
         await ctx.send(f"{ctx.author.mention} {msg}", delete_after=30 if ok else 20)
 
     @commands.command(name="slip")
-    @main_server_only()
     async def slip(self, ctx, topup_id: int = 0):
         """ส่งสลิปโอนเงิน: !slip <เลขรายการ> พร้อมแนบรูป — ขึ้นคิวแอดมินทันที"""
         if not ctx.message.attachments:
