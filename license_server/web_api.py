@@ -222,9 +222,15 @@ def create_topup(body: TopupBody, request: Request):
         raise HTTPException(400, "อัตราแลกเปลี่ยนยังไม่ถูกตั้งค่า — แจ้งแอดมิน")
     from bot.promptpay import build_qr_png
     qr = base64.b64encode(build_qr_png(pp["id"], amt).getvalue()).decode()
+    # จดเครื่องที่ทำรายการ — หลัง cloudflared IP จริงอยู่ใน cf-connecting-ip (ตรงๆ = client.host)
+    ip = (request.headers.get("cf-connecting-ip")
+          or (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+          or (request.client.host if request.client else ""))
+    ua = request.headers.get("user-agent", "")[:300]
     with web_db.connect() as conn:
-        cur = conn.execute("INSERT INTO topups(discord_id, amount_thb, gold) VALUES (?,?,?)",
-                           (uid, amt, gold))
+        cur = conn.execute(
+            "INSERT INTO topups(discord_id, amount_thb, gold, ip, user_agent) VALUES (?,?,?,?,?)",
+            (uid, amt, gold, ip, ua))
     return {"id": cur.lastrowid, "gold": gold, "qr": qr,
             "promptpay_name": pp.get("name", ""), "promptpay_id": pp.get("id", "")}
 
@@ -304,11 +310,28 @@ def get_slip(topup_id: int, request: Request):
 
 
 @router.get("/admin/topups")
-def list_topups(request: Request, status: str = "pending"):
+def list_topups(request: Request, status: str = "pending", q: str = ""):
+    """log เติมเงิน — status=all ดูทุกสถานะ, q ค้นหาด้วยเศษ discord_id หรือเลขรายการ"""
     require_admin(request)
+    sql = "SELECT * FROM topups"
+    where, args = [], []
+    if status != "all":
+        where.append("status=?")
+        args.append(status)
+    if q.strip():
+        where.append("(discord_id LIKE ? OR CAST(id AS TEXT)=?)")
+        args += [f"%{q.strip()}%", q.strip()]
+    if where:
+        sql += " WHERE " + " AND ".join(where)
     with web_db.connect() as conn:
-        rows = conn.execute("SELECT * FROM topups WHERE status=? ORDER BY id", (status,)).fetchall()
-    return {"topups": [dict(r) | {"has_slip": _slip_path(r["id"]).is_file()} for r in rows]}
+        rows = conn.execute(sql + " ORDER BY id DESC LIMIT 300", args).fetchall()
+        s = conn.execute(
+            "SELECT COUNT(*) AS count, "
+            "COALESCE(SUM(CASE WHEN status='approved' THEN amount_thb END), 0) AS approved_thb, "
+            "COALESCE(SUM(CASE WHEN status='approved' THEN gold END), 0) AS approved_gold "
+            "FROM topups").fetchone()
+    return {"topups": [dict(r) | {"has_slip": _slip_path(r["id"]).is_file()} for r in rows],
+            "summary": dict(s)}
 
 
 def _decide_topup(topup_id, new_status, note):

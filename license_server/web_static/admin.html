@@ -55,6 +55,21 @@
       <thead><tr><th>#</th><th>Discord ID</th><th>จำนวน (บาท)</th><th>ทองที่จะได้</th><th>สลิป</th><th>เวลา</th><th></th></tr></thead>
       <tbody></tbody>
     </table></div>
+
+    <h2 class="sec" style="margin-top:44px">🧾 ประวัติเติมเงินทั้งหมด (log)</h2>
+    <p class="sec-sub" id="histSummary">—</p>
+    <div class="btn-row" style="margin-bottom:14px" id="histFilters">
+      <button class="btn btn-primary" data-st="all">ทั้งหมด</button>
+      <button class="btn btn-ghost" data-st="pending">⏳ รอตรวจ</button>
+      <button class="btn btn-ghost" data-st="approved">✅ อนุมัติ</button>
+      <button class="btn btn-ghost" data-st="rejected">❌ ปฏิเสธ</button>
+    </div>
+    <div class="field"><input type="text" id="histSearch" placeholder="🔍 ค้นหาด้วย Discord ID หรือเลขรายการ"></div>
+    <div class="table-scroll"><table class="data" id="histTable">
+      <thead><tr><th>#</th><th>Discord ID</th><th>บาท</th><th>ทอง</th><th>สถานะ</th><th>สลิป</th>
+        <th>ขอเมื่อ</th><th>ตัดสินเมื่อ / โดย</th><th>เครื่องที่ทำรายการ</th><th>หมายเหตุ</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
   </div>
 
 </div></section>
@@ -109,6 +124,34 @@
     } catch (e) { /* ระบบเติมเงินยังไม่เปิด — ปล่อยตารางว่าง */ }
   }
 
+  // ── log ประวัติเติมเงินทั้งหมด ──
+  const HIST_STATUS = { pending: "⏳ รอตรวจ", approved: "✅ อนุมัติ", rejected: "❌ ปฏิเสธ" };
+  let histStatus = "all";
+
+  async function loadHistory() {
+    const q = encodeURIComponent(document.getElementById("histSearch").value.trim());
+    document.querySelectorAll("#histFilters .btn").forEach((b) =>
+      b.className = "btn " + (b.dataset.st === histStatus ? "btn-primary" : "btn-ghost"));
+    try {
+      const d = await api("GET", `/api/web/admin/topups?status=${histStatus}&q=${q}`);
+      document.getElementById("histSummary").textContent =
+        `ทั้งหมด ${d.summary.count} รายการ · ยอดอนุมัติรวม ${d.summary.approved_thb.toLocaleString()} บาท = 🪙 ${d.summary.approved_gold.toLocaleString()} ทอง (โชว์ล่าสุด ≤300 แถว)`;
+      document.querySelector("#histTable tbody").innerHTML = d.topups.length ? d.topups.map((t) => `
+        <tr><td>${t.id}</td><td>${esc(t.discord_id)}</td><td>${t.amount_thb}</td>
+        <td>🪙 ${t.gold.toLocaleString()}</td><td>${HIST_STATUS[t.status] || t.status}</td>
+        <td>${t.has_slip ? `<a href="/api/web/topup/${t.id}/slip" target="_blank" rel="noopener">🧾</a>` : "—"}</td>
+        <td>${esc(t.created_at)}</td>
+        <td>${t.decided_at ? `${esc(t.decided_at)}<br>โดย ${esc(t.decided_by || "-")}` : "—"}</td>
+        <td title="${esc(t.user_agent || "")}">${esc(t.ip || "-")}</td>
+        <td>${esc(t.note || "")}</td></tr>`).join("")
+        : '<tr><td colspan="10">ไม่พบรายการตามเงื่อนไข</td></tr>';
+    } catch (e) { /* ยังไม่มีข้อมูล */ }
+  }
+
+  document.querySelectorAll("#histFilters .btn").forEach((b) =>
+    b.addEventListener("click", () => { histStatus = b.dataset.st; loadHistory(); }));
+  document.getElementById("histSearch").addEventListener("input", () => loadHistory());
+
   async function decide(id, action) {
     const note = action === "reject" ? (prompt("เหตุผลที่ปฏิเสธ:") || "") : "";
     if (action === "reject" && note === null) return;
@@ -117,6 +160,7 @@
       alert(action === "approve" ? "อนุมัติแล้ว — ทองเข้าธนาคารผู้เล่นเรียบร้อย" : "ปฏิเสธรายการแล้ว");
     } catch (e) { alert("ทำรายการไม่สำเร็จ: " + e.message); }
     loadTopups();
+    loadHistory();
   }
 
   document.getElementById("loginBtn").addEventListener("click", async () => {
@@ -161,6 +205,7 @@
     document.getElementById("panelBox").classList.remove("hidden");
     loadNews();
     loadTopups();
+    loadHistory();
   }
 
   document.getElementById("adminLogoutBtn").addEventListener("click", async () => {

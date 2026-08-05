@@ -34,7 +34,9 @@ CREATE TABLE IF NOT EXISTS topups (
     created_at TEXT DEFAULT (datetime('now', 'localtime')),
     decided_at TEXT,
     decided_by TEXT,
-    note TEXT DEFAULT ''
+    note TEXT DEFAULT '',
+    ip TEXT DEFAULT '',
+    user_agent TEXT DEFAULT ''
 );
 """
 
@@ -45,4 +47,10 @@ def connect():
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout=5000")
     conn.executescript(_SCHEMA)
+    # migration เบาๆ: web.db เก่าที่ไม่มีคอลัมน์ใหม่ → เติมให้ (มีแล้ว = ข้ามเงียบ)
+    for col in ("ip TEXT DEFAULT ''", "user_agent TEXT DEFAULT ''"):
+        try:
+            conn.execute(f"ALTER TABLE topups ADD COLUMN {col}")
+        except sqlite3.OperationalError:
+            pass
     return conn

@@ -296,6 +296,37 @@ def test_topup_slip_rejects_garbage(client, tmp_path, monkeypatch):
     assert client.post(f"/api/web/topup/{tid}/slip", content=b"not an image").status_code == 400
 
 
+def test_admin_topup_history_filter_and_search(client, tmp_path, monkeypatch):
+    """log เติมเงินทั้งหมด: กรองสถานะ + ค้นหา discord_id/เลขรายการ + ยอดสรุปรวม"""
+    _fake_game_db(tmp_path, monkeypatch)
+    _payment_config(monkeypatch)
+    _login(client, discord_id="555000111")
+    t1 = client.post("/api/web/topup", json={"amount_thb": 100}).json()["id"]
+    t2 = client.post("/api/web/topup", json={"amount_thb": 50}).json()["id"]
+    _admin(client)
+    client.post(f"/api/web/admin/topups/{t1}/approve", json={"note": ""})
+    client.post(f"/api/web/admin/topups/{t2}/reject", json={"note": "ไม่พบยอดโอน"})
+
+    d = client.get("/api/web/admin/topups?status=all").json()
+    assert len(d["topups"]) == 2
+    assert d["topups"][0]["id"] == t2                          # ใหม่สุดขึ้นก่อน
+    assert d["summary"]["approved_thb"] == 100                 # ยอดสรุปนับเฉพาะที่อนุมัติ
+    assert d["summary"]["approved_gold"] == 10000
+    assert d["summary"]["count"] == 2
+    row = d["topups"][0]
+    assert "ip" in row and "user_agent" in row                 # จดเครื่องที่ทำรายการไว้ครบ
+    assert row["decided_at"] and row["decided_by"] == "admin"  # ใครตัดสิน เมื่อไหร่
+
+    only_rej = client.get("/api/web/admin/topups?status=rejected").json()["topups"]
+    assert len(only_rej) == 1 and only_rej[0]["note"] == "ไม่พบยอดโอน"
+
+    by_user = client.get("/api/web/admin/topups?status=all&q=555000").json()["topups"]
+    assert len(by_user) == 2                                   # ค้นด้วยเศษ discord_id เจอ
+    by_id = client.get(f"/api/web/admin/topups?status=all&q={t1}").json()["topups"]
+    assert any(t["id"] == t1 for t in by_id)                   # ค้นด้วยเลขรายการเจอ
+    assert client.get("/api/web/admin/topups?status=all&q=ไม่มีจริง").json()["topups"] == []
+
+
 def test_codex_endpoint(client):
     topics = client.get("/api/web/codex").json()["topics"]
     assert len(topics) == 12
