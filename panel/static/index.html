@@ -22,6 +22,7 @@
   <button class="tab-btn" data-tab="rank-rewards">Rank Rewards</button>
   <button class="tab-btn" data-tab="balance">⚖️ Balance</button>
   <button class="tab-btn" data-tab="retention">🎮 Retention</button>
+  <button class="tab-btn" data-tab="images">🖼️ ภาพ</button>
   <button class="tab-btn" data-tab="payment">Payment</button>
 </nav>
 
@@ -284,6 +285,26 @@
   <div id="retMarketPartner" class="bal-grid"></div>
 
   <button id="retentionSaveBtn" class="save-btn">บันทึก</button>
+</section>
+
+<section id="tab-images" class="tab-panel">
+  <h2>🖼️ ภาพประกอบเหตุการณ์</h2>
+  <p class="hint">สวิตช์เปิด/ปิดมีผลหลังกด Restart บอท — ส่วนอัพโหลดภาพแทน<b>มีผลทันที</b>
+    (ระบบย่อเป็น 512×512 + บีบไฟล์ให้เล็กอัตโนมัติ รองรับ png / jpg / webp)</p>
+
+  <div class="field">
+    <label><input type="checkbox" id="eventImagesEnabled"> เปิดระบบภาพประกอบเหตุการณ์ (event_images)</label>
+  </div>
+  <button id="imagesSaveBtn" class="save-btn">บันทึก</button>
+
+  <h3>ภาพทั้งหมดในเกม</h3>
+  <div class="field">
+    <input type="text" id="imageFilter" placeholder="🔍 กรองชื่อภาพ เช่น frozen · monster · theme · item">
+  </div>
+  <div class="table-scroll"><table id="imagesTable"><thead><tr>
+    <th>ตัวอย่าง</th><th>ชื่อไฟล์</th><th>ขนาด</th><th></th>
+  </tr></thead><tbody></tbody></table></div>
+  <input type="file" id="imageUploadInput" accept="image/png,image/jpeg,image/webp" style="display:none">
 </section>
 
 <section id="tab-payment" class="tab-panel">

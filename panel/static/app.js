@@ -1188,6 +1188,71 @@ async function paymentSave() {
   await saveConfig();
 }
 
+// ---------- images tab (🖼️ event_images) ----------
+
+function renderImagesToggle() {
+  const ei = state.config.event_images || {};
+  document.getElementById("eventImagesEnabled").checked = ei.enabled !== false;
+}
+
+async function imagesSave() {
+  state.config.event_images = { enabled: document.getElementById("eventImagesEnabled").checked };
+  await saveConfig();
+}
+
+let imageRows = [];
+
+async function loadImageList() {
+  try {
+    imageRows = (await api("GET", "/api/event-images")).images || [];
+  } catch (e) {
+    imageRows = []; // โฟลเดอร์ภาพยังไม่มี/อ่านไม่ได้ — โชว์ตารางว่างพอ ไม่ต้องพังทั้งหน้า
+  }
+  renderImageTable();
+}
+
+function renderImageTable() {
+  const q = document.getElementById("imageFilter").value.trim().toLowerCase();
+  const tbody = document.querySelector("#imagesTable tbody");
+  tbody.innerHTML = "";
+  imageRows.filter((r) => !q || r.key.includes(q)).forEach((r) => {
+    const tr = document.createElement("tr");
+    const bust = r.bust ? `?t=${r.bust}` : "";
+    tr.innerHTML = `
+      <td><img src="/api/event-images/${r.key}${bust}" loading="lazy" alt="${r.key}"
+               style="width:56px;height:56px;image-rendering:pixelated;border-radius:4px"></td>
+      <td><code>${r.key}</code></td>
+      <td>${Math.round(r.size / 1024)} KB</td>
+      <td><button class="img-upload-btn" data-key="${r.key}">📤 อัพโหลดแทน</button></td>`;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll(".img-upload-btn").forEach((b) => {
+    b.addEventListener("click", () => pickImageFor(b.dataset.key));
+  });
+}
+
+function pickImageFor(key) {
+  const input = document.getElementById("imageUploadInput");
+  input.onchange = async () => {
+    const file = input.files[0];
+    input.value = "";
+    if (!file) return;
+    try {
+      // ส่ง raw bytes ตรงๆ (ไม่ใช่ multipart) — ฝั่ง server อ่านจาก request.body
+      const res = await fetch(`/api/event-images/${key}`, { method: "POST", body: file });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "อัพโหลดไม่สำเร็จ");
+      const row = imageRows.find((r) => r.key === key);
+      if (row) { row.size = data.size || row.size; row.bust = Date.now(); }
+      renderImageTable();
+      toast(`เปลี่ยนภาพ ${key} แล้ว — มีผลในเกมทันที`);
+    } catch (e) {
+      alert(`อัพโหลดภาพ ${key} ไม่สำเร็จ: ${e.message}`);
+    }
+  };
+  input.click();
+}
+
 // ---------- tabs ----------
 
 function switchTab(name) {
@@ -1235,6 +1300,8 @@ async function init() {
   document.getElementById("rankRewardAddBtn").addEventListener("click", addRankRewardRow);
   document.getElementById("rankRewardsSaveBtn").addEventListener("click", rankRewardsSave);
   document.getElementById("paymentSaveBtn").addEventListener("click", paymentSave);
+  document.getElementById("imagesSaveBtn").addEventListener("click", imagesSave);
+  document.getElementById("imageFilter").addEventListener("input", renderImageTable);
 
   try {
     const v = await api("GET", "/api/version");
@@ -1272,6 +1339,8 @@ async function init() {
   renderItemsCatalog();
   renderRankRewards();
   renderPayment();
+  renderImagesToggle();
+  loadImageList();
 
   // Dashboard ต้องขึ้นเสมอ — แท็บอื่นพังไม่ควรทำให้สถานะบอท/ล็อกหายไปทั้งหน้า
   await refreshStatus();
