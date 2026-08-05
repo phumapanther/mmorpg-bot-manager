@@ -30,6 +30,10 @@ def create_app():
     db.init_db()
     app = FastAPI(title="License Server")
 
+    # 🌐 เว็บไซต์เกม (ข่าว/ข้อมูลเกม/ล็อกอิน/เติมเงิน) — โฮสต์บนแอปเดียวกัน ลิงก์ tunnel เดียวกัน
+    from license_server import web_api
+    app.include_router(web_api.router)
+
     @app.post("/redeem")
     def redeem(req: RedeemRequest):
         ok, reason = db.redeem_key(req.key.strip(), req.machine_id, req.bot_token_hash)
