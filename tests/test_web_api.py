@@ -126,3 +126,45 @@ def test_login_bad_codes(client):
 
 def test_session_endpoint_requires_login(client):
     assert client.get("/api/web/me/session").status_code == 401
+
+
+# ── โปรไฟล์ ──
+
+def _login(client, discord_id="555000111"):
+    code = client.post("/api/web/login/code").json()["code"]
+    _bot_confirm(code, discord_id)
+    assert client.get(f"/api/web/login/status?code={code}").json()["status"] == "ok"
+
+
+def _fake_game_db(tmp_path, monkeypatch, uid=555000111):
+    import sqlite3
+    from license_server import web_api
+    p = tmp_path / "game_data.db"
+    conn = sqlite3.connect(p)
+    conn.execute("""CREATE TABLE players (user_id INTEGER PRIMARY KEY, level INTEGER, exp INTEGER,
+        rank TEXT, hp INTEGER, max_hp INTEGER, cash INTEGER, bank INTEGER,
+        continent TEXT, pet TEXT, title TEXT)""")
+    conn.execute("INSERT INTO players VALUES (?, 42, 1234, 'S', 80, 120, 5000, 99000, 'frozen', 'dragon', 'ผู้กล้า')",
+                 (uid,))
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(web_api, "GAME_DB_PATH", p)
+    return p
+
+
+def test_profile_requires_login(client):
+    assert client.get("/api/web/me/profile").status_code == 401
+
+
+def test_profile_reads_game_db(client, tmp_path, monkeypatch):
+    _fake_game_db(tmp_path, monkeypatch)
+    _login(client)
+    p = client.get("/api/web/me/profile").json()["profile"]
+    assert p["level"] == 42 and p["bank"] == 99000 and p["cash"] == 5000
+    assert "น้ำแข็ง" in p["continent_label"]
+
+
+def test_profile_unknown_player(client, tmp_path, monkeypatch):
+    _fake_game_db(tmp_path, monkeypatch)
+    _login(client, discord_id="999")
+    assert client.get("/api/web/me/profile").json().get("new_player") is True

@@ -139,6 +139,48 @@ def me_session(request: Request):
     return {"discord_id": require_player(request)["uid"]}
 
 
+# ── โปรไฟล์ผู้เล่น (อ่าน game_data.db แบบ read-only เท่านั้น) ──
+
+import sqlite3
+from pathlib import Path
+
+GAME_DB_PATH = Path(__file__).resolve().parent.parent / "game_data.db"
+
+
+def _game_conn(readonly=True):
+    if not GAME_DB_PATH.exists():
+        raise HTTPException(503, "ยังไม่มีข้อมูลเกมบนเครื่องนี้")
+    mode = "?mode=ro" if readonly else ""
+    conn = sqlite3.connect(f"file:{GAME_DB_PATH}{mode}", uri=True, timeout=5)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=5000")
+    return conn
+
+
+@router.get("/me/profile")
+def me_profile(request: Request):
+    uid = require_player(request)["uid"]
+    conn = _game_conn()
+    try:
+        row = conn.execute("SELECT * FROM players WHERE user_id=?", (int(uid),)).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return {"new_player": True}
+    d = dict(row)
+    from bot.game_data import CONTINENTS
+    cont = d.get("continent") or "main"
+    profile = {k: d.get(k) for k in ("level", "exp", "rank", "hp", "max_hp",
+                                     "cash", "bank", "pet", "title")}
+    profile["continent"] = cont
+    profile["continent_label"] = CONTINENTS.get(cont, {}).get("label", cont)
+    with web_db.connect() as wconn:
+        tops = wconn.execute(
+            "SELECT id, amount_thb, gold, status, created_at FROM topups "
+            "WHERE discord_id=? ORDER BY id DESC LIMIT 10", (uid,)).fetchall()
+    return {"profile": profile, "topups": [dict(t) for t in tops]}
+
+
 # ── แอดมิน ──
 
 class AdminLogin(BaseModel):

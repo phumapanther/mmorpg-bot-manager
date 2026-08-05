@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>โปรไฟล์ — PanTher Adventure</title>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="nav-wrap"><header id="navbar"></header></div>
+
+<section class="block"><div class="container" style="max-width:760px">
+  <h2 class="sec">👤 โปรไฟล์ของฉัน</h2>
+  <div id="needLogin" class="hidden">
+    <p class="notice">ยังไม่ได้ล็อกอิน — <a href="/login">ล็อกอินด้วยไอดี Discord ก่อน</a></p>
+  </div>
+  <div id="newPlayer" class="hidden">
+    <p class="notice">ไอดีนี้ยังไม่มีตัวละครในเกม — เข้าเซิร์ฟ Discord แล้วพิมพ์ <b>!play</b> เพื่อเริ่มผจญภัย!</p>
+    <a class="btn btn-primary js-invite" href="#" target="_blank" rel="noopener">💬 เข้าเซิร์ฟ Discord</a>
+  </div>
+
+  <div id="profileBox" class="hidden">
+    <div class="card" style="padding:26px">
+      <span class="badge" id="pRank"></span>
+      <h3 style="font-size:1.5rem" id="pTitleLine"></h3>
+      <p id="pContinent" style="color:var(--muted)"></p>
+
+      <label class="f">❤️ พลังชีวิต <span id="hpText"></span></label>
+      <div class="stat-bar"><div id="hpBar" style="background:#e05a4c"></div></div>
+      <label class="f">💰 กระเป๋าเงิน</label>
+      <p>เงินสด <b id="pCash"></b> ทอง · ธนาคาร <b id="pBank"></b> ทอง</p>
+      <p id="pPet" style="margin-top:8px"></p>
+      <div class="btn-row" style="margin-top:18px">
+        <a class="btn btn-primary" href="/topup">💎 เติมเกม</a>
+        <a class="btn btn-ghost" href="/game">📖 ข้อมูลเกม</a>
+      </div>
+    </div>
+
+    <h2 class="sec" style="margin-top:36px">🧾 ประวัติเติมเงินล่าสุด</h2>
+    <div class="table-scroll"><table class="data">
+      <thead><tr><th>#</th><th>จำนวน (บาท)</th><th>ทอง</th><th>สถานะ</th><th>เวลา</th></tr></thead>
+      <tbody id="topupRows"><tr><td colspan="5">ยังไม่เคยเติม</td></tr></tbody>
+    </table></div>
+  </div>
+</div></section>
+
+<footer id="footer"></footer>
+
+<script src="/web.js"></script>
+<script>
+  renderChrome("");
+  fillDiscordInvite();
+  const STATUS_TH = { pending: "⏳ รอตรวจ", approved: "✅ สำเร็จ", rejected: "❌ ปฏิเสธ" };
+
+  (async () => {
+    try {
+      const d = await api("GET", "/api/web/me/profile");
+      if (d.new_player) { document.getElementById("newPlayer").classList.remove("hidden"); return; }
+      const p = d.profile;
+      document.getElementById("profileBox").classList.remove("hidden");
+      document.getElementById("pRank").textContent = `แรงค์ ${p.rank || "-"} · เลเวล ${p.level}`;
+      document.getElementById("pTitleLine").textContent = p.title ? `『${p.title}』` : "นักผจญภัย";
+      document.getElementById("pContinent").textContent = `📍 อยู่ที่ ${p.continent_label}`;
+      document.getElementById("hpText").textContent = `${p.hp}/${p.max_hp}`;
+      document.getElementById("hpBar").style.width = `${Math.min(100, p.hp / (p.max_hp || 1) * 100)}%`;
+      document.getElementById("pCash").textContent = (p.cash ?? 0).toLocaleString();
+      document.getElementById("pBank").textContent = (p.bank ?? 0).toLocaleString();
+      document.getElementById("pPet").textContent = p.pet ? `🐾 สัตว์เลี้ยงคู่ใจ: ${p.pet}` : "";
+      if (d.topups.length) {
+        document.getElementById("topupRows").innerHTML = d.topups.map((t) =>
+          `<tr><td>${t.id}</td><td>${t.amount_thb}</td><td>🪙 ${t.gold.toLocaleString()}</td>
+           <td>${STATUS_TH[t.status] || t.status}</td><td>${esc(t.created_at)}</td></tr>`).join("");
+      }
+    } catch (e) {
+      document.getElementById("needLogin").classList.remove("hidden");
+    }
+  })();
+</script>
+</body>
+</html>
