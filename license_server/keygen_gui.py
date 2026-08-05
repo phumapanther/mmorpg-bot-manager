@@ -83,6 +83,7 @@ class KeygenApp:
         self.build_btn.pack(side="left", padx=6)
         tk.Button(btn_row, text="📂 เปิดโฟลเดอร์ dist", command=self.open_dist).pack(side="left")
         tk.Button(btn_row, text="🚀 รันบอท (เปิด Panel)", command=self.launch_bot_manager).pack(side="left", padx=6)
+        tk.Button(btn_row, text="🌐 เปิดเว็บไซต์", command=self.open_website).pack(side="left")
 
         self.build_status_var = tk.StringVar(value="")
         tk.Label(root, textvariable=self.build_status_var, anchor="w", wraplength=800).pack(fill="x", padx=8)
@@ -136,6 +137,14 @@ class KeygenApp:
             return "💾 บันทึกลิงก์ลง LICENSE_SERVER_URL.txt ให้แล้วอัตโนมัติ — กด Build เพื่อสร้างชุดแจกลูกค้าด้วยลิงก์ใหม่"
         except OSError as e:
             return f"⚠️ เขียน LICENSE_SERVER_URL.txt ไม่สำเร็จ: {e} — ต้องแก้ไฟล์เองก่อน build"
+
+    def open_website(self):
+        """เปิดเว็บไซต์เกมในเบราว์เซอร์ — ใช้ลิงก์ tunnel ปัจจุบัน (ยังไม่มี tunnel = localhost)"""
+        import webbrowser
+        url = self.tunnel_var.get().strip()
+        if not url.startswith("http"):
+            url = f"http://localhost:{PORT}"
+        webbrowser.open(url)
 
     def copy_tunnel_url(self):
         url = self.tunnel_var.get()
