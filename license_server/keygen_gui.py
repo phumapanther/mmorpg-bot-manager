@@ -62,8 +62,12 @@ class KeygenApp:
         root.geometry("820x460")
         root.protocol("WM_DELETE_WINDOW", self.on_close)
 
-        info = f"🟢 API กำลังรันที่พอร์ต {PORT}  |  Admin Secret (สำหรับเรียก API จากระยะไกล): {get_or_create_admin_secret()}"
-        tk.Label(root, text=info, anchor="w", justify="left", wraplength=800).pack(fill="x", padx=8, pady=6)
+        info_row = tk.Frame(root)
+        info_row.pack(fill="x", padx=8, pady=6)
+        tk.Label(info_row, text=f"🟢 API พอร์ต {PORT}  |  Admin Secret (ล็อกอินหลังบ้านเว็บ /admin):").pack(side="left")
+        self.secret_var = tk.StringVar(value=get_or_create_admin_secret())
+        tk.Entry(info_row, textvariable=self.secret_var, width=36, state="readonly").pack(side="left", padx=6)
+        tk.Button(info_row, text="📋 คัดลอก", command=self.copy_admin_secret).pack(side="left")
 
         tunnel_row = tk.Frame(root)
         tunnel_row.pack(fill="x", padx=8, pady=(0, 6))
@@ -137,6 +141,11 @@ class KeygenApp:
             return "💾 บันทึกลิงก์ลง LICENSE_SERVER_URL.txt ให้แล้วอัตโนมัติ — กด Build เพื่อสร้างชุดแจกลูกค้าด้วยลิงก์ใหม่"
         except OSError as e:
             return f"⚠️ เขียน LICENSE_SERVER_URL.txt ไม่สำเร็จ: {e} — ต้องแก้ไฟล์เองก่อน build"
+
+    def copy_admin_secret(self):
+        self.root.clipboard_clear()
+        self.root.clipboard_append(self.secret_var.get())
+        messagebox.showinfo("คัดลอกแล้ว", "คัดลอก Admin Secret แล้ว — เอาไปวางที่หน้า /admin ของเว็บได้เลย\n(รหัสนี้อนุมัติเงินได้ อย่าส่งให้ใคร)")
 
     def open_website(self):
         """เปิดเว็บไซต์เกมในเบราว์เซอร์ — ใช้ลิงก์ tunnel ปัจจุบัน (ยังไม่มี tunnel = localhost)"""
