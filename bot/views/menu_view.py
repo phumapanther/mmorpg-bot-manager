@@ -559,6 +559,11 @@ class GameMenuView(discord.ui.View):
                      "เล่นได้ที่**เซิร์ฟหลัก**เท่านั้น — กดปุ่ม 🌏 ด้านล่างเพื่อข้ามมิติไปเลย!*")
         await interaction.response.send_message(text, view=CodexView(show_portal=on_guest), ephemeral=True)
 
+    @discord.ui.button(label="💎 เติมเงิน", style=discord.ButtonStyle.success, custom_id="game_menu:topup")
+    async def topup_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        from bot.cogs.web_link import TopupModal
+        await interaction.response.send_modal(TopupModal())
+
     @discord.ui.button(label="🌐 เว็บไซต์", style=discord.ButtonStyle.secondary, custom_id="game_menu:website")
     async def website_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         # อ่านลิงก์สดทุกครั้งที่กด — tunnel รีสตาร์ทแล้วลิงก์ใหม่มาเองโดยไม่ต้องโพสต์เมนูใหม่

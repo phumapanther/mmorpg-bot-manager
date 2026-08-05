@@ -1,0 +1,69 @@
+# tests/test_topup_ingame.py
+"""เติมเงินจากในเกม (ปุ่มเมนู + !slip) — เทสตรรกะตรงๆ ไม่ต้องรัน discord จริง"""
+import io
+
+import pytest
+from PIL import Image
+
+import license_server.web_db as web_db
+from bot.cogs import web_link
+
+
+@pytest.fixture
+def env(tmp_path, monkeypatch):
+    from bot import config_loader
+    monkeypatch.setattr(web_db, "DB_PATH", tmp_path / "web.db")
+    monkeypatch.setattr(web_link, "UPLOAD_DIR", tmp_path / "uploads")
+    monkeypatch.setattr(config_loader, "get_config", lambda: {"payment": {
+        "exchange_rate": 100, "min_amount": 20, "max_amount": 1000,
+        "promptpay": {"enabled": True, "id": "0812345678", "name": "ร้านเกม"},
+    }})
+    return tmp_path
+
+
+def _png(size=(900, 1600)):
+    buf = io.BytesIO()
+    Image.new("RGB", size, (30, 30, 200)).save(buf, "PNG")
+    return buf.getvalue()
+
+
+def test_create_topup_ingame(env):
+    ok, msg, data = web_link.create_topup("111222333", 50)
+    assert ok and data["gold"] == 5000 and data["id"] >= 1
+    assert data["qr"].getvalue()[:4] == b"\x89PNG"              # ได้ QR จริง
+    with web_db.connect() as conn:
+        row = conn.execute("SELECT * FROM topups WHERE id=?", (data["id"],)).fetchone()
+    assert row["discord_id"] == "111222333" and row["status"] == "pending"
+    assert row["ip"] == "discord"                               # log บอกว่ามาจากในเกม
+
+
+def test_create_topup_validates_amount(env):
+    for bad in (-5, 0, 5, 5000, "abc"):
+        ok, msg, _ = web_link.create_topup("111", bad)
+        assert not ok
+
+
+def test_create_topup_needs_promptpay(env, monkeypatch):
+    from bot import config_loader
+    monkeypatch.setattr(config_loader, "get_config", lambda: {"payment": {}})
+    ok, msg, _ = web_link.create_topup("111", 50)
+    assert not ok and "เติมเงิน" in msg
+
+
+def test_save_slip_from_chat(env):
+    _ok, _msg, data = web_link.create_topup("111222333", 50)
+    ok, msg = web_link.save_slip("111222333", data["id"], _png())
+    assert ok
+    p = env / "uploads" / f"slip_{data['id']}.jpg"
+    assert p.is_file()
+    assert max(Image.open(p).size) <= 1280                      # ย่อรูปให้เล็ก
+
+
+def test_save_slip_guards(env):
+    _ok, _msg, data = web_link.create_topup("111222333", 50)
+    ok, msg = web_link.save_slip("999", data["id"], _png())     # คนอื่นแนบแทนไม่ได้
+    assert not ok
+    ok, msg = web_link.save_slip("111222333", 4444, _png())     # เลขรายการมั่ว
+    assert not ok
+    ok, msg = web_link.save_slip("111222333", data["id"], "ไม่ใช่รูป".encode())
+    assert not ok and "รูป" in msg

@@ -50,6 +50,97 @@ def website_url():
         return ""
 
 
+# ── เติมเงินจากในเกม — ใช้ web.db/คิวแอดมิน ชุดเดียวกับหน้าเว็บทุกประการ ──
+
+UPLOAD_DIR = os.path.join(_ROOT, "license_server", "web_uploads")
+
+
+def create_topup(discord_id, amount_thb):
+    """สร้างรายการเติมเงินจากในเกม — คืน (ok, ข้อความ error, {id, gold, qr, promptpay})"""
+    try:
+        from license_server import web_db
+    except ImportError:
+        return False, "❌ ระบบเติมเงินยังไม่เปิดบนเซิร์ฟนี้", None
+    from bot import config_loader
+    from bot.promptpay import build_qr_png
+
+    pay = config_loader.get_config().get("payment", {})
+    pp = pay.get("promptpay", {})
+    if not pp.get("enabled") or not pp.get("id"):
+        return False, "❌ ยังไม่เปิดรับเติมเงิน (แอดมินยังไม่ตั้งค่า PromptPay)", None
+    try:
+        amt = float(amount_thb)
+    except (TypeError, ValueError):
+        return False, "❌ ใส่จำนวนเงินเป็นตัวเลข เช่น 100", None
+    mn = float(pay.get("min_amount") or 0)
+    mx = float(pay.get("max_amount") or 0)
+    if amt <= 0 or (mn and amt < mn) or (mx and amt > mx):
+        return False, f"❌ จำนวนเงินต้องอยู่ระหว่าง {mn:g} - {mx:g} บาท", None
+    gold = int(amt * float(pay.get("exchange_rate") or 0))
+    if gold <= 0:
+        return False, "❌ อัตราแลกเปลี่ยนยังไม่ถูกตั้งค่า — แจ้งแอดมิน", None
+
+    with web_db.connect() as conn:
+        cur = conn.execute(
+            "INSERT INTO topups(discord_id, amount_thb, gold, ip, user_agent) VALUES (?,?,?,?,?)",
+            (str(discord_id), amt, gold, "discord", "ปุ่มเติมเงินในเกม"))
+    return True, "", {"id": cur.lastrowid, "gold": gold,
+                      "qr": build_qr_png(pp["id"], amt), "promptpay": pp}
+
+
+def save_slip(discord_id, topup_id, image_bytes):
+    """บันทึกสลิปจากแชท — ไฟล์เดียวกับที่หน้าเว็บ/หลังบ้านแอดมินใช้ (web_uploads/slip_<id>.jpg)"""
+    try:
+        from license_server import web_db
+    except ImportError:
+        return False, "❌ ระบบเติมเงินยังไม่เปิดบนเซิร์ฟนี้"
+    import io
+    from PIL import Image
+
+    with web_db.connect() as conn:
+        row = conn.execute("SELECT * FROM topups WHERE id=? AND discord_id=?",
+                           (int(topup_id or 0), str(discord_id))).fetchone()
+    if not row:
+        return False, "❌ ไม่พบรายการนี้ของคุณ — เช็คเลขรายการอีกครั้ง (ดูจากข้อความตอนกดเติมเงิน)"
+    if row["status"] != "pending":
+        return False, "❌ รายการนี้ถูกตัดสินไปแล้ว"
+    if len(image_bytes) > 5 * 1024 * 1024:
+        return False, "❌ ไฟล์ใหญ่เกิน 5MB"
+    try:
+        img = Image.open(io.BytesIO(image_bytes))
+        img.load()
+    except Exception:
+        return False, "❌ ไฟล์ที่แนบเปิดเป็นรูปไม่ได้ — ส่งเป็นรูปภาพ (png/jpg)"
+    img = img.convert("RGB")
+    img.thumbnail((1280, 1280))
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    img.save(os.path.join(UPLOAD_DIR, f"slip_{int(topup_id)}.jpg"), format="JPEG", quality=85)
+    return True, f"✅ รับสลิปรายการ #{topup_id} แล้ว! แอดมินจะตรวจสอบและอนุมัติโดยเร็ว (เช็คสถานะ: เมนู 🌐 เว็บไซต์ → โปรไฟล์)"
+
+
+class TopupModal(discord.ui.Modal, title="💎 เติมเงินเข้าเกม"):
+    amount_input = discord.ui.TextInput(label="จำนวนเงิน (บาท)", placeholder="เช่น 100",
+                                        max_length=10, required=True)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        ok, msg, data = create_topup(interaction.user.id, str(self.amount_input.value).strip())
+        if not ok:
+            return await interaction.response.send_message(msg, ephemeral=True)
+        pp = data["promptpay"]
+        f = discord.File(data["qr"], filename="topup_qr.png")
+        embed = discord.Embed(
+            title=f"💎 รายการเติมเงิน #{data['id']}",
+            description=(f"โอน **{float(self.amount_input.value):g} บาท** → ได้ **🪙 {data['gold']:,} ทอง**\n"
+                         f"PromptPay: `{pp.get('id', '')}` ({pp.get('name', '')})\n\n"
+                         f"1️⃣ สแกน QR ด้านล่างโอนเงิน\n"
+                         f"2️⃣ โอนเสร็จ **ส่งสลิปในห้องนี้** ด้วยคำสั่ง:\n"
+                         f"`!slip {data['id']}` พร้อมแนบรูปสลิป\n"
+                         f"3️⃣ แอดมินตรวจ → ทองเข้าธนาคารในเกมอัตโนมัติ"),
+            color=0xd93b2b)
+        embed.set_image(url="attachment://topup_qr.png")
+        await interaction.response.send_message(embed=embed, file=f, ephemeral=True)
+
+
 class WebLink(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -63,6 +154,21 @@ class WebLink(commands.Cog):
         except Exception:
             pass
         await ctx.send(f"{ctx.author.mention} {msg}", delete_after=30 if ok else 20)
+
+    @commands.command(name="slip")
+    @main_server_only()
+    async def slip(self, ctx, topup_id: int = 0):
+        """ส่งสลิปโอนเงิน: !slip <เลขรายการ> พร้อมแนบรูป — ขึ้นคิวแอดมินทันที"""
+        if not ctx.message.attachments:
+            return await ctx.send(f"{ctx.author.mention} 📎 แนบรูปสลิปมาพร้อมคำสั่งด้วยครับ เช่นพิมพ์ `!slip {topup_id or 12}` แล้วแนบรูปในข้อความเดียวกัน")
+        data = await ctx.message.attachments[0].read()
+        ok, msg = save_slip(ctx.author.id, topup_id, data)
+        if ok:
+            try:
+                await ctx.message.delete()   # ลบรูปสลิปออกจากแชท (เก็บเข้าระบบแล้ว — กันคนอื่นเห็นข้อมูลบัญชี)
+            except Exception:
+                pass
+        await ctx.send(f"{ctx.author.mention} {msg}")
 
     @commands.command(name="web")
     async def web(self, ctx):
