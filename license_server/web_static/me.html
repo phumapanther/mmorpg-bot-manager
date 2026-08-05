@@ -52,6 +52,7 @@
       <button class="btn btn-ghost" id="qrCloseBtn">ปิด</button>
     </div>
   </div>
+  <input type="file" id="slipInput" accept="image/*" style="display:none">
 </div></section>
 
 <footer id="footer"></footer>
@@ -80,9 +81,12 @@
         document.getElementById("topupRows").innerHTML = d.topups.map((t) =>
           `<tr><td>${t.id}</td><td>${t.amount_thb}</td><td>🪙 ${t.gold.toLocaleString()}</td>
            <td>${STATUS_TH[t.status] || t.status}</td><td>${esc(t.created_at)}</td>
-           <td>${t.status === "pending" ? `<button class="btn btn-ghost" data-qr="${t.id}">🧾 ดู QR</button>` : ""}</td></tr>`).join("");
+           <td>${t.status === "pending" ? `<button class="btn btn-ghost" data-qr="${t.id}">🧾 ดู QR</button>
+             <button class="btn btn-ghost" data-slip="${t.id}">${t.has_slip ? "📎✅ เปลี่ยนสลิป" : "📎 แนบสลิป"}</button>` : ""}</td></tr>`).join("");
         document.querySelectorAll("[data-qr]").forEach((b) =>
           b.addEventListener("click", () => showQr(b.dataset.qr)));
+        document.querySelectorAll("[data-slip]").forEach((b) =>
+          b.addEventListener("click", () => pickSlip(b.dataset.slip, b)));
       }
     } catch (e) {
       document.getElementById("needLogin").classList.remove("hidden");
@@ -102,6 +106,22 @@
   }
   document.getElementById("qrCloseBtn").addEventListener("click", () =>
     document.getElementById("qrBox").classList.add("hidden"));
+
+  function pickSlip(id, btn) {
+    const input = document.getElementById("slipInput");
+    input.onchange = async () => {
+      const file = input.files[0];
+      input.value = "";
+      if (!file) return;
+      try {
+        const res = await fetch(`/api/web/topup/${id}/slip`, { method: "POST", body: file });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || "อัพโหลดไม่สำเร็จ");
+        btn.textContent = "📎✅ เปลี่ยนสลิป";
+      } catch (e) { alert("แนบสลิปไม่สำเร็จ: " + e.message); }
+    };
+    input.click();
+  }
 
   document.getElementById("logoutBtn").addEventListener("click", async () => {
     await api("POST", "/api/web/logout");

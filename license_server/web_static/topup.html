@@ -37,9 +37,13 @@
       <h3>สแกนจ่ายด้วยแอปธนาคาร</h3>
       <img id="qrImg" style="width:260px;margin:14px auto;border-radius:12px" alt="PromptPay QR">
       <p id="qrDetail"></p>
-      <p class="notice">โอนแล้วรอแอดมินตรวจสอบ (ดูสถานะได้ที่<a href="/me">หน้าโปรไฟล์</a>) — รายการ #<span id="qrId"></span></p>
+      <div class="btn-row" style="justify-content:center;margin-top:12px">
+        <button class="btn btn-primary" id="slipBtn">📎 แนบสลิปโอนเงิน</button>
+      </div>
+      <p class="notice">โอนแล้ว<b>แนบสลิป</b>ไว้เลย แอดมินจะตรวจเร็วขึ้น (ดูสถานะได้ที่<a href="/me">หน้าโปรไฟล์</a>) — รายการ #<span id="qrId"></span></p>
     </div>
   </div>
+  <input type="file" id="slipInput" accept="image/*" style="display:none">
 </div></section>
 
 <footer id="footer"></footer>
@@ -53,20 +57,40 @@
     .then(() => document.getElementById("formBox").classList.remove("hidden"))
     .catch(() => document.getElementById("needLogin").classList.remove("hidden"));
 
+  let topupId = null;
+
   document.getElementById("payBtn").addEventListener("click", async () => {
     const err = document.getElementById("errBox");
     err.classList.add("hidden");
     try {
       const d = await api("POST", "/api/web/topup", { amount_thb: parseFloat(document.getElementById("amount").value) || 0 });
+      topupId = d.id;
       document.getElementById("qrBox").classList.remove("hidden");
       document.getElementById("qrImg").src = `data:image/png;base64,${d.qr}`;
       document.getElementById("qrDetail").innerHTML =
         `PromptPay: <b>${esc(d.promptpay_id)}</b> (${esc(d.promptpay_name)})<br>จะได้รับ <b>🪙 ${d.gold.toLocaleString()}</b> ทอง`;
       document.getElementById("qrId").textContent = d.id;
+      document.getElementById("slipBtn").textContent = "📎 แนบสลิปโอนเงิน";
     } catch (e) {
       err.textContent = e.message;
       err.classList.remove("hidden");
     }
+  });
+
+  // แนบสลิป — อัพโหลด raw bytes เข้ารายการที่เพิ่งสร้าง
+  document.getElementById("slipBtn").addEventListener("click", () => {
+    if (topupId) document.getElementById("slipInput").click();
+  });
+  document.getElementById("slipInput").addEventListener("change", async () => {
+    const file = document.getElementById("slipInput").files[0];
+    document.getElementById("slipInput").value = "";
+    if (!file || !topupId) return;
+    try {
+      const res = await fetch(`/api/web/topup/${topupId}/slip`, { method: "POST", body: file });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "อัพโหลดไม่สำเร็จ");
+      document.getElementById("slipBtn").textContent = "✅ แนบสลิปแล้ว (กดเปลี่ยนรูปได้)";
+    } catch (e) { alert("แนบสลิปไม่สำเร็จ: " + e.message); }
   });
 </script>
 </body>

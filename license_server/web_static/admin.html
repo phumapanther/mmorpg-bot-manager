@@ -52,7 +52,7 @@
     <h2 class="sec" style="margin-top:44px">💰 คิวเติมเงินรออนุมัติ</h2>
     <p class="sec-sub">ตรวจยอดโอนเข้าบัญชีจริงก่อนกดอนุมัติเสมอ — อนุมัติแล้วทองเข้าธนาคารผู้เล่นทันที</p>
     <div class="table-scroll"><table class="data" id="topupTable">
-      <thead><tr><th>#</th><th>Discord ID</th><th>จำนวน (บาท)</th><th>ทองที่จะได้</th><th>เวลา</th><th></th></tr></thead>
+      <thead><tr><th>#</th><th>Discord ID</th><th>จำนวน (บาท)</th><th>ทองที่จะได้</th><th>สลิป</th><th>เวลา</th><th></th></tr></thead>
       <tbody></tbody>
     </table></div>
   </div>
@@ -98,10 +98,12 @@
       const rows = (await api("GET", "/api/web/admin/topups?status=pending")).topups;
       document.querySelector("#topupTable tbody").innerHTML = rows.length ? rows.map((t) => `
         <tr><td>${t.id}</td><td>${esc(t.discord_id)}</td><td>${t.amount_thb}</td>
-        <td>🪙 ${t.gold.toLocaleString()}</td><td>${esc(t.created_at)}</td>
+        <td>🪙 ${t.gold.toLocaleString()}</td>
+        <td>${t.has_slip ? `<a href="/api/web/topup/${t.id}/slip" target="_blank" rel="noopener">🧾 เปิดดู</a>` : "—"}</td>
+        <td>${esc(t.created_at)}</td>
         <td><button class="btn btn-primary" data-ok="${t.id}">✅ อนุมัติ</button>
             <button class="btn btn-ghost" data-no="${t.id}">❌</button></td></tr>`).join("")
-        : '<tr><td colspan="6">ไม่มีรายการค้าง 🎉</td></tr>';
+        : '<tr><td colspan="7">ไม่มีรายการค้าง 🎉</td></tr>';
       document.querySelectorAll("[data-ok]").forEach((b) => b.addEventListener("click", () => decide(b.dataset.ok, "approve")));
       document.querySelectorAll("[data-no]").forEach((b) => b.addEventListener("click", () => decide(b.dataset.no, "reject")));
     } catch (e) { /* ระบบเติมเงินยังไม่เปิด — ปล่อยตารางว่าง */ }

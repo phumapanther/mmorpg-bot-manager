@@ -190,7 +190,8 @@ def me_profile(request: Request):
         tops = wconn.execute(
             "SELECT id, amount_thb, gold, status, created_at FROM topups "
             "WHERE discord_id=? ORDER BY id DESC LIMIT 10", (uid,)).fetchall()
-    return {"profile": profile, "topups": [dict(t) for t in tops]}
+    return {"profile": profile,
+            "topups": [dict(t) | {"has_slip": _slip_path(t["id"]).is_file()} for t in tops]}
 
 
 # ── เติมเงินผ่านเว็บ (เงินทุกบาทต้องผ่านมือแอดมิน — ไม่มีอนุมัติอัตโนมัติ) ──
@@ -249,12 +250,65 @@ def topup_qr(topup_id: int, request: Request):
             "promptpay_name": pp.get("name", ""), "promptpay_id": pp.get("id", "")}
 
 
+# สลิปหลักฐานโอน — เก็บเป็นไฟล์ตามเลขรายการ (ไม่ต้องแก้ schema): web_uploads/slip_<id>.jpg
+UPLOAD_DIR = Path(__file__).resolve().parent / "web_uploads"
+_SLIP_MAX = 5 * 1024 * 1024
+
+
+def _slip_path(topup_id):
+    return UPLOAD_DIR / f"slip_{int(topup_id)}.jpg"
+
+
+@router.post("/topup/{topup_id}/slip")
+async def upload_slip(topup_id: int, request: Request):
+    from PIL import Image
+    import io
+    uid = require_player(request)["uid"]
+    with web_db.connect() as conn:
+        row = conn.execute("SELECT * FROM topups WHERE id=? AND discord_id=?",
+                           (topup_id, uid)).fetchone()
+    if not row:
+        raise HTTPException(404, "ไม่พบรายการนี้ของคุณ")
+    if row["status"] != "pending":
+        raise HTTPException(400, "รายการนี้ถูกตัดสินไปแล้ว")
+    data = await request.body()
+    if len(data) > _SLIP_MAX:
+        raise HTTPException(400, "ไฟล์ใหญ่เกิน 5MB")
+    try:
+        img = Image.open(io.BytesIO(data))
+        img.load()
+    except Exception:
+        raise HTTPException(400, "ไฟล์นี้เปิดเป็นรูปภาพไม่ได้ (รองรับ png/jpg/webp)")
+    img = img.convert("RGB")
+    img.thumbnail((1280, 1280))   # ย่อรูปสลิปใหญ่ๆ ให้พอดี ประหยัดที่
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    img.save(_slip_path(topup_id), format="JPEG", quality=85)
+    return {"ok": True}
+
+
+@router.get("/topup/{topup_id}/slip")
+def get_slip(topup_id: int, request: Request):
+    from fastapi.responses import FileResponse
+    p = _slip_path(topup_id)
+    if not p.is_file():
+        raise HTTPException(404, "ยังไม่มีสลิปของรายการนี้")
+    # แอดมินเปิดได้ทุกใบ — ผู้เล่นเปิดได้เฉพาะรายการตัวเอง
+    if not verify(request.cookies.get("web_admin", "")):
+        uid = require_player(request)["uid"]
+        with web_db.connect() as conn:
+            row = conn.execute("SELECT id FROM topups WHERE id=? AND discord_id=?",
+                               (topup_id, uid)).fetchone()
+        if not row:
+            raise HTTPException(404, "ไม่พบรายการนี้ของคุณ")
+    return FileResponse(str(p), media_type="image/jpeg")
+
+
 @router.get("/admin/topups")
 def list_topups(request: Request, status: str = "pending"):
     require_admin(request)
     with web_db.connect() as conn:
         rows = conn.execute("SELECT * FROM topups WHERE status=? ORDER BY id", (status,)).fetchall()
-    return {"topups": [dict(r) for r in rows]}
+    return {"topups": [dict(r) | {"has_slip": _slip_path(r["id"]).is_file()} for r in rows]}
 
 
 def _decide_topup(topup_id, new_status, note):

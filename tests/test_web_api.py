@@ -257,6 +257,45 @@ def test_topup_qr_revisit_only_own_pending(client, tmp_path, monkeypatch):
     assert client.get(f"/api/web/topup/{tid}/qr").status_code in (400, 404)
 
 
+def test_topup_slip_upload_and_admin_view(client, tmp_path, monkeypatch):
+    import io
+    from PIL import Image
+    from license_server import web_api
+    monkeypatch.setattr(web_api, "UPLOAD_DIR", tmp_path / "uploads")
+    _fake_game_db(tmp_path, monkeypatch)
+    _payment_config(monkeypatch)
+    _login(client)
+    tid = client.post("/api/web/topup", json={"amount_thb": 50}).json()["id"]
+
+    buf = io.BytesIO()
+    Image.new("RGB", (2000, 1500), (10, 200, 60)).save(buf, "PNG")
+    assert client.post(f"/api/web/topup/{tid}/slip", content=buf.getvalue()).status_code == 200
+    assert (tmp_path / "uploads" / f"slip_{tid}.jpg").is_file()
+    img = Image.open(tmp_path / "uploads" / f"slip_{tid}.jpg")
+    assert max(img.size) <= 1280                                  # ย่อรูปใหญ่ให้เล็กลง
+
+    assert client.get(f"/api/web/topup/{tid}/slip").status_code == 200   # เจ้าของดูได้
+    _admin(client)
+    rows = client.get("/api/web/admin/topups?status=pending").json()["topups"]
+    assert rows[0]["has_slip"] is True                            # แอดมินเห็นว่ามีสลิป
+    assert client.get(f"/api/web/topup/{tid}/slip").status_code == 200   # แอดมินเปิดสลิปได้
+
+    client.cookies.delete("web_admin")                            # ถอดหมวกแอดมินก่อน — เหลือผู้เล่นธรรมดา
+    _login(client, discord_id="777")                              # คนอื่นแตะรายการเราไม่ได้
+    assert client.post(f"/api/web/topup/{tid}/slip", content=buf.getvalue()).status_code == 404
+    assert client.get(f"/api/web/topup/{tid}/slip").status_code in (401, 404)
+
+
+def test_topup_slip_rejects_garbage(client, tmp_path, monkeypatch):
+    from license_server import web_api
+    monkeypatch.setattr(web_api, "UPLOAD_DIR", tmp_path / "uploads")
+    _fake_game_db(tmp_path, monkeypatch)
+    _payment_config(monkeypatch)
+    _login(client)
+    tid = client.post("/api/web/topup", json={"amount_thb": 50}).json()["id"]
+    assert client.post(f"/api/web/topup/{tid}/slip", content=b"not an image").status_code == 400
+
+
 def test_codex_endpoint(client):
     topics = client.get("/api/web/codex").json()["topics"]
     assert len(topics) == 12

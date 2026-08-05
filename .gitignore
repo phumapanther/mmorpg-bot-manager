@@ -12,5 +12,6 @@ dist_nuitka/
 *.spec.bak
 license_server/licenses.db
 license_server/web.db
+license_server/web_uploads/
 license_server/admin_secret.txt
 license_server/tools/
