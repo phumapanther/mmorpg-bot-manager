@@ -148,12 +148,10 @@ class KeygenApp:
         messagebox.showinfo("คัดลอกแล้ว", "คัดลอก Admin Secret แล้ว — เอาไปวางที่หน้า /admin ของเว็บได้เลย\n(รหัสนี้อนุมัติเงินได้ อย่าส่งให้ใคร)")
 
     def open_website(self):
-        """เปิดเว็บไซต์เกมในเบราว์เซอร์ — ใช้ลิงก์ tunnel ปัจจุบัน (ยังไม่มี tunnel = localhost)"""
+        """เปิดเว็บไซต์เกมในเบราว์เซอร์ — เปิดผ่าน localhost เสมอ (เว็บรันบนเครื่องนี้เอง)
+        ลิงก์ tunnel มีไว้แจกผู้เล่น — DNS ของ tunnel ใหม่ใช้เวลาแพร่ 1-5 นาที เปิดเองมักเจอ NXDOMAIN"""
         import webbrowser
-        url = self.tunnel_var.get().strip()
-        if not url.startswith("http"):
-            url = f"http://localhost:{PORT}"
-        webbrowser.open(url)
+        webbrowser.open(f"http://localhost:{PORT}")
 
     def copy_tunnel_url(self):
         url = self.tunnel_var.get()
