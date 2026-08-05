@@ -134,6 +134,11 @@
       b.className = "btn " + (b.dataset.st === histStatus ? "btn-primary" : "btn-ghost"));
     try {
       const d = await api("GET", `/api/web/admin/topups?status=${histStatus}&q=${q}`);
+      if (!d.summary) {   // เซิร์ฟเวอร์ยังเป็นโค้ดเก่า — บอกตรงๆ ดีกว่าโชว์ตารางว่างเงียบๆ
+        document.getElementById("histSummary").textContent =
+          "⚠️ โปรแกรม License Server ที่เปิดอยู่เป็นเวอร์ชันเก่า — ปิดหน้าต่าง keygen GUI แล้วเปิดใหม่ จากนั้นรีเฟรชหน้านี้";
+        return;
+      }
       document.getElementById("histSummary").textContent =
         `ทั้งหมด ${d.summary.count} รายการ · ยอดอนุมัติรวม ${d.summary.approved_thb.toLocaleString()} บาท = 🪙 ${d.summary.approved_gold.toLocaleString()} ทอง (โชว์ล่าสุด ≤300 แถว)`;
       document.querySelector("#histTable tbody").innerHTML = d.topups.length ? d.topups.map((t) => `
@@ -145,7 +150,9 @@
         <td title="${esc(t.user_agent || "")}">${esc(t.ip || "-")}</td>
         <td>${esc(t.note || "")}</td></tr>`).join("")
         : '<tr><td colspan="10">ไม่พบรายการตามเงื่อนไข</td></tr>';
-    } catch (e) { /* ยังไม่มีข้อมูล */ }
+    } catch (e) {
+      document.getElementById("histSummary").textContent = "⚠️ โหลด log ไม่สำเร็จ: " + e.message;
+    }
   }
 
   document.querySelectorAll("#histFilters .btn").forEach((b) =>
