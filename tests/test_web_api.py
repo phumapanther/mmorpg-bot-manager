@@ -352,3 +352,13 @@ def test_logout_clears_session(client, tmp_path, monkeypatch):
     assert client.get("/api/web/me/session").status_code == 200
     client.post("/api/web/logout")
     assert client.get("/api/web/me/session").status_code == 401
+
+
+# ── เรทเติมเงิน ──
+def test_topup_rate_public(client, monkeypatch):
+    from bot import config_loader
+    monkeypatch.setattr(config_loader, "get_config",
+                        lambda: {"payment": {"exchange_rate": 100, "min_amount": 20, "max_amount": 5000}})
+    r = client.get("/api/web/topup/rate")
+    assert r.status_code == 200
+    assert r.json() == {"rate": 100.0, "min_amount": 20.0, "max_amount": 5000.0}

@@ -204,6 +204,16 @@ class DecideBody(BaseModel):
     note: str = ""
 
 
+@router.get("/topup/rate")
+def topup_rate():
+    """เรทแลกทอง (public) — หน้า /topup โชว์ว่าเติมเท่าไหร่ได้กี่ทองก่อนกดสร้าง QR"""
+    from bot import config_loader
+    pay = config_loader.get_config().get("payment", {})
+    return {"rate": float(pay.get("exchange_rate") or 0),
+            "min_amount": float(pay.get("min_amount") or 0),
+            "max_amount": float(pay.get("max_amount") or 0)}
+
+
 @router.post("/topup")
 def create_topup(body: TopupBody, request: Request):
     uid = require_player(request)["uid"]
