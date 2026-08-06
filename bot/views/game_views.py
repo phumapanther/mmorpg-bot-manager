@@ -7,6 +7,7 @@ import traceback # เอาไว้ดูว่า Error บรรทัดไ
 import json
 from bot import config_loader
 from bot import game_modifiers
+from bot import robbery
 from bot.views.fight_ui import (ELEMENT_COLORS, RANK_BADGES, build_fight_embed,  # noqa: F401 (B6)
                                 build_respawn_embed, hp_bar)
 from bot.event_images import event_image, monster_image, item_use_image, file_kwargs  # noqa: F401
@@ -2046,6 +2047,76 @@ class DungeonEventView(ActionView):
 
 
 # 6. เหตุการณ์ กับดัก (Trap)
+class MuggingEventView(ActionView):
+    """🥷 โดนดักปล้น (spec 2026-08-06) — สู้ทอยรอบเดียว หรือหนีเสียเงินติดตัวครึ่ง | หมดเวลา = นับเป็นหนี"""
+
+    def __init__(self, user_id):
+        super().__init__(timeout=60)
+        self.user_id = user_id
+        self.resolved = False
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ โจรล็อคเป้าคนอื่นอยู่ อย่าแย่งกันโดนปล้น!", ephemeral=True)
+            return False
+        return True
+
+    def _flee(self):
+        """เสียเงินติดตัว 50% — ใช้ร่วมกันทั้งปุ่มหนีและตอนหมดเวลา คืน (เสียไป, เหลือ)"""
+        player = player_model.get_player(self.user_id) or {}
+        cash = int(player.get("cash", 0) or 0)
+        lost = cash // 2
+        player_model.update_player_field(self.user_id, "cash", cash - lost)
+        player_model.update_player_field(self.user_id, "current_state", "idle")
+        print(f"[LOG] [MUGGING] 🏃 ผู้เล่น {self.user_id} หนีโจร -{lost:,} ทอง (เหลือ {cash - lost:,})")
+        return lost, cash - lost
+
+    async def on_timeout(self):
+        if self.resolved:
+            return
+        lost, left = self._flee()
+        for item in self.children:
+            item.disabled = True
+        try:
+            await self.message.edit(
+                content=f"⏳ คุณยืนตัวแข็งตัดสินใจไม่ทัน... โจรฉกถุงทองไป `{lost:,}` ทอง! (เหลือ `{left:,}`)", view=self)
+        except Exception as e:
+            print(f"[ERROR] [MUGGING] แก้ข้อความตอนหมดเวลาไม่ได้: {e}")
+
+    @discord.ui.button(label="⚔️ สู้", style=discord.ButtonStyle.danger)
+    async def fight(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        self.resolved = True
+        self.stop()
+        player = player_model.get_player(self.user_id) or {}
+        cash = int(player.get("cash", 0) or 0)
+        win_pct = robbery.mug_win_chance(cash + int(player.get("bank", 0) or 0))
+        player_model.update_player_field(self.user_id, "current_state", "idle")
+        roll = random.randint(1, 100)
+        if roll <= win_pct:
+            gain = cash // 10
+            player_model.update_player_field(self.user_id, "cash", cash + gain)
+            msg = f"⚔️🏆 **คุณสู้จนโจรเผ่นหนี!** ริบของกลางจากโจรได้ `{gain:,}` ทอง (ติดตัวตอนนี้ `{cash + gain:,}`)"
+        else:
+            player_model.update_player_field(self.user_id, "cash", 0)
+            msg = f"⚔️💀 **เงินถ่วงแข้งขาจนสู้ไม่ไหว...** โจรกวาดเงินติดตัวไปหมด `{cash:,}` ทอง!"
+        print(f"[LOG] [MUGGING] ⚔️ {interaction.user.display_name} สู้โจร (ชนะ {win_pct}% ทอยได้ {roll}) → {'ชนะ' if roll <= win_pct else 'แพ้'}")
+        await interaction.edit_original_response(
+            content=f"{msg}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
+            view=AdventureView(author_id=self.user_id))
+
+    @discord.ui.button(label="🏃 หนี (-50% เงินติดตัว)", style=discord.ButtonStyle.secondary)
+    async def flee(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        self.resolved = True
+        self.stop()
+        lost, left = self._flee()
+        await interaction.edit_original_response(
+            content=f"🏃💨 คุณโยนถุงทองสกัดโจรแล้ววิ่งสุดชีวิต — เสีย `{lost:,}` ทอง (เหลือ `{left:,}`)\n"
+                    f"----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
+            view=AdventureView(author_id=self.user_id))
+
+
 class TrapEventView(ActionView):
     def __init__(self, user_id, member_roles):
         super().__init__(timeout=60)
@@ -2805,6 +2876,9 @@ class AdventureView(ActionView):
             forced_event, _trap_key = game_modifiers.status_forced_event(statuses)
             if forced_event:
                 chosen_event = forced_event
+            # 🥷 โจรปล้น (spec 2026-08-06): รวยเกินล้านเริ่มตกเป็นเป้า — มีบัตรประกันคุ้มครอง = รอดทั้งทาง
+            elif (rob_event := robbery.roll_robbery(player.get("cash", 0), player.get("bank", 0), statuses)):
+                chosen_event = rob_event
             # 🧭 โอกาสสุ่มเจอพาหนะข้ามทวีป (แทรกเฉพาะจังหวะสุ่มปกติ ไม่ชนดันเจี้ยน/บอส/วาร์ป)
             elif game_modifiers.roll_travel_chance(mods):
                 chosen_event = "travel"
@@ -2915,6 +2989,36 @@ class AdventureView(ActionView):
             next_view = TrapEventView(user_id, interaction.user.roles)
             trap_text = mods["theme_texts"].get("trap", "⚠️ *แก๊ก!* คุณพลาดก้าวขาไปเกี่ยวสายสลิง **'กับดักโบราณ'** เข้าให้แล้ว!")
             sent_msg = await interaction.followup.send(content=f"{trap_text} เตรียมรับมือแอคชั่นหลบหลีก: *(คูลดาวน์หมู่บ้านเหลือ: {current_cooldown} ตา)*", view=next_view, wait=True, **file_kwargs(event_image("trap", cur_continent)))
+            next_view.message = sent_msg
+
+        elif chosen_event == "bank_robbery":
+            # 🏦💥 ปล้นธนาคาร — เหตุการณ์ทันที ไม่มีปุ่มให้เลือก (spec 2026-08-06)
+            bank = int(player.get("bank", 0) or 0)
+            left = robbery.bank_rob_left(bank)
+            lost = bank - left
+            player_model.update_player_field(user_id, "bank", left)
+            print(f"[LOG] [ROBBERY] 🏦 {interaction.user.display_name} โดนปล้นธนาคาร -{lost:,} ทอง (เหลือ {left:,})")
+            next_view = AdventureView(author_id=user_id)
+            sent_msg = await interaction.followup.send(
+                content=(f"🏦💥 **โจรปล้นธนาคาร!** แก๊งโจรมือโปรเจาะตู้นิรภัยสาขาที่คุณฝากเงินไว้!\n"
+                         f"เงินฝากหายไป `{lost:,}` ทอง — เหลือในบัญชี `{left:,}` ทอง\n"
+                         f"*(กันได้ด้วย 🪪 บัตรประกัน — หาซื้อที่ร้านค้าประจำหมู่บ้าน)*\n"
+                         f"----------------------------------------\nคุณต้องการไปต่อหรือไม่?"),
+                view=next_view, wait=True, **file_kwargs(event_image("bank_robbery", cur_continent)))
+            next_view.message = sent_msg
+
+        elif chosen_event == "mugging":
+            # 🥷 โดนดักปล้น — เลือกสู้หรือหนี (spec 2026-08-06)
+            player_model.update_player_field(user_id, "current_state", "mugging")
+            cash = int(player.get("cash", 0) or 0)
+            win_pct = robbery.mug_win_chance(cash + int(player.get("bank", 0) or 0))
+            next_view = MuggingEventView(user_id)
+            sent_msg = await interaction.followup.send(
+                content=(f"🥷 **โดนดักปล้น!** โจรถือมีดโผล่จากพุ่มไม้ จ้องถุงทอง `{cash:,}` ทองของคุณ!\n"
+                         f"⚔️ **สู้** — ชนะริบของโจร +10% ของเงินติดตัว / แพ้โดนกวาดเงินติดตัวหมด "
+                         f"*(โอกาสชนะ {win_pct}% — เงินยิ่งหนักยิ่งถ่วงแข้งขา)*\n"
+                         f"🏃 **หนี** — โยนถุงทองครึ่งหนึ่งสกัดโจรแล้ววิ่ง (-50% เงินติดตัว)"),
+                view=next_view, wait=True, **file_kwargs(event_image("mugging", cur_continent)))
             next_view.message = sent_msg
 
         elif chosen_event == "calm":
