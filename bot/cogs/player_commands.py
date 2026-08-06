@@ -1918,7 +1918,9 @@ def sell_all_junk(user_id):
     keep, sold, gold = [], 0, 0
     for item_id in inv:
         data = all_items.get(item_id, {})
-        is_junk = data and not data.get("effect") and not data.get("equip_key") and data.get("type") != "use"
+        # ทองคำแท่ง (bar_value) ไม่ใช่ขยะ — กันปุ่มขายวัสดุเทขายแท่ง 1000M ทิ้งรวดเดียว
+        is_junk = (data and not data.get("effect") and not data.get("equip_key")
+                   and data.get("type") != "use" and not data.get("bar_value"))
         if is_junk:
             sold += 1
             gold += int(data.get("sell", 0))

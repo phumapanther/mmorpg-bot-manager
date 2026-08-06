@@ -80,3 +80,32 @@ def bank_rob_left(bank):
         if b >= int(threshold):
             return min(b, int(left))
     return b // 2
+
+
+# ── 🎒 ขโมยของแพงในกระเป๋า (ส่วนขยาย 2026-08-06) ──
+# โอกาสทอยติดต่อเหตุการณ์ปล้น (%) ตามขั้นความรวยเดิม — ติดแล้วหยิบ 1-2 ชิ้นจาก top 5 ของแพงสุด
+_STEAL_TIERS = [[1_000_000, 0], [10_000_000, 10], [100_000_000, 20], [1_000_000_000, 30], [None, 40]]
+
+
+def steal_chance(total_wealth):
+    """% โอกาสโจรฉกของแพงในกระเป๋า ต่อเหตุการณ์ปล้นหนึ่งครั้ง"""
+    return _tiered(total_wealth, "robbery.steal_tiers", _STEAL_TIERS)
+
+
+def roll_item_theft(inventory, total_wealth, item_catalog, rng=random):
+    """ทอยขโมยของ: คืนลิสต์ index ในกระเป๋าที่โดนหยิบ (ว่าง = รอด)
+
+    มูลค่าไอเทมวัดจากราคาซื้อ (buy) — เรียง top 5 แล้วสุ่มหยิบ 1-2 ชิ้น
+    """
+    if not inventory:
+        return []
+    if rng.random() * 100 >= steal_chance(total_wealth):
+        return []
+    ranked = sorted(range(len(inventory)),
+                    key=lambda i: int(item_catalog.get(str(inventory[i]), {}).get("buy", 0) or 0),
+                    reverse=True)[:5]
+    ranked = [i for i in ranked
+              if int(item_catalog.get(str(inventory[i]), {}).get("buy", 0) or 0) > 0]
+    if not ranked:
+        return []
+    return rng.sample(ranked, min(len(ranked), rng.randint(1, 2)))

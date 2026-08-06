@@ -1014,6 +1014,38 @@
         "effect": "apply_status",
         "effect_value": "insurance_1b",
         "effect_amount": 100
+      },
+      "72": {
+        "name": "🧈 ทองคำแท่ง 1M",
+        "buy": 1000000,
+        "sell": 850000,
+        "type": "gold_bar",
+        "bar_value": 1000000,
+        "purchasable": false
+      },
+      "73": {
+        "name": "🧈 ทองคำแท่ง 10M",
+        "buy": 10000000,
+        "sell": 8500000,
+        "type": "gold_bar",
+        "bar_value": 10000000,
+        "purchasable": false
+      },
+      "74": {
+        "name": "🧈 ทองคำแท่ง 100M",
+        "buy": 100000000,
+        "sell": 85000000,
+        "type": "gold_bar",
+        "bar_value": 100000000,
+        "purchasable": false
+      },
+      "75": {
+        "name": "🧈 ทองคำแท่ง 1000M",
+        "buy": 1000000000,
+        "sell": 850000000,
+        "type": "gold_bar",
+        "bar_value": 1000000000,
+        "purchasable": false
       }
     },
     "armor_stats": {

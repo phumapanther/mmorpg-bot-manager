@@ -2047,6 +2047,27 @@ class DungeonEventView(ActionView):
 
 
 # 6. เหตุการณ์ กับดัก (Trap)
+def apply_item_theft(user_id, player=None):
+    """🎒 โจรฉกของแพง (spec 2026-08-06): ทอยครั้งเดียวต่อเหตุการณ์ปล้น — คืนข้อความแจ้ง ('' = รอด)
+
+    หยิบ 1-2 ชิ้นจาก top 5 ของแพงสุดในกระเป๋า (มูลค่า = ราคาซื้อ) โอกาสตามขั้นความรวย
+    """
+    player = player or player_model.get_player(user_id) or {}
+    inv = player_model.load_inventory(player.get("inventory", ""))
+    total = int(player.get("cash", 0) or 0) + int(player.get("bank", 0) or 0)
+    catalog = config_loader.get_all_items()
+    taken = robbery.roll_item_theft(inv, total, catalog)
+    if not taken:
+        return ""
+    names = []
+    for i in sorted(taken, reverse=True):
+        iid = inv.pop(i)
+        names.append(catalog.get(str(iid), {}).get("name", f"ไอเทม {iid}"))
+    player_model.update_player_field(user_id, "inventory", json.dumps(inv))
+    print(f"[LOG] [ROBBERY] 🎒 ผู้เล่น {user_id} โดนฉกของแพง: {', '.join(names)}")
+    return f"\n🎒💨 **โจรฉกของแพงในกระเป๋าไปด้วย:** {', '.join(names)}!"
+
+
 class MuggingEventView(ActionView):
     """🥷 โดนดักปล้น (spec 2026-08-06) — สู้ทอยรอบเดียว หรือหนีเสียเงินติดตัวครึ่ง | หมดเวลา = นับเป็นหนี"""
 
@@ -2062,24 +2083,24 @@ class MuggingEventView(ActionView):
         return True
 
     def _flee(self):
-        """เสียเงินติดตัว 50% — ใช้ร่วมกันทั้งปุ่มหนีและตอนหมดเวลา คืน (เสียไป, เหลือ)"""
+        """เสียเงินติดตัว 50% + ทอยโดนฉกของ — ใช้ร่วมกันทั้งปุ่มหนีและตอนหมดเวลา คืน (เสียไป, เหลือ, โน้ตของหาย)"""
         player = player_model.get_player(self.user_id) or {}
         cash = int(player.get("cash", 0) or 0)
         lost = cash // 2
         player_model.update_player_field(self.user_id, "cash", cash - lost)
         player_model.update_player_field(self.user_id, "current_state", "idle")
         print(f"[LOG] [MUGGING] 🏃 ผู้เล่น {self.user_id} หนีโจร -{lost:,} ทอง (เหลือ {cash - lost:,})")
-        return lost, cash - lost
+        return lost, cash - lost, apply_item_theft(self.user_id)
 
     async def on_timeout(self):
         if self.resolved:
             return
-        lost, left = self._flee()
+        lost, left, theft_note = self._flee()
         for item in self.children:
             item.disabled = True
         try:
             await self.message.edit(
-                content=f"⏳ คุณยืนตัวแข็งตัดสินใจไม่ทัน... โจรฉกถุงทองไป `{lost:,}` ทอง! (เหลือ `{left:,}`)", view=self)
+                content=f"⏳ คุณยืนตัวแข็งตัดสินใจไม่ทัน... โจรฉกถุงทองไป `{lost:,}` ทอง! (เหลือ `{left:,}`){theft_note}", view=self)
         except Exception as e:
             print(f"[ERROR] [MUGGING] แก้ข้อความตอนหมดเวลาไม่ได้: {e}")
 
@@ -2100,6 +2121,7 @@ class MuggingEventView(ActionView):
         else:
             player_model.update_player_field(self.user_id, "cash", 0)
             msg = f"⚔️💀 **เงินถ่วงแข้งขาจนสู้ไม่ไหว...** โจรกวาดเงินติดตัวไปหมด `{cash:,}` ทอง!"
+        msg += apply_item_theft(self.user_id)
         print(f"[LOG] [MUGGING] ⚔️ {interaction.user.display_name} สู้โจร (ชนะ {win_pct}% ทอยได้ {roll}) → {'ชนะ' if roll <= win_pct else 'แพ้'}")
         await interaction.edit_original_response(
             content=f"{msg}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
@@ -2110,9 +2132,9 @@ class MuggingEventView(ActionView):
         await interaction.response.defer()
         self.resolved = True
         self.stop()
-        lost, left = self._flee()
+        lost, left, theft_note = self._flee()
         await interaction.edit_original_response(
-            content=f"🏃💨 คุณโยนถุงทองสกัดโจรแล้ววิ่งสุดชีวิต — เสีย `{lost:,}` ทอง (เหลือ `{left:,}`)\n"
+            content=f"🏃💨 คุณโยนถุงทองสกัดโจรแล้ววิ่งสุดชีวิต — เสีย `{lost:,}` ทอง (เหลือ `{left:,}`){theft_note}\n"
                     f"----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
             view=AdventureView(author_id=self.user_id))
 
@@ -2997,11 +3019,13 @@ class AdventureView(ActionView):
             left = robbery.bank_rob_left(bank)
             lost = bank - left
             player_model.update_player_field(user_id, "bank", left)
+            # ทอยฉกของด้วยความรวยก่อนโดนปล้น (player ยังเป็นค่าก่อนหักธนาคาร)
+            theft_note = apply_item_theft(user_id, player)
             print(f"[LOG] [ROBBERY] 🏦 {interaction.user.display_name} โดนปล้นธนาคาร -{lost:,} ทอง (เหลือ {left:,})")
             next_view = AdventureView(author_id=user_id)
             sent_msg = await interaction.followup.send(
                 content=(f"🏦💥 **โจรปล้นธนาคาร!** แก๊งโจรมือโปรเจาะตู้นิรภัยสาขาที่คุณฝากเงินไว้!\n"
-                         f"เงินฝากหายไป `{lost:,}` ทอง — เหลือในบัญชี `{left:,}` ทอง\n"
+                         f"เงินฝากหายไป `{lost:,}` ทอง — เหลือในบัญชี `{left:,}` ทอง{theft_note}\n"
                          f"*(กันได้ด้วย 🪪 บัตรประกัน — หาซื้อที่ร้านค้าประจำหมู่บ้าน)*\n"
                          f"----------------------------------------\nคุณต้องการไปต่อหรือไม่?"),
                 view=next_view, wait=True, **file_kwargs(event_image("bank_robbery", cur_continent)))

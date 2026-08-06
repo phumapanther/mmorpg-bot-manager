@@ -2,7 +2,7 @@ import discord
 from collections import Counter
 
 import bot.models.player_model as player_model
-from bot import config_loader
+from bot import config_loader, gold_bars
 from bot.cogs.player_commands import (apply_item_effect, bank_action, build_bag_embed, item_use_file,
                                       build_bank_embed, build_bestiary_embed, build_codex_embed,
                                       build_top_embed, craft_for, craftable_now, drop_item_for,
@@ -434,6 +434,54 @@ class BankActionView(discord.ui.View):
     @discord.ui.button(label="🤝 โอน", style=discord.ButtonStyle.secondary)
     async def transfer_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(BankAmountModal("transfer"))
+
+    @discord.ui.button(label="🧈 ทองคำแท่ง", style=discord.ButtonStyle.secondary)
+    async def gold_bar_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """แลกเหรียญ↔ทองคำแท่ง (spec 2026-08-06) — ตัด/เข้าเงินธนาคาร ค่าธรรมเนียม flat"""
+        pct = gold_bars.fee_pct()
+        lines = [f"🧈 **แลกทองคำแท่งที่ธนาคาร** (ค่าธรรมเนียม {pct}% ทั้งซื้อและขายคืน)",
+                 "ทองคำแท่งเป็นไอเทมในกระเป๋า ขายที่ร้านหมู่บ้านก็ได้แต่โดนหักแพงกว่า — ระวังโจรฉกของแพง!"]
+        for iid, face in gold_bars.bar_items().items():
+            name = config_loader.get_item_config(iid).get("name", iid)
+            lines.append(f"• {name} — ซื้อ `{face + face * pct // 100:,}` / ขายคืน `{face - face * pct // 100:,}` ทอง")
+        await interaction.response.send_message("\n".join(lines),
+                                                view=GoldBarView(interaction.user.id), ephemeral=True)
+
+
+class GoldBarSellSelect(discord.ui.Select):
+    """เลือกขายทองคำแท่งจากกระเป๋าคืนธนาคาร"""
+    def __init__(self, inv_array):
+        counts = Counter(i for i in inv_array if i in gold_bars.bar_items())
+        options = [discord.SelectOption(
+            label=f"{config_loader.get_item_config(iid).get('name', iid)} x{n}", value=iid)
+            for iid, n in list(counts.items())[:25]]
+        super().__init__(placeholder="💰 ขายทองคำแท่งคืนธนาคาร...", options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        _, msg = gold_bars.sell_bar(interaction.user.id, self.values[0])
+        await interaction.response.edit_message(content=msg, view=GoldBarView(interaction.user.id))
+
+
+class GoldBarView(discord.ui.View):
+    """ปุ่มซื้อแท่ง 4 ขนาด + เมนูขายคืน — ephemeral เห็นคนเดียว สร้างใหม่ทุกครั้งให้ยอดสดเสมอ"""
+    def __init__(self, user_id):
+        super().__init__(timeout=120)
+        self.user_id = user_id
+        for iid, face in gold_bars.bar_items().items():
+            label = f"ซื้อ {face // 1_000_000}M" if face >= 1_000_000 else f"ซื้อ {face:,}"
+            btn = discord.ui.Button(label=f"🧈 {label}", style=discord.ButtonStyle.primary)
+            btn.callback = self._make_buy(iid)
+            self.add_item(btn)
+        player = player_model.get_player(user_id)
+        inv = player_model.load_inventory((player or {}).get("inventory", ""))
+        if any(i in gold_bars.bar_items() for i in inv):
+            self.add_item(GoldBarSellSelect(inv))
+
+    def _make_buy(self, item_id):
+        async def _buy(interaction: discord.Interaction):
+            _, msg = gold_bars.buy_bar(interaction.user.id, item_id)
+            await interaction.response.edit_message(content=msg, view=GoldBarView(interaction.user.id))
+        return _buy
 
 
 class ItemUseSelect(discord.ui.Select):
