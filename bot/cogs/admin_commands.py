@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from bot.models import player_model  # ดึงโมเดลจัดการฐานข้อมูลมาใช้งาน
 from bot.utils import has_permission, allowed_channel, not_arrested, is_main_server
-from bot import config_loader
+from bot import config_loader, weekly_tax
 import sqlite3
 import json  
 import random
@@ -73,6 +73,40 @@ class AdminCommands(commands.Cog):
             await ctx.send(f"⚡ **[Admin]** ได้เพิ่มทองให้กับ **{name}** จำนวน `+ {amount:,}` ทอง\n🪙 (เงินสดปัจจุบัน: `{new_cash:,}` ทอง) 📈💸")
         else:
             await ctx.send(f"⚡ **[Admin]** ได้หักทองของ **{name}** ออกจำนวน `- {abs(amount):,}` ทอง\n🪙 (เงินสดปัจจุบัน: `{new_cash:,}` ทอง) 📉💸")
+
+    # ─── 🏛️ คลังกลางจากภาษีรวยรายสัปดาห์ (!treasury / !treasury_give) — spec 2026-08-06 ───
+    @has_permission("admin")
+    @not_arrested()
+    @commands.command(name="treasury")
+    async def treasury(self, ctx):
+        embed = discord.Embed(title="🏛️ คลังกลาง",
+                              description=f"ยอดคงคลัง: `{weekly_tax.balance():,}` ทอง", color=0x8e44ad)
+        rows = weekly_tax.recent_log(10)
+        if rows:
+            lines = []
+            for week, uid, amount, note, _ts in rows:
+                who = f"<@{uid}>" if uid else "-"
+                sign = "➕" if amount >= 0 else "➖"
+                lines.append(f"{sign} `{abs(amount):,}` ทอง — {who} {note or ''} *({week or '-'})*")
+            embed.add_field(name="รายการล่าสุด", value="\n".join(lines), inline=False)
+        embed.set_footer(text="แจกจากคลัง: !treasury_give @คน จำนวน — เปิด/ปิดภาษีได้ในพาแนล (Balance)")
+        await ctx.send(embed=embed)
+
+    @has_permission("admin")
+    @not_arrested()
+    @commands.command(name="treasury_give")
+    async def treasury_give(self, ctx, target: discord.User = None, amount: int = None):
+        if target is None or amount is None or amount <= 0:
+            return await ctx.send("❓ **วิธีใช้งาน:** `!treasury_give [@ชื่อผู้เล่น] [จำนวน]` — แจกทองจากคลังกลางเข้าธนาคารผู้เล่น")
+        if amount > weekly_tax.balance():
+            return await ctx.send(f"❌ เงินคลังไม่พอ! (คงคลัง `{weekly_tax.balance():,}` ทอง)")
+        player = player_model.get_player(target.id)
+        if not player:
+            return await ctx.send("❌ ไม่พบข้อมูลตัวละครของผู้เล่นคนนี้")
+        player_model.update_player_field(target.id, "bank", player.get("bank", 0) + amount)
+        weekly_tax.add(-amount, user_id=target.id, note=f"แอดมิน {ctx.author.display_name} แจกจากคลัง")
+        await ctx.send(f"🏛️ **[Admin]** แจก `{amount:,}` ทองจากคลังกลางเข้าธนาคารของ **{target.display_name}** "
+                       f"(คงคลังเหลือ `{weekly_tax.balance():,}` ทอง)")
 
     # ─── 🩸 2. คำสั่งเซ็ตเลือดปัจจุบัน (!set_hp) ───
     @has_permission("admin")

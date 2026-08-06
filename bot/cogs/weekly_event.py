@@ -10,7 +10,7 @@ import discord
 from discord.ext import commands, tasks
 
 import bot.models.player_model as player_model
-from bot import config_loader, game_modifiers
+from bot import config_loader, game_modifiers, weekly_tax
 from bot.event_images import event_image, file_kwargs
 
 
@@ -84,6 +84,20 @@ def build_ranking_embed(week, paid):
     return embed
 
 
+def build_tax_embed(week, taxed, treasury_balance):
+    total = sum(t[4] for t in taxed)
+    embed = discord.Embed(
+        title="🏛️ กรมสรรพากรหลวงเก็บภาษีประจำสัปดาห์!",
+        description=(f"สัปดาห์ **{week}** — ผู้มั่งคั่งที่ถือทรัพย์สินเกินครึ่งเซิร์ฟถูกเรียกเก็บภาษี\n"
+                     f"ยอดเก็บรวม `{total:,}` ทอง เข้าคลังกลาง (คงคลัง `{treasury_balance:,}` ทอง)"),
+        color=0x8e44ad)
+    for uid, wealth, share, pct, take in taxed[:10]:
+        embed.add_field(name=f"💸 อัตราภาษี {pct}%", inline=False,
+                        value=f"<@{uid}> ถือ {share:.1f}% ของเซิร์ฟ — จ่าย `{take:,}` ทอง")
+    embed.set_footer(text="เก็บอัตโนมัติทุกสัปดาห์ — แอดมินเปิด/ปิดและปรับอัตราได้ในพาแนล (แท็บ Balance)")
+    return embed
+
+
 def build_announce_embed(theme):
     embed = discord.Embed(
         title=f"🎪 อีเวนต์ประจำสัปดาห์: {theme['label']}",
@@ -108,6 +122,7 @@ class WeeklyEvent(commands.Cog):
     @tasks.loop(minutes=30)
     async def check_week(self):
         await self._payout_last_week()
+        await self._collect_weekly_tax()
         try:
             theme = game_modifiers.get_weekly_theme()
             if not theme:
@@ -150,6 +165,27 @@ class WeeklyEvent(commands.Cog):
                 await channel.send(embed=build_ranking_embed(last, paid))
         except Exception as e:
             print(f"⚠️ [WeeklyRank] จ่ายรางวัลรายสัปดาห์พัง: {e}")
+
+    async def _collect_weekly_tax(self):
+        """🏛️ ภาษีรวยรายสัปดาห์ (spec 2026-08-06) — เก็บครั้งเดียวต่อสัปดาห์"""
+        try:
+            week = current_week_key()
+            if get_state("taxed_week") == week:
+                return
+            if not weekly_tax.enabled():
+                return    # ปิดอยู่ = ยังไม่จดสัปดาห์นี้ — เปิดกลางสัปดาห์แล้วรอบนี้เก็บทันที
+            taxed = weekly_tax.collect(week)
+            set_state("taxed_week", week)
+            if not taxed:
+                return
+            print(f"🏛️ [WeeklyTax] สัปดาห์ {week} เก็บภาษี {len(taxed)} คน "
+                  f"รวม {sum(t[4] for t in taxed):,} ทอง")
+            channel_id = config_loader.get_channel_id("weekly_event")
+            channel = self.bot.get_channel(channel_id) if channel_id else None
+            if channel:
+                await channel.send(embed=build_tax_embed(week, taxed, weekly_tax.balance()))
+        except Exception as e:
+            print(f"⚠️ [WeeklyTax] เก็บภาษีพัง: {e}")
 
     @check_week.before_loop
     async def before_check(self):

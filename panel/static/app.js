@@ -1437,6 +1437,10 @@ const BAL_FIELDS = {
     ["village.rest_cost_per_level", "ค่าพักแรมเพิ่มต่อเลเวล (0 = คิดเท่ากันทุกเลเวล)"],
     ["village.heal_fee", "ค่ารักษาของนักบวช (!heal)"],
     ["death.force_respawn_fee", "(ไม่ใช้แล้ว — ค่าชุบใช้ตารางตามเลเวล)"],
+    ["weekly_tax.enabled", "🏛️ ภาษีรวยรายสัปดาห์ (1=เปิด 0=ปิด)"],
+    ["weekly_tax.share_90_pct", "🏛️ ถือ ≥90% ของเซิร์ฟ: หักภาษี %"],
+    ["weekly_tax.share_75_pct", "🏛️ ถือ ≥75%: หักภาษี %"],
+    ["weekly_tax.share_50_pct", "🏛️ ถือ ≥50%: หักภาษี %"],
   ],
   balExtra: [
     ["new_player.cash", "ผู้เล่นใหม่: ทองเริ่มต้น"],
