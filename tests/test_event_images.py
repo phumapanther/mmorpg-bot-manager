@@ -1,6 +1,15 @@
 # tests/test_event_images.py
 """เทสโมดูลภาพอีเวนต์ — โฟกัส logic หาไฟล์/fallback (ไม่แตะเน็ต ไม่แตะ Discord จริง)"""
+import pytest
+
 import bot.event_images as ei
+from bot import config_loader
+
+
+@pytest.fixture(autouse=True)
+def _force_images_enabled(monkeypatch):
+    """เทสต้องไม่ขึ้นกับ config เครื่องจริง — เคยพังเพราะแอดมินกดปิดระบบภาพในพาแนล"""
+    monkeypatch.setattr(config_loader, "get_config", lambda: {"event_images": {"enabled": True}})
 
 
 def test_monster_slug():
