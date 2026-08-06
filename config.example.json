@@ -984,6 +984,36 @@
         "type": "use",
         "purchasable": true,
         "effect": "artifact_remove"
+      },
+      "69": {
+        "name": "🪪 บัตรประกันหลักล้าน",
+        "buy": 100000,
+        "sell": 1,
+        "type": "use",
+        "purchasable": true,
+        "effect": "apply_status",
+        "effect_value": "insurance_1m",
+        "effect_amount": 10
+      },
+      "70": {
+        "name": "💳 บัตรประกันหลัก 10 ล้าน",
+        "buy": 1000000,
+        "sell": 1,
+        "type": "use",
+        "purchasable": true,
+        "effect": "apply_status",
+        "effect_value": "insurance_10m",
+        "effect_amount": 50
+      },
+      "71": {
+        "name": "👑 บัตรประกันพันล้าน",
+        "buy": 100000000,
+        "sell": 1,
+        "type": "use",
+        "purchasable": true,
+        "effect": "apply_status",
+        "effect_value": "insurance_1b",
+        "effect_amount": 100
       }
     },
     "armor_stats": {
@@ -1514,6 +1544,21 @@
         "label": "🌋 คมอัคนีเพลิง",
         "turns": 1,
         "unit": "ไฟต์"
+      },
+      "insurance_1m": {
+        "label": "🪪 ประกันหลักล้าน",
+        "turns": 10,
+        "unit": "ก้าว"
+      },
+      "insurance_10m": {
+        "label": "💳 ประกันหลัก 10 ล้าน",
+        "turns": 50,
+        "unit": "ก้าว"
+      },
+      "insurance_1b": {
+        "label": "👑 ประกันพันล้าน",
+        "turns": 100,
+        "unit": "ก้าว"
       },
       "monster_trap": {
         "label": "🪤 กับดักมอนสเตอร์",

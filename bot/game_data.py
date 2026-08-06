@@ -473,6 +473,19 @@ STATUS_EFFECTS = {
         "label": "🌋 คมอัคนีเพลิง", "tick": "fight", "default_turns": 1,
         "player_dmg_mult": 1.2,              # อาบคมอาวุธด้วยหินภูเขาไฟ
     },
+    # ── บัตรประกันกันโจรปล้น (spec 2026-08-06) — คุ้มครองเมื่อเงินรวม (ติดตัว+ธนาคาร) < insurance_cap ──
+    "insurance_1m": {
+        "label": "🪪 ประกันหลักล้าน", "tick": "step", "default_turns": 10,
+        "insurance_cap": 10_000_000,         # เงินรวมเกินเพดาน = โจรไม่สนบัตร
+    },
+    "insurance_10m": {
+        "label": "💳 ประกันหลัก 10 ล้าน", "tick": "step", "default_turns": 50,
+        "insurance_cap": 100_000_000,
+    },
+    "insurance_1b": {
+        "label": "👑 ประกันพันล้าน", "tick": "step", "default_turns": 100,
+        "insurance_cap": None,               # ไม่จำกัดความรวย
+    },
     # ── อาร์ติแฟกต์ (สถานะถาวร ใส่ได้ตามจำนวนช่องที่เจาะไว้ — ถอดออกได้ด้วยชุดถอด) ──
     "art_emp_gauntlet": {
         "label": "🧤 ถุงมือกันคลื่น EMP", "tick": "step", "default_turns": 1,
