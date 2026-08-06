@@ -21,6 +21,7 @@
       <p>1️⃣ ล็อกอินเว็บด้วยไอดี Discord (ปุ่มด้านบน)<br>
          2️⃣ ใส่จำนวนเงิน → สแกน QR PromptPay โอนได้เลย<br>
          3️⃣ แอดมินตรวจยอด → ทองเข้าธนาคารในเกมอัตโนมัติ</p>
+      <p id="rateNoteLogin" style="margin-top:8px"></p>
     </div>
   </div>
 
@@ -56,6 +57,25 @@
   api("GET", "/api/web/me/session")
     .then(() => document.getElementById("formBox").classList.remove("hidden"))
     .catch(() => document.getElementById("needLogin").classList.remove("hidden"));
+
+  // เรทแลกทอง: ขึ้นก่อนพิมพ์เสมอ (เห็นตั้งแต่ยังไม่ล็อกอิน) + คำนวณสดตามจำนวนที่พิมพ์
+  api("GET", "/api/web/topup/rate").then(r => {
+    if (!(r.rate > 0)) return;
+    const fmt = n => Number(n).toLocaleString();
+    const base = `💱 อัตราเติม: <b>1 บาท ได้ 🪙 ${fmt(r.rate)} ทอง</b>` +
+      (r.min_amount ? ` (ขั้นต่ำ ${fmt(r.min_amount)}${r.max_amount ? ` – สูงสุด ${fmt(r.max_amount)}` : ""} บาท)` : "");
+    const loginNote = document.getElementById("rateNoteLogin");
+    if (loginNote) loginNote.innerHTML = base;
+    const note = document.getElementById("rateNote");
+    const amount = document.getElementById("amount");
+    amount.placeholder = `เช่น 100 (ได้ ${fmt(Math.floor(100 * r.rate))} ทอง)`;
+    const update = () => {
+      const v = parseFloat(amount.value) || 0;
+      note.innerHTML = v > 0 ? `เติม ${fmt(v)} บาท ได้ <b>🪙 ${fmt(Math.floor(v * r.rate))} ทอง</b>` : base;
+    };
+    update();
+    amount.addEventListener("input", update);
+  }).catch(() => {});
 
   let topupId = null;
 
