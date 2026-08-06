@@ -13,6 +13,39 @@ from bot.controller.bot_brain import BlackjackBot
 from bot.controller import db_manager
 
 # ==========================================
+# 😈 ระบบเจ้ามือตุกติก (แพทเทิร์นเดียวกับไฮโล/สล็อตใน casino.py)
+# เดิมพันยิ่งสูง โอกาสบอทล็อคไพ่ชนะยิ่งเยอะ
+# ==========================================
+def rig_chance_for(bet):
+    if bet >= 100_000:
+        return 0.90  # หลักแสนขึ้นไป
+    if bet >= 10_000:
+        return 0.70  # หลักหมื่น
+    if bet >= 1_000:
+        return 0.60  # หลักพัน
+    return 0.0       # ต่ำกว่าพัน = เรทปกติ
+
+def stack_bot_hand(deck, bot_hand, p_score):
+    """ล็อคไพ่: บอทเลือกใบจากกองเองให้แต้มชนะผู้เล่น (ผู้เล่นได้ 24 พอดี = ล็อคเสมอ)
+    คืนลิสต์ไพ่ที่จั่วไปแสดงใน log ของเกม"""
+    drawn = []
+    target = min(p_score + 1, 24)  # แต้มต่ำสุดที่ไม่แพ้
+    while sum(c[1] for c in bot_hand) < target:
+        b_score = sum(c[1] for c in bot_hand)
+        need, room = target - b_score, 24 - b_score
+        # หาไพ่ใบเดียวที่พาเข้าช่วงชนะโดยไม่แตก
+        idx = next((i for i, c in enumerate(deck) if need <= c[1] <= room), None)
+        if idx is None:
+            fits = [i for i, c in enumerate(deck) if c[1] <= room]
+            if not fits:
+                break  # กองไพ่ไม่เหลือใบที่ไม่ทำให้แตก (แทบเป็นไปไม่ได้)
+            idx = max(fits, key=lambda i: deck[i][1])
+        card = deck.pop(idx)
+        bot_hand.append(card)
+        drawn.append(card)
+    return drawn
+
+# ==========================================
 # 🃏 UI View สำหรับเกม Blackjack 24
 # ==========================================
 class BJ24View(discord.ui.View):
@@ -25,6 +58,8 @@ class BJ24View(discord.ui.View):
         self.deck = self.create_deck()
         self.player_hand = [self.deck.pop(), self.deck.pop()]
         self.bot_hand = [self.deck.pop(), self.deck.pop()]
+        # 😈 สุ่มตั้งแต่เปิดโต๊ะว่าตานี้เจ้ามือตุกติกไหม ตามขนาดเงินเดิมพัน
+        self.is_rigged = random.random() < rig_chance_for(bet_amount)
         print(f"[LOG] [BJ24_START] 🃏 เปิดโต๊ะแบล็คแจ็ค 24 ให้ {user.display_name} | เดิมพัน: {bet_amount} ทอง")
         
     def create_deck(self):
@@ -121,26 +156,33 @@ class BJ24View(discord.ui.View):
             
             bot_history = []
             bot_log = ""
-            
-            # 🤖 ตาของบอททำงานด้วย Machine Learning
-            while True:
-                b_score = self.get_score(self.bot_hand)
-                if b_score > 24:
-                    print(f"[LOG] [BJ24_BOT_BUST] 🤖 แต้มบอทเกิน 24 ({b_score}) บอทพัง!")
-                    break
-                    
-                action = self.brain.get_action(b_score, self.player_hand[0][1])
-                bot_history.append((b_score, action))
-                
-                if action == "!hit":
-                    drawn_card = self.deck.pop()
-                    self.bot_hand.append(drawn_card)
-                    bot_log += f"🤖 บอทตัดสินใจจั่วได้ไพ่ [{drawn_card[0]}]\n"
-                    print(f"[LOG] [BJ24_BOT_THINK] 🤖 สมองกลสั่ง: จั่วไพ่เพิ่ม (!hit) -> ได้ {drawn_card[0]}")
-                else:
-                    bot_log += "🤖 บอทตัดสินใจพอแค่นี้!\n"
-                    print(f"[LOG] [BJ24_BOT_THINK] 🤖 สมองกลสั่ง: หยุดไพ่ (!c) ที่แต้ม {b_score}")
-                    break
+
+            if self.is_rigged:
+                # 😈 ตุกติก: บอทเลือกไพ่จากกองเองให้ชนะ — ข้าม ML และไม่สอนสมองตานี้ (bot_history ว่าง)
+                print(f"[LOG] [BJ24_RIG] 😈 ระบบตุกติกทำงาน! บอทล็อคไพ่เอาชนะ {self.user.display_name} (เดิมพัน {self.bet})")
+                for card in stack_bot_hand(self.deck, self.bot_hand, p_score):
+                    bot_log += f"🤖 บอทตัดสินใจจั่วได้ไพ่ [{card[0]}]\n"
+                bot_log += "🤖 บอทตัดสินใจพอแค่นี้!\n"
+            else:
+                # 🤖 ตาของบอททำงานด้วย Machine Learning
+                while True:
+                    b_score = self.get_score(self.bot_hand)
+                    if b_score > 24:
+                        print(f"[LOG] [BJ24_BOT_BUST] 🤖 แต้มบอทเกิน 24 ({b_score}) บอทพัง!")
+                        break
+
+                    action = self.brain.get_action(b_score, self.player_hand[0][1])
+                    bot_history.append((b_score, action))
+
+                    if action == "!hit":
+                        drawn_card = self.deck.pop()
+                        self.bot_hand.append(drawn_card)
+                        bot_log += f"🤖 บอทตัดสินใจจั่วได้ไพ่ [{drawn_card[0]}]\n"
+                        print(f"[LOG] [BJ24_BOT_THINK] 🤖 สมองกลสั่ง: จั่วไพ่เพิ่ม (!hit) -> ได้ {drawn_card[0]}")
+                    else:
+                        bot_log += "🤖 บอทตัดสินใจพอแค่นี้!\n"
+                        print(f"[LOG] [BJ24_BOT_THINK] 🤖 สมองกลสั่ง: หยุดไพ่ (!c) ที่แต้ม {b_score}")
+                        break
 
             b_score = self.get_score(self.bot_hand)
             winnings = 0
