@@ -150,8 +150,8 @@ class KeygenApp:
     def open_website(self):
         """เปิดเว็บไซต์เกมในเบราว์เซอร์ — เปิดผ่าน localhost เสมอ (เว็บรันบนเครื่องนี้เอง)
         ลิงก์ tunnel มีไว้แจกผู้เล่น — DNS ของ tunnel ใหม่ใช้เวลาแพร่ 1-5 นาที เปิดเองมักเจอ NXDOMAIN"""
-        import webbrowser
-        webbrowser.open(f"http://localhost:{PORT}")
+        from bot.open_browser import open_url
+        open_url(f"http://localhost:{PORT}")
 
     def copy_tunnel_url(self):
         url = self.tunnel_var.get()
@@ -219,7 +219,8 @@ class KeygenApp:
     def launch_bot_manager(self):
         """เปิด launcher.py (Panel ของบอทตัวเอง) เป็นโปรเซสแยก — ปิดหน้าต่าง keygen บอทก็ยังรันต่อ"""
         import json
-        import webbrowser
+
+        from bot.open_browser import open_url
 
         try:
             with open(os.path.join(PROJECT_ROOT, "config.json"), encoding="utf-8") as f:
@@ -228,7 +229,7 @@ class KeygenApp:
             port = 8770
 
         if self.launcher_proc and self.launcher_proc.poll() is None:
-            webbrowser.open(f"http://localhost:{port}")  # รันอยู่แล้ว — เปิดหน้า Panel ให้แทน
+            open_url(f"http://localhost:{port}")  # รันอยู่แล้ว — เปิดหน้า Panel ให้แทน
             return
 
         # ถ้าตัวเราถูกเปิดด้วย pythonw (ไม่มี console) ให้สลับไป python.exe เพื่อให้ launcher

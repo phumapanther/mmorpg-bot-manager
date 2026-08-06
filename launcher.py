@@ -1,5 +1,7 @@
-import sys, threading, time, webbrowser
+import sys, threading, time
 import uvicorn
+
+from bot.open_browser import open_url
 
 def run_bot():
     from bot import main as bot_main
@@ -11,7 +13,7 @@ def run_panel():
     config_store.ensure_exists()
     port = config_store.load().get("panel_port", 8770)
     threading.Thread(
-        target=lambda: (time.sleep(1.5), webbrowser.open(f"http://localhost:{port}")),
+        target=lambda: (time.sleep(1.5), open_url(f"http://localhost:{port}")),
         daemon=True).start()
     uvicorn.run("panel.server:app", host="127.0.0.1", port=port, log_level="warning")
 
