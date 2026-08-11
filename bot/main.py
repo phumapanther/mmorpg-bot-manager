@@ -1,3 +1,4 @@
+import aiohttp
 import discord
 from discord.ext import commands
 import asyncio
@@ -186,6 +187,42 @@ def create_bot(bot_type: str):
 
     return custom_start
 
+RETRY_DELAY_START = 15      # วินาที — เน็ตหลุดตอนล็อกอิน รอเท่านี้แล้วลองใหม่
+RETRY_DELAY_MAX = 300       # เพดานถอยหลัง 5 นาที (เน็ตล่มยาวก็ไม่สแปม log)
+
+
+async def run_with_retry(bot_type, token, label):
+    """เปิดบอทและลองใหม่เองเมื่อเน็ต/DNS ล่มชั่วคราว
+
+    เคสจริง (2026-08-10): DNS resolve discord.com ไม่ได้ตอนสตาร์ท → ทั้งโปรเซสตายคาที่
+    ต้องมานั่งกดเปิดใหม่เอง ทั้งที่เน็ตกลับมาเองใน 1 นาที
+
+    โทเค็นผิด/ไม่ได้เปิด intents = หยุดเลย ไม่ต้องลองใหม่ (ต้องให้คนไปแก้ ลองกี่รอบก็ไม่ติด)
+    ต้องเรียก create_bot ใหม่ทุกรอบ — discord.py ปิด Client แล้วเปิดตัวเดิมซ้ำไม่ได้
+    """
+    delay = RETRY_DELAY_START
+    while True:
+        try:
+            await create_bot(bot_type)(token)
+            return                              # ปิดปกติ (เช่นสั่งปิดจาก Panel)
+        except discord.LoginFailure:
+            print(f"❌ [{label}] เปิดไม่ได้: โทเค็นไม่ถูกต้อง (แก้ที่ Panel แล้วเปิดใหม่)")
+            return
+        except discord.PrivilegedIntentsRequired:
+            print(f"❌ [{label}] เปิดไม่ได้: ยังไม่ได้เปิด Privileged Intents ให้บอทตัวนี้!\n"
+                  "   → Discord Developer Portal → เลือกแอปบอท → Bot →\n"
+                  "     เปิด MESSAGE CONTENT / SERVER MEMBERS / PRESENCE ทั้ง 3 อัน แล้วรีสตาร์ท")
+            return
+        except (aiohttp.ClientError, OSError) as e:
+            # เน็ตหลุด/DNS ล่ม/เราเตอร์รีบูต — รอแล้วลองใหม่ ไม่ต้องให้คนมากดเอง
+            print(f"⚠️ [{label}] ต่อ Discord ไม่ได้ ({type(e).__name__}: {e}) — ลองใหม่ในอีก {delay} วินาที")
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, RETRY_DELAY_MAX)
+        except Exception as e:
+            print(f"❌ [{label}] เปิดไม่ได้: {type(e).__name__}: {e}")
+            return
+
+
 # 🚀 3. ฟังก์ชันควบคุมการจุดระเบิดเปิดบอ
 async def main():
     if not TOKEN_GAME:
@@ -201,9 +238,8 @@ async def main():
 
     print("⏳ กำลังเตรียมการเปิดระบบในโหมดบายพาส (บอทแรกตัวเดียว)...")
 
-    # สั่งสร้างตัวรันบอทเกม (Arthur)
-    run_game_bot = create_bot("game")
-    runners = [run_game_bot(TOKEN_GAME)]
+    # สั่งสร้างตัวรันบอทเกม (Arthur) — เน็ตหลุดตอนเปิด ลองใหม่เองจนติด
+    runners = [run_with_retry("game", TOKEN_GAME, "GAME")]
 
     # 🌍 [P8] บอทแจกสำหรับเซิร์ฟรอง — รันคู่กันถ้าตั้ง guest_bot_token ไว้ (ไม่ตั้ง = ข้าม)
     guest_token = config_loader.get_guest_token()
@@ -216,20 +252,8 @@ async def main():
     if guest_token:
         print("🌍 กำลังเปิดบอทแจก (โหมดเซิร์ฟรอง) คู่ไปด้วย...")
 
-        async def run_guest():
-            """บอทแจกล้มต้องไม่ลากบอทหลักตายไปด้วย — จับ error ไว้ที่นี่ พร้อมบอกวิธีแก้"""
-            try:
-                await create_bot("guest")(guest_token)
-            except discord.PrivilegedIntentsRequired:
-                print("❌ [Guest Bot] เปิดไม่ได้: ยังไม่ได้เปิด Privileged Intents ให้บอทตัวนี้!\n"
-                      "   → ไปที่ Discord Developer Portal → เลือกแอปบอทแจก → Bot →\n"
-                      "     เปิด MESSAGE CONTENT INTENT / SERVER MEMBERS INTENT / PRESENCE INTENT ทั้ง 3 อัน แล้วรีสตาร์ท")
-            except discord.LoginFailure:
-                print("❌ [Guest Bot] เปิดไม่ได้: โทเค็นบอทแจกไม่ถูกต้อง (เช็คช่อง Guest Bot Token ใน Panel)")
-            except Exception as e:
-                print(f"❌ [Guest Bot] เปิดไม่ได้: {type(e).__name__}: {e}")
-
-        runners.append(run_guest())
+        # บอทแจกล้มต้องไม่ลากบอทหลักตายไปด้วย — run_with_retry จับ error ให้ครบแล้ว
+        runners.append(run_with_retry("guest", guest_token, "Guest Bot"))
 
     # 🔥 [สั่งรันเฉพาะบอทแรก] บายพาสตัวที่ 2 และ 3 ออกไปก่อนชั่วคราว
     await asyncio.gather(
