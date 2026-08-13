@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>เล่นเกม — Fragment Rift</title>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/play.css">
+</head>
+<body>
+<div class="nav-wrap"><header id="navbar"></header></div>
+
+<section class="block"><div class="container">
+  <h2 class="sec">🎮 เล่นเกม</h2>
+  <p class="sec-sub">เล่นได้ทั้งใน Discord และบนเว็บ — ไอดีเดียว ข้อมูลชุดเดียว สลับไปมาได้ทุกเมื่อ</p>
+
+  <div id="needLogin" class="hidden">
+    <p class="notice">ต้องล็อกอินก่อนเล่น — <a href="/login">ล็อกอินด้วยไอดี Discord</a></p>
+  </div>
+
+  <div class="play-shell hidden" id="shell">
+
+    <!-- ── แถบตัวละคร ── -->
+    <div class="pbar">
+      <div class="avatar"><canvas id="pfp" width="56" height="72"></canvas></div>
+      <div class="idbox">
+        <div class="nm"><b id="pName">—</b><span class="lv" id="pLv">Lv —</span></div>
+        <div class="sub" id="pSub">กำลังโหลดข้อมูลตัวละคร...</div>
+      </div>
+      <div class="money">
+        <span class="pill"><i class="c-gold"></i><span id="pCash">—</span></span>
+        <span class="pill"><i class="c-bank"></i><span id="pBank">—</span></span>
+      </div>
+    </div>
+
+    <!-- ══ หน้าเมนูหลัก ══ -->
+    <div class="g-panelview on" id="v-home">
+
+      <div class="g-sec"><h3>ออกผจญภัย</h3><div class="g-grid">
+        <button class="g-tile hot soon" data-go="adventure"><span class="tag">เฟส 5</span>
+          <span class="ic">🧭</span>เริ่มออกเดินทาง<span class="sub">เดิน สู้มอน เก็บของ</span></button>
+        <button class="g-tile soon"><span class="tag">เฟส 5</span>
+          <span class="ic">⏩</span>เดินต่อ ×5<span class="sub">เดินรวดจนเจอเหตุการณ์</span></button>
+        <button class="g-tile soon"><span class="tag">เฟส 5</span>
+          <span class="ic">🗺️</span>สรุปทุกทวีป<span class="sub">9 ทวีป 7 ธาตุ</span></button>
+      </div></div>
+
+      <div class="g-sec"><h3>ตัวละคร</h3><div class="g-grid">
+        <button class="g-tile soon"><span class="tag">เฟส 1</span>
+          <span class="ic">🪪</span>โปรไฟล์<span class="sub">ค่าสถานะ อุปกรณ์สวมใส่</span></button>
+        <button class="g-tile soon"><span class="tag">เฟส 1</span>
+          <span class="ic">🎒</span>กระเป๋า<span class="sub">ดูของ ใช้ไอเทม</span></button>
+        <button class="g-tile soon"><span class="tag">เฟส 2</span>
+          <span class="ic">🔨</span>คราฟของ<span class="sub">รวมวัสดุเป็นของใหม่</span></button>
+        <button class="g-tile soon"><span class="tag">เฟส 2</span>
+          <span class="ic">🧱</span>ขายวัสดุทั้งหมด<span class="sub">เทขายของขยะรวดเดียว</span></button>
+        <button class="g-tile soon"><span class="tag">ภายหลัง</span>
+          <span class="ic">🐾</span>สัตว์เลี้ยง<span class="sub">เลือกตัวที่พาไปด้วย</span></button>
+        <button class="g-tile soon"><span class="tag">ภายหลัง</span>
+          <span class="ic">💍</span>คู่หู<span class="sub">ระบบแต่งงาน</span></button>
+      </div></div>
+
+      <div class="g-sec"><h3>เศรษฐกิจ</h3><div class="g-grid">
+        <button class="g-tile soon"><span class="tag">เฟส 2</span>
+          <span class="ic">🏦</span>ธนาคาร<span class="sub">ฝาก ถอน โอน</span></button>
+        <button class="g-tile soon"><span class="tag">เฟส 2</span>
+          <span class="ic">🧈</span>ทองคำแท่ง<span class="sub">แลกเก็บมูลค่า</span></button>
+        <button class="g-tile soon"><span class="tag">เฟส 2</span>
+          <span class="ic">🏪</span>ร้านค้าไอเทม<span class="sub">ซื้อ-ขายของใช้</span></button>
+        <button class="g-tile soon"><span class="tag">ภายหลัง</span>
+          <span class="ic">🛒</span>ตลาดผู้เล่น<span class="sub">ซื้อขายกับเพื่อน</span></button>
+        <a class="g-tile" href="/topup"><span class="ic">💎</span>เติมเกม<span class="sub">พร้อมใช้งาน</span></a>
+      </div></div>
+
+      <div class="g-sec"><h3>ร้านค้ายศ</h3><div class="g-grid">
+        <button class="g-tile" data-go="roleshop"><span class="tag">เฟส 7</span>
+          <span class="ic">👑</span>ร้านขายยศ<span class="sub">ซื้อยศเผ่า/คลาสตรงๆ</span></button>
+        <button class="g-tile" data-go="gacha"><span class="tag">เฟส 7</span>
+          <span class="ic">🎰</span>กาชาสุ่มยศ<span class="sub">เสี่ยงดวงลุ้นยศหายาก</span></button>
+      </div></div>
+
+      <div class="g-sec"><h3>รางวัล</h3><div class="g-grid">
+        <button class="g-tile hot" data-go="rewards"><span class="tag">เฟส 8</span>
+          <span class="ic">🎲</span>ทอยเต๋ารับของ<span class="sub">วันละ 3 ครั้ง</span></button>
+        <button class="g-tile soon"><span class="tag">ภายหลัง</span>
+          <span class="ic">📅</span>ภารกิจวันนี้<span class="sub">เควสรายวัน</span></button>
+        <button class="g-tile soon"><span class="tag">ภายหลัง</span>
+          <span class="ic">🎟️</span>ซีซั่นพาส<span class="sub">รางวัลตามแต้มสะสม</span></button>
+        <button class="g-tile soon"><span class="tag">ภายหลัง</span>
+          <span class="ic">🏅</span>ความสำเร็จ<span class="sub">รับรางวัลที่ทำครบ</span></button>
+        <button class="g-tile soon"><span class="tag">ภายหลัง</span>
+          <span class="ic">⭐</span>สายพรีเมียม<span class="sub">สิทธิพิเศษรายเดือน</span></button>
+      </div></div>
+
+      <div class="g-sec"><h3>คาสิโน</h3><div class="g-grid">
+        <button class="g-tile soon"><span class="tag">เฟส 3</span>
+          <span class="ic">🎰</span>สล็อต<span class="sub">หมุนลุ้นสามช่องตรง</span></button>
+        <button class="g-tile soon"><span class="tag">เฟส 3</span>
+          <span class="ic">🎲</span>ไฮโล<span class="sub">สูง-ต่ำ-สิบเอ็ด</span></button>
+        <button class="g-tile soon"><span class="tag">เฟส 3</span>
+          <span class="ic">🃏</span>แบล็คแจ็ค 24<span class="sub">ดวลกับ AI เจ้ามือ</span></button>
+      </div></div>
+
+      <div class="g-sec"><h3>คู่มือ · สมุดสะสม</h3><div class="g-grid">
+        <button class="g-tile soon"><span class="tag">ภายหลัง</span>
+          <span class="ic">📕</span>สมุดมอน<span class="sub">มอนที่เคยล้ม</span></button>
+        <button class="g-tile soon"><span class="tag">ภายหลัง</span>
+          <span class="ic">🧬</span>สมุดธาตุ<span class="sub">สะสมครบ 7 ธาตุ</span></button>
+        <a class="g-tile" href="/game"><span class="ic">📖</span>คู่มือเกม<span class="sub">พร้อมใช้งาน</span></a>
+        <button class="g-tile soon"><span class="tag">ภายหลัง</span>
+          <span class="ic">🌏</span>ไปต่างโลก<span class="sub">ย้ายเซิร์ฟรอง</span></button>
+      </div></div>
+
+      <p class="g-note"><b>ป้ายเฟสบอกลำดับการเปิดใช้</b> — ปุ่มที่จางยังกดไม่ได้ แต่วางที่ทางไว้ครบแล้ว
+      ทยอยเปิดตามแผนใน <code>docs/superpowers/plans/2026-08-13-web-game-plan.md</code></p>
+    </div>
+
+    <!-- ══ ร้านขายยศ ══ -->
+    <div class="g-panelview" id="v-roleshop">
+      <button class="g-back" data-back>← กลับเมนูหลัก</button>
+      <div class="g-head"><h2>👑 ร้านขายยศ</h2>
+        <p>ซื้อยศเผ่าพันธุ์และคลาสอาชีพด้วยทองในเกม — ยศจะถูกมอบให้ในเซิร์ฟ Discord อัตโนมัติ</p></div>
+      <div class="g-cards" id="roleList"></div>
+      <p class="g-note"><b>โครงหน้าเท่านั้น</b> — ยังไม่เชื่อมข้อมูลจริง (เฟส 7)
+      ของจริงจะดึงรายการยศจาก <code>auto_trade_roles</code> ในคอนฟิก และให้บอทเป็นคนมอบยศ
+      เพราะเว็บแจกยศ Discord เองไม่ได้</p>
+    </div>
+
+    <!-- ══ กาชา ══ -->
+    <div class="g-panelview" id="v-gacha">
+      <button class="g-back" data-back>← กลับเมนูหลัก</button>
+      <div class="g-head"><h2>🎰 กาชาสุ่มยศ</h2>
+        <p>จ่ายทองหนึ่งครั้ง สุ่มยศหายากจากตู้ — ได้ของซ้ำก็มี ลุ้นกันไป</p></div>
+      <div class="g-card">
+        <div class="gacha-wrap">
+          <div class="gacha-machine"><div class="gacha-orb"></div><div class="gacha-slot"></div></div>
+          <button class="g-tile hot" style="min-height:auto;flex-direction:row;align-items:center;
+                  gap:10px;padding:14px 26px" id="gachaBtn">
+            <span class="ic">🎲</span>หมุนกาชา<span class="sub" id="gachaPrice"></span></button>
+        </div>
+      </div>
+      <p class="g-note"><b>โครงหน้าเท่านั้น</b> — ปุ่มยังไม่หักเงินจริง (เฟส 7)
+      ของจริงจะมีอนิเมชันเต็ม: ลูกแก้วสั่น → แสงพุ่ง → การ์ดยศพลิกเปิด → เอฟเฟกต์แรงตามระดับยศที่ได้</p>
+    </div>
+
+    <!-- ══ รางวัล / ทอยเต๋า ══ -->
+    <div class="g-panelview" id="v-rewards">
+      <button class="g-back" data-back>← กลับเมนูหลัก</button>
+      <div class="g-head"><h2>🎲 ทอยเต๋ารับของรายวัน</h2>
+        <p>ทอยเต๋าเดินบนกระดาน ตกช่องไหนได้ของช่องนั้น — เดินครบรอบรับรางวัลใหญ่</p></div>
+      <div class="g-card">
+        <div class="rolls-left" style="margin-bottom:14px">
+          🎲 ทอยได้อีก <b id="rollsLeft">3</b> ครั้งวันนี้ · รีเซ็ตเที่ยงคืน · โควตาใช้ร่วมกับในดิส
+        </div>
+        <div class="board" id="board"></div>
+        <button class="g-tile hot" style="min-height:auto;flex-direction:row;align-items:center;
+                gap:10px;padding:14px 26px;margin-top:16px" id="rollBtn">
+          <span class="ic">🎲</span>ทอยเต๋า</button>
+      </div>
+      <p class="g-note"><b>โครงหน้าเท่านั้น</b> — ยังไม่ได้ของจริง (เฟส 8)
+      ของจริง: กระดานเปลี่ยนหน้าตาและรางวัลตาม<b>ธีมอีเวนต์ประจำสัปดาห์</b> ·
+      รางวัลเป็นทองจำนวนน้อย EXP บัฟชั่วคราว และไอเทมที่มีอยู่แล้วในเกม</p>
+    </div>
+
+  </div>
+</div></section>
+
+<footer id="footer"></footer>
+
+<script src="/web.js"></script>
+<script src="/play.js"></script>
+</body>
+</html>

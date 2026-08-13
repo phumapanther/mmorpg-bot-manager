@@ -362,3 +362,19 @@ def test_topup_rate_public(client, monkeypatch):
     r = client.get("/api/web/topup/rate")
     assert r.status_code == 200
     assert r.json() == {"rate": 100.0, "min_amount": 20.0, "max_amount": 5000.0}
+
+
+# ── หน้าเล่นเกม ──
+def test_play_page_registered(client):
+    """ทุกหน้าใน web_static ต้องมี route — ลืมลงทะเบียนแล้วจะ 404 (เคสจริง /play 2026-08-13)"""
+    r = client.get("/play")
+    assert r.status_code == 200
+    assert "เล่นเกม" in r.text
+
+
+def test_every_html_page_has_a_route(client):
+    """กันลืม: เพิ่มไฟล์ .html ใหม่แล้วไม่ได้เติมชื่อในลิสต์ของ api.py"""
+    import pathlib
+    pages = {p.stem for p in pathlib.Path("license_server/web_static").glob("*.html")}
+    for page in pages - {"index"}:
+        assert client.get("/" + page).status_code == 200, f"/{page} ไม่มี route (เติมใน api.py)"

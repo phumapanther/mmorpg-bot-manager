@@ -1,0 +1,138 @@
+/* หน้าเล่นเกม — ธีมมืดอบอุ่น แยกจากหน้าเว็บการตลาด (ครีม) เหมือนเดินจากล็อบบี้เข้าโรงหนัง
+   โทนนี้ผ่านการอนุมัติแล้ว: ดำอมน้ำตาล + แดงแบรนด์ #d93b2b + ทอง */
+.play-shell {
+  --g-bg:#17110d; --g-stage:#1f1813; --g-panel:#2a211a; --g-hi:#362a20; --g-line:#453528;
+  --g-ink:#f2e7d8; --g-muted:#a99274; --g-gold:#e8b04b; --g-mana:#5b8fa8; --g-ok:#6fa860;
+  --g-r:18px; --g-num:'Bahnschrift','DIN Alternate','Segoe UI Semibold',system-ui,sans-serif;
+  --g-ease:cubic-bezier(.22,.9,.3,1);
+  background:var(--g-bg); color:var(--g-ink);
+  border-radius:var(--radius); padding:22px; margin:8px 0 40px;
+  box-shadow:0 18px 60px rgba(23,17,13,.28);
+}
+.play-shell a { color:var(--g-gold); }
+
+/* ── แถบตัวละคร ── */
+.pbar { display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+        background:var(--g-panel); border:1px solid var(--g-line);
+        border-radius:var(--g-r); padding:13px 16px; margin-bottom:18px; }
+.pbar .avatar { width:52px; height:52px; border-radius:12px; flex:none; background:#1b140f;
+                border:1px solid var(--g-line); display:grid; place-items:center; overflow:hidden; }
+.pbar .avatar canvas { width:44px; height:auto; image-rendering:pixelated; }
+.pbar .idbox { margin-right:auto; }
+.pbar .nm { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.pbar .nm b { font-size:16px; }
+.pbar .lv { font-family:var(--g-num); font-size:12px; color:var(--g-gold);
+            border:1px solid var(--g-line); border-radius:999px; padding:1px 9px; }
+.pbar .sub { font-size:12px; color:var(--g-muted); }
+.pbar .money { display:flex; gap:8px; flex-wrap:wrap; }
+.pill { display:flex; align-items:center; gap:7px; background:var(--g-hi);
+        border:1px solid var(--g-line); border-radius:999px; padding:7px 14px;
+        font-family:var(--g-num); font-size:14px; font-variant-numeric:tabular-nums; }
+.pill i { width:13px; height:13px; border-radius:50%; flex:none; }
+.pill .c-gold { background:radial-gradient(circle at 32% 30%,#ffd98a,var(--g-gold) 60%,#a97a1f); }
+.pill .c-bank { background:radial-gradient(circle at 32% 30%,#9fd0e8,var(--g-mana) 60%,#2f5c72); }
+
+/* ── หมวดเมนู ── */
+.g-sec { margin-bottom:22px; }
+.g-sec > h3 { font-size:12px; letter-spacing:1.4px; text-transform:uppercase;
+              color:var(--g-muted); font-weight:700; margin-bottom:10px;
+              display:flex; align-items:center; gap:9px; }
+.g-sec > h3::after { content:''; flex:1; height:1px; background:var(--g-line); }
+.g-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
+
+.g-tile {
+  display:flex; flex-direction:column; align-items:flex-start; gap:5px; text-align:left;
+  min-height:88px; padding:13px 14px; background:var(--g-hi); color:var(--g-ink);
+  border:1px solid var(--g-line); border-radius:var(--g-r); cursor:pointer;
+  font-family:inherit; font-size:14px; font-weight:600; position:relative; overflow:hidden;
+  box-shadow:0 3px 0 #100b08;
+  transition:transform 140ms var(--g-ease), box-shadow 140ms var(--g-ease),
+             background 140ms var(--g-ease), border-color 140ms var(--g-ease);
+}
+.g-tile .ic { font-size:23px; line-height:1.1; }
+.g-tile .sub { font-size:11.5px; font-weight:400; color:var(--g-muted); }
+.g-tile:hover { background:#40311f; border-color:var(--g-muted); transform:translateY(-2px);
+                box-shadow:0 5px 0 #100b08; }
+.g-tile:active { transform:translateY(3px); box-shadow:0 0 0 #100b08; }
+.g-tile:focus-visible { outline:2px solid var(--g-gold); outline-offset:2px; }
+.g-tile.hot { background:linear-gradient(160deg,#d93b2b,#8f2317); border-color:#6d1a11;
+              color:#fff; box-shadow:0 3px 0 #5a150e; }
+.g-tile.hot .sub { color:#ffd9d2; }
+.g-tile.soon { opacity:.5; cursor:not-allowed; box-shadow:none; }
+.g-tile.soon:hover { transform:none; background:var(--g-hi); border-color:var(--g-line); }
+.g-tile .tag { position:absolute; top:8px; right:9px; font-family:var(--g-num); font-size:10px;
+               letter-spacing:.4px; color:var(--g-muted); border:1px solid var(--g-line);
+               border-radius:999px; padding:0 7px; background:rgba(23,17,13,.6); }
+
+/* ── แผงย่อย (ร้านยศ / กาชา / รางวัล) ── */
+.g-panelview { display:none; }
+.g-panelview.on { display:block; animation:gfade 240ms var(--g-ease); }
+@keyframes gfade { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+.g-back { display:inline-flex; align-items:center; gap:7px; background:var(--g-panel);
+          border:1px solid var(--g-line); color:var(--g-ink); border-radius:999px;
+          padding:9px 16px; min-height:44px; cursor:pointer; font-family:inherit;
+          font-size:13.5px; font-weight:600; margin-bottom:16px; }
+.g-back:hover { background:var(--g-hi); }
+.g-back:focus-visible { outline:2px solid var(--g-gold); outline-offset:2px; }
+.g-head { margin-bottom:16px; }
+.g-head h2 { font-size:21px; margin-bottom:3px; }
+.g-head p { font-size:13.5px; color:var(--g-muted); }
+
+.g-card { background:var(--g-panel); border:1px solid var(--g-line);
+          border-radius:var(--g-r); padding:16px; }
+.g-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:12px; }
+
+/* การ์ดยศในร้าน */
+.role-card { background:var(--g-panel); border:1px solid var(--g-line); border-radius:var(--g-r);
+             padding:15px; display:grid; gap:9px; position:relative; overflow:hidden; }
+.role-card::before { content:''; position:absolute; inset:0 auto 0 0; width:3px; background:var(--rc,#8f2317); }
+.role-card .rn { font-size:15px; font-weight:700; }
+.role-card .rp { font-family:var(--g-num); font-size:17px; color:var(--g-gold);
+                 font-variant-numeric:tabular-nums; }
+.role-card button { min-height:44px; border-radius:12px; border:1px solid var(--g-line);
+                    background:var(--g-hi); color:var(--g-ink); font-family:inherit;
+                    font-size:13.5px; font-weight:600; cursor:pointer; }
+.role-card button:hover { background:#40311f; }
+
+/* ตู้กาชา */
+.gacha-wrap { display:grid; place-items:center; gap:18px; padding:22px 0; }
+.gacha-machine { width:min(280px,80vw); aspect-ratio:3/4; border-radius:24px; position:relative;
+                 background:linear-gradient(#2f2318,#17110d); border:1px solid var(--g-line);
+                 box-shadow:inset 0 4px 30px rgba(0,0,0,.7); display:grid; place-items:center; }
+.gacha-orb { width:46%; aspect-ratio:1; border-radius:50%;
+             background:radial-gradient(circle at 34% 30%,#ffe6a8,var(--g-gold) 45%,#8f5a12 75%,#3a2408);
+             box-shadow:0 0 44px rgba(232,176,75,.45); animation:gbob 3.2s ease-in-out infinite; }
+@keyframes gbob { 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(-9px) scale(1.03)} }
+.gacha-slot { position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
+              width:56%; height:11px; border-radius:999px; background:#0d0906;
+              border:1px solid var(--g-line); }
+
+/* กระดานทอยเต๋า */
+.board { display:grid; grid-template-columns:repeat(8,1fr); gap:6px; max-width:520px; }
+.board .sq { aspect-ratio:1; border-radius:10px; background:var(--g-hi);
+             border:1px solid var(--g-line); display:grid; place-items:center; font-size:19px;
+             position:relative; }
+.board .sq.start { background:linear-gradient(160deg,#d93b2b,#8f2317); border-color:#6d1a11; }
+.board .sq.big { background:linear-gradient(160deg,#5c4412,#2f2208); border-color:var(--g-gold); }
+.board .sq .me { position:absolute; inset:auto 3px 3px auto; width:11px; height:11px;
+                 border-radius:50%; background:var(--g-ok); box-shadow:0 0 9px var(--g-ok); }
+.rolls-left { display:flex; align-items:center; gap:9px; font-size:13.5px; color:var(--g-muted); }
+.rolls-left b { font-family:var(--g-num); font-size:19px; color:var(--g-gold); }
+
+.g-note { margin-top:14px; padding:13px 16px; border-radius:12px; background:var(--g-panel);
+          border:1px solid var(--g-line); border-left:3px solid var(--g-gold);
+          font-size:13px; color:var(--g-muted); }
+.g-note b { color:var(--g-ink); }
+
+.g-locked { text-align:center; padding:38px 20px; }
+.g-locked p { color:var(--g-muted); margin-bottom:14px; }
+
+@media (max-width:640px) {
+  .play-shell { padding:16px; }
+  .g-grid { grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); }
+  .board { grid-template-columns:repeat(6,1fr); }
+}
+@media (prefers-reduced-motion:reduce) {
+  .play-shell *, .play-shell *::before { animation-duration:.01ms !important;
+    animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+}

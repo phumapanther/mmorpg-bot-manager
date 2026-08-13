@@ -38,7 +38,8 @@ const CATEGORY_LABEL = { news: "📢 ข่าว", patch: "🛠️ แพทช
 
 // ── navbar + footer ใช้ร่วมทุกหน้า ──
 const NAV_ITEMS = [
-  ["/", "หน้าแรก"], ["/news", "ข่าวสาร"], ["/game", "ข้อมูลเกม"], ["/topup", "เติมเกม"],
+  ["/", "หน้าแรก"], ["/news", "ข่าวสาร"], ["/game", "ข้อมูลเกม"],
+  ["/play", "🎮 เล่นเกม"], ["/topup", "เติมเกม"],
 ];
 
 async function renderChrome(active) {
@@ -55,7 +56,7 @@ async function renderChrome(active) {
     foot.innerHTML = `<div class="container">
       <div class="cols">
         <div><h4>${esc(SITE.name)}</h4><p>${esc(SITE.tagline)}</p></div>
-        <div><h4>เมนู</h4><a href="/">หน้าแรก</a><a href="/news">ข่าวสาร</a><a href="/game">ข้อมูลเกม</a><a href="/topup">เติมเกม</a></div>
+        <div><h4>เมนู</h4><a href="/">หน้าแรก</a><a href="/news">ข่าวสาร</a><a href="/game">ข้อมูลเกม</a><a href="/play">เล่นเกม</a><a href="/topup">เติมเกม</a></div>
         <div><h4>ชุมชน</h4><a id="footDiscord" href="#" target="_blank" rel="noopener">💬 Discord เซิร์ฟหลัก</a><a href="/me">โปรไฟล์ของฉัน</a></div>
       </div>
       <p class="tiny">© ${new Date().getFullYear()} ${esc(SITE.name)} — เล่นฟรีใน Discord</p>
