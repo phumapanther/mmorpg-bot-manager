@@ -44,7 +44,15 @@ NEW_PLAYER_DEFAULTS = {
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    
+
+    # 🔀 WAL: ให้บอทกับเว็บเขียน/อ่านพร้อมกันได้ (โหมด delete เดิม = ใครเขียนอยู่ คนอื่นอ่านไม่ได้เลย)
+    # ค่านี้ฝังในไฟล์ DB ถาวร ตั้งที่นี่ครั้งเดียวพอ ทุก connection จากทุกไฟล์ได้ตามอัตโนมัติ
+    # (busy_timeout ไม่ต้องตั้ง — sqlite3 ของ Python ตั้งให้ 5 วินาทีเป็นค่าเริ่มต้นอยู่แล้ว)
+    try:
+        cursor.execute("PRAGMA journal_mode=WAL")
+    except sqlite3.DatabaseError as e:
+        print(f"⚠️ [DB] เปิดโหมด WAL ไม่ได้ ({e}) — ใช้โหมดเดิมต่อ")
+
     # 1. สร้างตารางพื้นฐาน
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS players (
