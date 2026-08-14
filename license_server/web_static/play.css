@@ -1,10 +1,15 @@
 /* หน้าเล่นเกม — ธีมมืดอบอุ่น แยกจากหน้าเว็บการตลาด (ครีม) เหมือนเดินจากล็อบบี้เข้าโรงหนัง
    โทนนี้ผ่านการอนุมัติแล้ว: ดำอมน้ำตาล + แดงแบรนด์ #d93b2b + ทอง */
-.play-shell {
+/* ⚠️ ตัวแปรสีต้องอยู่ที่ :root ไม่ใช่ .play-shell — ป็อปอัพยืนยันกับแถบแจ้งผลถูกวางไว้
+   นอก .play-shell (ต้องลอยทับทั้งจอ) ถ้าประกาศในนั้นมันจะไม่ได้รับค่าสีมา
+   แล้ว background:var(--g-panel) จะกลายเป็นโปร่งใสจนอ่านไม่ออก */
+:root {
   --g-bg:#17110d; --g-stage:#1f1813; --g-panel:#2a211a; --g-hi:#362a20; --g-line:#453528;
   --g-ink:#f2e7d8; --g-muted:#a99274; --g-gold:#e8b04b; --g-mana:#5b8fa8; --g-ok:#6fa860;
   --g-r:18px; --g-num:'Bahnschrift','DIN Alternate','Segoe UI Semibold',system-ui,sans-serif;
   --g-ease:cubic-bezier(.22,.9,.3,1);
+}
+.play-shell {
   background:var(--g-bg); color:var(--g-ink);
   border-radius:var(--radius); padding:22px; margin:8px 0 40px;
   box-shadow:0 18px 60px rgba(23,17,13,.28);
@@ -204,18 +209,19 @@
 /* ── หน้าต่างยืนยัน (เฟส 2) — กันกดผิด ทุกธุรกรรมต้องผ่านตรงนี้ ── */
 #confirmWrap { position:fixed; inset:0; z-index:200; display:none;
                align-items:center; justify-content:center; padding:18px;
-               background:rgba(10,7,5,.72); backdrop-filter:blur(3px); }
+               background:rgba(8,5,4,.86); backdrop-filter:blur(5px); }
 #confirmWrap.on { display:flex; animation:cfade 160ms var(--g-ease); }
 @keyframes cfade { from{opacity:0} to{opacity:1} }
-.confirm-box { width:min(420px,100%); background:var(--g-panel); color:var(--g-ink);
-               border:2px solid var(--g-line); border-radius:var(--g-r); padding:20px;
-               box-shadow:0 24px 70px rgba(0,0,0,.66);
+/* พื้นหลังกล่องต้องทึบสนิท — เขียนสีตรงไว้ด้วยกันตัวแปรหายแล้วกลายเป็นใส */
+.confirm-box { width:min(430px,100%); background:#2a211a; color:#f2e7d8;
+               border:2px solid #5c4733; border-radius:18px; padding:22px;
+               box-shadow:0 26px 80px rgba(0,0,0,.8), 0 0 0 1px rgba(0,0,0,.5);
                animation:cpop 220ms var(--g-ease); }
 @keyframes cpop { from{transform:scale(.9) translateY(10px);opacity:0}
                   to{transform:none;opacity:1} }
 .confirm-box h3 { font-size:17px; margin-bottom:6px; display:flex; align-items:center; gap:9px; }
 .confirm-box .msg { font-size:13.5px; color:var(--g-muted); margin-bottom:14px; }
-.confirm-lines { display:grid; gap:7px; background:var(--g-bg); border:1px solid var(--g-line);
+.confirm-lines { display:grid; gap:7px; background:#17110d; border:1px solid #453528;
                  border-radius:12px; padding:12px 14px; margin-bottom:16px; }
 .confirm-lines div { display:flex; justify-content:space-between; gap:12px; font-size:13.5px; }
 .confirm-lines b { font-family:var(--g-num); font-variant-numeric:tabular-nums; color:var(--g-gold); }
@@ -224,7 +230,7 @@
 .confirm-btns { display:flex; gap:10px; }
 .confirm-btns button { flex:1; min-height:46px; border-radius:12px; cursor:pointer;
                        font-family:inherit; font-size:14px; font-weight:600;
-                       border:1px solid var(--g-line); background:var(--g-hi); color:var(--g-ink);
+                       border:1px solid #5c4733; background:#362a20; color:#f2e7d8;
                        transition:all 140ms var(--g-ease); }
 .confirm-btns button:hover { background:#40311f; }
 .confirm-btns .yes { background:linear-gradient(160deg,#d93b2b,#8f2317); border-color:#6d1a11;
@@ -236,8 +242,8 @@
 /* แจ้งผลหลังทำรายการ */
 #toast { position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
          z-index:210; max-width:min(460px,92vw); padding:13px 20px; border-radius:14px;
-         background:var(--g-panel); color:var(--g-ink); border:1px solid var(--g-line);
-         border-left:3px solid var(--g-ok); font-size:13.5px; box-shadow:0 14px 40px rgba(0,0,0,.5);
+         background:#2a211a; color:#f2e7d8; border:1px solid #5c4733;
+         border-left:3px solid #6fa860; font-size:13.5px; box-shadow:0 16px 44px rgba(0,0,0,.7);
          opacity:0; pointer-events:none; transition:all 260ms var(--g-ease); }
 #toast.on { opacity:1; transform:translateX(-50%) translateY(0); }
 #toast.bad { border-left-color:#e8776a; }

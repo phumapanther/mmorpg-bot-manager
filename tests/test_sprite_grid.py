@@ -94,3 +94,21 @@ def test_bag_items_open_a_menu_instead_of_inline_buttons():
     assert "use-btn" not in js and "drop-btn" not in js, "ยังมีปุ่มติดการ์ดค้างอยู่"
     css = pathlib.Path("license_server/web_static/play.css").read_text(encoding="utf-8")
     assert ".use-btn" not in css and ".drop-btn" not in css, "CSS ปุ่มเก่ายังไม่ถูกลบ"
+
+
+def test_overlay_ui_does_not_depend_on_scoped_tokens():
+    """ป็อปอัพ/แถบแจ้งผลอยู่นอก .play-shell — ถ้าใช้ตัวแปรที่ประกาศในนั้นจะกลายเป็นโปร่งใส
+
+    เคสจริง: กล่องยืนยันพื้นหลังใสจนอ่านไม่ออก เพราะ --g-panel ประกาศไว้ที่ .play-shell
+    """
+    css = re.sub(r"/\*.*?\*/", "", pathlib.Path("license_server/web_static/play.css")
+                 .read_text(encoding="utf-8"), flags=re.S)      # ตัดคอมเมนต์ก่อน กัน regex หลง
+    root = re.search(r":root\s*\{(.*?)\}", css, re.S)
+    assert root and "--g-panel:" in root.group(1), "ตัวแปรสีต้องประกาศในบล็อก :root"
+
+    # กล่องลอยต้องกำหนดพื้นหลังเป็นสีตรง ไม่พึ่งตัวแปร
+    for sel in (r"\.confirm-box", r"#toast"):
+        block = re.search(sel + r"\s*\{(.*?)\}", css, re.S)
+        assert block, f"หา {sel} ไม่เจอ"
+        bg = re.search(r"background:\s*([^;]+);", block.group(1))
+        assert bg and "var(" not in bg.group(1), f"{sel} ใช้ตัวแปรกับพื้นหลัง เสี่ยงกลายเป็นใส"
