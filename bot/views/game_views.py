@@ -22,64 +22,15 @@ def _holy_aura_chance(p_lvl):
 
 # ตารางน้ำหนักเหตุการณ์ย้ายไป bot/adventure_core.py แล้ว (ใช้ร่วมกับเว็บ)
 # re-export ไว้ให้โค้ด/เทสเดิมที่อ้างจากไฟล์นี้ยังใช้ได้
-from bot.adventure_core import EVENT_WEIGHTS, EVENT_LIST, event_weights  # noqa: E402,F401
+from bot.adventure_core import (EVENT_WEIGHTS, EVENT_LIST, event_weights,  # noqa: E402,F401
+                                DEFAULT_SPAWN_WEIGHTS, MONSTER_RANKS,
+                                spawn_weights_for, _rank_stats,
+                                _random_enemy_champion)
 
 
-# เรทเกิดมอนรายแรงค์ตามช่วงเลเวล (ค่าเดิมในโค้ด — ใช้เมื่อ Panel ไม่ได้ตั้ง)
-DEFAULT_SPAWN_WEIGHTS = {
-    100: [10, 30, 20, 25, 15],
-    90:  [30, 20, 20, 20, 10],
-    50:  [50, 20, 20, 8, 2],
-    20:  [70, 20, 5, 3, 2],
-    10:  [80, 10, 5, 3, 2],
-    0:   [95, 2, 1, 1, 1],
-}
-
-
-def spawn_weights_for(player_level, rank_keys):
-    """น้ำหนักสุ่มแรงค์มอนตามเลเวลผู้เล่น — ตั้งได้ที่ Panel (ตั้งไม่ครบ/เพี้ยน = ค่าเดิม)
-
-    คอนฟิกเป็น {"ช่วงเลเวลขั้นต่ำ": {"Common": 50, ...}} — เลือกช่วงที่สูงสุดที่ไม่เกินเลเวล
-    """
-    table = config_loader.get_balance("spawn_weights", {}) or {}
-    if not isinstance(table, dict):
-        table = {}                 # คอนฟิกพังทั้งก้อน (สตริง/ลิสต์) = ใช้ตารางเดิม
-    tiers = {}
-    for key, row in table.items():
-        try:
-            tiers[int(key)] = row
-        except (TypeError, ValueError):
-            continue
-    if not tiers:
-        tiers = DEFAULT_SPAWN_WEIGHTS
-    threshold = max((lv for lv in tiers if player_level >= lv), default=0)
-    row = tiers.get(threshold, DEFAULT_SPAWN_WEIGHTS[0])
-    try:
-        if isinstance(row, dict):
-            weights = [max(0, int(row.get(rank, 0))) for rank in rank_keys]
-        else:
-            weights = [max(0, int(w)) for w in row]
-        if len(weights) == len(rank_keys) and sum(weights) > 0:
-            return weights
-    except (TypeError, ValueError):
-        pass
-    # ค่าใน Panel ใช้ไม่ได้ = ตกกลับตารางเดิม ห้ามปล่อยให้น้ำหนักเป็นศูนย์ทั้งแถว (random.choices จะพัง)
-    fallback = max((lv for lv in DEFAULT_SPAWN_WEIGHTS if player_level >= lv), default=0)
-    return list(DEFAULT_SPAWN_WEIGHTS[fallback])
-
-
-# โครงสร้างข้อมูลระดับความโหดของมอนสเตอร์
-MONSTER_RANKS = {
-    "Common":      {"name": "🟢 มอนสเตอร์ทั่วไป (Common)",      "dice_count": 1, "hp_range": (40, 100),   "flee_chance": 85,  "gold_mult": 2,   "exp_reward": 25},
-    "Mini-Boss":   {"name": "🟡 มินิบอส (Mini-Boss)",          "dice_count": 2, "hp_range": (100, 500),  "flee_chance": 60,  "gold_mult": 5,  "exp_reward": 50},
-    "Main-Boss":   {"name": "🔴 บอสหลัก (Main-Boss)",          "dice_count": 3, "hp_range": (500, 1000), "flee_chance": 30,  "gold_mult": 10,  "exp_reward": 250},
-    "Secret":      {"name": "🟣 มอนสเตอร์ลับ (Secret)",          "dice_count": 2, "hp_range": (100, 1000), "flee_chance": 50,  "gold_mult": 15,  "exp_reward": 250},
-    "Unbeatable":  {"name": "💀 ไร้พ่าย (Unbeatable)",         "dice_count": 5, "hp_range": (1000, 2000), "flee_chance": 5,   "gold_mult": 1000, "exp_reward": 1000}
-}
-
-
-
-
+# ==========================================================
+# 🎮 INTERACTIVE VIEWS
+# ==========================================================
 
 
 def respawn_player(user_id):
@@ -102,37 +53,6 @@ def respawn_player(user_id):
         "current_state": "village", "last_event": "village", "dungeon_steps": 0})
     embed = build_respawn_embed(player, respawn_hp, max_hp, fee, new_cash, lost_steps, hp_pct)
     return embed, {"fee": fee, "hp": respawn_hp, "cash": new_cash}
-
-
-def _rank_stats(rank_key):
-    """สเปกมอนสเตอร์รายแรงค์ — ค่าในโค้ดเป็นพื้นฐาน ทับด้วยค่าจาก Panel (monster_ranks)"""
-    stats = dict(MONSTER_RANKS[rank_key])
-    override = config_loader.get_monster_rank(rank_key)
-    if override:
-        for key in ("dice_count", "flee_chance", "gold_mult", "exp_reward"):
-            if key in override:
-                stats[key] = override[key]
-        if "hp_min" in override and "hp_max" in override:
-            stats["hp_range"] = (int(override["hp_min"]), int(override["hp_max"]))
-    return stats
-
-
-# ==========================================================
-# 🎮 INTERACTIVE VIEWS
-# ==========================================================
-
-def _random_enemy_champion(member_roles, enemy_faction):
-    """สุ่มชื่อผู้เล่นจริงฝ่ายตรงข้ามจากเซิร์ฟมาเป็นแชมเปี้ยน — หาไม่ได้ (ไม่มีคนถือยศ/intent ปิด) = ชื่อกลาง"""
-    try:
-        guild = member_roles[0].guild
-        keywords = game_modifiers.DEMON_RACES if enemy_faction == "demon" else game_modifiers.HUMAN_RACES
-        candidates = [m.display_name for m in guild.members
-                      if not m.bot and any(k in r.name for r in m.roles for k in keywords)]
-        if candidates:
-            return random.choice(candidates)
-    except Exception:
-        pass
-    return random.choice(["นักรบนิรนาม", "อัศวินไร้นาม", "เงามรณะปริศนา"])
 
 
 class MenuButton(discord.ui.Button):
@@ -186,102 +106,20 @@ class MonsterEventView(ActionView):
         self.turn_count = turn_count
         
         if monster_rank is None:
-            # 1. ดึงข้อมูลผู้เล่นเพื่อเช็กเลเวลปัจจุบัน
-            # (ถ้าในคลาสใช้ชื่อตัวแปรอื่น เช่น self.user_id ให้เปลี่ยนตามความเหมาะสมครับ)
-            player = player_model.get_player(user_id)
-            self.mods = game_modifiers.get_active_modifiers(player)
-            # 🧬 สแนปช็อตสถานะของไฟต์นี้ (มีผลเต็มทั้งไฟต์ ไม่เปลี่ยนกลางคัน)
-            self.statuses = game_modifiers.parse_statuses(player)
-            player_level = player.get("level", 0)
-            last_evt = player.get("last_event", "none")
-            rank_keys = list(MONSTER_RANKS.keys())
-            
-            # 2. 🛠️ กำหนดน้ำหนักการสุ่ม (Weights)
-            # ตำแหน่งของเรท: [คอมมอน, มินิ, เมน, ซีเคร็ท, ไร้พ่าย]
-            
-            if last_evt == "mini_summon":
-                # ล็อกเป้า 100% เจอ มินิบอส (ตำแหน่งที่ 2)
-                spawn_weights = [0, 100, 0, 0, 0]
-                player_model.update_player_field(user_id, "last_event", "monster")
-                
-            elif last_evt == "main_summon":
-                # ล็อกเป้า 100% เจอ บอสหลัก (ตำแหน่งที่ 3)
-                spawn_weights = [0, 0, 100, 0, 0]
-                player_model.update_player_field(user_id, "last_event", "monster")
-                
-            elif last_evt == "unbeatable_summon":
-                # ล็อกเป้า 100% เจอ บอสไร้พ่าย (ตำแหน่งที่ 5)
-                spawn_weights = [0, 0, 0, 0, 100]
-                player_model.update_player_field(user_id, "last_event", "monster")
-                
-            else:
-                # ถ้าไม่ได้ใช้ใบเรียกบอส ให้สุ่มตามช่วงเลเวลปกติ (ตารางตั้งได้ที่ Panel)
-                spawn_weights = spawn_weights_for(player_level, rank_keys)
-
-            # ตัวคูณน้ำหนักแรงค์จากทวีป/ธีม (เช่น Eclipse ดัน Secret ×3) — แรงค์ที่ถูกล็อก 100% จากใบเรียกไม่กระทบ
-            rank_mult = self.mods.get("rank_weight_mult") or {}
-            if rank_mult:
-                spawn_weights = [w * rank_mult.get(rank, 1.0) for w, rank in zip(spawn_weights, rank_keys)]
-
-            # 3. สุ่มมอนสเตอร์ตามน้ำหนักที่ได้จากเงื่อนไขด้านบน
-            self.monster_rank = random.choices(rank_keys, weights=spawn_weights, k=1)[0]
-            self.m_stats = _rank_stats(self.monster_rank)
-            self.monster_hp = random.randint(self.m_stats["hp_range"][0], self.m_stats["hp_range"][1])
-            # ตัวคูณ HP จากทวีป/ธีมสัปดาห์ — ใช้เฉพาะตอนเกิดใหม่ (เทิร์นต่อๆ ไปส่ง hp เดิมเข้ามา ไม่คูณซ้ำ)
-            self.monster_hp = max(1, round(self.monster_hp * self.mods["monster_hp_mult"]))
-            # ชื่อมอนสเตอร์ธีมตามทวีป/ธีมสัปดาห์ (แรงค์ที่ไม่มีธีม = ชื่อเดิม)
-            themed_name = game_modifiers.pick_monster_name(self.mods, self.monster_rank)
-            if themed_name:
-                self.m_stats["name"] = themed_name
-
-            # 🧪 สุ่มธาตุประจำตัว (เรทตามทวีป/ธีม) — เกิดครั้งเดียว คงเดิมตลอดไฟต์
-            # ยาพลิกธาตุ (element_flux): บังคับมอนเกิดเป็นธาตุที่เผ่าผู้เล่นข่มแทนการสุ่มปกติ
-            from bot import identity as _id_mod
-            flux_elems = game_modifiers.resolve_player_elements(
-                _id_mod.effective_role_names(member_roles, player))
-            self.element = game_modifiers.forced_weak_element(self.statuses, flux_elems)
-            if self.element is None:
-                self.element = game_modifiers.roll_element(self.mods)
+            # เกิดมอนใหม่ — ตรรกะอยู่ใน adventure_core (ใช้ร่วมกับหน้าไฟต์บนเว็บ)
+            m = adventure_core.spawn_monster(user_id, member_roles)
+            self.mods = game_modifiers.get_active_modifiers(player_model.get_player(user_id))
+            self.monster_rank = m["rank"]
+            self.m_stats = m["stats"]
+            self.monster_hp = m["hp"]
+            self.monster_hp_max = m["hp_max"]
+            self.element = m["element"]
             self.element_data = game_modifiers.get_element_data(self.mods, self.element)
-            # 🪨 ธาตุดิน: เลือดหนาขึ้นตามสเปกธาตุ (คูณทบกับตัวคูณทวีป/ธีมที่ใส่ไปแล้ว)
-            self.monster_hp = max(1, round(self.monster_hp * self.element_data.get("hp_mult", 1.0)))
-            self.monster_hp_max = self.monster_hp   # เก็บไว้ทำแถบเลือด (B3)
-            # ป้ายธาตุนำหน้าชื่อ — ผู้เล่นเห็นธาตุในทุกข้อความที่มีชื่อมอนสเตอร์
-            self.m_stats["name"] = f"{self.element_data['label']} · {self.m_stats['name']}"
+            self.statuses = m["statuses"]
+            self.fight_grace = set(m["fight_grace"])
+            self.infused = m["infused"]
+            self.faction_war_side = m["faction_side"]
 
-            # ⚔️ ธีมสงครามฝ่าย (P5): มีลุ้นเจอ "แชมเปี้ยนฝ่ายตรงข้าม" แทนมอนปกติ (เฉพาะคนมีฝ่าย)
-            self.faction_war_side = None  # ฝ่ายผู้เล่นที่จะได้แต้ม/โบนัสเมื่อชนะไฟต์นี้
-            fw_cfg = self.mods.get("faction_war")
-            if fw_cfg:
-                from bot import identity as _identity
-                my_faction = game_modifiers.resolve_player_faction(
-                    _identity.effective_role_names(member_roles, player_model.get_player(user_id)))
-                if my_faction and random.randint(1, 100) <= fw_cfg.get("chance", 25):
-                    enemy = "demon" if my_faction == "human" else "human"
-                    fdata = game_modifiers.FACTIONS[enemy]
-                    # ธาตุประจำฝ่ายทับธาตุที่สุ่มไว้ (HP ที่คูณไปแล้วคงเดิม — แชมเปี้ยนอึดกว่าปกติได้ ถือเป็นเกียรติ)
-                    self.element = fdata["element"]
-                    self.element_data = game_modifiers.get_element_data(self.mods, self.element)
-                    champ = _random_enemy_champion(member_roles, enemy)
-                    self.m_stats["name"] = f"{self.element_data['label']} · ⚔️ {champ} {fdata['champion_title']}"
-                    self.faction_war_side = my_faction
-
-            # ☄️ Infusion (ธีมเช่นฝนดาวตกมานา): โอกาสติดบัฟพิเศษตอนเกิด — ตีแรงขึ้นแต่ดรอปของ
-            infusion_cfg = self.mods.get("infusion")
-            self.infused = bool(infusion_cfg and random.randint(1, 100) <= infusion_cfg.get("chance", 0))
-            if self.infused:
-                self.m_stats["name"] = f"{infusion_cfg.get('badge', '☄️')} {self.m_stats['name']}"
-
-            # tick สถานะแบบ "ต่อไฟต์" ตอนเริ่มไฟต์ใหม่ (สแนปช็อตข้างบนของไฟต์นี้ยังมีผลเต็ม)
-            remaining, expired_now = game_modifiers.tick_statuses(self.statuses, "fight")
-            # สถานะที่หมดอายุด้วย tick ต้นไฟต์นี้ = ยังคุ้มครองจนจบไฟต์ (ไม่ใช่ของที่ถูกรักษาทิ้งกลางไฟต์)
-            self.fight_grace = set(expired_now)
-            if remaining != self.statuses:
-                player_model.update_player_field(user_id, "status_effects", remaining)
-            
-            # [ระบบเช็กไฟล์/แคช]
-            # print(f"DEBUG: [มอนสเตอร์] เลเวล {player_level} -> ใช้เรท {spawn_weights} -> สุ่มได้ {self.monster_rank}")
-            
         else:
             self.monster_rank = monster_rank
             self.m_stats = _rank_stats(self.monster_rank)

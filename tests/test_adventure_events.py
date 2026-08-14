@@ -339,3 +339,53 @@ def test_npc_quest_offer_is_kept_server_side():
     """ข้อเสนอต้องเก็บฝั่งเซิร์ฟเวอร์ ไม่งั้นเบราว์เซอร์แต่งของรางวัลเองได้"""
     assert 'set_pending(uid, "npc_quest", offer)' in API
     assert "npc_quest_settle(uid, data," in API
+
+
+# ── 👹 การเกิดมอนสเตอร์ (เฟส 5.6) ─────────────────────────────────────────────
+
+def _spawn_world(tmp_path, monkeypatch, **over):
+    p = {"user_id": 1, "level": 50, "hp": 500, "max_hp": 500, "cash": 0, "bank": 0,
+         "inventory": "[]", "current_state": "fighting", "last_event": "none",
+         "continent": "main", "race": None, "class_name": None, "status_effects": "{}"}
+    p.update(over)
+    monkeypatch.setattr(pm, "DB_NAME", str(tmp_path / "t.db"))
+    monkeypatch.setattr(pm, "get_player", lambda uid: dict(p))
+    monkeypatch.setattr(pm, "update_player_field", lambda uid, f, v: p.__setitem__(f, v))
+    monkeypatch.setattr(pm, "update_player_fields", lambda uid, d: p.update(d))
+    return p
+
+
+def test_summon_scroll_locks_the_boss_rank(tmp_path, monkeypatch):
+    """ใบเรียกบอสต้องล็อกแรงค์ 100% ไม่ใช่แค่เพิ่มโอกาส — ผู้เล่นจ่ายเงินซื้อมา"""
+    for evt, rank in [("mini_summon", "Mini-Boss"), ("main_summon", "Main-Boss"),
+                      ("unbeatable_summon", "Unbeatable")]:
+        p = _spawn_world(tmp_path, monkeypatch, last_event=evt)
+        m = adventure_core.spawn_monster(1, rng=random.Random(7))
+        assert m["rank"] == rank, f"{evt} ต้องได้ {rank} ไม่ใช่ {m['rank']}"
+        assert p["last_event"] == "monster", "ใบเรียกต้องถูกใช้ไป ไม่งั้นเรียกซ้ำได้ฟรี"
+
+
+def test_spawned_monster_is_fully_serialisable(tmp_path, monkeypatch):
+    """สถานะไฟต์ต้องเซฟลง DB ได้ ไม่งั้นรีเฟรชหน้าเว็บแล้วไฟต์หาย"""
+    import json as _json
+    _spawn_world(tmp_path, monkeypatch)
+    m = adventure_core.spawn_monster(1, rng=random.Random(1))
+    _json.dumps(m)                                   # พังตรงนี้ = มีอ็อบเจ็กต์ที่เซฟไม่ได้ปนมา
+    assert m["hp"] > 0 and m["hp_max"] == m["hp"]
+    assert m["turn"] == 1 and m["buffs"] == {}
+
+
+def test_monster_name_carries_its_element_badge(tmp_path, monkeypatch):
+    _spawn_world(tmp_path, monkeypatch)
+    m = adventure_core.spawn_monster(1, rng=random.Random(2))
+    assert " · " in m["stats"]["name"], "ชื่อมอนต้องมีป้ายธาตุนำหน้า ผู้เล่นต้องเห็นธาตุทุกครั้ง"
+
+
+def test_low_level_players_mostly_meet_common_monsters(tmp_path, monkeypatch):
+    _spawn_world(tmp_path, monkeypatch, level=1)
+    ranks = [adventure_core.spawn_monster(1, rng=random.Random(s))["rank"] for s in range(60)]
+    assert ranks.count("Common") > 45, f"เลเวล 1 ต้องเจอ Common เป็นหลัก ได้ {ranks.count('Common')}/60"
+
+
+def test_discord_and_web_spawn_the_same_way():
+    assert "adventure_core.spawn_monster(" in GV, "ดิสยังไม่ได้เรียกตัวเกิดมอนกลาง"

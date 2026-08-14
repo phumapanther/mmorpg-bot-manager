@@ -57,9 +57,10 @@ def test_config_example_has_every_tier():
 
 
 def test_no_hardcoded_tier_left_in_the_fight():
-    src = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
+    # การเกิดมอนย้ายไป adventure_core แล้ว (เว็บเกม เฟส 5.6) — เจอมอนบนเว็บต้องใช้เรทเดียวกัน
+    src = pathlib.Path("bot/adventure_core.py").read_text(encoding="utf-8")
     assert "spawn_weights = [50, 20, 20, 8, 2]" not in src
-    assert "spawn_weights_for(player_level, rank_keys)" in src
+    assert 'spawn_weights_for(player.get("level", 0), rank_keys)' in src
 
 
 def test_panel_table_wired():
