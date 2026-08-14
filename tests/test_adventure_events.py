@@ -480,3 +480,32 @@ def test_a_stale_lock_state_is_cleared_but_a_real_event_is_not():
     assert "_STALE_STATES" in api
     guard = api[api.index("if _p.get(\"current_state\") in _STALE_STATES"):]
     assert "not adventure_core.get_pending(uid)[0]" in guard[:160]
+
+
+def test_the_npc_values_items_at_their_sell_price_not_their_shop_price(world, monkeypatch):
+    """บั๊กจากผู้เล่นจริง: แลกประตูวาร์ปมิติ (ซื้อ 40,000 / ขาย 4,000) ได้ 40,000
+    เพราะตีมูลค่าด้วยราคาซื้อ = คุ้มกว่าขายที่ร้าน 9 เท่า ยังพิมพ์เงินได้อยู่"""
+    monkeypatch.setattr(config_loader, "get_all_items",
+                        lambda: {"52": {"name": "ประตูวาร์ปมิติ", "buy": 40_000, "sell": 4_000}})
+    assert adventure_core._item_value(config_loader.get_all_items(), "52") == 4_000
+
+    total = 0
+    rounds = 0
+    for seed in range(200):
+        world.update(inventory='["52"]', cash=0, current_state="npc_choice")
+        offer = adventure_core.npc_quest_offer(1, rng=random.Random(seed))
+        if not offer:
+            continue
+        adventure_core.npc_quest_settle(1, offer, True)
+        kept = pm.load_inventory(world["inventory"])
+        total += world["cash"] + sum(4_000 for i in kept if str(i) == "52")
+        rounds += 1
+    avg = total / max(1, rounds)
+    assert avg < 4_000, f"แลกแล้วได้เฉลี่ย {avg:,.0f} — เกินราคาขาย 4,000 คือยังพิมพ์เงินได้"
+
+
+def test_items_without_a_sell_price_are_still_valued_sanely(world, monkeypatch):
+    """ของที่แอดมินลืมตั้งราคาขาย ต้องไม่ถูกตีเป็น 0 (แลกฟรีไม่จำกัด)"""
+    items = {"9": {"name": "ของลืมตั้งราคาขาย", "buy": 9_000}}
+    assert adventure_core._item_value(items, "9") == 3_000
+    assert adventure_core._item_value(items, "ไม่มีไอเทมนี้") == 0

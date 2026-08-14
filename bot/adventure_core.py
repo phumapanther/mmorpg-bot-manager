@@ -602,6 +602,20 @@ def npc_talk(user_id, rng=random):
             "spent": price, "item": item["name"]}
 
 
+def _item_value(items, item_id):
+    """มูลค่าที่แท้จริงของไอเทม = **ราคาขาย** ไม่ใช่ราคาซื้อ (แก้ 2026-08-14)
+
+    เดิมตีมูลค่าด้วยราคาซื้อ ซึ่งแพงกว่าราคาขายราว 3-10 เท่า
+    แลกประตูวาร์ปมิติ (ซื้อ 40,000 / ขาย 4,000) กับ NPC จึงได้ ~36,000
+    ทั้งที่ขายที่ร้านได้แค่ 4,000 — คุ้มกว่าขายร้าน 9 เท่า = ยังพิมพ์เงินได้อยู่
+
+    ของที่ไม่ได้ตั้งราคาขายไว้ ประเมินคร่าว ๆ ที่ 1/3 ของราคาซื้อ (เรทร้านค้าปกติ)
+    """
+    d = items.get(str(item_id), {}) or {}
+    sell = int(d.get("sell", 0) or 0)
+    return sell if sell > 0 else int(d.get("buy", 0) or 0) // 3
+
+
 def npc_quest_offer(user_id, rng=random):
     """📜 สร้างข้อเสนอแลกของ — ไม่แตะกระเป๋า แค่คำนวณข้อเสนอ (ตกลงแล้วค่อยหัก)
 
@@ -619,7 +633,7 @@ def npc_quest_offer(user_id, rng=random):
     # (กันทั้งการฟอกทองคำแท่งเป็นเงินสด และกันผู้เล่นเผลอแลกของล้ำค่าทิ้ง)
     cap = int(config_loader.get_balance("npc.trade_max_item_value", 200_000))
     if cap > 0:
-        inv = [i for i in inv if items.get(str(i), {}).get("buy", 0) <= cap]
+        inv = [i for i in inv if _item_value(items, i) <= cap]
         if not inv:
             _done(user_id, "npc")
             return None
@@ -629,7 +643,7 @@ def npc_quest_offer(user_id, rng=random):
     for i in requested:
         counts[i] = counts.get(i, 0) + 1
     req_text = ", ".join(f"**{items.get(str(i), {}).get('name', '???')}** x{c}" for i, c in counts.items())
-    req_value = sum(items.get(str(i), {}).get("buy", 0) for i in requested)
+    req_value = sum(_item_value(items, i) for i in requested)
 
     # 💸 เนิฟ 2026-08-14: ของเดิมสุ่ม 0.5-2.0 เท่า = เฉลี่ย 1.25 เท่า
     # ซึ่งแปลว่า "แลกกี่รอบก็กำไร" ถือทองคำแท่งพันล้านแลกทีเดียวได้พันสองร้อยล้าน
@@ -637,9 +651,9 @@ def npc_quest_offer(user_id, rng=random):
     lo = float(config_loader.get_balance("npc.trade_min_mult", 0.5))
     hi = float(config_loader.get_balance("npc.trade_max_mult", 1.3))
     reward_val = rng.randint(int(req_value * min(lo, hi)), max(1, int(req_value * max(lo, hi))))
-    valid = [i for i, d in items.items() if 0 < d.get("buy", 0) <= reward_val]
+    valid = [i for i, d in items.items() if 0 < _item_value(items, i) <= reward_val]
     reward_item = rng.choice(valid) if valid else None
-    reward_cash = reward_val - (items[reward_item]["buy"] if reward_item else 0)
+    reward_cash = reward_val - (_item_value(items, reward_item) if reward_item else 0)
     cash_cap = int(config_loader.get_balance("npc.trade_cash_cap", 100_000))
     if cash_cap > 0:
         reward_cash = min(reward_cash, cash_cap)      # กันฟอกของแพงเป็นเงินสดก้อนโต
