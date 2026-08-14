@@ -660,6 +660,7 @@ async function advAct(action, label, confirmMsg) {
     }
     if (r.damage_to_monster) { SCENE.hitFoe(); SCENE.float('-' + fmt(r.damage_to_monster), '', 72); }
     if (r.damage_to_player) SCENE.float('-' + fmt(r.damage_to_player), 'miss', 30);
+    if (r.healed) SCENE.float('+' + fmt(r.healed) + ' HP', 'heal', 30);
     if (r.reward) SCENE.float('+' + fmt(r.reward.gold) + ' ทอง', 'gold', 50);
     if (r.monster !== undefined) paintFoe(r.pending === 'monster' ? r.monster : null);
     if (r.damage) { SCENE.hitFoe(); SCENE.float('-' + r.damage, '', 40); }

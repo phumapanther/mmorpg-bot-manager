@@ -250,3 +250,46 @@ def test_a_broken_bestiary_never_eats_your_reward(hero, monkeypatch):
     monkeypatch.setattr(pm, "record_element_kill", lambda *a: 1 / 0)
     v = adventure_core.fight_victory(1, _fight(hp=0), rng=random.Random(6))
     assert v["reward"] > 0 and v["exp"] > 0
+
+
+# ── 🐛 บั๊กที่เจอจากผู้เล่นจริง (2026-08-14) ─────────────────────────────────
+
+def test_the_killing_turn_does_not_throw_away_its_own_effects(hero):
+    """เทิร์นที่ล้มมอนต้องเซฟผลของเทิร์นนั้นด้วย — ฮีลที่เพิ่งกดห้ามหาย
+
+    เดิม db_updates เป็น dict เดียวกันทั้งเทิร์นและก้อนรางวัล พอแยกฟังก์ชันแล้ว
+    ก้อนรางวัลสร้าง dict ใหม่ ผลของเทิร์นสุดท้ายจึงหล่นหายทั้งชุด
+    """
+    saved = {}
+    import bot.models.player_model as _pm
+    orig = _pm.update_player_fields
+    monkey = lambda uid, d: (saved.update(d), orig(uid, d))
+    _pm.update_player_fields = monkey
+    try:
+        v = adventure_core.fight_victory(1, _fight(hp=0), carry={"hp": 777, "weapon_dur": 3},
+                                         rng=random.Random(1))
+    finally:
+        _pm.update_player_fields = orig
+    assert saved.get("weapon_dur") == 3, "ความทนทานที่สึกในเทิร์นสุดท้ายต้องถูกเซฟ"
+    assert "cash" in saved, "ต้องเขียนรางวัลลง DB ในครั้งเดียวกัน"
+
+
+def test_heal_amount_is_reported_for_the_screen(hero):
+    """ต้องรู้ว่าฮีลไปเท่าไหร่ ถึงจะเด้งเลขให้เห็นบนจอได้"""
+    hero["hp"] = 100
+    t = adventure_core.fight_turn(1, _fight(hp=99999), skill_used="skill_heal",
+                                  rng=Rigged(roll=20, pcts=[100, 1]))
+    assert t["healed"] > 0 and t["player_hp"] == 100 + t["healed"]
+
+
+def test_plain_attack_reports_no_heal(hero):
+    t = adventure_core.fight_turn(1, _fight(hp=99999), rng=Rigged(roll=20))
+    assert t["healed"] == 0
+
+
+def test_web_shows_the_last_turn_log_when_you_win():
+    """ดิสโชว์ช่อง '📜 เทิร์นสุดท้าย' ในหน้าชนะ เว็บก็ต้องโชว์ ไม่งั้นเหมือนชนะทันทีโดยไม่ตี"""
+    import pathlib
+    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    assert api.count('out["log"]') >= 2, "หน้าชนะบนเว็บต้องมีล็อกเทิร์นสุดท้าย"
+    assert 'carry=t.get("db_updates")' in api, "เว็บต้องส่งผลเทิร์นสุดท้ายไปเซฟด้วย"

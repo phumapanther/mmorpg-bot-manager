@@ -232,7 +232,8 @@ class MonsterEventView(ActionView):
             # =================================================================
             if self.monster_hp <= 0:
                 # 🏆 จ่ายรางวัล — ตรรกะอยู่ใน adventure_core (ใช้ร่วมกับหน้าไฟต์บนเว็บ)
-                v = adventure_core.fight_victory(self.user_id, t["fight"], self.member_roles)
+                v = adventure_core.fight_victory(self.user_id, t["fight"], self.member_roles,
+                                                 carry=t["db_updates"])
                 reward, gained_exp = v["reward"], v["exp"]
                 current_level, current_exp = v["level"], v["current_exp"]
                 is_lv_up, rank_msg = v["level_up"], v["rank_msg"]

@@ -1065,6 +1065,7 @@ def fight_turn(user_id, fight, member_roles=(), skill_used=None, rng=random):
     # ตอนนี้ต้องคืนออกไปทั้งคู่ทุกเทิร์น (หน้าจอเว็บวาดทั้งสองฝั่ง) จึงต้องมีค่าตั้งต้น
     damage_to_monster = 0
     damage_to_player = 0
+    healed_amount = 0
     damage_line = ""
 
     enrage_bonus = 0
@@ -1133,7 +1134,8 @@ def fight_turn(user_id, fight, member_roles=(), skill_used=None, rng=random):
                 skill_log += f"💔 **คำสาปบอสทำงาน!** บอสสูบกลืนแสงฮีลของคุณไป `+{stolen_heal}` HP! "
             
             new_hp = min(player.get("max_hp", 100), player.get("hp", 100) + heal_amount)
-            player["hp"] = new_hp 
+            healed_amount = new_hp - player.get("hp", 100)     # ฟื้นจริงเท่าไหร่ (ชนกับ MaxHP แล้ว)
+            player["hp"] = new_hp
             skill_log += f"✨ **Heal!** พลังชีวิตของคุณฟื้นฟู `+ {heal_amount}` หน่วย (❤️ HP: {new_hp})\n"
 
         if skill_used == "skill_shield_bash":
@@ -1387,6 +1389,7 @@ def fight_turn(user_id, fight, member_roles=(), skill_used=None, rng=random):
             "player_roll": player_roll, "monster_roll": monster_roll,
             "player_parts": roll_parts, "monster_parts": mon_parts,
             "damage_to_monster": damage_to_monster, "damage_to_player": damage_to_player,
+            "healed": healed_amount,
             "monster_hp": monster_hp, "monster_hp_max": monster_hp_max,
             "player_hp": player.get("hp", 0), "fight": fight, "player": player}
 
@@ -1442,7 +1445,7 @@ def record_element_book(user_id, cont_key, monster_rank, element, db_updates):
     return msg
 
 
-def fight_victory(user_id, fight, member_roles=(), rng=random):
+def fight_victory(user_id, fight, member_roles=(), rng=random, carry=None):
     """จ่ายรางวัลตอนโค่นมอนสำเร็จ (เว็บเกม เฟส 5.6c) — ยกมาจาก process_turn ทั้งก้อน
 
     ครอบคลุม: ทอง/EXP (ตัวคูณแรงค์ × ทวีป/ธีม × ธาตุ × passive × สงครามฝ่าย)
@@ -1450,6 +1453,9 @@ def fight_victory(user_id, fight, member_roles=(), rng=random):
     เลเวลอัป · เลื่อนแรงค์ · ดรอปวาร์ปในดันเจี้ยน · ดรอปของธีม infusion
 
     ไม่แตะ discord: ยศแรงค์คืนออกไปเป็น promoted_rank ให้ผู้เรียกไปให้เอง
+
+    carry = db_updates ที่ค้างมาจากเทิร์นสุดท้าย (hp/ความทนทาน) — ต้องรวมมาเขียนด้วย
+    ไม่งั้นผลของเทิร์นที่ล้มมอน (เช่นฮีลที่เพิ่งกด) หายไปทั้งหมด
     """
     from bot import identity as _identity
     player = player_model.get_player(user_id) or {}
@@ -1474,7 +1480,7 @@ def fight_victory(user_id, fight, member_roles=(), rng=random):
     battle_end_log = ""
     promoted_rank = None
     in_dungeon = False
-    db_updates = {}
+    db_updates = dict(carry or {})
 
     # รางวัล = ฐานสุ่ม × แรงค์ × ทวีป/ธีม × ธาตุ (✨ แสง = ทอง ×3.5)
     elem_gold_mult = element_data.get("gold_mult", 1.0)

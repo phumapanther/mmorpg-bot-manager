@@ -1157,6 +1157,7 @@ def _fight_action(uid, fight, action):
                     "monster_parts": t.get("monster_parts", [])},
            "damage_to_monster": t.get("damage_to_monster", 0),
            "damage_to_player": t.get("damage_to_player", 0),
+           "healed": t.get("healed", 0),
            "player_hp": t.get("player_hp", 0)}
 
     if t["outcome"] in ("monster_fled", "player_fled"):
@@ -1165,9 +1166,13 @@ def _fight_action(uid, fight, action):
         return out | {"money": _money_now(uid)}
 
     if t["outcome"] == "win":
-        v = adventure_core.fight_victory(uid, t["fight"])
+        # carry = ผลของเทิร์นที่ล้มมอน (เลือดที่เพิ่งฮีล/เกราะที่เพิ่งสึก) ต้องเขียนด้วย
+        v = adventure_core.fight_victory(uid, t["fight"], carry=t.get("db_updates"))
         adventure_core.clear_pending(uid)
-        out["text"] = (f"🏅 **โค่น {t['fight']['stats'].get('name', 'มอนสเตอร์')} สำเร็จ!**\n"
+        # โชว์ผลเทิร์นสุดท้ายก่อนสรุปชัยชนะ — ผู้เล่นต้องเห็นว่าตีไปเท่าไหร่ถึงล้ม
+        # (ดิสโชว์อยู่ในช่อง "📜 เทิร์นสุดท้าย" ของ embed ชนะ เว็บเคยข้ามไปเลย)
+        out["text"] = ((out["log"] + "\n" if out["log"] else "")
+                       + f"🏅 **โค่น {t['fight']['stats'].get('name', 'มอนสเตอร์')} สำเร็จ!**\n"
                        f"💰 **+{v['reward']:,}** ทอง   🔷 **+{v['exp']:,}** EXP"
                        + ("\n✨🎉 **LEVEL UP!!** เลเวลเพิ่มเป็น Lv." + str(v["level"]) if v["level_up"] else "")
                        + v["rank_msg"] + v["drops"] + v["battle_end_log"])
