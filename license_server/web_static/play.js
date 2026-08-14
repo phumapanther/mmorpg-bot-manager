@@ -1000,7 +1000,7 @@ async function advWalk() {
   if (ADV_BUSY) return;
   ADV_BUSY = true;
   const tag = document.getElementById('sceneTag');
-  SFX.play('walk');
+  SFX.walking(true);                    // 👣 ฝีเท้าดังไปเรื่อย ๆ จนกว่าจะถึงจุดหมาย
   SCENE.clearFoe(); SCENE.clearRoll(); SCENE.walk();
   document.getElementById('foeBar').hidden = true;
   tag.textContent = 'กำลังเดินทาง...';
@@ -1010,6 +1010,7 @@ async function advWalk() {
   try {
     const g = await api('POST', '/api/web/adventure/walk');
     await new Promise(r => setTimeout(r, 900));       // ให้เห็นอนิเมชันเดินก่อนเฉลย
+    SFX.walking(false);                               // ถึงที่แล้ว หยุดเดิน
     SCENE.setMap(g.continent || 'main');
     const art = g.event === 'travel' ? 'vehicle_' + g.encounter.vehicle : ADV_ART[g.event];
     if (art) SCENE.showEvent(art); else SCENE.idle();
@@ -1033,7 +1034,7 @@ async function advWalk() {
     SCENE.idle();
     toast(e.message, true);
     advIdleButton(document.getElementById('advActions'));
-  } finally { ADV_BUSY = false; }
+  } finally { ADV_BUSY = false; SFX.walking(false); }   // ทางออกสุดท้าย — เน็ตหลุดก็ต้องหยุดเดิน
 }
 
 async function advAct(action, label, confirmMsg) {
@@ -1063,7 +1064,11 @@ async function advAct(action, label, confirmMsg) {
       SCENE.showRoll(r.roll);
       await new Promise(res => setTimeout(res, 750));      // ให้เห็นเต๋าเฉลยก่อนตัวเลขเด้ง
     }
-    if (r.damage_to_monster) { SCENE.hitFoe(); SCENE.float('-' + fmt(r.damage_to_monster), '', 72); }
+    if (r.damage_to_monster) {                          // มอนกินดาเมจ — เข้าแรงเสียงหนักกว่า
+      SCENE.hitFoe(); SCENE.float('-' + fmt(r.damage_to_monster), '', 72);
+      const foeMax = (r.monster && r.monster.hp_max) || 0;
+      SFX.play(foeMax && r.damage_to_monster >= foeMax / 4 ? 'foecrit' : 'foehit');
+    }
     if (r.damage_to_player) SFX.play('hurt');
     // หนีแล้วไม่รอด — โดนสวนกลับ ต้องมีเสียงเตือนให้รู้ตัวว่ายังไม่จบ
     if (action === 'flee' && r.outcome === 'continue') SFX.play('caught');
@@ -1092,7 +1097,7 @@ async function advAct(action, label, confirmMsg) {
                     SFX.play(r.reward.level_up ? 'levelup' : 'coin'); }
     if (r.item || r.got_item) SFX.play('item');
     if (r.monster !== undefined) paintFoe(r.pending === 'monster' ? r.monster : null);
-    if (r.damage) { SCENE.hitFoe(); SCENE.float('-' + r.damage, '', 40); }
+    if (r.damage) { SCENE.hitFoe(); SCENE.float('-' + r.damage, '', 40); SFX.play('foehit'); }
     if (r.gold) { SCENE.float('+' + r.gold, 'gold', 50); SFX.play('coin'); }
     if (r.continent) { SCENE.setMap(r.continent); SCENE.showEvent('village'); SCENE_EVENT = 'village'; }
     IN_FIGHT = r.pending === 'monster';

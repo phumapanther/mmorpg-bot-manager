@@ -80,12 +80,24 @@ const SFX = (() => {
   // เสียงประจำเหตุการณ์ — เรียกด้วย SFX.play('ชื่อ')
   const BANK = {
     click:   () => tone({ freq: 520, dur: .05, type: 'square', vol: .5 }),
-    walk:    () => { tone({ freq: 300, dur: .06, type: 'triangle', vol: .4 });
-                     tone({ freq: 260, dur: .06, type: 'triangle', vol: .35, delay: .12 }); },
+    // ก้าวเดียว — สลับซ้าย/ขวาด้วยระดับเสียงต่างกันนิดเดียว ให้ฟังเป็นคนเดินจริงไม่ใช่เสียงปี๊บซ้ำ
+    walk:    () => { noise({ dur: .07, vol: .3, hp: 700 });
+                     tone({ freq: 105, dur: .09, type: 'triangle', vol: .3, slide: -35 }); },
+    walk2:   () => { noise({ dur: .07, vol: .26, hp: 900 });
+                     tone({ freq: 88, dur: .09, type: 'triangle', vol: .28, slide: -28 }); },
     hit:     () => { noise({ dur: .14, vol: .7, hp: 600 });
                      tone({ freq: 180, dur: .1, type: 'square', vol: .5, slide: -90 }); },
     hurt:    () => { noise({ dur: .2, vol: .5, hp: 300 });
                      tone({ freq: 220, dur: .18, type: 'sawtooth', vol: .5, slide: -140 }); },
+    // มอนกินดาเมจ — เสียงเนื้อโดนกระแทกกับเสียงร้องสั้น ๆ คนละตัวกับเสียงเหวี่ยงอาวุธ (hit)
+    foehit:  () => { noise({ dur: .16, vol: .6, hp: 260 });
+                     tone({ freq: 150, dur: .14, type: 'square', vol: .5, slide: -70 });
+                     tone({ freq: 420, dur: .16, type: 'sawtooth', vol: .32, delay: .05, slide: -260 }); },
+    // ดาเมจก้อนใหญ่ (คริติคอล/สกิลเข้าเต็ม ๆ) — หนักกว่าเดิมให้รู้ว่าเข้าแรง
+    foecrit: () => { noise({ dur: .3, vol: .8, hp: 160 });
+                     tone({ freq: 110, dur: .3, type: 'square', vol: .6, slide: -55 });
+                     tone({ freq: 520, dur: .26, type: 'sawtooth', vol: .4, delay: .06, slide: -380 });
+                     tone({ freq: 1568, dur: .18, type: 'sine', vol: .25, delay: .04 }); },
     skill:   () => { tone({ freq: 440, dur: .09, type: 'sine', vol: .5 });
                      tone({ freq: 660, dur: .09, type: 'sine', vol: .5, delay: .07 });
                      tone({ freq: 880, dur: .14, type: 'sine', vol: .45, delay: .14 }); },
@@ -234,8 +246,22 @@ const SFX = (() => {
     if (mbus) { try { mbus.disconnect(); } catch (e) { /* ปิดไปแล้วก็ช่าง */ } mbus = null; }
   }
 
+  // 👣 ฝีเท้าตอนออกเดินทาง — ต้องเดินไปเรื่อย ๆ จนถึงที่หมาย ไม่ใช่ดังชุดเดียวจบ
+  // (ระยะเวลาเดินไม่แน่นอน ขึ้นกับเซิร์ฟเวอร์ตอบเร็วแค่ไหน จึงต้องสั่งหยุดเอง)
+  let feet = null, foot = 0;
+  function feetLoop(go) {
+    if (feet) { clearInterval(feet); feet = null; }
+    if (!go) return;
+    const step = () => { try { BANK[foot++ % 2 ? 'walk2' : 'walk'](); } catch (e) { /* ช่างมัน */ } };
+    step();
+    feet = setInterval(step, 290);
+  }
+
   return {
     play(name) { try { (BANK[name] || (() => {}))(); } catch (e) { /* เสียงพังห้ามทำให้เกมพัง */ } },
+
+    /** เริ่ม/หยุดเสียงฝีเท้า — เรียก walking(false) ทุกทางออก ไม่งั้นเดินไม่หยุด */
+    walking(go) { try { feetLoop(!!go && on); } catch (e) { /* เสียงพังห้ามทำให้เกมพัง */ } },
 
     /** เปิดเพลงพื้นหลัง — เรียกซ้ำชื่อเดิมไม่รีสตาร์ท, ส่ง '' หรือ null เพื่อหยุด */
     music(name) {
@@ -255,7 +281,7 @@ const SFX = (() => {
       on = !on;
       localStorage.setItem('sfx', on ? 'on' : 'off');
       if (on) { ensure(); this.play('click'); if (wanted) { halt(); pump(); } }
-      else halt();
+      else { halt(); feetLoop(false); }        // ปิดเสียงกลางทางแล้วฝีเท้าต้องหยุดด้วย
       return on;
     },
 

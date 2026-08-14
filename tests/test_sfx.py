@@ -45,6 +45,10 @@ globalThis.window = { AudioContext: FakeCtx };
 const timers = [];
 globalThis.setTimeout = (fn, ms) => { timers.push([fn, ms]); return timers.length; };
 globalThis.clearTimeout = () => {};
+const loops = [];
+globalThis.setInterval = (fn, ms) => { loops.push([fn, ms]); return loops.length; };
+globalThis.clearInterval = id => { if (id) loops[id - 1] = null; };
+const running = () => loops.filter(Boolean);
 globalThis.document = { addEventListener() {}, removeEventListener() {} };
 
 __SFX_SRC__
@@ -59,6 +63,20 @@ for (const n of SFX.names()) {
 
 // ชื่อที่ไม่มีอยู่จริงต้องเงียบเฉย ๆ ไม่ใช่โยน error ใส่หน้าเกม
 const q = scheduled; SFX.play('ไม่มีเสียงนี้'); report.unknownSilent = scheduled === q;
+
+// 👣 ฝีเท้า: ก้าวแรกดังทันที แล้วเดินต่อไปเรื่อย ๆ จนกว่าจะสั่งหยุด
+const w0 = scheduled;
+SFX.walking(true);
+report.walkFirstStepIsInstant = scheduled > w0;          // ไม่ต้องรอ 300ms ถึงจะได้ยินก้าวแรก
+report.walkLoops = running().length === 1;
+const w1 = scheduled;
+running()[0][0](); running()[0][0]();
+report.walkKeepsGoing = scheduled > w1;
+SFX.walking(false);
+report.walkStops = running().length === 0;
+SFX.walking(true); SFX.walking(true);                    // สั่งซ้ำต้องไม่ได้สองขา
+report.walkNoDoubleLoop = running().length === 1;
+SFX.walking(false);
 
 for (const t of SFX.tracks()) {
   SFX.music(null);
@@ -77,7 +95,8 @@ SFX.music(null); SFX.toggle();
 const s3 = scheduled;
 SFX.names().forEach(n => SFX.play(n));
 SFX.music(cur);
-report.mutedIsSilent = scheduled === s3;
+SFX.walking(true);
+report.mutedIsSilent = scheduled === s3 && running().length === 0;
 SFX.toggle();
 
 // ปิดเฉพาะเพลง เอฟเฟกต์ต้องยังดังอยู่
@@ -123,7 +142,8 @@ def test_every_sound_actually_makes_noise(report):
 def test_the_new_sounds_the_player_asked_for_are_there(report):
     """รายการที่ผู้เล่นสั่งไว้ — ครบทุกช่องไหม"""
     want = {"item", "trap", "caught", "use", "equip", "craft", "reward",
-            "slot", "reel", "card", "bust", "bank", "gold", "buy", "pet", "chest"}
+            "slot", "reel", "card", "bust", "bank", "gold", "buy", "pet", "chest",
+            "foehit", "foecrit"}
     assert want <= set(report["names"]), f"ยังขาดเสียง: {sorted(want - set(report['names']))}"
     assert want <= _played_names(), \
         f"มีเสียงแต่ไม่มีใครเรียกใช้: {sorted(want - _played_names())}"
@@ -163,6 +183,25 @@ def test_asking_for_the_same_track_again_does_not_restart_it(report):
 
 def test_muting_really_mutes(report):
     assert report["mutedIsSilent"], "ปิดเสียงแล้วยังมีเสียงเล็ดลอดออกมา"
+
+
+def test_footsteps_start_instantly_loop_and_can_be_stopped(report):
+    """เดินทางใช้เวลาไม่แน่นอน ฝีเท้าจึงต้องวนเองและสั่งหยุดได้ตรงเวลา"""
+    assert report["walkFirstStepIsInstant"], "ก้าวแรกต้องดังทันทีที่ออกเดิน ไม่ใช่รอรอบถัดไป"
+    assert report["walkLoops"], "ฝีเท้าไม่ได้วน — ดังชุดเดียวแล้วเงียบทั้งที่ยังเดินอยู่"
+    assert report["walkKeepsGoing"], "วนแล้วแต่ไม่มีเสียงออกมาในรอบถัดไป"
+    assert report["walkStops"], "สั่งหยุดแล้วยังเดินไม่หยุด"
+    assert report["walkNoDoubleLoop"], "กดเดินซ้ำแล้วได้ฝีเท้าซ้อนกันสองชุด"
+
+
+def test_every_walk_that_starts_is_guaranteed_to_stop():
+    """ฝีเท้าที่ไม่มีคนสั่งหยุดจะดังค้างทั้งเกม — ต้องหยุดใน finally เสมอ"""
+    assert "SFX.walking(true)" in PLAY, "ไม่มีใครสั่งเริ่มเดินเลย"
+    assert PLAY.count("SFX.walking(false)") >= PLAY.count("SFX.walking(true)")
+    tail = PLAY[PLAY.index("SFX.walking(true)"):]
+    fin = tail.index("} finally {")
+    assert "SFX.walking(false)" in tail[fin:fin + 200], \
+        "ต้องหยุดฝีเท้าใน finally ไม่งั้นเน็ตหลุดแล้วเดินค้างตลอดกาล"
 
 
 def test_turning_off_music_keeps_the_sound_effects(report):
