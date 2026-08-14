@@ -208,3 +208,27 @@ def test_action_buttons_sit_above_the_log():
     css = pathlib.Path("license_server/web_static/play.css").read_text(encoding="utf-8")
     assert ".adv-log" in css and "max-height" in css[css.index(".adv-log"):css.index(".adv-log") + 200]
     assert "advLog').scrollTop = 0" in PLAY, "ข้อความใหม่ต้องเริ่มอ่านจากบนสุด"
+
+
+def test_every_menu_button_has_intact_markup():
+    """กันมาร์กอัปพังเงียบ ๆ — เคยแก้ป้ายเฟสด้วย regex แล้วกิน <span> ของปุ่มกาชาไปด้วย
+    ผลคือหน้าเว็บโชว์โค้ดดิบ `class="sub">...` ให้ผู้เล่นเห็น"""
+    html = pathlib.Path("license_server/web_static/play.html").read_text(encoding="utf-8")
+    bad = []
+    for m in re.finditer(r'<button[^>]*class="g-tile[^"]*"[^>]*>(.*?)</button>', html, re.S):
+        body = m.group(1)
+        go = re.search(r'data-go="(\w+)"', m.group(0))
+        name = go.group(1) if go else "(ไม่มี data-go)"
+        if body.count("<span") != body.count("</span>"):
+            bad.append(f"{name}: span ไม่สมดุล")
+        elif re.search(r'(?<!<span )class="(ic|sub|tag)"', body):
+            bad.append(f"{name}: มี class= ลอยไม่มีแท็กเปิด")
+    assert not bad, f"ปุ่มเมนูมาร์กอัปพัง: {bad}"
+
+
+def test_no_raw_markup_leaks_into_visible_text():
+    """ข้อความที่ผู้เล่นเห็นต้องไม่มีเศษโค้ด HTML ปน"""
+    html = pathlib.Path("license_server/web_static/play.html").read_text(encoding="utf-8")
+    visible = re.sub(r"<[^>]+>", "", html)
+    for junk in ('class="', "</span", "<span", "data-go="):
+        assert junk not in visible, f"มีเศษโค้ดโผล่ให้ผู้เล่นเห็น: {junk}"
