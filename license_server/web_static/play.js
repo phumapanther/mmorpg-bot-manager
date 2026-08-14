@@ -890,6 +890,12 @@ const ADV_ACTIONS = {
     : [['roll', '🎲 ทอยเต๋าวัดดวง', 'hot']],
 };
 
+// เหตุการณ์ -> เสียงตอนเจอ (เหตุการณ์ 'travel' ใช้เสียงตามพาหนะ ดูใน advWalk)
+// ฟังแล้วต้องรู้เลยว่าเจออะไร ไม่ต้องรออ่านข้อความ
+const EVENT_SFX = { calm: 'calm', village: 'village', treasure: 'treasure', trap: 'trap',
+                    dungeon: 'dungeon', monster: 'foe', npc: 'npc', special: 'special',
+                    bank_robbery: 'danger', mugging: 'danger' };
+
 // เหตุการณ์ -> คีย์ภาพในโฟลเดอร์ assets/events (ชื่อเดียวกับที่ดิสใช้)
 const ADV_ART = { calm: 'calm', village: 'village', treasure: 'treasure', trap: 'trap',
                   dungeon: 'dungeon', monster: 'monster', bank_robbery: 'bank_robbery',
@@ -1024,7 +1030,7 @@ async function advWalk() {
       boot();
       return;
     }
-    if (g.event === 'trap') SFX.play('trap');
+    SFX.play(g.event === 'travel' ? 'veh_' + g.encounter.vehicle : EVENT_SFX[g.event]);
     if (g.item || g.got_item) SFX.play('item');
     paintFoe(g.monster);
     IN_FIGHT = !!g.monster; SCENE_EVENT = g.event; sceneMusic();

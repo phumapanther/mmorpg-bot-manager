@@ -126,6 +126,44 @@ const SFX = (() => {
                      noise({ dur: .12, vol: .45 + i * .12, delay: d, hp: 2000 });
                      tone({ freq: 300 - i * 30, dur: .12, type: 'square', vol: .35, delay: d, slide: -120 }); }),
 
+    // ── เจอเหตุการณ์ระหว่างทาง — แต่ละอย่างต้องฟังออกตั้งแต่ยังไม่อ่านข้อความ ──
+    calm:    () => noise({ dur: .7, vol: .09, hp: 320 }),               // ลมพัดเบา ๆ ทางโล่ง
+    village: () => { tone({ freq: 784, dur: .7, type: 'sine', vol: .4 });        // ระฆังหมู่บ้าน
+                     tone({ freq: 1047, dur: .8, type: 'sine', vol: .3, delay: .16 });
+                     tone({ freq: 523, dur: .9, type: 'triangle', vol: .22, delay: .3 }); },
+    npc:     () => { tone({ freq: 523, dur: .14, type: 'triangle', vol: .4 });   // ทักทาย "สวัสดี?"
+                     tone({ freq: 659, dur: .14, type: 'triangle', vol: .4, delay: .13 });
+                     tone({ freq: 587, dur: .26, type: 'triangle', vol: .35, delay: .27 }); },
+    dungeon: () => { tone({ freq: 62, dur: 1.1, type: 'sawtooth', vol: .38 });   // ลมหวีดจากปากถ้ำ
+                     noise({ dur: .8, vol: .2, hp: 180 });
+                     tone({ freq: 1568, dur: .1, type: 'sine', vol: .18, delay: .35 });   // น้ำหยดก้องไกล
+                     tone({ freq: 1568, dur: .1, type: 'sine', vol: .1, delay: .62 }); },
+    treasure: () => [1047, 1319, 1568, 2093].forEach((f, i) =>          // เห็นหีบวาววับแต่ไกล
+                      tone({ freq: f, dur: .3, type: 'sine', vol: .34 - i * .04, delay: i * .09 })),
+    foe:     () => { tone({ freq: 70, dur: .45, type: 'sawtooth', vol: .55, slide: 60 });  // คำรามพุ่งเข้ามา
+                     noise({ dur: .3, vol: .45, hp: 240 });
+                     tone({ freq: 330, dur: .3, type: 'square', vol: .3, delay: .12, slide: -150 }); },
+    danger:  () => [0, .22, .44].forEach(d => {                          // ไซเรน — โจร/ถูกปล้น
+                     tone({ freq: 740, dur: .16, type: 'square', vol: .4, delay: d });
+                     tone({ freq: 554, dur: .16, type: 'square', vol: .4, delay: d + .11 }); }),
+    special: () => [440, 622, 880, 622, 1244].forEach((f, i) =>          // ระยิบระยับลึกลับ
+                     tone({ freq: f, dur: .38, type: 'sine', vol: .3, delay: i * .12, slide: 40 })),
+
+    // ── พาหนะข้ามทวีป — คนละคันต้องคนละเสียง ──
+    veh_airship: () => { noise({ dur: .55, vol: .35, hp: 400 });         // หัวเผาเรือเหาะพ่นไฟ
+                         tone({ freq: 180, dur: .7, type: 'triangle', vol: .3, slide: 140 });
+                         tone({ freq: 880, dur: .3, type: 'sine', vol: .18, delay: .4 }); },
+    veh_ship:    () => { tone({ freq: 104, dur: .95, type: 'square', vol: .45, slide: -12 });  // หวูดเรือ
+                         tone({ freq: 156, dur: .9, type: 'triangle', vol: .28, delay: .05 });
+                         noise({ dur: .6, vol: .16, delay: .5, hp: 300 }); },               // คลื่นซัด
+    veh_portal:  () => { tone({ freq: 180, dur: .6, type: 'sine', vol: .4, slide: 1500 });     // ดูดเข้ามิติ
+                         tone({ freq: 1400, dur: .5, type: 'sine', vol: .25, delay: .3, slide: -1000 });
+                         noise({ dur: .4, vol: .22, delay: .2, hp: 2400 }); },
+    veh_caravan: () => { [0, .15, .28, .42].forEach(d => {                                     // เสียงกีบม้า
+                           noise({ dur: .07, vol: .35, delay: d, hp: 500 });
+                           tone({ freq: 96, dur: .09, type: 'triangle', vol: .32, delay: d }); });
+                         tone({ freq: 1319, dur: .3, type: 'sine', vol: .2, delay: .2 }); },   // กระดิ่งเกวียน
+
     chest:   () => { noise({ dur: .09, vol: .45, hp: 1400 });          // สลักหีบดีดขึ้น
                      tone({ freq: 120, dur: .46, type: 'sawtooth', vol: .28, slide: 80 });  // ฝาไม้เอี๊ยด
                      [1319, 1568, 1976].forEach((f, i) =>              // แสงวาบจากในหีบ

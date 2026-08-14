@@ -120,11 +120,27 @@ def report():
     return json.loads(out.stdout.strip().splitlines()[-1])
 
 
+def _event_sfx():
+    """{เหตุการณ์: ชื่อเสียง} จากตาราง EVENT_SFX ใน play.js"""
+    block = re.search(r"const EVENT_SFX = \{(.*?)\};", PLAY, re.S)
+    assert block, "หาตาราง EVENT_SFX ไม่เจอ"
+    return dict(re.findall(r"(\w+):\s*'(\w+)'", block.group(1)))
+
+
+def _vehicles():
+    from bot.game_modifiers import VEHICLES
+    return set(VEHICLES)
+
+
 def _played_names():
-    """ชื่อเสียงทุกตัวที่หน้าเว็บเรียกจริง (รวมที่เลือกด้วยเงื่อนไขในวงเล็บเดียวกัน)"""
+    """ชื่อเสียงทุกตัวที่หน้าเว็บเรียกจริง — ทั้งที่เขียนตรง ๆ และที่มาจากตาราง"""
     out = set()
     for call in re.findall(r"SFX\.play\(([^();]*)\)", PLAY):
-        out |= set(re.findall(r"'(\w+)'", call))
+        # ตัดฝั่งที่เป็นการ "เทียบค่า" ออกก่อน — `x === 'travel' ? ...` ไม่ใช่ชื่อเสียง
+        out |= set(re.findall(r"'(\w+)'", re.sub(r"[=!]==?\s*'\w+'", "", call)))
+    out.discard("veh_")                       # ตัวต่อหน้าชื่อพาหนะ ไม่ใช่ชื่อเสียง
+    out |= set(_event_sfx().values())
+    out |= {"veh_" + v for v in _vehicles()}
     return out
 
 
@@ -147,6 +163,29 @@ def test_the_new_sounds_the_player_asked_for_are_there(report):
     assert want <= set(report["names"]), f"ยังขาดเสียง: {sorted(want - set(report['names']))}"
     assert want <= _played_names(), \
         f"มีเสียงแต่ไม่มีใครเรียกใช้: {sorted(want - _played_names())}"
+
+
+def test_every_event_you_can_run_into_has_its_own_sound(report):
+    """เจอ NPC กับเจอดันเจี้ยนต้องฟังออกว่าคนละเรื่อง ไม่ใช่ตุ๊งเดียวกันหมด"""
+    labels = set(re.findall(r"(\w+):\s*'",
+                            re.search(r"const ADV_LABEL = \{(.*?)\};", PLAY, re.S).group(1)))
+    ev = _event_sfx()
+    # death = ตายแล้ว มีเสียงของตัวเอง · travel = แยกเสียงตามพาหนะ
+    missing = labels - set(ev) - {"death", "travel"}
+    assert not missing, f"เหตุการณ์ที่เจอแล้วเงียบ: {sorted(missing)}"
+    unknown = set(ev.values()) - set(report["names"])
+    assert not unknown, f"ชี้ไปเสียงที่ไม่มีอยู่จริง: {sorted(unknown)}"
+
+    # ห้ามใช้เสียงเดียวกันหลายเหตุการณ์ ยกเว้น danger (โจรปล้น/โดนปล้น = อันตรายเหมือนกัน)
+    used = [s for e, s in ev.items() if s != "danger"]
+    assert len(used) == len(set(used)), f"มีเหตุการณ์ใช้เสียงซ้ำกัน: {sorted(ev.items())}"
+
+
+def test_every_vehicle_sounds_different(report):
+    """พาหนะใหม่โผล่มาแล้วลืมใส่เสียง = ขึ้นยานแล้วเงียบ"""
+    missing = {v for v in _vehicles() if "veh_" + v not in report["names"]}
+    assert not missing, f"พาหนะที่ยังไม่มีเสียง: {sorted(missing)}"
+    assert "'veh_' + g.encounter.vehicle" in PLAY, "หน้าเว็บไม่ได้เลือกเสียงตามพาหนะ"
 
 
 def test_an_unknown_sound_name_stays_quiet_instead_of_crashing(report):
