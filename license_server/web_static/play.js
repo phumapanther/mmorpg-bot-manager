@@ -147,23 +147,15 @@ function paintBag(bag) {
     box.innerHTML = '<div class="empty-bag">กระเป๋าว่างเปล่า — ออกผจญภัยเก็บของก่อนนะ</div>';
     return;
   }
+  // การ์ดของ = ปุ่มเดียวทั้งใบ กดแล้วค่อยเลือกว่าจะใช้หรือทิ้ง
+  // (เดิมแปะปุ่มไว้ทุกใบตลอดเวลา ทำให้ล้นการ์ดและกดผิดง่าย)
   box.innerHTML = bag.items.map((it, i) => `
-    <div class="item${it.usable ? ' use' : ''}">
-      ${it.usable ? '<span class="badge">กดใช้ได้</span>' : ''}
+    <button class="item${it.usable ? ' use' : ''}" data-item="${i}">
+      ${it.usable ? '<span class="badge">ใช้ได้</span>' : ''}
       <span class="nm">${esc(it.name)}</span><span class="qty">×${it.count}</span>
-      <span class="row-btns">
-        ${it.usable ? `<button class="use-btn" data-use="${i}">ใช้</button>` : ''}
-        <button class="drop-btn" data-drop="${i}">ทิ้ง</button>
-      </span>
-    </div>`).join('');
-  box.querySelectorAll('[data-use]').forEach(b => b.onclick = () => {
-    const it = bag.items[+b.dataset.use];
-    useItem(it.id, it.name);
-  });
-  box.querySelectorAll('[data-drop]').forEach(b => b.onclick = () => {
-    const it = bag.items[+b.dataset.drop];
-    dropItem(it.id, it.name, it.count, it.sell);
-  });
+    </button>`).join('');
+  box.querySelectorAll('[data-item]').forEach(b => b.onclick = () =>
+    openItemMenu(bag.items[+b.dataset.item]));
 }
 
 async function boot() {
@@ -203,9 +195,10 @@ boot();
 
 // ══════ เฟส 2: ธุรกรรมจริง — ทุกรายการต้องยืนยันก่อนเสมอ (กันกดผิด) ══════
 
-/** หน้าต่างยืนยัน — คืน true เมื่อกดยืนยัน
- *  lines: [[ป้าย, ค่า, สไตล์('warn'|'good'|'')]] บอกผลลัพธ์ที่จะเกิดขึ้นจริง */
-function confirmAction({ title, message, lines, okText }) {
+/** กล่องโต้ตอบกลาง — ใช้ทั้งเมนูเลือกและหน้ายืนยัน คืนค่า value ของปุ่มที่กด (ปิด = null)
+ *  lines:   [[ป้าย, ค่า, สไตล์('warn'|'good'|'')]] บอกผลลัพธ์ที่จะเกิดขึ้นจริง
+ *  buttons: [{label, value, cls}] — cls 'yes' = ปุ่มเน้น, 'danger' = ปุ่มทำลาย */
+function openDialog({ title, message, lines, buttons }) {
   return new Promise(resolve => {
     const wrap = document.getElementById('confirmWrap');
     document.getElementById('cfTitle').textContent = title;
@@ -213,24 +206,40 @@ function confirmAction({ title, message, lines, okText }) {
     document.getElementById('cfLines').innerHTML = (lines || [])
       .map(([k, v, cls]) => '<div class="' + (cls || '') + '"><span>' + esc(k) +
                             '</span><b>' + esc(v) + '</b></div>').join('');
-    const yes = document.getElementById('cfYes'), no = document.getElementById('cfNo');
-    yes.textContent = okText || 'ยืนยัน';
-    yes.disabled = false;
-    wrap.classList.add('on');
-    yes.focus();
+    document.getElementById('cfLines').style.display = (lines || []).length ? '' : 'none';
 
-    const onKey = e => { if (e.key === 'Escape') done(false); };
-    function done(ok) {
+    const box = document.getElementById('cfBtns');
+    box.innerHTML = '';
+    wrap.classList.add('on');
+
+    const onKey = e => { if (e.key === 'Escape') done(null); };
+    function done(v) {
       wrap.classList.remove('on');
-      yes.onclick = no.onclick = wrap.onclick = null;
+      wrap.onclick = null;
       document.removeEventListener('keydown', onKey);
-      resolve(ok);
+      resolve(v);
     }
-    yes.onclick = () => { yes.disabled = true; done(true); };
-    no.onclick = () => done(false);
-    wrap.onclick = e => { if (e.target === wrap) done(false); };   // คลิกนอกกล่อง = ยกเลิก
+    (buttons || []).forEach((b, i) => {
+      const el = document.createElement('button');
+      el.textContent = b.label;
+      if (b.cls) el.className = b.cls;
+      el.onclick = () => { box.querySelectorAll('button').forEach(x => x.disabled = true); done(b.value); };
+      box.appendChild(el);
+      if (i === (buttons.length - 1)) el.focus();
+    });
+    wrap.onclick = e => { if (e.target === wrap) done(null); };   // คลิกนอกกล่อง = ปิด
     document.addEventListener('keydown', onKey);
   });
+}
+
+/** หน้ายืนยัน — คืน true เมื่อกดยืนยัน */
+async function confirmAction({ title, message, lines, okText, danger }) {
+  const v = await openDialog({
+    title, message, lines,
+    buttons: [{ label: 'ยกเลิก', value: null },
+              { label: okText || 'ยืนยัน', value: true, cls: danger ? 'danger' : 'yes' }],
+  });
+  return v === true;
 }
 
 function toast(msg, bad) {
@@ -440,4 +449,20 @@ async function dropItem(id, name, count, sell) {
     toast(r.message, !r.ok);
     if (r.ok) await reload();
   } catch (e) { toast(e.message, true); }
+}
+
+
+/** เมนูของชิ้นเดียว — กดที่ของแล้วเลือกว่าจะใช้หรือทิ้ง */
+async function openItemMenu(it) {
+  const lines = [['มีอยู่', it.count + ' ชิ้น']];
+  if (it.sell > 0) lines.push(['ขายได้', fmt(it.sell) + ' ทอง/ชิ้น']);
+  lines.push(['ประเภท', it.usable ? 'ของใช้ได้' : 'เก็บ/ขายอย่างเดียว']);
+
+  const buttons = [{ label: 'ปิด', value: null }];
+  if (it.usable) buttons.push({ label: '🧪 ใช้', value: 'use', cls: 'yes' });
+  buttons.push({ label: '🗑️ ทิ้ง', value: 'drop', cls: 'danger' });
+
+  const choice = await openDialog({ title: it.name, message: 'เลือกสิ่งที่ต้องการทำ', lines, buttons });
+  if (choice === 'use') await useItem(it.id, it.name);
+  if (choice === 'drop') await dropItem(it.id, it.name, it.count, it.sell);
 }

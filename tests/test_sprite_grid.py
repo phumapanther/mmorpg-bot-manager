@@ -84,4 +84,13 @@ def test_every_money_action_goes_through_confirm():
         before = js[max(0, idx - 1400):idx]
         assert "confirmAction" in before, f"{call} ถูกเรียกโดยไม่ผ่านหน้ายืนยัน"
     html = pathlib.Path("license_server/web_static/play.html").read_text(encoding="utf-8")
-    assert 'id="confirmWrap"' in html and 'id="cfYes"' in html and 'id="toast"' in html
+    assert 'id="confirmWrap"' in html and 'id="cfBtns"' in html and 'id="toast"' in html
+
+
+def test_bag_items_open_a_menu_instead_of_inline_buttons():
+    """ของในกระเป๋าต้องกดที่ใบแล้วเด้งเมนู ไม่ใช่แปะปุ่มใช้/ทิ้งไว้ตลอด (ปุ่มล้นการ์ด)"""
+    js = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+    assert "openItemMenu" in js
+    assert "use-btn" not in js and "drop-btn" not in js, "ยังมีปุ่มติดการ์ดค้างอยู่"
+    css = pathlib.Path("license_server/web_static/play.css").read_text(encoding="utf-8")
+    assert ".use-btn" not in css and ".drop-btn" not in css, "CSS ปุ่มเก่ายังไม่ถูกลบ"

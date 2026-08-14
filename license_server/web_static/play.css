@@ -173,16 +173,27 @@
                  border:1px solid var(--g-line); overflow:hidden; }
 .capbar .track i { display:block; height:100%;
                    background:linear-gradient(90deg,var(--g-gold),#b8862c); }
-.items { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:9px; }
-.item { display:flex; gap:10px; align-items:center; background:var(--g-hi);
-        border:1px solid var(--g-line); border-radius:12px; padding:9px 11px;
-        min-height:52px; position:relative; }
+/* การ์ดของ = ปุ่มทั้งใบ กดแล้วเด้งเมนูให้เลือกใช้/ทิ้ง */
+.items { display:grid; grid-template-columns:repeat(auto-fill,minmax(168px,1fr)); gap:10px; }
+.item { display:flex; gap:10px; align-items:center; text-align:left; width:100%;
+        background:var(--g-hi); border:1px solid var(--g-line); border-radius:12px;
+        padding:12px 13px; min-height:56px; position:relative; cursor:pointer;
+        font-family:inherit; color:var(--g-ink);
+        transition:transform 140ms var(--g-ease), border-color 140ms var(--g-ease),
+                   background 140ms var(--g-ease); }
+.item:hover { background:#40311f; border-color:var(--g-gold); transform:translateY(-2px); }
+.item:active { transform:translateY(1px); }
+.item:focus-visible { outline:2px solid var(--g-gold); outline-offset:2px; }
 .item.use { border-color:#5d7a4e; }
-.item .nm { font-size:12.5px; line-height:1.3; }
-.item .qty { margin-left:auto; font-family:var(--g-num); font-size:14px;
+.item.use:hover { border-color:#8fbe76; }
+.item .nm { font-size:13px; line-height:1.35; min-width:0; }
+.item .qty { margin-left:auto; font-family:var(--g-num); font-size:15px; font-weight:600;
              font-variant-numeric:tabular-nums; color:var(--g-gold); flex:none; }
-.item .badge { position:absolute; top:-6px; left:9px; font-size:9px; letter-spacing:.5px;
-               background:#5d7a4e; color:#fff; border-radius:99px; padding:1px 7px; }
+.item .badge { position:absolute; top:-7px; left:10px; font-size:9.5px; letter-spacing:.5px;
+               background:#5d7a4e; color:#fff; border-radius:99px; padding:1px 8px; }
+.confirm-btns .danger { background:linear-gradient(160deg,#8f3327,#5e1d14); border-color:#4d1710;
+                        color:#fff; box-shadow:0 3px 0 #3d120c; }
+.confirm-btns .danger:hover { filter:brightness(1.12); }
 .empty-bag { padding:26px; text-align:center; color:var(--g-muted); font-size:13.5px; }
 
 .buffline { display:flex; flex-wrap:wrap; gap:7px; }
@@ -260,15 +271,6 @@
                          color:var(--g-ink); font-family:inherit; font-size:13px; font-weight:600; }
 .bar-card .btns button:hover { background:#40311f; }
 
-.item .row-btns { margin-left:auto; display:flex; gap:6px; flex:none; }
-.item .use-btn, .item .drop-btn { border-radius:9px; min-height:36px; padding:0 12px;
-                 cursor:pointer; font-family:inherit; font-size:12px; font-weight:600; }
-.item .use-btn { border:1px solid #5d7a4e; background:#33452a; color:#e6f2df; }
-.item .use-btn:hover { background:#42582f; }
-.item .drop-btn { border:1px solid #6d3a33; background:#3a221e; color:#e8c4bd; }
-.item .drop-btn:hover { background:#4d2a24; }
-.item .use-btn:focus-visible, .item .drop-btn:focus-visible {
-                 outline:2px solid var(--g-gold); outline-offset:2px; }
 
 .g-note { margin-top:14px; padding:13px 16px; border-radius:12px; background:var(--g-panel);
           border:1px solid var(--g-line); border-left:3px solid var(--g-gold);
