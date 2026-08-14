@@ -260,10 +260,15 @@
                          color:var(--g-ink); font-family:inherit; font-size:13px; font-weight:600; }
 .bar-card .btns button:hover { background:#40311f; }
 
-.item .use-btn { margin-left:auto; border:1px solid #5d7a4e; background:#33452a; color:#e6f2df;
-                 border-radius:9px; min-height:34px; padding:0 12px; cursor:pointer;
-                 font-family:inherit; font-size:12px; font-weight:600; flex:none; }
+.item .row-btns { margin-left:auto; display:flex; gap:6px; flex:none; }
+.item .use-btn, .item .drop-btn { border-radius:9px; min-height:36px; padding:0 12px;
+                 cursor:pointer; font-family:inherit; font-size:12px; font-weight:600; }
+.item .use-btn { border:1px solid #5d7a4e; background:#33452a; color:#e6f2df; }
 .item .use-btn:hover { background:#42582f; }
+.item .drop-btn { border:1px solid #6d3a33; background:#3a221e; color:#e8c4bd; }
+.item .drop-btn:hover { background:#4d2a24; }
+.item .use-btn:focus-visible, .item .drop-btn:focus-visible {
+                 outline:2px solid var(--g-gold); outline-offset:2px; }
 
 .g-note { margin-top:14px; padding:13px 16px; border-radius:12px; background:var(--g-panel);
           border:1px solid var(--g-line); border-left:3px solid var(--g-gold);

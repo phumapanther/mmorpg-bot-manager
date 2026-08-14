@@ -149,11 +149,18 @@ function paintBag(bag) {
     <div class="item${it.usable ? ' use' : ''}">
       ${it.usable ? '<span class="badge">กดใช้ได้</span>' : ''}
       <span class="nm">${esc(it.name)}</span><span class="qty">×${it.count}</span>
-      ${it.usable ? `<button class="use-btn" data-use="${i}">ใช้</button>` : ''}
+      <span class="row-btns">
+        ${it.usable ? `<button class="use-btn" data-use="${i}">ใช้</button>` : ''}
+        <button class="drop-btn" data-drop="${i}">ทิ้ง</button>
+      </span>
     </div>`).join('');
   box.querySelectorAll('[data-use]').forEach(b => b.onclick = () => {
     const it = bag.items[+b.dataset.use];
     useItem(it.id, it.name);
+  });
+  box.querySelectorAll('[data-drop]').forEach(b => b.onclick = () => {
+    const it = bag.items[+b.dataset.drop];
+    dropItem(it.id, it.name, it.count, it.sell);
   });
 }
 
@@ -327,6 +334,24 @@ async function useItem(id, name) {
   if (!ok) return;
   try {
     const r = await api("POST", "/api/web/item/use", { item_id: id });
+    toast(r.message, !r.ok);
+    if (r.ok) await reload();
+  } catch (e) { toast(e.message, true); }
+}
+
+
+/** ทิ้งไอเทม — เตือนแรงกว่าใช้ เพราะของหายถาวรและไม่ได้เงินคืน */
+async function dropItem(id, name, count, sell) {
+  const lines = [['ไอเทม', name], ['มีอยู่', count + ' ชิ้น'], ['ทิ้ง', '1 ชิ้น', 'warn']];
+  if (sell > 0) lines.push(['ถ้าเอาไปขายจะได้', fmt(sell) + ' ทอง/ชิ้น', 'good']);
+  const ok = await confirmAction({
+    title: '🗑️ ยืนยันทิ้งไอเทม',
+    message: 'ของจะหายถาวรและไม่ได้เงินคืน — กู้กลับไม่ได้',
+    lines, okText: 'ยืนยันทิ้ง',
+  });
+  if (!ok) return;
+  try {
+    const r = await api("POST", "/api/web/item/drop", { item_id: id, amount: 1 });
     toast(r.message, !r.ok);
     if (r.ok) await reload();
   } catch (e) { toast(e.message, true); }

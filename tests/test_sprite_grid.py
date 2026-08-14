@@ -78,7 +78,8 @@ def test_play_page_wires_sprite_engine():
 def test_every_money_action_goes_through_confirm():
     """ทุกธุรกรรมเงิน/ใช้ไอเทมต้องเรียก confirmAction ก่อน — กันเผลอต่อปุ่มตรงเข้า API"""
     js = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
-    for call in ('"/api/web/bank"', '"/api/web/goldbar"', '"/api/web/item/use"'):
+    for call in ('"/api/web/bank"', '"/api/web/goldbar"',
+                 '"/api/web/item/use"', '"/api/web/item/drop"'):
         idx = js.index(call)
         before = js[max(0, idx - 1400):idx]
         assert "confirmAction" in before, f"{call} ถูกเรียกโดยไม่ผ่านหน้ายืนยัน"

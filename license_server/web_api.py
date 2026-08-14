@@ -390,6 +390,23 @@ def item_use(body: UseBody, request: Request):
     return {"ok": ok, "message": msg}
 
 
+class DropBody(BaseModel):
+    item_id: str
+    amount: int = 1
+
+
+@router.post("/item/drop")
+def item_drop(body: DropBody, request: Request):
+    """ทิ้งไอเทม — เรียก drop_item_for() ตัวเดียวกับปุ่ม 🗑️ ในดิส (ของหายถาวร)"""
+    uid = require_player(request)["uid"]
+    if body.amount <= 0:
+        raise HTTPException(400, "จำนวนต้องมากกว่า 0")
+    from bot.cogs.player_commands import drop_item_for
+    with _user_lock(uid):
+        ok, msg = drop_item_for(int(uid), str(body.item_id), body.amount)
+    return {"ok": ok, "message": msg}
+
+
 # ── เติมเงินผ่านเว็บ (เงินทุกบาทต้องผ่านมือแอดมิน — ไม่มีอนุมัติอัตโนมัติ) ──
 
 class TopupBody(BaseModel):

@@ -566,3 +566,22 @@ def test_bank_fee_preview_guards(client, tmp_path, monkeypatch):
     assert client.get("/api/web/bank/fee?amount=100").status_code == 401   # ต้องล็อกอิน
     _login(client)
     assert client.get("/api/web/bank/fee?amount=0").status_code == 400
+
+
+def test_item_drop_removes_one_and_keeps_rest(client, tmp_path, monkeypatch):
+    import json as _json
+    pm = _bind_pm(tmp_path, monkeypatch, inventory=_json.dumps(["1", "1", "9"]))
+    _login(client)
+    r = client.post("/api/web/item/drop", json={"item_id": "1", "amount": 1}).json()
+    assert r["ok"] is True
+    inv = pm.get_player(555000111)["inventory"]
+    assert inv.count("1") == 1 and "9" in inv          # ทิ้งชิ้นเดียว ที่เหลืออยู่ครบ
+
+
+def test_item_drop_guards(client, tmp_path, monkeypatch):
+    _bind_pm(tmp_path, monkeypatch, inventory="[]")
+    assert client.post("/api/web/item/drop", json={"item_id": "1"}).status_code == 401
+    _login(client)
+    assert client.post("/api/web/item/drop", json={"item_id": "1", "amount": 0}).status_code == 400
+    r = client.post("/api/web/item/drop", json={"item_id": "1"})      # ไม่มีของชิ้นนี้
+    assert r.status_code == 200 and r.json()["ok"] is False
