@@ -399,9 +399,12 @@
 
 
 /* ── หัวสถานะติดหน้าจอผจญภัย (เฟส 5.5) ── */
-.adv-hud { display: flex; gap: 12px; align-items: center; padding: 10px 12px;
-           background: var(--g-panel); border: 1px solid var(--g-line);
-           border-radius: 12px; margin-bottom: 10px; }
+/* วางต่อท้ายฉากเป็นชิ้นเดียวกัน — เห็นเลือดตัวเองตรงเหนือปุ่มที่กำลังจะกด */
+.adv-hud { display: flex; gap: 12px; align-items: center; padding: 11px 13px;
+           background: var(--g-panel); border: 2px solid #5c4733; border-top: 0;
+           border-radius: 0 0 var(--g-r) var(--g-r); }
+/* ฉากที่มีหัวสถานะต่อท้าย ตัดมุมล่างออกให้เชื่อมกันสนิท */
+.stage-wrap:has(+ .adv-hud) { border-radius: var(--g-r) var(--g-r) 0 0; border-bottom: 0; }
 .adv-hud #advFace { width: 52px; height: 52px; flex: none; border-radius: 10px;
                     background: rgba(0,0,0,.3); image-rendering: pixelated; }
 .adv-hud .hud-col { flex: 1; min-width: 0; display: grid; gap: 5px; }
