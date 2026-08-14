@@ -285,9 +285,15 @@ def test_every_weapon_shape_is_actually_drawn():
 
 
 def test_the_sound_engine_needs_no_external_files():
-    """สังเคราะห์เสียงเอง — โหลดไฟล์เสียงจากภายนอกไม่ได้"""
+    """สังเคราะห์เสียงเอง — โหลดไฟล์เสียงจากภายนอกไม่ได้
+
+    เช็คของที่ 'ดึงไฟล์จริง ๆ' ไม่ใช่ไล่หาสตริงลอย ๆ
+    (เคยพังเพราะ `t.wave` ในเอนจินเพลงไปชนกับการหา '.wav')
+    """
     assert "createOscillator" in SFX and "createBuffer" in SFX
-    assert ".mp3" not in SFX and ".wav" not in SFX and "http" not in SFX
+    for bad in ("new Audio(", "fetch(", "XMLHttpRequest", "http://", "https://",
+                ".mp3", ".ogg", ".wav'", '.wav"'):
+        assert bad not in SFX, f"เอนจินเสียงไปดึงไฟล์ภายนอก: {bad}"
 
 
 def test_sound_can_be_muted_and_remembers_the_choice():

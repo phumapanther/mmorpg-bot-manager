@@ -1290,6 +1290,7 @@ def _fight_action(uid, fight, action):
                        + v["rank_msg"] + v["drops"] + v["battle_end_log"])
         out["reward"] = {"gold": v["reward"], "exp": v["exp"], "level": v["level"],
                          "level_up": v["level_up"]}
+        out["got_item"] = bool(v.get("drops"))    # มอนดรอปของ — หน้าเว็บจะได้เล่นเสียงเก็บของ
         return out | {"money": _money_now(uid)}
 
     if t["outcome"] == "lose":

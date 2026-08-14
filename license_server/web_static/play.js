@@ -4,13 +4,34 @@
 // กติกา: ไม่มีกฎเกมในไฟล์นี้ — เซิร์ฟเวอร์คำนวณทุกอย่าง ที่นี่แค่วาดกับถามยืนยัน
 renderChrome("/play");
 
-// 🔊 ปุ่มเปิด/ปิดเสียง — จำค่าที่เลือกไว้ข้ามครั้ง
+// 🔊 ปุ่มเปิด/ปิดเสียง — แยกเอฟเฟกต์กับเพลงพื้นหลัง จำค่าที่เลือกไว้ข้ามครั้ง
 const sfxBtn = document.getElementById('playSfx');
 if (sfxBtn) {
   const paint = () => { sfxBtn.textContent = SFX.enabled ? '🔊' : '🔇';
-                        sfxBtn.title = SFX.enabled ? 'ปิดเสียง' : 'เปิดเสียง'; };
+                        sfxBtn.title = SFX.enabled ? 'ปิดเสียงเอฟเฟกต์' : 'เปิดเสียงเอฟเฟกต์'; };
   paint();
   sfxBtn.addEventListener('click', () => { SFX.toggle(); paint(); });
+}
+const bgmBtn = document.getElementById('playBgm');
+if (bgmBtn) {
+  const paint = () => { bgmBtn.textContent = SFX.musicEnabled ? '🎵' : '🔕';
+                        bgmBtn.title = SFX.musicEnabled ? 'ปิดเพลงพื้นหลัง' : 'เปิดเพลงพื้นหลัง'; };
+  paint();
+  bgmBtn.addEventListener('click', () => { SFX.toggleMusic(); paint(); });
+}
+
+// เพลงพื้นหลังของแต่ละทวีป — โทนตามบรรยากาศฉาก ไม่ใช่ทวีปละเพลงให้เปลืองเปล่า
+const CONT_MOOD = { main: 'field', sylvan: 'field', skyward: 'field',
+                    demon: 'dark', nether: 'dark',
+                    volcanic: 'forge', mechanized: 'forge',
+                    frozen: 'deep', ocean: 'deep' };
+let IN_FIGHT = false, SCENE_EVENT = '';
+
+/** เลือกเพลงให้ตรงกับสิ่งที่อยู่ตรงหน้า — สู้อยู่ = เพลงต่อสู้ แวะหมู่บ้าน = เพลงเมือง ไม่งั้นตามทวีป */
+function sceneMusic() {
+  if (IN_FIGHT) return SFX.music('battle');
+  if (SCENE_EVENT === 'village') return SFX.music('town');
+  SFX.music(CONT_MOOD[(LAST && LAST.identity.continent) || 'main'] || 'field');
 }
 
 // เสียงคลิกทุกปุ่มในหน้าเกม (ครั้งแรกที่คลิกคือจังหวะที่เบราว์เซอร์ยอมให้เปิดเสียง)
@@ -59,6 +80,11 @@ function showPanel(id) {
   if (id === 'slots' || id === 'hilo' || id === 'bj') buildChips();
   if (id === 'bj') bjRestore();
   if (id === 'scene') initScene().catch(e => toast(e.message, true));
+
+  // เพลงคลอเฉพาะหน้าที่มีบรรยากาศ — หน้าอื่นเงียบ ไม่ต้องมีเสียงตอนนั่งอ่านตาราง
+  if (id === 'scene') sceneMusic();
+  else if (id === 'slots' || id === 'hilo' || id === 'bj') SFX.music('casino');
+  else SFX.music(null);
   window.scrollTo({ top: document.getElementById('shell').offsetTop - 80, behavior: 'smooth' });
 }
 document.querySelectorAll('[data-go]').forEach(b => {
@@ -173,6 +199,7 @@ async function spinGacha(price) {
     await new Promise(r => setTimeout(r, 1500));      // ให้ลูกแก้วหมุนเห็น ๆ ก่อนเฉลย
     machine.classList.remove('spin');
     machine.classList.add('pop');
+    SFX.play('reward');
     setTimeout(() => machine.classList.remove('pop'), 500);
 
     won.textContent = res.label;
@@ -271,6 +298,7 @@ async function rollBoard() {
     dice.classList.add('landed');
 
     await hopTo(r.from, r.steps, BOARD.size);
+    SFX.play('reward');
     result.innerHTML = mdLite(`ตกช่อง **${r.tile.icon} ${r.tile.label}**\n${r.text}`);
     result.hidden = false;
     document.getElementById('rollsLeft').textContent = r.rolls_left;
@@ -609,6 +637,7 @@ document.querySelectorAll('[data-bank]').forEach(btn => btn.addEventListener('cl
 
   try {
     const r = await api("POST", "/api/web/bank", { action: action, amount: amount, target_id: target });
+    if (r.ok !== false) SFX.play('bank');
     toast(r.message, !r.ok);
     if (r.ok) { document.getElementById('bankAmt').value = ''; await reload(); }
   } catch (e) { toast(e.message, true); }
@@ -661,6 +690,7 @@ async function fillBars() {
     if (!ok) return;
     try {
       const r = await api("POST", "/api/web/goldbar", { action: action, item_id: id });
+      if (r.ok !== false) SFX.play('gold');
       toast(r.message, !r.ok);
       if (r.ok) await reload();
     } catch (e) { toast(e.message, true); }
@@ -684,7 +714,7 @@ async function useItem(id, name, kind) {
   try {
     const r = await api("POST", "/api/web/item/use", { item_id: id });
     toast(r.message, !r.ok);
-    if (r.ok) await reload();
+    if (r.ok) { SFX.play(eq ? 'equip' : 'use'); await reload(); }
   } catch (e) { toast(e.message, true); }
 }
 
@@ -742,14 +772,17 @@ async function animateSlots(res) {
   const flick = setInterval(() => reels.forEach(r => {
     r.querySelector('span').textContent = SLOT_FACES[Math.floor(Math.random() * 6)];
   }), 90);
+  SFX.play('slot');
   await wait(700);
   for (let i = 0; i < 3; i++) {
     await wait(430);
     reels[i].classList.remove('spin');
     reels[i].querySelector('span').textContent = res.reels[i];
+    SFX.play('reel');                       // ก๊อก...ก๊อก...ก๊อก ทีละวง ให้ลุ้นทีละอัน
     if (i === 2) clearInterval(flick);
   }
   if (res.winnings) reels.forEach(r => r.classList.add('hit'));
+  SFX.play(res.winnings ? 'win' : 'lose');
   msg.className = 'casino-result ' + (res.winnings ? 'win' : 'lose');
   msg.textContent = res.message.replace(/`/g, '');
 }
@@ -763,10 +796,13 @@ async function animateHilo(res) {
 
   const flick = setInterval(() => dice.forEach(d =>
     d.textContent = 1 + Math.floor(Math.random() * 6)), 70);
+  SFX.play('dice');
   await wait(620);
   clearInterval(flick);
   res.dice.forEach((v, i) => dice[i].textContent = v);
+  SFX.play('reel');
   await wait(150);
+  SFX.play(res.winnings ? 'win' : 'lose');
   msg.className = 'casino-result ' + (res.winnings ? 'win' : 'lose');
   msg.textContent = 'รวม ' + res.total + ' — ' + res.message.replace(/`/g, '');
 }
@@ -945,6 +981,7 @@ async function advRespawn() {
     document.getElementById('foeBar').hidden = true;
     SCENE.setMap((LAST && LAST.identity.continent) || 'main');
     SCENE.showEvent('village');
+    IN_FIGHT = false; SCENE_EVENT = 'village'; sceneMusic();
     document.getElementById('sceneTag').textContent = ADV_LABEL.village;
     advPaint({ text: r.text, pending: r.pending });   // เปิดเมนูหมู่บ้านต่อทันที (พักแรม/เดินทาง)
     boot();
@@ -979,12 +1016,17 @@ async function advWalk() {
     tag.textContent = ADV_LABEL[g.event] || g.event;
     if (g.event === 'death') {                          // ล้มกลางทางจากพิษ/สถานะ
       SCENE.killHero();
+      SFX.play('lose');
+      IN_FIGHT = false; SCENE_EVENT = ''; sceneMusic();
       advPaint({ text: g.text, notes: g.notes });
       advRespawnButton(document.getElementById('advActions'));
       boot();
       return;
     }
+    if (g.event === 'trap') SFX.play('trap');
+    if (g.item || g.got_item) SFX.play('item');
     paintFoe(g.monster);
+    IN_FIGHT = !!g.monster; SCENE_EVENT = g.event; sceneMusic();
     if (g.money != null) boot();      // เงิน/เลือดเปลี่ยน วาดหัวการ์ดใหม่
     advPaint(g);
   } catch (e) {
@@ -1013,6 +1055,7 @@ async function advAct(action, label, confirmMsg) {
 
     if (r.fx) {                                        // กับดักลั่นก่อน แล้วค่อยเฉลยเต๋า
       SCENE.playTrap(r.fx.kind, r.fx.hit);
+      SFX.play('trap');
       await new Promise(res => setTimeout(res, 420));
     }
     if (r.roll) {
@@ -1021,6 +1064,8 @@ async function advAct(action, label, confirmMsg) {
     }
     if (r.damage_to_monster) { SCENE.hitFoe(); SCENE.float('-' + fmt(r.damage_to_monster), '', 72); }
     if (r.damage_to_player) SFX.play('hurt');
+    // หนีแล้วไม่รอด — โดนสวนกลับ ต้องมีเสียงเตือนให้รู้ตัวว่ายังไม่จบ
+    if (action === 'flee' && r.outcome === 'continue') SFX.play('caught');
     if (r.outcome === 'win') {
       SFX.play('win');
       SCENE.killFoe();                                  // 💥 แตกเป็นเศษ ไม่ใช่หายวับ
@@ -1031,6 +1076,7 @@ async function advAct(action, label, confirmMsg) {
       await new Promise(res => setTimeout(res, 520));
     } else if (r.outcome === 'lose') {
       SFX.play('lose');
+      IN_FIGHT = false; sceneMusic();
       SCENE.killHero();                                 // 💀 ทรุดลง จอมืด ขึ้น K.O.
       await new Promise(res => setTimeout(res, 900));
       advPaint({ text: r.text });
@@ -1043,10 +1089,13 @@ async function advAct(action, label, confirmMsg) {
     if (r.mana) { MANA_LEFT = r.mana.mana; if (r.mana_spent) SCENE.float('💎 -1', 'miss', 46); }
     if (r.reward) { SCENE.float('+' + fmt(r.reward.gold) + ' ทอง', 'gold', 50);
                     SFX.play(r.reward.level_up ? 'levelup' : 'coin'); }
+    if (r.item || r.got_item) SFX.play('item');
     if (r.monster !== undefined) paintFoe(r.pending === 'monster' ? r.monster : null);
     if (r.damage) { SCENE.hitFoe(); SCENE.float('-' + r.damage, '', 40); }
     if (r.gold) { SCENE.float('+' + r.gold, 'gold', 50); SFX.play('coin'); }
-    if (r.continent) { SCENE.setMap(r.continent); SCENE.showEvent('village'); }
+    if (r.continent) { SCENE.setMap(r.continent); SCENE.showEvent('village'); SCENE_EVENT = 'village'; }
+    IN_FIGHT = r.pending === 'monster';
+    sceneMusic();                                       // จบยกแล้วเพลงต้องกลับมาตรงกับฉาก
     advPaint({ text: r.text, pending: r.pending });   // ยังมีขั้นต่อ (เช่นข้อเสนอเควส) ก็โชว์ปุ่มต่อ
     boot();                                           // เลือด/เงิน/กระเป๋าเปลี่ยน โหลดใหม่
   } catch (e) {
@@ -1072,6 +1121,9 @@ async function initScene() {
   // ค้างเหตุการณ์ไหนอยู่ก็กลับมาเล่นต่อจุดเดิม (รีเฟรชหน้าแล้วต้องไม่ตัน)
   try {
     const st = await api('GET', '/api/web/adventure/state');
+    IN_FIGHT = st.pending === 'monster';                  // เพลงต้องตรงกับสิ่งที่ค้างอยู่จริง
+    SCENE_EVENT = st.pending || '';
+    sceneMusic();
     if (st.pending === 'monster') {                       // กลับมาสู้ต่อจากที่ค้างไว้
       SCENE.showEvent('monster');
       document.getElementById('sceneTag').textContent = ADV_LABEL.monster;
@@ -1145,7 +1197,9 @@ async function bjAct(action) {
     if (action === 'start') body.bet = CASINO_BET.bj;
     const r = await api("POST", "/api/web/blackjack", body);
     if (!r.ok) { toast(r.game.message, true); return; }
+    SFX.play('card');                                  // เสียงไพ่ทุกครั้งที่โต๊ะขยับ
     bjPaint(r.game);
+    if (r.game.over) SFX.play(r.game.net > 0 ? 'win' : r.game.net < 0 ? 'bust' : 'reel');
     if (LAST) LAST.money = r.money;
     document.getElementById('pCash').textContent = fmt(r.money.cash);
     document.getElementById('pBank').textContent = fmt(r.money.bank);
@@ -1227,6 +1281,7 @@ async function shopAction(action, it) {
   if (!ok) return;
   try {
     const r = await api("POST", "/api/web/shop", { action: action, item_id: it.id });
+    if (r.ok) SFX.play(action === 'buy' ? 'buy' : 'coin');
     toast(r.message, !r.ok);
     if (r.ok) { await reload(); await fillShop(); }
   } catch (e) { toast(e.message, true); }
@@ -1271,6 +1326,7 @@ async function fillCraft() {
     if (!ok) return;
     try {
       const res = await api("POST", "/api/web/craft", { item_id: r.id });
+      SFX.play(res.ok ? 'craft' : 'error');    // คราฟพลาดเสียงต้องต่างกัน ไม่ต้องอ่านข้อความก็รู้
       toast(res.message, !res.ok);
       await reload();
       await fillCraft();                      // วัตถุดิบเปลี่ยน รายการสูตรก็เปลี่ยน
@@ -1364,6 +1420,7 @@ async function fillPets() {
     btn.onclick = async () => {
       try {
         const r = await api('POST', '/api/web/me/pets', { key: p.active ? '' : p.key });
+        SFX.play('pet');
         toast(r.message); fillPets(); boot();
       } catch (e) { toast(e.message, true); }
     };
@@ -1385,7 +1442,8 @@ async function fillDaily() {
   const btn = document.getElementById('dailyClaim');
   btn.disabled = !d.claimable;
   btn.onclick = async () => {
-    try { toast((await api('POST', '/api/web/me/daily/claim')).message); fillDaily(); boot(); }
+    try { toast((await api('POST', '/api/web/me/daily/claim')).message);
+          SFX.play('reward'); fillDaily(); boot(); }
     catch (e) { toast(e.message, true); }
   };
 }
@@ -1395,7 +1453,8 @@ async function fillAchv() {
   const d = await api('GET', '/api/web/me/achievements');
   const chips = [['', '— ไม่สวมฉายา —'], ...d.titles.map(t => [t, t])];
   chipRow(document.getElementById('titleChips'), chips, async v => {
-    try { toast((await api('POST', '/api/web/me/title', { title: v })).message); boot(); }
+    try { toast((await api('POST', '/api/web/me/title', { title: v })).message);
+          SFX.play('reward'); boot(); }
     catch (e) { toast(e.message, true); fillAchv(); }
   }, d.title || '');
   document.getElementById('achvList').innerHTML = d.achievements.map(a => {
@@ -1459,7 +1518,8 @@ async function fillSeason() {
       <b>ฟรี: ${rw(t.free)}${d.premium ? ' · ⭐ ' + rw(t.premium) : ''}</b></div>`;
   }).join('');
   document.getElementById('seasonClaim').onclick = async () => {
-    try { toast((await api('POST', '/api/web/me/season/claim')).message); fillSeason(); boot(); }
+    try { toast((await api('POST', '/api/web/me/season/claim')).message);
+          SFX.play('reward'); fillSeason(); boot(); }
     catch (e) { toast(e.message, true); }
   };
   // ราคาต้องอยู่บนปุ่มตั้งแต่ยังไม่กด — ไม่ใช่ไปเห็นตอนป็อปอัพเด้ง
@@ -1474,7 +1534,8 @@ async function fillSeason() {
                                message: 'ปลดรางวัลสายพรีเมียมของซีซั่นนี้ทั้งหมด',
                                lines: [['ราคา', fmt(d.premium_price) + ' ทอง']],
                                okText: 'ซื้อเลย' })) return;
-    try { toast((await api('POST', '/api/web/me/season/premium')).message); fillSeason(); boot(); }
+    try { toast((await api('POST', '/api/web/me/season/premium')).message);
+          SFX.play('reward'); fillSeason(); boot(); }
     catch (e) { toast(e.message, true); }
   };
 }
