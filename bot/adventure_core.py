@@ -1134,7 +1134,7 @@ def fight_turn(user_id, fight, member_roles=(), skill_used=None, rng=random):
                 skill_log += f"💔 **คำสาปบอสทำงาน!** บอสสูบกลืนแสงฮีลของคุณไป `+{stolen_heal}` HP! "
             
             new_hp = min(player.get("max_hp", 100), player.get("hp", 100) + heal_amount)
-            healed_amount = new_hp - player.get("hp", 100)     # ฟื้นจริงเท่าไหร่ (ชนกับ MaxHP แล้ว)
+            healed_amount = max(0, new_hp - player.get("hp", 100))   # ฟื้นจริง (ชนเพดาน MaxHP แล้ว)
             player["hp"] = new_hp
             skill_log += f"✨ **Heal!** พลังชีวิตของคุณฟื้นฟู `+ {heal_amount}` หน่วย (❤️ HP: {new_hp})\n"
 

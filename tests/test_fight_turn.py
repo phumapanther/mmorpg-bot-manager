@@ -293,3 +293,96 @@ def test_web_shows_the_last_turn_log_when_you_win():
     api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
     assert api.count('out["log"]') >= 2, "หน้าชนะบนเว็บต้องมีล็อกเทิร์นสุดท้าย"
     assert 'carry=t.get("db_updates")' in api, "เว็บต้องส่งผลเทิร์นสุดท้ายไปเซฟด้วย"
+
+
+# ── 🎯 สกิลครบทั้ง 8 ตัวของ 4 คลาส (ล็อกไว้หลังผู้เล่นทัก 2026-08-14) ─────────
+
+class Lose(random.Random):
+    """บังคับให้แพ้เต๋าแน่นอน (ผู้เล่นทอย 1 มอนทอย 20) และให้เรท % ติดทุกครั้ง
+    ยกเว้นการทอยครั้งแรกซึ่งเป็นการเช็คมอนหนี — ให้ 100 ไว้ก่อนไม่ให้มอนเผ่น"""
+
+    def __init__(self, seed=0):
+        super().__init__(seed)
+        self.n20 = self.n100 = 0
+
+    def randint(self, a, b):
+        if (a, b) == (1, 20):
+            self.n20 += 1
+            return 1 if self.n20 == 1 else 20
+        if (a, b) == (1, 100):
+            self.n100 += 1
+            return 100 if self.n100 == 1 else 1
+        return super().randint(a, b)
+
+
+def _taken(hero, skill, seeds=range(12)):
+    """ดาเมจเฉลี่ยที่ผู้เล่นรับในเทิร์นที่กดสกิลนั้น"""
+    vals = []
+    for s in seeds:
+        hero.update(hp=5000, max_hp=5000, weapon_dur=500, armor_dur=500)
+        t = adventure_core.fight_turn(1, _fight(hp=10 ** 6), skill_used=skill, rng=Lose(s))
+        if t["outcome"] in ("continue", "lose"):
+            vals.append(t["damage_to_player"])
+    return sum(vals) / max(1, len(vals))
+
+
+@pytest.mark.parametrize("skill", ["skill_heavy_strike", "skill_shield_bash", "skill_fireball",
+                                   "skill_frostbolt", "skill_backstab", "skill_evasion",
+                                   "skill_heal", "skill_holy_aura"])
+def test_every_class_skill_is_recognised(hero, skill):
+    """กดสกิลแล้วต้องมีอะไรเกิดขึ้น — ไม่ใช่กลายเป็นตีธรรมดาเงียบ ๆ"""
+    hero["class_name"] = "Cleric"
+    t = adventure_core.fight_turn(1, _fight(hp=10 ** 6), skill_used=skill,
+                                  rng=Rigged(roll=20, pcts=[100, 1]))
+    if t["outcome"] == "player_fled":
+        return                                        # Evasion จบไฟต์ ถือว่าออกฤทธิ์แล้ว
+    fired = (t["skill_log"] or t["combat_log"] or t["healed"]
+             or t["fight"]["buffs"])                  # ข้อความ / ฮีล / บัฟค้าง อย่างใดอย่างหนึ่ง
+    assert fired, f"{skill} กดแล้วไม่มีผลอะไรเลย"
+
+
+@pytest.mark.parametrize("skill,buff", [("skill_shield_bash", "shield_bash"),
+                                        ("skill_fireball", "fireball"),
+                                        ("skill_frostbolt", "frostbolt"),
+                                        ("skill_holy_aura", "holy_aura")])
+def test_buff_skills_survive_the_trip_through_the_database(hero, skill, buff):
+    """บัฟต้องรอดจากการเซฟลง DB เป็น JSON ไม่งั้นสู้บนเว็บแล้วบัฟหายทุกเทิร์น"""
+    import json
+    t = adventure_core.fight_turn(1, _fight(hp=10 ** 6), skill_used=skill,
+                                  rng=Rigged(roll=20, pcts=[100, 1]))
+    saved = json.loads(json.dumps(t["fight"]))
+    assert saved["buffs"].get(buff, 0) > 0, f"{buff} ไม่ค้างข้ามเทิร์น"
+
+
+@pytest.mark.parametrize("skill", ["skill_shield_bash", "skill_frostbolt", "skill_holy_aura",
+                                   "skill_backstab"])
+def test_defensive_skills_actually_cut_the_damage(hero, skill):
+    """สกิลกันดาเมจต้องลดของจริง ไม่ใช่แค่ขึ้นข้อความ"""
+    hero["class_name"] = "Warrior"
+    base = _taken(hero, None)
+    with_skill = _taken(hero, skill)
+    assert base > 0, "ตั้งเทสผิด — ไม่โดนตีเลย"
+    assert with_skill < base * 0.9, f"{skill} ไม่ได้ลดดาเมจจริง ({with_skill:.1f} vs {base:.1f})"
+
+
+def test_fireball_keeps_burning_after_the_turn_you_cast_it(hero):
+    hero["class_name"] = "Mage"
+    t = adventure_core.fight_turn(1, _fight(hp=10 ** 6), skill_used="skill_fireball",
+                                  rng=Rigged(roll=20, pcts=[100, 1]))
+    nxt = adventure_core.fight_turn(1, t["fight"], rng=Rigged(roll=20, pcts=[100, 1]))
+    assert "เผาไหม้" in nxt["combat_log"], "ไฟบอลต้องเผาต่อในเทิร์นถัดไปตามค่า duration"
+
+
+def test_heal_never_overflows_max_hp(hero):
+    """ล็อกไว้: ข้อความบอกจำนวนที่ตั้งใจฮีล แต่ healed คือที่ได้จริงหลังชนเพดาน"""
+    hero["hp"] = hero["max_hp"] - 1                   # ขาดอีกแต้มเดียวก็เต็ม
+    t = adventure_core.fight_turn(1, _fight(hp=10 ** 6), skill_used="skill_heal",
+                                  rng=Rigged(roll=20, pcts=[100, 1]))
+    assert t["player_hp"] == hero["max_hp"] and t["healed"] == 1
+
+
+def test_heal_reports_zero_when_already_full(hero):
+    hero["hp"] = hero["max_hp"]
+    t = adventure_core.fight_turn(1, _fight(hp=10 ** 6), skill_used="skill_heal",
+                                  rng=Rigged(roll=20, pcts=[100, 1]))
+    assert t["healed"] == 0, "เลือดเต็มอยู่แล้วต้องไม่เด้งเลขฮีลหลอกตา"
