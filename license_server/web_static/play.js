@@ -599,8 +599,9 @@ async function confirmAction({ title, message, lines, okText, danger }) {
 }
 
 /** ถามตัวเลขหนึ่งค่า — คืนจำนวนเต็มบวก หรือ null เมื่อยกเลิก/กรอกไม่ถูก
+ *  max: ใส่แล้วจะมีปุ่มลัด (×1 ×5 ×10 สูงสุด) และตัดค่าที่เกินให้เอง
  *  (เช็คค่าจริงอีกรอบที่เซิร์ฟเวอร์เสมอ ตรงนี้แค่กันพิมพ์ผิดให้ผู้เล่น) */
-function askNumber({ title, message, lines, placeholder, okText }) {
+function askNumber({ title, message, lines, placeholder, okText, max, value }) {
   return new Promise(resolve => {
     const box = document.getElementById('cfLines');
     openDialog({
@@ -610,17 +611,30 @@ function askNumber({ title, message, lines, placeholder, okText }) {
     }).then(v => {
       const raw = (box.querySelector('input') || {}).value;
       box.querySelector('.ask-row')?.remove();
-      const n = Math.floor(Number(String(raw || '').replace(/[, ]/g, '')));
+      let n = Math.floor(Number(String(raw || '').replace(/[, ]/g, '')));
+      if (max) n = Math.min(n, max);
       resolve(v === true && Number.isFinite(n) && n > 0 ? n : null);
     });
+
     const row = document.createElement('div');
     row.className = 'ask-row';
-    row.innerHTML = `<input type="number" inputmode="numeric" min="1" step="1"
-                       placeholder="${esc(placeholder || '')}">`;
+    const picks = max ? [1, 5, 10, 50, max].filter((n, i, a) =>
+      n >= 1 && n <= max && a.indexOf(n) === i) : [];
+    row.innerHTML =
+      (picks.length > 1 ? `<div class="ask-chips">${picks.map(n =>
+        `<button type="button" data-n="${n}">${n === max ? 'สูงสุด ' + fmt(n) : '×' + n}</button>`
+      ).join('')}</div>` : '') +
+      `<input type="number" inputmode="numeric" min="1" step="1"${max ? ` max="${max}"` : ''}
+         ${value ? `value="${value}"` : ''} placeholder="${esc(placeholder || '')}">`;
     box.appendChild(row);
     box.style.display = '';
+
     const input = row.querySelector('input');
+    row.querySelectorAll('[data-n]').forEach(b => b.onclick = () => {
+      input.value = b.dataset.n; input.focus(); input.select();
+    });
     input.focus();
+    input.select();
     input.onkeydown = e => {                       // กด Enter = ตกลง ไม่ต้องเอื้อมไปกดปุ่ม
       if (e.key === 'Enter') document.querySelector('#cfBtns button.yes')?.click();
     };
@@ -1354,19 +1368,36 @@ async function shopAction(action, it) {
   const buying = action === 'buy';
   const price = buying ? it.buy : it.sell;
   const cash = LAST ? LAST.money.cash : 0;
-  const lines = [['ไอเทม', it.name],
-                 [buying ? 'ราคาซื้อ' : 'ขายได้', fmt(price) + ' ทอง', buying ? 'warn' : 'good'],
-                 ['เงินสดหลังทำรายการ', fmt(buying ? cash - price : cash + price) + ' ทอง']];
-  if (!buying) lines.push(['มีอยู่', it.count + ' ชิ้น']);
+  let count = 1;
 
-  const ok = await confirmAction({
-    title: buying ? '🏪 ยืนยันซื้อไอเทม' : '📦 ยืนยันขายไอเทม',
-    message: buying ? 'ซื้อครั้งละ 1 ชิ้น หักจากเงินสด' : 'ขายครั้งละ 1 ชิ้น ได้เป็นเงินสด',
-    lines, okText: buying ? 'ยืนยันซื้อ' : 'ยืนยันขาย', danger: !buying,
-  });
-  if (!ok) return;
+  if (buying) {
+    // ซื้อทีละหลายชิ้น — เลือกจำนวนก่อน (เงิน/ที่ว่างในกระเป๋าถูกตรวจซ้ำที่เซิร์ฟเวอร์เสมอ)
+    const bag = LAST ? LAST.bag : null;
+    const room = bag && bag.capacity ? Math.max(0, bag.capacity - bag.used) : 99;
+    const most = Math.max(1, Math.min(99, room, price > 0 ? Math.floor(cash / price) : 99));
+    count = await askNumber({
+      title: '🏪 ซื้อ ' + it.name,
+      message: `ซื้อได้สูงสุด ${fmt(most)} ชิ้น (จำกัดด้วยเงินสดและที่ว่างในกระเป๋า)`,
+      lines: [['ราคา', fmt(price) + ' ทอง/ชิ้น'],
+              ['เงินสด', fmt(cash) + ' ทอง'],
+              ['ที่ว่างในกระเป๋า', (bag && bag.capacity ? fmt(room) + ' ช่อง' : 'ไม่จำกัด')]],
+      max: most, value: 1, okText: 'ซื้อ',
+    });
+    if (!count) return;
+  } else {
+    const ok = await confirmAction({
+      title: '📦 ยืนยันขายไอเทม',
+      message: 'ขายครั้งละ 1 ชิ้น ได้เป็นเงินสด',
+      lines: [['ไอเทม', it.name], ['ขายได้', fmt(price) + ' ทอง', 'good'],
+              ['มีอยู่', it.count + ' ชิ้น'],
+              ['เงินสดหลังขาย', fmt(cash + price) + ' ทอง']],
+      okText: 'ยืนยันขาย', danger: true,
+    });
+    if (!ok) return;
+  }
+
   try {
-    const r = await api("POST", "/api/web/shop", { action: action, item_id: it.id });
+    const r = await api("POST", "/api/web/shop", { action: action, item_id: it.id, count: count });
     if (r.ok) SFX.play(action === 'buy' ? 'buy' : 'coin');
     toast(r.message, !r.ok);
     if (r.ok) { await reload(); await fillShop(); }

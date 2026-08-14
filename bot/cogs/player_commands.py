@@ -2031,10 +2031,14 @@ def craftable_now(user_id):
     return out
 
 
-def buy_item_for(user_id, item_id):
+MAX_BUY_AT_ONCE = 99      # เพดานต่อการกดหนึ่งครั้ง — กันพิมพ์เลขหลุดจนกระเป๋า/เงินหายรวดเดียว
+
+
+def buy_item_for(user_id, item_id, count=1):
     """🛒 ซื้อไอเทมจากร้าน — ตรรกะกลาง ใช้ทั้งปุ่มร้านค้าในดิสและหน้าร้านบนเว็บ
 
-    คืน (สำเร็จ, ข้อความ) — ลำดับการตรวจเหมือนเดิมทุกข้อ: มีของ → ซื้อได้ → เงินพอ → กระเป๋าไม่เต็ม
+    คืน (สำเร็จ, ข้อความ) — ลำดับการตรวจเหมือนเดิมทุกข้อ: มีของ → ซื้อได้ → เงินพอ → กระเป๋าพอ
+    ซื้อหลายชิ้นเป็นแบบ "ได้ทั้งกองหรือไม่ได้เลย" ไม่มีสภาพซื้อได้ครึ่งกองแล้วเงินหาย
     """
     item_id = str(item_id)
     item = config_loader.get_item_config(item_id)
@@ -2047,19 +2051,32 @@ def buy_item_for(user_id, item_id):
     if not player:
         return False, "❌ ไม่พบข้อมูลตัวละครของคุณ!"
 
+    try:
+        count = max(1, min(int(count), MAX_BUY_AT_ONCE))
+    except (TypeError, ValueError):
+        return False, "❌ จำนวนต้องเป็นตัวเลข"
+
     price = int(item.get("buy", 0))
-    if player.get("cash", 0) < price:
-        return False, f"❌ เงินไม่พอ! ต้องใช้ `{price:,}` ทอง (คุณมี `{player.get('cash', 0):,}` ทอง)"
+    total = price * count
+    if player.get("cash", 0) < total:
+        return False, (f"❌ เงินไม่พอ! ซื้อ {count} ชิ้นต้องใช้ `{total:,}` ทอง "
+                       f"(คุณมี `{player.get('cash', 0):,}` ทอง)")
 
     inv = player_model.load_inventory(player.get("inventory", ""))
     capacity = int(player.get("capacity", 10) or 0)
-    if capacity != 0 and len(inv) >= capacity:
-        return False, f"❌ กระเป๋าเต็มแล้ว! ({len(inv)}/{capacity}) จัดการของก่อนซื้อเพิ่ม"
+    if capacity != 0 and len(inv) + count > capacity:
+        room = max(0, capacity - len(inv))
+        if room == 0:
+            return False, f"❌ กระเป๋าเต็มแล้ว! ({len(inv)}/{capacity}) จัดการของก่อนซื้อเพิ่ม"
+        return False, (f"❌ กระเป๋าไม่พอ! เหลือที่ว่าง {room} ช่อง "
+                       f"แต่จะซื้อ {count} ชิ้น ({len(inv)}/{capacity})")
 
-    inv.append(item_id)
+    # ซื้อทีเดียวทั้งกอง — ผ่านทุกด่านแล้วค่อยหักเงิน ไม่มีสภาพซื้อได้ครึ่งกอง
+    inv.extend([item_id] * count)
     player_model.update_player_fields(user_id, {
-        "cash": player["cash"] - price, "inventory": json.dumps(inv)})
-    return True, f"✅ ซื้อ **{item.get('name', item_id)}** เข้ากระเป๋าเรียบร้อย! (-{price:,} ทอง)"
+        "cash": player["cash"] - total, "inventory": json.dumps(inv)})
+    many = f" ×{count}" if count > 1 else ""
+    return True, f"✅ ซื้อ **{item.get('name', item_id)}**{many} เข้ากระเป๋าเรียบร้อย! (-{total:,} ทอง)"
 
 
 def sell_item_for(user_id, item_id):

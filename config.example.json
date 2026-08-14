@@ -1057,6 +1057,22 @@
         "purchasable": false,
         "effect": "equip_artifact",
         "effect_value": "art_mana_prism"
+      },
+      "77": {
+        "name": "🧪 ยาฮีลใหญ่",
+        "buy": 1500,
+        "sell": 400,
+        "type": "use",
+        "effect": "heal",
+        "effect_amount": 300
+      },
+      "78": {
+        "name": "🫙 ยาฮีลมหากาฬ",
+        "buy": 6000,
+        "sell": 1500,
+        "type": "use",
+        "effect": "heal",
+        "effect_amount": 1200
       }
     },
     "armor_stats": {

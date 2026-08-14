@@ -637,19 +637,25 @@ def shop_items(request: Request):
 class ShopBody(BaseModel):
     action: str
     item_id: str
+    count: int = 1
 
 
 @router.post("/shop")
 def shop(body: ShopBody, request: Request):
-    """ซื้อ/ขายไอเทมกับร้าน — buy_item_for()/sell_item_for() ตัวเดียวกับปุ่มร้านในดิส"""
+    """ซื้อ/ขายไอเทมกับร้าน — buy_item_for()/sell_item_for() ตัวเดียวกับปุ่มร้านในดิส
+
+    ซื้อได้ทีละหลายชิ้น (จำนวนถูกตรวจซ้ำใน buy_item_for เสมอ — เบราว์เซอร์ส่งอะไรมาก็ไม่เชื่อ)
+    """
     uid = require_player(request)["uid"]
     if body.action not in ("buy", "sell"):
         raise HTTPException(400, "ไม่รู้จักคำสั่งนี้")
 
     from bot.cogs.player_commands import buy_item_for, sell_item_for
     with _user_lock(uid):
-        fn = buy_item_for if body.action == "buy" else sell_item_for
-        ok, msg = fn(int(uid), body.item_id)
+        if body.action == "buy":
+            ok, msg = buy_item_for(int(uid), body.item_id, body.count)
+        else:
+            ok, msg = sell_item_for(int(uid), body.item_id)
     return {"ok": ok, "message": msg, "money": _money_now(uid)}
 
 

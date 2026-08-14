@@ -529,7 +529,29 @@ class BuyItemSelect(discord.ui.Select):
         self.parent_view = parent
 
     async def callback(self, interaction: discord.Interaction):
-        await self.parent_view.buy_item(interaction, self.values[0])
+        await interaction.response.send_modal(BuyCountModal(self.parent_view, self.values[0]))
+
+
+class BuyCountModal(discord.ui.Modal, title="🛒 ซื้อกี่ชิ้น?"):
+    """ถามจำนวนก่อนซื้อ — เว้นว่าง/พิมพ์มั่ว = 1 ชิ้น (จำนวนถูกตรวจซ้ำใน buy_item_for เสมอ)"""
+
+    count = discord.ui.TextInput(label="จำนวน", placeholder="เช่น 1, 5, 10",
+                                 default="1", required=False, max_length=3)
+
+    def __init__(self, parent, item_id):
+        super().__init__()
+        self.parent_view = parent
+        self.item_id = item_id
+        info = config_loader.get_item_config(str(item_id)) or {}
+        if info.get("name"):
+            self.title = f"🛒 ซื้อ {info['name']}"[:45]
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            n = int(str(self.count.value).strip() or 1)
+        except ValueError:
+            n = 1
+        await self.parent_view.buy_item(interaction, self.item_id, n)
 
 
 class BuySelectView(View):
@@ -554,11 +576,11 @@ class BuySelectView(View):
             print(f"ERROR: [ร้านค้า] โหลดหน้าซื้อล้มเหลว: {e}")
 
     # 🛒 ซื้อไอเทม — เรียกจาก BuyItemSelect
-    async def buy_item(self, interaction: discord.Interaction, item_id):
+    async def buy_item(self, interaction: discord.Interaction, item_id, count=1):
         from bot.cogs.player_commands import buy_item_for
         await interaction.response.defer()
 
-        ok, msg = buy_item_for(self.user_id, item_id)      # ตรรกะกลาง ใช้ร่วมกับหน้าร้านบนเว็บ
+        ok, msg = buy_item_for(self.user_id, item_id, count)  # ตรรกะกลาง ใช้ร่วมกับหน้าร้านบนเว็บ
         if not ok:
             return await interaction.followup.send(msg, ephemeral=True)
 
