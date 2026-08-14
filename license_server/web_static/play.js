@@ -1338,8 +1338,13 @@ async function fillSeason() {
     try { toast((await api('POST', '/api/web/me/season/claim')).message); fillSeason(); boot(); }
     catch (e) { toast(e.message, true); }
   };
+  // ราคาต้องอยู่บนปุ่มตั้งแต่ยังไม่กด — ไม่ใช่ไปเห็นตอนป็อปอัพเด้ง
   const buy = document.getElementById('seasonBuy');
-  buy.disabled = d.premium;
+  buy.innerHTML = d.premium
+    ? '<span class="ic">⭐</span>เปิดสายพรีเมียมแล้ว'
+    : `<span class="ic">⭐</span>ซื้อสายพรีเมียม<span class="sub">${fmt(d.premium_price)} ทอง</span>`;
+  buy.disabled = d.premium || !d.enabled;
+  if (!d.enabled) buy.title = 'ตอนนี้ยังไม่เปิดซีซั่นพาส';
   buy.onclick = async () => {
     if (!await confirmAction({ title: '⭐ ซื้อสายพรีเมียม',
                                message: 'ปลดรางวัลสายพรีเมียมของซีซั่นนี้ทั้งหมด',

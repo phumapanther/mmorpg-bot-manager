@@ -59,3 +59,26 @@ def test_no_menu_button_is_left_marked_as_coming_later_without_reason():
     left = {s.strip() for s in soon}
     assert left <= {"เดินต่อ ×5", "สรุปทุกทวีป", "ตลาดผู้เล่น", "ไปต่างโลก"}, \
         f"ยังมีปุ่มค้างที่ควรทำได้แล้ว: {left}"
+
+
+def test_the_premium_price_shown_is_the_price_charged():
+    """เคยพลาด: หน้าเว็บอ่านคีย์ที่ไม่มีจริง เลยโชว์ 'ราคา 0 ทอง' ทั้งที่หักจริง 5 ล้าน
+    ตัวที่โชว์กับตัวที่หักต้องอ่านจากฟังก์ชันเดียวกันเสมอ"""
+    from bot import season
+    import inspect
+    charge = inspect.getsource(season.buy_premium)
+    assert "premium_price()" in charge, "ตัวหักเงินไม่ได้ใช้ premium_price()"
+    assert "season.premium_price()" in API, "API ไม่ได้ใช้ premium_price() ตัวเดียวกัน"
+    assert season.premium_price() > 0, "ราคาต้องอ่านออก ไม่ใช่ 0"
+
+
+def test_the_price_is_visible_before_you_click():
+    """ราคาต้องอยู่บนปุ่มตั้งแต่แรก ไม่ใช่ไปเห็นตอนป็อปอัพเด้ง"""
+    block = JS[JS.index("async function fillSeason("):]
+    assert "d.premium_price" in block[:1800]
+    assert "buy.innerHTML" in block[:1800], "ปุ่มไม่ได้อัปเดตข้อความให้มีราคา"
+
+
+def test_a_closed_season_disables_the_button():
+    block = JS[JS.index("async function fillSeason("):]
+    assert "!d.enabled" in block[:1800], "ซีซั่นปิดอยู่ต้องกดซื้อไม่ได้"

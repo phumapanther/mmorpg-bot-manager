@@ -1489,7 +1489,7 @@ def me_books(request: Request):
 def me_season(request: Request):
     """🎟️ ซีซั่นพาส + ⭐ สายพรีเมียม (ระบบเดียวกัน สองแทร็ก)"""
     uid = int(require_player(request)["uid"])
-    from bot import config_loader, season
+    from bot import season
     from bot.models import player_model
     points = int(player_model.get_season_points(uid) or 0)
     premium = season.is_premium(uid)
@@ -1499,7 +1499,8 @@ def me_season(request: Request):
         tiers.append({"index": i, "points": need, "reached": points >= need,
                       "free": t.get("free") or {}, "premium": t.get("premium") or {}})
     return {"points": points, "premium": premium, "tiers": tiers,
-            "premium_price": int(config_loader.get_balance("season.premium_price", 0) or 0)}
+            "enabled": season.enabled(),
+            "premium_price": season.premium_price()}
 
 
 @router.post("/me/season/claim")

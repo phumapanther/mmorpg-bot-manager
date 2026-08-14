@@ -17,6 +17,16 @@ def _cfg(key, default=None):
     return config_loader.get_config().get("season_pass", {}).get(key, default)
 
 
+def premium_price():
+    """ราคาสายพรีเมียมของซีซั่นนี้ — ตัวที่โชว์บนปุ่มกับตัวที่หักเงินต้องอ่านที่เดียวกัน
+    (เคยพลาด: หน้าเว็บอ่านคนละคีย์ เลยโชว์ 0 ทั้งที่หักจริง 5 ล้าน)"""
+    return int(_cfg("price_gold", 0) or 0)
+
+
+def enabled():
+    return bool(_cfg("enabled", True))
+
+
 def tiers():
     return list(_cfg("tiers", []) or [])
 
@@ -34,11 +44,11 @@ def grant_premium(user_id, season=None):
 
 def buy_premium(user_id):
     """ซื้อพรีเมียมด้วยทองในเกม (เติมทองผ่าน !payment ได้ตามปกติ)"""
-    if not _cfg("enabled", True):
+    if not enabled():
         return False, "❌ ตอนนี้ยังไม่เปิดซีซั่นพาส"
     if is_premium(user_id):
         return False, "✅ คุณเปิดสายพรีเมียมของซีซั่นนี้ไว้แล้ว!"
-    price = int(_cfg("price_gold", 0) or 0)
+    price = premium_price()
     player = player_model.get_player(user_id)
     if not player:
         return False, "❌ ไม่พบข้อมูลตัวละครของคุณ!"
