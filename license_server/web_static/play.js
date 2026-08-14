@@ -25,6 +25,7 @@ function showPanel(id) {
   if (id === 'shop') fillShop();
   if (id === 'slots' || id === 'hilo' || id === 'bj') buildChips();
   if (id === 'bj') bjRestore();
+  if (id === 'scene') initScene();
   window.scrollTo({ top: document.getElementById('shell').offsetTop - 80, behavior: 'smooth' });
 }
 document.querySelectorAll('[data-go]').forEach(b => {
@@ -458,6 +459,79 @@ const spinBtn = document.getElementById('spinBtn');
 if (spinBtn) spinBtn.onclick = () => casinoPlay('slots');
 document.querySelectorAll('[data-hilo]').forEach(b =>
   b.onclick = () => casinoPlay('hilo', b.dataset.hilo));
+
+// ══════ ฉากผจญภัย (เฟส 4 — เอนจินฉาก) ══════
+let SCENE = null;
+
+const SCENE_MAPS = [
+  ['main', '🏰 หลัก'], ['volcanic', '🌋 ภูเขาไฟ'], ['frozen', '❄️ น้ำแข็ง'],
+  ['demon', '😈 ปีศาจ'], ['nether', '💀 เนเธอร์'], ['sylvan', '🌲 พงไพร'],
+  ['mechanized', '⚙️ จักรกล'], ['skyward', '☁️ นภา'], ['ocean', '🌊 มหาสมุทร'],
+];
+const SCENE_EVENTS = [
+  ['village', '🏡 หมู่บ้าน'], ['treasure', '📦 หีบสมบัติ'], ['npc', '🧓 NPC'],
+  ['trap', '⚠️ กับดัก'], ['dungeon', '🚪 ดันเจี้ยน'], ['monster', '👹 มอนสเตอร์'],
+  ['calm', '🍃 เงียบสงบ'],
+];
+// สกิลของแต่ละคลาส — ต้องตรงกับ CLASS_SKILLS ในเกม (มีเทสคุม)
+const CLASS_SKILL_FX = {
+  Warrior: [['bash', '🛡️ Shield Bash'], ['heavy', '⚔️ Heavy Strike']],
+  Mage:    [['fire', '🔥 Fireball'], ['frost', '❄️ Frostbolt']],
+  Rogue:   [['stab', '🗡️ Backstab'], ['evade', '💨 Evasion']],
+  Cleric:  [['heal', '✨ Heal'], ['aura', '🛡️ Holy Aura']],
+};
+const FOE_SHAPES = ['dragon', 'slime', 'humanoid', 'golem'];
+const FOE_ELEMENTS = ['fire', 'water', 'earth', 'wind', 'wood', 'light', 'dark'];
+
+function chipRow(box, items, onPick, initial) {
+  box.innerHTML = items.map(([v, label], i) =>
+    '<button data-v="' + v + '" aria-pressed="' + (v === initial) + '">' + label + '</button>').join('');
+  box.querySelectorAll('button').forEach(b => b.onclick = () => {
+    box.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    onPick(b.dataset.v);
+  });
+}
+
+function initScene() {
+  if (SCENE) return;
+  SCENE = new Scene(document.getElementById('scene'));
+  SCENE.setCharacter(CHAR);
+
+  const tag = document.getElementById('sceneTag');
+  let curMap = (LAST && LAST.identity.continent) || 'main';
+  SCENE.setMap(curMap);
+  const label = k => (SCENE_MAPS.find(m => m[0] === k) || [k, k])[1];
+  tag.textContent = label(curMap);
+
+  chipRow(document.getElementById('sceneMaps'), SCENE_MAPS, v => {
+    curMap = v; SCENE.setMap(v); SCENE.clearBackdrop(); tag.textContent = label(v);
+  }, curMap);
+
+  chipRow(document.getElementById('sceneEvents'), SCENE_EVENTS, v => {
+    SCENE.clearFoe();
+    SCENE.showEvent(v);
+    tag.textContent = label(curMap) + ' · ' + (SCENE_EVENTS.find(e => e[0] === v) || [])[1];
+  });
+
+  const skills = CLASS_SKILL_FX[(LAST && LAST.identity.class_name)] || CLASS_SKILL_FX.Warrior;
+  chipRow(document.getElementById('sceneSkills'), skills, v => {
+    SCENE.attack();
+    SCENE.playSkill(v);
+    setTimeout(() => { SCENE.hitFoe(); SCENE.float('-' + (120 + Math.floor(Math.random() * 300)), 'crit', 72); }, 420);
+  });
+
+  document.getElementById('scWalk').onclick = () => { SCENE.walk(); tag.textContent = label(curMap) + ' · กำลังเดินทาง'; };
+  document.getElementById('scFoe').onclick = () => {
+    SCENE.clearBackdrop();
+    SCENE.setFoe({ shape: FOE_SHAPES[Math.floor(Math.random() * FOE_SHAPES.length)],
+                   element: FOE_ELEMENTS[Math.floor(Math.random() * FOE_ELEMENTS.length)] });
+    tag.textContent = label(curMap) + ' · เจอมอนสเตอร์';
+  };
+  document.getElementById('scHit').onclick = () => {
+    SCENE.attack();
+    setTimeout(() => { SCENE.hitFoe(); SCENE.float('-' + (60 + Math.floor(Math.random() * 200)), '', 70); }, 300);
+  };
+}
 
 // ══════ แบล็กแจ็ค 24 (เฟส 3.4) ══════
 CASINO_BET.bj = 10000;

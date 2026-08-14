@@ -38,8 +38,8 @@
     <div class="g-panelview on" id="v-home">
 
       <div class="g-sec"><h3>ออกผจญภัย</h3><div class="g-grid">
-        <button class="g-tile hot soon"><span class="tag">เฟส 5</span>
-          <span class="ic">🧭</span>เริ่มออกเดินทาง<span class="sub">เดิน สู้มอน เก็บของ</span></button>
+        <button class="g-tile hot" data-go="scene">
+          <span class="ic">🧭</span>เริ่มออกเดินทาง<span class="sub">ทดลองฉาก (เฟส 4)</span></button>
         <button class="g-tile soon"><span class="tag">เฟส 5</span>
           <span class="ic">⏩</span>เดินต่อ ×5<span class="sub">เดินรวดจนเจอเหตุการณ์</span></button>
         <button class="g-tile soon"><span class="tag">เฟส 5</span>
@@ -215,6 +215,34 @@
     </div>
 
 
+
+    <!-- ══ ฉากผจญภัย (เฟส 4 — เอนจินฉาก ยังไม่ต่อ logic จริง) ══ -->
+    <div class="g-panelview" id="v-scene">
+      <button class="g-back" data-back>← กลับเมนูหลัก</button>
+      <div class="g-head"><h2>🧭 ฉากผจญภัย</h2>
+        <p>เอนจินฉากพิกเซล — ตัวละครของคุณจริง ฉากตามทวีป และภาพเหตุการณ์
+        พิกเซลอาร์ต 175 ใบที่มีอยู่แล้ว</p></div>
+      <div class="stage-wrap">
+        <canvas id="scene" width="320" height="132" aria-label="ฉากผจญภัย"></canvas>
+        <div class="stage-tag"><i class="dot"></i><span id="sceneTag">—</span></div>
+      </div>
+      <div class="g-card" style="margin-top:14px">
+        <div class="field-row"><label>ทวีป</label>
+          <div class="chips" id="sceneMaps"></div></div>
+        <div class="field-row"><label>เหตุการณ์ (ใช้ภาพจริงจาก assets/events)</label>
+          <div class="chips" id="sceneEvents"></div></div>
+        <div class="field-row"><label>สกิลของคลาสคุณ</label>
+          <div class="chips" id="sceneSkills"></div></div>
+        <div class="bet-row">
+          <button class="g-tile casino-go" id="scWalk"><span class="ic">🚶</span>เดินทาง</button>
+          <button class="g-tile casino-go" id="scFoe"><span class="ic">👹</span>เรียกมอน</button>
+          <button class="g-tile hot casino-go" id="scHit"><span class="ic">⚔️</span>โจมตี</button>
+        </div>
+      </div>
+      <p class="g-note"><b>นี่คือเอนจินฉาก ยังไม่ใช่การผจญภัยจริง</b> — เฟส 5 จะต่อเข้ากับ
+      ตรรกะเดินทาง/สู้มอนของเกม แล้วทุกอย่างที่เห็นตรงนี้จะขยับตามผลจริงจากเซิร์ฟเวอร์</p>
+    </div>
+
     <!-- ══ แบล็กแจ็ค 24 ══ -->
     <div class="g-panelview" id="v-bj">
       <button class="g-back" data-back>← กลับเมนูหลัก</button>
@@ -366,6 +394,7 @@
 
 <script src="/web.js"></script>
 <script src="/sprite.js"></script>
+<script src="/scene.js"></script>
 <script src="/play.js"></script>
 </body>
 </html>
