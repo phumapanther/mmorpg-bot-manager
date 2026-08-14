@@ -113,8 +113,9 @@ class Scene {
   setCharacter(cfg) { this.char = { ...this.char, ...cfg }; }
   setMap(key) { if (MAPS[key]) this.map = key; }
 
-  walk() { this.state = 'walk'; this.clearBackdrop(); }
-  idle() { this.state = 'idle'; }
+  /** เดิน — fast=true คือโหมดเดินเร็ว ฉากไหลเร็วขึ้นและมีเส้นความเร็วให้เห็นว่าเร่งอยู่ */
+  walk(fast) { this.state = 'walk'; this.fast = !!fast; this.clearBackdrop(); }
+  idle() { this.state = 'idle'; this.fast = false; }
 
   clearBackdrop() { this.backdrop = null; this.backdropAlpha = 0; }
 
@@ -465,6 +466,36 @@ class Scene {
     if (this.foeFlash) this.foeFlash--;
   }
 
+  /** ⏩ เอฟเฟกต์เร่งสปีด — เส้นความเร็วพุ่งถอยหลัง + ป้ายบอกว่ากำลังเดินเร็ว
+   *  ต้องเห็นชัดว่าโหมดนี้ต่างจากเดินปกติ ไม่ใช่แค่ฉากไหลเร็วขึ้นเฉย ๆ */
+  _drawSpeed() {
+    const ctx = this.ctx;
+    ctx.save();
+    for (let i = 0; i < 14; i++) {
+      // เส้นวิ่งเป็นวง ๆ ตามเฟรม ให้ความรู้สึกว่าอากาศพัดผ่านตัว
+      const y = 14 + ((i * 37 + this.frame * 3) % (GROUND_Y - 18));
+      const len = 26 + ((i * 13) % 40);
+      const x = this.W - ((i * 61 + this.frame * 13) % (this.W + 90));
+      ctx.globalAlpha = .13 + (i % 3) * .07;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x, y, len, (i % 4 === 0) ? 2 : 1);
+    }
+    ctx.globalAlpha = 1;
+
+    // ป้าย "เดินเร็ว" มุมซ้ายบน กะพริบเบา ๆ
+    const pulse = .72 + Math.sin(this.frame / 7) * .2;
+    ctx.globalAlpha = pulse;
+    ctx.fillStyle = 'rgba(0,0,0,.55)';
+    ctx.fillRect(8, 8, 96, 21);
+    ctx.fillStyle = '#ffe6a8';
+    ctx.fillRect(8, 8, 3, 21);
+    ctx.font = 'bold 13px system-ui';
+    ctx.textAlign = 'left';
+    ctx.fillText('⏩ เดินเร็ว', 16, 23);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
   _drawFx(f, p) {
     const ctx = this.ctx;
     const hx = this.heroX + 40, hy = GROUND_Y - 30, tx = 268, ty = GROUND_Y - 28;
@@ -678,9 +709,11 @@ class Scene {
     }
 
     if (running) {
-      this.scroll += 2.2;
-      if (this.frame % 5 === 0) this.dust.push({ x: this.heroX + 6, y: GROUND_Y - 3, life: 22 });
+      this.scroll += this.fast ? 7.5 : 2.2;                 // เดินเร็ว = ฉากไหลเร็วกว่า 3 เท่า
+      if (this.frame % (this.fast ? 2 : 5) === 0)
+        this.dust.push({ x: this.heroX + 6, y: GROUND_Y - 3, life: 22 });
     }
+    if (running && this.fast) this._drawSpeed();
     if (this.heroLunge > 0) this.heroLunge -= 2;
     this.frame++;
     requestAnimationFrame(this._tick);

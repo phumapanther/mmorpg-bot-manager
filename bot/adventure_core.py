@@ -56,6 +56,10 @@ FAST_WALK_STOPS = ("monster", "dungeon", "mugging", "bank_robbery",
 # (เช่นสแกนกล่องสมบัติแล้วเดินเร็วผ่านหีบไปเลย = เสียใบสแกนเปล่า)
 FAST_WALK_FORCED = ("warp_village", "scan_box", "treasure_trap", "revive", "warp_dungeon")
 
+# เพดานก้าวต่อการกดหนึ่งครั้ง — กันวนไม่รู้จบเฉย ๆ ไม่ใช่โควตาที่ตั้งใจให้ถึง
+# โอกาสเดินครบ 20 ก้าวโดยไม่เจอสักอย่างอยู่ราว 1 ใน 100 ล้าน (เหตุการณ์ที่หยุด ~63% ต่อก้าว)
+FAST_WALK_MAX = 20
+
 
 def fast_walk_stops_here(event, last_evt=None):
     """โหมดเดินเร็วต้องหยุดที่ก้าวนี้ไหม — ตัวเดียวกันทั้งดิสและเว็บ"""

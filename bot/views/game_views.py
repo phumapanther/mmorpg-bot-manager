@@ -1285,11 +1285,11 @@ class AdventureView(ActionView):
             return False
         return True
 
-    @discord.ui.button(label="⏩ เดินต่อ ×5", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="⏩ เดินเร็ว", style=discord.ButtonStyle.secondary)
     async def start_adv_x5(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """O5: เดินรวดสูงสุด 5 ก้าว — ข้ามเฉพาะช่วงที่ไม่มีอะไรให้ตัดสินใจ (อีเวนต์สงบ)
-        เจอมอน/หีบ/กับดัก/ดันเจี้ยน/พาหนะ/อีเวนต์พิเศษ หรือเลือดต่ำ = หยุดทันที"""
-        await self.walk_step(interaction, button, max_steps=5)
+        """เดินรวดจนเจอเหตุการณ์ที่ต้องตัดสินใจจริง — มอน/ดันเจี้ยน/โจร/หมู่บ้าน/กับดัก/พาหนะ
+        ระหว่างทางจะไม่แวะหีบสมบัติ NPC หรืออีเวนต์พิเศษ · เลือดต่ำกว่า 30% หยุดเอง"""
+        await self.walk_step(interaction, button, max_steps=adventure_core.FAST_WALK_MAX)
 
     @discord.ui.button(label="🧭 เริ่มออกเดินทาง", style=discord.ButtonStyle.green)
     async def start_adv(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -1338,14 +1338,28 @@ class AdventureView(ActionView):
         summon_events = adventure_core.SUMMON_EVENTS
         adventure_core.commit_event(user_id, chosen_event, last_evt)
 
-        # ⏩ โหมดเดินเร็ว: ก้าวนี้ไม่ใช่เหตุการณ์ที่ต้องหยุด → เดินผ่านไปเลย ไม่ต้องวาดอะไร
-        #    (หยุดเฉพาะ มอน/ดันเจี้ยน/โจร/หมู่บ้าน/กับดัก/พาหนะข้ามทวีป)
-        #    เลือดต่ำกว่า 30% ก็หยุดเพื่อความปลอดภัย ไม่ให้เดินไปตายเปล่า
-        if max_steps > 1 and not adventure_core.fast_walk_stops_here(chosen_event, last_evt):
+        # ⏩ โหมดเดินเร็ว: หยุดเฉพาะ มอน/ดันเจี้ยน/โจร/หมู่บ้าน/กับดัก/พาหนะข้ามทวีป
+        #    ก้าวอื่นเดินผ่านไปเลย และถ้าหลุดออกมาโดยยังไม่เจอ (เลือดต่ำ/ชนเพดานกันวน)
+        #    ต้องไม่เอาเหตุการณ์ที่ข้ามมาโชว์ ไม่งั้นเดินเร็วจะไปโผล่หีบ/NPC/อีเวนต์พิเศษ
+        walking_fast = max_steps > 1 or getattr(self, "_auto_walked", 0) > 0
+        if walking_fast and not adventure_core.fast_walk_stops_here(chosen_event, last_evt):
             fresh = player_model.get_player(user_id) or player
-            if fresh.get("hp", 0) > fresh.get("max_hp", 100) * 0.3:
+            hp_ok = fresh.get("hp", 0) > fresh.get("max_hp", 100) * 0.3
+            if max_steps > 1 and hp_ok:
                 self._auto_walked = getattr(self, "_auto_walked", 0) + 1
                 return await self.walk_step(interaction, button, max_steps=max_steps - 1)
+
+            walked = getattr(self, "_auto_walked", 0) + 1
+            self._auto_walked = 0
+            warn = ("\n⚠️ **เลือดต่ำกว่า 30% — หยุดเดินเร็วเพื่อความปลอดภัย** (กินยาก่อนไปต่อ!)"
+                    if not hp_ok else "")
+            next_view = AdventureView(author_id=user_id)
+            sent_msg = await interaction.followup.send(
+                content=(f"⏩ **เดินเร็วมาแล้ว {walked} ก้าว** — ยังไม่เจออะไรที่ต้องหยุด{warn}\n"
+                         "----------------------------------------\nคุณต้องการไปต่อหรือไม่?"),
+                view=next_view, wait=True, **file_kwargs(event_image("calm", player.get("continent") or "main")))
+            next_view.message = sent_msg
+            return
 
 
         # ==========================================

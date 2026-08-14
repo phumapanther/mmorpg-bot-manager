@@ -171,7 +171,8 @@ def test_every_event_you_can_run_into_has_its_own_sound(report):
                             re.search(r"const ADV_LABEL = \{(.*?)\};", PLAY, re.S).group(1)))
     ev = _event_sfx()
     # death = ตายแล้ว มีเสียงของตัวเอง · travel = แยกเสียงตามพาหนะ
-    missing = labels - set(ev) - {"death", "travel"}
+    # fastwalk = ไม่ใช่เหตุการณ์ แต่คือ "เดินเร็วแล้วยังไม่เจออะไร" (ฝีเท้าดังอยู่แล้วตลอดทาง)
+    missing = labels - set(ev) - {"death", "travel", "fastwalk"}
     assert not missing, f"เหตุการณ์ที่เจอแล้วเงียบ: {sorted(missing)}"
     unknown = set(ev.values()) - set(report["names"])
     assert not unknown, f"ชี้ไปเสียงที่ไม่มีอยู่จริง: {sorted(unknown)}"

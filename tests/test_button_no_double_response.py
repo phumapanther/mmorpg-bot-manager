@@ -60,16 +60,21 @@ def calm_world(monkeypatch):
 
 
 def test_walk_x5_survives_five_steps(calm_world):
-    """กดเดินรวด ×5 ต้องจบสวย — ไม่ตอบ interaction ซ้ำจนหลุด on_error"""
+    """กดเดินเร็วต้องจบสวย — ไม่ตอบ interaction ซ้ำจนหลุด on_error
+
+    โลกทดสอบนี้สุ่มได้อีเวนต์สงบตลอด = ไม่มีอะไรให้หยุดเลย ต้องเดินจนครบเพดาน
+    แล้วสรุปเป็นข้อความเดียว (ห้ามเอาอีเวนต์สงบมาโชว์ — เดินเร็วไม่เจอทางเงียบ)
+    """
+    from bot import adventure_core
     view = gv.AdventureView(author_id=1)
     itx, sent = _fake_interaction()
 
-    x5 = next(b for b in view.children if b.label and "×5" in b.label)
-    asyncio.run(x5.callback(itx))          # เรียกผ่าน children เหมือน discord จริง
+    fast = next(b for b in view.children if b.label and "เดินเร็ว" in b.label)
+    asyncio.run(fast.callback(itx))        # เรียกผ่าน children เหมือน discord จริง
 
     assert itx.response.edits == 1, "ตอบ interaction ได้ครั้งเดียวเท่านั้น"
-    assert len(sent) == 1, "เดินรวดต้องสรุปเป็นข้อความเดียวตอนจบ"
-    assert "เดินรวด 5 ก้าว" in sent[0]
+    assert len(sent) == 1, "เดินเร็วต้องสรุปเป็นข้อความเดียวตอนจบ"
+    assert f"เดินเร็วมาแล้ว {adventure_core.FAST_WALK_MAX} ก้าว" in sent[0]
 
 
 def test_browsing_views_have_room_to_read():

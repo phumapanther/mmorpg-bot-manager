@@ -1190,14 +1190,18 @@ def adventure_walk(request: Request, steps: int = 1):
 
         elements = game_modifiers.resolve_player_elements(
             [player.get("race") or "", player.get("class_name") or ""])
-        # ⏩ เดินเร็ว: เดินไปเรื่อย ๆ จนเจอเหตุการณ์ที่ต้องหยุด แล้วค่อยวาดอันนั้นอันเดียว
-        left = max(1, min(int(steps or 1), 5))
-        notes, skipped = [], 0
+        # ⏩ เดินเร็ว: เดินไปเรื่อย ๆ จน "เจอเหตุการณ์ที่ต้องหยุด" เท่านั้น
+        # ถ้าหลุดออกมาโดยยังไม่เจอ (เลือดต่ำ/ชนเพดานกันวน) ต้องไม่เอาเหตุการณ์ที่ข้ามมาโชว์
+        # ไม่งั้นเดินเร็วจะไปโผล่หีบ/NPC/อีเวนต์พิเศษ ซึ่งผิดกติกา
+        fast = int(steps or 1) > 1
+        budget = adventure_core.FAST_WALK_MAX if fast else 1
+        notes, walked, stopped = [], 0, not fast
         while True:
             pre = adventure_core.step_prelude(uid, player, elements)
             notes.extend(pre["notes"])
+            walked += 1
             if pre["dead"]:
-                return {"event": "death", "notes": notes, "skipped": skipped,
+                return {"event": "death", "notes": notes, "walked": walked,
                         "text": "💀 คุณล้มลงกลางทาง... พิษกัดกินร่างกายจนหมดสติ"}
 
             player, statuses, mods = pre["player"], pre["statuses"], pre["mods"]
@@ -1205,22 +1209,33 @@ def adventure_walk(request: Request, steps: int = 1):
                 uid, player, statuses, mods, pre["dg_steps"], pre["last_evt"], pre["cooldown"])
             adventure_core.commit_event(uid, event, pre["last_evt"])
 
-            if left <= 1 or adventure_core.fast_walk_stops_here(event, pre["last_evt"]):
+            if not fast:
                 break
-            # เลือดต่ำกว่า 30% หยุดเดินเร็ว ไม่ให้เดินไปตายเปล่า (กติกาเดียวกับในดิส)
+            if adventure_core.fast_walk_stops_here(event, pre["last_evt"]):
+                stopped = True
+                break
             if player.get("hp", 0) <= player.get("max_hp", 100) * 0.3:
                 notes.append("⚠️ **เลือดต่ำกว่า 30% — หยุดเดินเร็วเพื่อความปลอดภัย** (กินยาก่อนไปต่อ!)")
                 break
-            left -= 1
-            skipped += 1
+            if walked >= budget:
+                break
             player = player_model.get_player(uid) or player
+
+        if fast and not stopped:
+            # เดินมาแล้วแต่ยังไม่เจออะไรที่ต้องหยุด — จบแบบไม่มีเหตุการณ์ (ไม่ล็อกสถานะ)
+            player_model.update_player_field(uid, "current_state", "idle")
+            return {"event": "fastwalk", "notes": notes, "walked": walked, "fast": True,
+                    "continent": player.get("continent") or "main", "playable": True,
+                    "pending": None,
+                    "text": f"⏩ **เดินเร็วมาแล้ว {walked} ก้าว** — ยังไม่เจออะไรที่ต้องหยุด "
+                            "กดเดินต่อได้เลย"} | {"money": _money_now(uid)}
 
         if expired_note:
             notes.insert(0, expired_note)
 
         out = {"event": event, "notes": notes, "continent": player.get("continent") or "main",
                "dungeon_steps": dg_steps, "cooldown": pre["cooldown"],
-               "skipped": skipped,    # เดินผ่านไปกี่ก้าวก่อนจะเจออันนี้
+               "walked": walked, "fast": fast,   # เดินมากี่ก้าวก่อนจะเจออันนี้
                "playable": True,      # เว็บจัดการเหตุการณ์นี้เองได้ไหม
                "pending": None}       # ค้างรอผู้เล่นเลือก (None = จบในก้าวเดียว)
 

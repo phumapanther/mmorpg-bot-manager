@@ -943,7 +943,7 @@ const EVENT_SFX = { calm: 'calm', village: 'village', treasure: 'treasure', trap
                     bank_robbery: 'danger', mugging: 'danger' };
 
 // เหตุการณ์ -> คีย์ภาพในโฟลเดอร์ assets/events (ชื่อเดียวกับที่ดิสใช้)
-const ADV_ART = { calm: 'calm', village: 'village', treasure: 'treasure', trap: 'trap',
+const ADV_ART = { calm: 'calm', fastwalk: 'calm', village: 'village', treasure: 'treasure', trap: 'trap',
                   dungeon: 'dungeon', monster: 'monster', bank_robbery: 'bank_robbery',
                   mugging: 'mugging', npc: 'npc', special: 'special', travel: 'travel' };
 
@@ -1063,7 +1063,7 @@ async function advWalk(steps) {
   const fast = steps > 1;
   const tag = document.getElementById('sceneTag');
   SFX.walking(true);                    // 👣 ฝีเท้าดังไปเรื่อย ๆ จนกว่าจะถึงจุดหมาย
-  SCENE.clearFoe(); SCENE.clearRoll(); SCENE.walk();
+  SCENE.clearFoe(); SCENE.clearRoll(); SCENE.walk(fast);   // ⏩ เดินเร็ว = ฉากเร่งสปีด
   document.getElementById('foeBar').hidden = true;
   tag.textContent = fast ? 'กำลังเดินเร็ว...' : 'กำลังเดินทาง...';
   document.getElementById('advActions').innerHTML = '';
@@ -1094,7 +1094,7 @@ async function advWalk(steps) {
     paintFoe(g.monster);
     IN_FIGHT = !!g.monster; SCENE_EVENT = g.event; sceneMusic();
     if (g.money != null) boot();      // เงิน/เลือดเปลี่ยน วาดหัวการ์ดใหม่
-    if (g.skipped) g.text = `⏩ **เดินเร็วผ่านไป ${g.skipped + 1} ก้าว**\n${g.text || ''}`;
+    if (g.fast && g.walked > 1) g.text = `⏩ **เดินเร็วมา ${g.walked} ก้าว**\n${g.text || ''}`;
     advPaint(g);
   } catch (e) {
     SCENE.idle();
@@ -1190,7 +1190,9 @@ async function advAct(action, label, confirmMsg) {
 const ADV_LABEL = { calm: 'เส้นทางเงียบสงบ', village: 'หมู่บ้านอุ่นใจ', treasure: 'หีบสมบัติ',
                     trap: 'กับดัก', dungeon: 'ปากดันเจี้ยน', monster: 'เงาปริศนา',
                     bank_robbery: 'โจรปล้นธนาคาร', mugging: 'โดนดักปล้น', npc: 'นักเดินทาง',
-                    travel: 'พาหนะข้ามทวีป', special: 'เหตุการณ์พิเศษ', death: 'หมดสติ' };
+                    travel: 'พาหนะข้ามทวีป', special: 'เหตุการณ์พิเศษ', death: 'หมดสติ',
+                    // ⏩ ไม่ใช่ "เหตุการณ์" — คือผลของการเดินเร็วแล้วยังไม่เจออะไร
+                    fastwalk: 'เดินเร็ว' };
 
 async function initScene() {
   if (!SCENE) {
