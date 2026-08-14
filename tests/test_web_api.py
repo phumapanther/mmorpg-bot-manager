@@ -585,3 +585,33 @@ def test_item_drop_guards(client, tmp_path, monkeypatch):
     assert client.post("/api/web/item/drop", json={"item_id": "1", "amount": 0}).status_code == 400
     r = client.post("/api/web/item/drop", json={"item_id": "1"})      # ไม่มีของชิ้นนี้
     assert r.status_code == 200 and r.json()["ok"] is False
+
+
+def test_junk_preview_matches_what_gets_sold(client, tmp_path, monkeypatch):
+    """ตัวเลขในหน้ายืนยันต้องตรงกับที่ขายจริง — และห้ามกินของกดใช้ได้/ทองคำแท่ง"""
+    import json as _json
+    pm = _bind_pm(tmp_path, monkeypatch, cash=0,
+                  inventory=_json.dumps(["9", "9", "1", "72"]))   # ขยะ2 + ยาฮีล + แท่งทอง
+    _login(client)
+    pre = client.get("/api/web/bag/junk-preview").json()
+    assert pre["count"] == 2 and {i["id"] for i in pre["items"]} == {"9"}
+
+    r = client.post("/api/web/bag/sell-junk").json()
+    assert r["ok"] is True and r["sold"] == 2 and r["gold"] == pre["gold"]
+    assert r["money"]["cash"] == pre["gold"]
+    inv = pm.get_player(555000111)["inventory"]
+    assert "1" in inv and "72" in inv and "9" not in inv     # ของสำคัญอยู่ครบ
+
+
+def test_craft_list_and_craft_need_login(client, tmp_path, monkeypatch):
+    _bind_pm(tmp_path, monkeypatch)
+    assert client.get("/api/web/craft/list").status_code == 401
+    assert client.post("/api/web/craft", json={"item_id": "1"}).status_code == 401
+
+
+def test_craft_rejects_unknown_recipe(client, tmp_path, monkeypatch):
+    _bind_pm(tmp_path, monkeypatch)
+    _login(client)
+    r = client.post("/api/web/craft", json={"item_id": "ไม่มีสูตรนี้"})
+    assert r.status_code == 200 and r.json()["ok"] is False
+    assert client.get("/api/web/craft/list").json()["recipes"] == []   # ไม่มีวัตถุดิบ = ไม่มีสูตร

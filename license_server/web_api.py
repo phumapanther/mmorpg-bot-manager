@@ -390,6 +390,77 @@ def item_use(body: UseBody, request: Request):
     return {"ok": ok, "message": msg}
 
 
+@router.get("/craft/list")
+def craft_list(request: Request):
+    """สูตรที่วัตถุดิบครบพร้อมคราฟตอนนี้ — craftable_now() ตัวเดียวกับปุ่ม 🔨 ในดิส"""
+    uid = require_player(request)["uid"]
+    from bot.cogs.player_commands import craftable_now
+    rows = craftable_now(int(uid))
+    return {"recipes": [{"id": i, "name": n, "materials": m} for i, n, m in rows]}
+
+
+class CraftBody(BaseModel):
+    item_id: str
+
+
+@router.post("/craft")
+def craft(body: CraftBody, request: Request):
+    """คราฟของ — craft_for() ตัวเดียวกับในดิส (มีโอกาสล้มเหลวตามสูตร)"""
+    uid = require_player(request)["uid"]
+    from bot.cogs.player_commands import craft_for
+    with _user_lock(uid):
+        ok, msg = craft_for(int(uid), str(body.item_id))
+    return {"ok": ok, "message": msg}
+
+
+@router.post("/bag/sell-junk")
+def sell_junk(request: Request):
+    """เทขายวัสดุ/ของขยะทั้งกระเป๋า — sell_all_junk() ตัวเดียวกับปุ่ม 🧱 ในดิส"""
+    uid = require_player(request)["uid"]
+    from bot.cogs.player_commands import sell_all_junk
+    with _user_lock(uid):
+        sold, gold, msg = sell_all_junk(int(uid))
+    return {"ok": sold > 0, "sold": sold, "gold": gold, "message": msg,
+            "money": _money_now(uid)}
+
+
+@router.get("/bag/junk-preview")
+def junk_preview(request: Request):
+    """ดูก่อนยืนยันว่าจะขายอะไรไปบ้าง ได้เงินเท่าไหร่
+
+    ใช้เกณฑ์ 'ของขยะ' ชุดเดียวกับ sell_all_junk() — ของกดใช้ได้/อุปกรณ์/ทองคำแท่ง ปลอดภัยเสมอ
+    """
+    uid = require_player(request)["uid"]
+    from bot import config_loader
+    from bot.models.player_model import load_inventory
+
+    conn = _game_conn()
+    try:
+        row = conn.execute("SELECT inventory FROM players WHERE user_id=?", (int(uid),)).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return {"items": [], "gold": 0, "count": 0}
+
+    items = config_loader.get_all_items()
+    counts = {}
+    for iid in load_inventory(row["inventory"]):
+        counts[str(iid)] = counts.get(str(iid), 0) + 1
+
+    out, gold = [], 0
+    for iid, n in counts.items():
+        d = items.get(iid, {})
+        is_junk = (d and not d.get("effect") and not d.get("equip_key")
+                   and d.get("type") != "use" and not d.get("bar_value"))
+        if not is_junk:
+            continue
+        each = int(d.get("sell", 0))
+        gold += each * n
+        out.append({"id": iid, "name": d.get("name", iid), "count": n, "each": each})
+    out.sort(key=lambda x: -x["each"] * x["count"])
+    return {"items": out, "gold": gold, "count": sum(i["count"] for i in out)}
+
+
 class DropBody(BaseModel):
     item_id: str
     amount: int = 1

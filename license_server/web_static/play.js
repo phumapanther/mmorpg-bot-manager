@@ -1,6 +1,7 @@
-// หน้าเล่นเกม — โครงเมนู (เฟสวางโครง 2026-08-13)
-// ⚠️ ยังไม่เชื่อมข้อมูลจริง: ตัวเลข/รายการในนี้เป็นตัวอย่างเพื่อวางเลย์เอาต์
-//    ของจริงจะดึงจาก GET /api/web/me/game (เฟส 1.1) แล้วให้เซิร์ฟเวอร์เป็นคนคำนวณทุกอย่าง
+// หน้าเล่นเกม Fragment Rift
+// ตัวละคร/กระเป๋า/ธนาคาร/ทองคำแท่ง/คราฟ = ข้อมูลจริง เรียกฟังก์ชันชุดเดียวกับบอทดิส
+// ร้านยศ/กาชา/ทอยเต๋า = ยังเป็นโครงหน้า (เฟส 7-8)
+// กติกา: ไม่มีกฎเกมในไฟล์นี้ — เซิร์ฟเวอร์คำนวณทุกอย่าง ที่นี่แค่วาดกับถามยืนยัน
 renderChrome("/play");
 fillDiscordInvite();
 
@@ -20,6 +21,7 @@ function showPanel(id) {
   document.querySelectorAll('.g-panelview').forEach(v => v.classList.toggle('on', v.id === 'v-' + id));
   if (id === 'bank') fillQuick();
   if (id === 'goldbar') fillBars().catch(e => toast(e.message, true));
+  if (id === 'craft') fillCraft();
   window.scrollTo({ top: document.getElementById('shell').offsetTop - 80, behavior: 'smooth' });
 }
 document.querySelectorAll('[data-go]').forEach(b => {
@@ -339,6 +341,71 @@ async function useItem(id, name) {
   } catch (e) { toast(e.message, true); }
 }
 
+
+// ── คราฟของ ──
+async function fillCraft() {
+  const box = document.getElementById('craftList');
+  if (!box) return;
+  let d;
+  try { d = await api("GET", "/api/web/craft/list"); }
+  catch (e) { return toast(e.message, true); }
+
+  if (!d.recipes.length) {
+    box.innerHTML = '<div class="empty-bag">ยังไม่มีสูตรไหนที่วัตถุดิบครบ — ' +
+                    'ออกผจญภัยเก็บวัสดุเพิ่มก่อนนะ</div>';
+    return;
+  }
+  box.innerHTML = d.recipes.map(r =>
+    '<div class="bar-card">' +
+      '<div class="bn">' + esc(r.name) + '</div>' +
+      '<div class="px"><span>ใช้วัตถุดิบ</span></div>' +
+      '<div style="font-size:12.5px;color:var(--g-muted)">' + esc(r.materials) + '</div>' +
+      '<div class="btns"><button data-craft="' + esc(r.id) + '">คราฟ</button></div>' +
+    '</div>').join('');
+
+  box.querySelectorAll('[data-craft]').forEach(btn => btn.onclick = async () => {
+    const r = d.recipes.find(x => String(x.id) === btn.dataset.craft);
+    const ok = await confirmAction({
+      title: '🔨 ยืนยันคราฟของ',
+      message: 'คราฟมีโอกาสล้มเหลว — ล้มเหลวแล้ววัตถุดิบหายไปเลย ไม่ได้ของ',
+      lines: [['จะได้', r.name], ['ใช้วัตถุดิบ', r.materials, 'warn']],
+      okText: 'ยืนยันคราฟ',
+    });
+    if (!ok) return;
+    try {
+      const res = await api("POST", "/api/web/craft", { item_id: r.id });
+      toast(res.message, !res.ok);
+      await reload();
+      await fillCraft();                      // วัตถุดิบเปลี่ยน รายการสูตรก็เปลี่ยน
+    } catch (e) { toast(e.message, true); }
+  });
+}
+
+// ── เทขายวัสดุทั้งกระเป๋า ──
+const junkTile = document.getElementById('tileJunk');
+if (junkTile) junkTile.addEventListener('click', async () => {
+  let pre;
+  try { pre = await api("GET", "/api/web/bag/junk-preview"); }
+  catch (e) { return toast(e.message, true); }
+  if (!pre.count) return toast('ไม่มีวัสดุ/ของขยะให้ขายในกระเป๋า', true);
+
+  const lines = pre.items.slice(0, 6)
+    .map(i => [i.name + ' ×' + i.count, fmt(i.each * i.count) + ' ทอง']);
+  if (pre.items.length > 6) lines.push(['และอีก ' + (pre.items.length - 6) + ' ชนิด', '...']);
+  lines.push(['รวมได้รับ', fmt(pre.gold) + ' ทอง', 'good']);
+
+  const ok = await confirmAction({
+    title: '🧱 ยืนยันขายวัสดุทั้งหมด',
+    message: 'ขาย ' + pre.count + ' ชิ้น — ของกดใช้ได้ อุปกรณ์สวมใส่ และทองคำแท่ง จะไม่ถูกขาย',
+    lines, okText: 'ยืนยันขายทั้งหมด',
+  });
+  if (!ok) return;
+  try {
+    const r = await api("POST", "/api/web/bag/sell-junk");
+    toast(r.message, !r.ok);
+    if (r.ok) await reload();
+  } catch (e) { toast(e.message, true); }
+});
 
 /** ทิ้งไอเทม — เตือนแรงกว่าใช้ เพราะของหายถาวรและไม่ได้เงินคืน */
 async function dropItem(id, name, count, sell) {

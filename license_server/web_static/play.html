@@ -51,9 +51,9 @@
           <span class="ic">🪪</span>โปรไฟล์<span class="sub">ค่าสถานะ อุปกรณ์สวมใส่</span></button>
         <button class="g-tile" data-go="bag">
           <span class="ic">🎒</span>กระเป๋า<span class="sub">ดูของในกระเป๋า</span></button>
-        <button class="g-tile soon"><span class="tag">เฟส 2</span>
+        <button class="g-tile" data-go="craft">
           <span class="ic">🔨</span>คราฟของ<span class="sub">รวมวัสดุเป็นของใหม่</span></button>
-        <button class="g-tile soon"><span class="tag">เฟส 2</span>
+        <button class="g-tile" id="tileJunk">
           <span class="ic">🧱</span>ขายวัสดุทั้งหมด<span class="sub">เทขายของขยะรวดเดียว</span></button>
         <button class="g-tile soon"><span class="tag">ภายหลัง</span>
           <span class="ic">🐾</span>สัตว์เลี้ยง<span class="sub">เลือกตัวที่พาไปด้วย</span></button>
@@ -167,6 +167,15 @@
       </div>
     </div>
 
+
+
+    <!-- ══ คราฟของ ══ -->
+    <div class="g-panelview" id="v-craft">
+      <button class="g-back" data-back>← กลับเมนูหลัก</button>
+      <div class="g-head"><h2>🔨 คราฟของ</h2>
+        <p>แสดงเฉพาะสูตรที่วัตถุดิบครบพร้อมคราฟตอนนี้ — คราฟมีโอกาสล้มเหลวและเสียวัตถุดิบ</p></div>
+      <div class="g-cards" id="craftList"></div>
+    </div>
 
     <!-- ══ ธนาคาร ══ -->
     <div class="g-panelview" id="v-bank">
