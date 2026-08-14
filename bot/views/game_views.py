@@ -10,23 +10,13 @@ from bot import game_modifiers
 from bot import robbery
 from bot import adventure_core
 from bot.adventure_core import (_roll_amount,  # noqa: F401 — ย้ายไป core แล้ว
-                                execute_special_outcome,
-                                resolve_instant_special)
+                                _holy_aura_chance, _rank_stats, _random_enemy_champion,
+                                execute_special_outcome, resolve_instant_special,
+                                EVENT_WEIGHTS, EVENT_LIST, event_weights,
+                                DEFAULT_SPAWN_WEIGHTS, MONSTER_RANKS, spawn_weights_for)
 from bot.views.fight_ui import (ELEMENT_COLORS, RANK_BADGES, build_fight_embed,  # noqa: F401 (B6)
                                 build_respawn_embed, hp_bar)
 from bot.event_images import event_image, monster_image, item_use_image, file_kwargs  # noqa: F401
-
-def _holy_aura_chance(p_lvl):
-    cfg = config_loader.get_skill_config("Cleric", "holy_aura")
-    return cfg["chance_base"] + (p_lvl * cfg["chance_lvl_scale"])
-
-# ตารางน้ำหนักเหตุการณ์ย้ายไป bot/adventure_core.py แล้ว (ใช้ร่วมกับเว็บ)
-# re-export ไว้ให้โค้ด/เทสเดิมที่อ้างจากไฟล์นี้ยังใช้ได้
-from bot.adventure_core import (EVENT_WEIGHTS, EVENT_LIST, event_weights,  # noqa: E402,F401
-                                DEFAULT_SPAWN_WEIGHTS, MONSTER_RANKS,
-                                spawn_weights_for, _rank_stats,
-                                _random_enemy_champion)
-
 
 # ==========================================================
 # 🎮 INTERACTIVE VIEWS
@@ -53,6 +43,9 @@ def respawn_player(user_id):
         "current_state": "village", "last_event": "village", "dungeon_steps": 0})
     embed = build_respawn_embed(player, respawn_hp, max_hp, fee, new_cash, lost_steps, hp_pct)
     return embed, {"fee": fee, "hp": respawn_hp, "cash": new_cash}
+
+
+TAIL_CONTINUE = "\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?"
 
 
 class MenuButton(discord.ui.Button):
@@ -252,356 +245,38 @@ class MonsterEventView(ActionView):
             # 🔄 ซิงก์สถานะกับ DB สดก่อนคำนวณเทิร์น — ไอเทมรักษา/บัฟที่กดใช้ระหว่างรอเทิร์นมีผลทันที
             self._resync_statuses(player)
 
-            p_lvl = player.get("level", 1)
+            # 🎲 คำนวณทั้งเทิร์น — ตรรกะอยู่ใน adventure_core (ใช้ร่วมกับหน้าไฟต์บนเว็บ)
+            _f = {"rank": self.monster_rank, "stats": self.m_stats, "hp": self.monster_hp,
+                  "hp_max": self.monster_hp_max, "element": self.element,
+                  "statuses": self.statuses, "fight_grace": list(self.fight_grace),
+                  "infused": self.infused, "faction_side": self.faction_war_side,
+                  "turn": self.turn_count, "buffs": self.active_buffs}
+            t = adventure_core.fight_turn(self.user_id, _f, self.member_roles, skill_used)
 
-            # ✨ ธาตุแสง: โอกาสมอนสเตอร์เผ่นหนีต้นเทิร์น (แบบ Metal Slime) — จบไฟต์ ไม่ได้รางวัล
-            # 🪤 กับดักมอนสเตอร์ล็อกไว้ = หนีไม่ได้เลย (จุดขายหลักของกับดัก — ล่ามอนแสงได้จริง)
-            monster_flee = self.element_data.get("monster_flee_chance", 0)
-            if game_modifiers.has_status_flag(self.statuses, "block_monster_flee"):
-                monster_flee = 0
-            if monster_flee and random.randint(1, 100) <= monster_flee:
-                player_model.update_player_field(self.user_id, "current_state", "idle")
+            if t["outcome"] == "no_player":
+                return await interaction.response.send_message(t["text"], ephemeral=True)
+
+            # จบไฟต์ทันที: มอนธาตุแสงเผ่นหนี / Evasion สำเร็จ
+            if t["outcome"] in ("monster_fled", "player_fled"):
                 self.stop()
-                flee_msg = (
-                    f"💨✨ **{self.m_stats.get('name', 'มอนสเตอร์')} ระเบิดแสงวาบตาแล้วเผ่นหนีหายไป!** "
-                    f"คุณคว้าอะไรไม่ทันเลย...\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?"
-                )
+                _msg = t["text"] + TAIL_CONTINUE
                 if not interaction.response.is_done():
-                    return await interaction.response.edit_message(content=flee_msg, view=AdventureView(author_id=self.user_id))
-                return await interaction.followup.edit_message(message_id=interaction.message.id, content=flee_msg, view=AdventureView(author_id=self.user_id))
+                    return await interaction.response.edit_message(content=_msg, view=AdventureView(author_id=self.user_id))
+                return await interaction.followup.edit_message(message_id=interaction.message.id,
+                                                               content=_msg, view=AdventureView(author_id=self.user_id))
 
-            # 1. 🛡️ ดึงข้อมูลอุปกรณ์
-            w_id = player.get("weapon", "Wooden_Weapon")
-            a_id = player.get("armor", "None")
-            w_stat = config_loader.get_weapon_stats(w_id) or config_loader.get_weapon_stats("Wooden_Weapon") or {"atk": 1}
-            a_stat = config_loader.get_armor_stats(a_id) or config_loader.get_armor_stats("None") or {"hp": 0}
-            
-            # 2. 🛡️ คำนวณพลังโจมตี (ถ้าความทนทานเป็น 0 พลังโจมตีหาย)
-            curr_atk = w_stat.get("atk", 0) if player.get("weapon_dur", 0) > 0 else 0
-            
-            # ⚡ ไฟฟ้าสถิต: สกิลอาจลัดวงจรก่อนออกท่า (กลายเป็นโจมตีธรรมดา + ช็อกตัวเอง)
-            shock_note = ""
-            if skill_used:
-                shock_failed, shock_dmg = game_modifiers.status_skill_shock(self.statuses)
-                if shock_failed:
-                    skill_used = None
-                    player["hp"] = max(0, player.get("hp", 100) - shock_dmg)
-                    shock_note = f"⚡ **สกิลลัดวงจร!** กระแสไฟฟ้าสถิตช็อกร่างคุณ `-{shock_dmg}` HP (เหลือ {player['hp']}) — ท่ากลายเป็นการโจมตีธรรมดา!\n"
-
-            # 3. 🛠️ กำหนดค่าความทนทานเริ่มต้นเป็น 0 เพื่อป้องกันบั๊ก
-            durability_lost_w = 3 if skill_used else 1
-            damage_to_armor = 0 
-            
-            skill_log = ""
-            if shock_note:
-                skill_log += shock_note
-            combat_log = ""
-            db_updates = {}
-
-            enrage_bonus = 0
-            # 🌑 ธาตุมืด: เข้าสถานะคลั่งตั้งแต่เทิร์นแรก (ระบบคลั่งปกติเริ่มหลังเทิร์น 3)
-            enraged_turns = self.turn_count if self.element_data.get("pre_enraged") else self.turn_count - 3
-            if enraged_turns > 0:
-                rank_danger = {"Common": 2, "Mini-Boss": 5, "Main-Boss": 10, "Secret": 8, "Unbeatable": 25}
-                enrage_bonus = enraged_turns * rank_danger.get(self.monster_rank, 2)
-                skill_log += f"😡 **{self.m_stats.get('name', 'บอส')} กำลังคลั่ง!** บอสสะสมความโกรธเพิ่มพลังโจมตีเด็ดขาด `+{enrage_bonus}` หน่วยในเทิร์นนี้!\n"
-
-            # 🎲 ทอยเต๋าทั้งเทิร์น — ตรรกะอยู่ใน adventure_core (ใช้ร่วมกับหน้าไฟต์บนเว็บ)
-            _roll = adventure_core.roll_combat(
-                self.user_id, player, self.statuses, self.element_data,
-                self.m_stats, getattr(self, "player_elements", []))
-            player_roll = _roll["player_roll"]
-            monster_roll = _roll["monster_roll"]
-            roll_parts = _roll["player_parts"]      # 🎲 B3: ที่มาของแต้ม ไว้โชว์ในหน้าจอไฟต์
-            mon_parts = _roll["monster_parts"]
-            self.statuses = _roll["statuses"]       # โคลเวอร์อาจถูกใช้ไปกันราก
-            skill_log += _roll["log"]
-
-            damage_multiplier = 1
-
-            # ─── ⚔️ ระบบคำนวณสกิลช่วงต้นเทิร์น ───
-            try:
-                if skill_used == "skill_heavy_strike":
-                    w_cfg = config_loader.get_skill_config("Warrior", "heavy_strike")
-                    chance = w_cfg["chance_base"] + (p_lvl * w_cfg["chance_lvl_scale"])
-                    if random.randint(1, 100) <= chance:
-                        damage_multiplier = w_cfg["damage_multiplier"]
-                        # 💥 คริ: เต๋าถึงเกณฑ์ (18+) ตอนใช้สกิล = ตัวคูณพุ่งเป็นระดับคริ (config เก่าไม่มี key = ไม่มีคริ)
-                        crit_min = w_cfg.get("crit_roll_min")
-                        if crit_min and player_roll >= crit_min:
-                            damage_multiplier = w_cfg.get("crit_multiplier", damage_multiplier)
-                            skill_log += f"💥 **Heavy Strike ติดคริติคอล!** เต๋า `{player_roll}` เข้าจังหวะมรณะ ดาเมจ ×{damage_multiplier} เท่า!\n"
-                        else:
-                            skill_log += f"✨ **Heavy Strike สำเร็จ!** การโจมตีในเทิร์นนี้จะแรงขึ้น {damage_multiplier} เท่า!\n"
-                    else:
-                        skill_log += "💨 **Heavy Strike ล้มเหลว!** ทอยเต๋าพลาดสมาธิหลุด\n"
-
-                elif skill_used == "skill_evasion":
-                    r_cfg = config_loader.get_skill_config("Rogue", "evasion")
-                    chance = r_cfg["chance_base"] + (p_lvl * r_cfg["chance_lvl_scale"])
-                    if random.randint(1, 100) <= chance:
-                        player_model.update_player_field(self.user_id, "current_state", "idle")
-                        await interaction.response.edit_message(content=f"💨 **Evasion สำเร็จ!** คุณม้วนตัวหนีออกจากสู้กับ **{self.m_stats.get('name', 'มอนสเตอร์')}** ได้สำเร็จ!", view=AdventureView(author_id=self.user_id))
-                        return
-                    else:
-                        skill_log += "⚠️ **Evasion ล้มเหลว!** มอนสเตอร์ดักทางเท้าไว้ได้\n"
-
-                elif skill_used == "skill_heal":
-                    c_cfg = config_loader.get_skill_config("Cleric", "heal")
-                    heal_percent = c_cfg["heal_percent_base"] + (p_lvl * c_cfg["heal_lvl_scale"])
-                    heal_amount = int(player.get("max_hp", 100) * heal_percent)
-                    
-                    if self.monster_rank in ["Main-Boss", "Unbeatable"]:
-                        stolen_heal = int(heal_amount * 0.3)
-                        heal_amount -= stolen_heal
-                        self.monster_hp = min(self.m_stats.get("hp_range", [0,100])[1], self.monster_hp + stolen_heal)
-                        skill_log += f"💔 **คำสาปบอสทำงาน!** บอสสูบกลืนแสงฮีลของคุณไป `+{stolen_heal}` HP! "
-                    
-                    new_hp = min(player.get("max_hp", 100), player.get("hp", 100) + heal_amount)
-                    player["hp"] = new_hp 
-                    skill_log += f"✨ **Heal!** พลังชีวิตของคุณฟื้นฟู `+ {heal_amount}` หน่วย (❤️ HP: {new_hp})\n"
-
-                if skill_used == "skill_shield_bash":
-                    self.active_buffs["shield_bash"] = config_loader.get_skill_config("Warrior", "shield_bash")["duration"]
-                elif skill_used == "skill_fireball":
-                    self.active_buffs["fireball"] = config_loader.get_skill_config("Mage", "fireball")["duration"]
-                elif skill_used == "skill_frostbolt":
-                    f_cfg = config_loader.get_skill_config("Mage", "frostbolt")
-                    self.active_buffs["frostbolt"] = f_cfg["duration_base"] + int(p_lvl * f_cfg["duration_lvl_scale"])
-                elif skill_used == "skill_holy_aura":
-                    self.active_buffs["holy_aura"] = 3
-                elif skill_used == "skill_backstab":
-                    r_b_cfg = config_loader.get_skill_config("Rogue", "backstab")
-                    if random.randint(1, 100) <= (r_b_cfg["chance_base"] + (p_lvl * r_b_cfg["chance_lvl_scale"])):
-                        self.active_buffs["backstab"] = 1
-            except KeyError as e:
-                print(f"⚠️ [WARNING] ตั้งค่าสกิลขาดหาย: {e}")
-
-            # 🔥 คิดเอฟเฟกต์เผาไหม้ของ Fireball
-            if self.active_buffs.get("fireball", 0) > 0:
-                try:
-                    m_cfg = config_loader.get_skill_config("Mage", "fireball")
-                    burn_percent = m_cfg["burn_base"] + (p_lvl * m_cfg["burn_lvl_scale"])
-                    burn_damage = int(self.m_stats.get("hp_range", [0,100])[1] * burn_percent)
-                    self.monster_hp = max(0, self.monster_hp - burn_damage)
-                    combat_log += f"🔥 *เอฟเฟกต์เผาไหม้:* บอสโดนไฟบอลเผาเสีย HP `- {burn_damage}` หน่วย (บอสเหลือ HP: {self.monster_hp})\n"
-                    self.active_buffs["fireball"] -= 1
-                except Exception as e: pass
-
-            # 🥾 รองเท้าขนนกวายุ: แพ้เต๋าให้มอนธาตุลม → โอกาสขอทอยใหม่หนึ่งครั้ง
-            reroll_chance = game_modifiers.status_reroll_vs(self.statuses, self.element)
-            if reroll_chance and player_roll < monster_roll and random.randint(1, 100) <= reroll_chance:
-                new_roll = random.randint(1, 20)
-                skill_log += f"🥾 **รองเท้าขนนกวายุพัดหวน!** ขอทอยใหม่: `{player_roll}` ➔ `{new_roll}`\n"
-                player_roll = new_roll
-
-            # 🎲 กติกาเต๋าประจำวัน (ธีมเต๋าแห่งเทพี)
-            goddess_rule = game_modifiers.get_daily_dice_rule() if self.mods.get("dice_rules") else None
-
-            # ⚔ คุณทอยได้เต๋าชนะบอส
-            if player_roll >= monster_roll:
-                # 🥶 สถานะลดแรงโจมตีผู้เล่น (เช่น ชา = ×0.5)
-                status_dmg_mult = game_modifiers.status_combat_mult(self.statuses, "player_dmg_mult")
-                goddess_mult = game_modifiers.dice_rule_bonus(goddess_rule, player_roll) if goddess_rule else 1.0
-                if goddess_mult > 1.0:
-                    combat_log += f"🎲 **เทพีโปรดปราน!** เต๋าของคุณเข้ากติกาวันนี้ ดาเมจ ×{goddess_mult:g}!\n"
-                # ⚔️ ธาตุผู้เล่นได้เปรียบธาตุมอน (dual-race ซ้อนได้เปรียบ = ×2.0 cap)
-                elem_adv_mult = game_modifiers.player_attack_element_mult(getattr(self, "player_elements", []), self.element)
-                if elem_adv_mult > 1.0:
-                    combat_log += f"⚔️✨ **ธาตุประจำตัวของคุณข่มธาตุศัตรู!** ดาเมจ ×{elem_adv_mult:g}\n"
-                # 🔥🌑 Passive ธาตุผู้เล่น: โบนัสดาเมจถาวร (ไฟ ×1.15, มืด ×1.25 — ถือหลายธาตุคูณทบกัน)
-                passive_dmg_mult = game_modifiers.player_passive_mult(getattr(self, "player_elements", []), "dmg_mult")
-                if passive_dmg_mult > 1.0:
-                    combat_log += f"🩸 **พลังธาตุประจำตัวเสริมคมอาวุธ** ดาเมจ ×{passive_dmg_mult:g}\n"
-                damage_to_monster = int((player_roll + curr_atk) * 5 * damage_multiplier * status_dmg_mult * goddess_mult * elem_adv_mult * passive_dmg_mult)
-                # 💥 B3: สรุปสูตรดาเมจให้ผู้เล่นเห็นว่าคูณอะไรมาบ้าง
-                _mults = []
-                for _label, _v in (("สกิล", damage_multiplier), ("สถานะ", status_dmg_mult), ("เทพี", goddess_mult),
-                                   ("⚔️ธาตุข่ม", elem_adv_mult), ("ธาตุติดตัว", passive_dmg_mult)):
-                    if _v != 1:
-                        _mults.append(f"{_label} ×{_v:g}")
-                damage_line = f"**`{damage_to_monster:,}`** ใส่ศัตรู  ·  ({player_roll} เต๋า +{curr_atk} ดาบ) ×5"
-                if _mults:
-                    damage_line += "  ·  " + "  ·  ".join(_mults)
-
-                # 🌗 คำสาปแต้มคี่/คู่: parity ของเต๋าตรงคำสาป = ผลโจมตีบิดเบี้ยว
-                curse_key = game_modifiers.status_curse_for_roll(self.statuses, player_roll)
-                if curse_key:
-                    curse_cfg = game_modifiers.STATUS_EFFECTS[curse_key]
-                    if curse_cfg.get("curse_parity") == "odd":
-                        reflect = max(1, round(damage_to_monster * curse_cfg.get("reflect_pct", 0.2)))
-                        player["hp"] = max(0, player.get("hp", 100) - reflect)
-                        combat_log += f"🌑 **คำสาปแต้มคี่ทำงาน!** เต๋าออก `{player_roll}` การโจมตีแป้กสนิท แถมแรงสาปสะท้อน `-{reflect}` HP ใส่ตัวคุณ (เหลือ {player['hp']})\n"
-                    else:
-                        self.monster_hp += damage_to_monster
-                        combat_log += f"🌕 **คำสาปแต้มคู่ทำงาน!** เต๋าออก `{player_roll}` พลังโจมตีทั้งหมดไหลย้อนไป**ฮีลมอนสเตอร์** `+{damage_to_monster}` HP!\n"
-                    damage_to_monster = 0
-
-                self.monster_hp = max(0, self.monster_hp - damage_to_monster)
-
-                # 💧 Passive ธาตุน้ำของผู้เล่น: ดูดเลือดตามดาเมจที่ตีโดนจริง
-                ls_pct = game_modifiers.player_passive_sum(getattr(self, "player_elements", []), "lifesteal")
-                if ls_pct and damage_to_monster > 0:
-                    max_hp = player.get("max_hp", 100)
-                    healed = min(max_hp, player.get("hp", 100) + max(1, round(damage_to_monster * ls_pct))) - player.get("hp", 100)
-                    if healed > 0:
-                        player["hp"] += healed
-                        combat_log += f"💧 **สายธารชีวิตดูดกลืนพลังศัตรู** `+{healed}` HP (เหลือ {player['hp']})\n"
-
-                if status_dmg_mult < 1.0:
-                    combat_log += "🥶 ร่างกายชาเย็นจนขยับช้า แรงโจมตีอ่อนลงกว่าปกติ!\n"
-                combat_log += f"⚔️ คุณทอยได้ **🎲 {player_roll}/บอส({monster_roll})** (+{curr_atk} ดาบ) สร้างความเสียหายใส่บอส `- {damage_to_monster}` หน่วย\n"
-            
-            # 👾 บอสทอยได้เต๋าชนะ
-            else:
-                # ตัวคูณดาเมจมอนสเตอร์จากทวีป/ธีมสัปดาห์ × ธาตุ (🔥 ไฟ = ×1.5) × infusion (☄️ ×2)
-                elem_dmg_mult = self.element_data.get("dmg_mult", 1.0)
-                infusion_mult = (self.mods.get("infusion") or {}).get("dmg_mult", 1.0) if getattr(self, "infused", False) else 1.0
-                goddess_penalty = game_modifiers.dice_rule_penalty(goddess_rule, player_roll) if goddess_rule else 1.0
-                if goddess_penalty > 1.0:
-                    combat_log += "🎲 **เทพีเบือนหน้าหนี...** เต๋าตกโซนโทษ มอนสเตอร์ตีสวนแรงขึ้น!\n"
-                # 🛡️ ธาตุผู้เล่นต้านทาน/แพ้ทางธาตุมอนฝั่งรับ
-                elem_def_mult = game_modifiers.player_defense_element_mult(getattr(self, "player_elements", []), self.element)
-                if elem_def_mult < 1.0:
-                    combat_log += "🛡️ **ธาตุประจำตัวของคุณต้านทานพลังโจมตีนี้!**\n"
-                elif elem_def_mult > 1.0:
-                    combat_log += "☯️ **พลังแสง-มืดปะทะกันรุนแรง!** ดาเมจที่ได้รับหนักขึ้น!\n"
-                # 🪨🌑 Passive ธาตุผู้เล่นฝั่งรับ: ดินหนังเหนียว ×0.9, มืดเปราะบาง ×1.1
-                passive_def_mult = game_modifiers.player_passive_mult(getattr(self, "player_elements", []), "def_mult")
-                if passive_def_mult < 1.0:
-                    combat_log += "🪨 **ผิวศิลาดูดซับแรงกระแทก!**\n"
-                elif passive_def_mult > 1.0:
-                    combat_log += "🌑 **ร่างที่กระหายเลือดเปราะบางต่อการโจมตี!**\n"
-                damage_to_player = round((random.randint(10, 25) + enrage_bonus) * self.mods.get("monster_dmg_mult", 1.0) * elem_dmg_mult * infusion_mult * goddess_penalty * elem_def_mult * passive_def_mult)
-                if elem_dmg_mult > 1.0:
-                    combat_log += "🔥 **เพลิงธาตุลุกโหม!** การโจมตีของมอนสเตอร์รุนแรงขึ้นกว่าปกติ!\n"
-                if infusion_mult > 1.0:
-                    combat_log += "☄️ **พลังอุกกาบาตปะทุ!** แรงโจมตีทวีคูณอย่างน่ากลัว!\n"
-                
-                if player.get("armor_dur", 0) > 0:
-                    damage_to_armor = max(1, int(damage_to_player / 10))
-                    reduction = int(damage_to_player * 0.2)
-                    damage_to_player -= reduction
-                    combat_log += f"🛡️ เกราะรับดาเมจแทนคุณ `- {reduction}` หน่วย!\n"
-                
-                try:
-                    if self.active_buffs.get("frostbolt", 0) > 0:
-                        f_reduce = config_loader.get_skill_config("Mage", "frostbolt")["damage_reduce"]
-                        damage_to_player = int(damage_to_player * (1 - f_reduce))
-                        combat_log += f"❄️ *น้ำแข็งเกาะ:* บอสติดแช่แข็ง พลังโจมตีลดลง {int(f_reduce*100)}%! (โดนดาเมจเบา ๆ `- {damage_to_player}`)\n"
-
-                    elif self.active_buffs.get("holy_aura", 0) > 0 and random.randint(1, 100) <= _holy_aura_chance(p_lvl):
-                        damage_to_player = 0
-                        combat_log += "✨ *Holy Aura ทำงาน:* ร่างกายส่องแสงบล็อคพลังโจมตีของบอสกลายเป็น 0!\n"
-
-                    elif self.active_buffs.get("backstab", 0) > 0:
-                        damage_to_player = int(damage_to_player * 0.2)
-                        rogue_reflect = int(player_roll * 5 * config_loader.get_skill_config("Rogue", "backstab")["damage_reflect_mult"])
-                        self.monster_hp = max(0, self.monster_hp - rogue_reflect)
-                        combat_log += f"🗡️ *Backstab คุมเชิง:* ดาเมจสวนกลับลดลง 80% (โดนแค่ `- {damage_to_player}`) พร้อมวาร์ปตลบหลังแทงบอสสวนกลับหงายหลังฟาด `- {rogue_reflect}` หน่วย! (บอสเหลือ HP: {self.monster_hp})\n"
-
-                    elif self.active_buffs.get("shield_bash", 0) > 0:
-                        s_b_cfg = config_loader.get_skill_config("Warrior", "shield_bash")
-                        reduction = s_b_cfg["reduction_base"] + (p_lvl * s_b_cfg["reduction_lvl_scale"])
-                        incoming = damage_to_player
-                        damage_to_player = int(damage_to_player * (1 - min(0.9, reduction)))
-                        combat_log += f"🛡️ *Shield Bash บล็อก:* ดาเมจลดลงครอบคลุมเกราะ (โดนแค่ `- {damage_to_player}`)\n"
-                        # 🛡️⚔️ สวนกลับ: สะท้อนดาเมจตามสัดส่วนของแรงปะทะเดิม (config เก่าไม่มี key = ไม่สะท้อน)
-                        reflect_pct = s_b_cfg.get("reflect_pct", 0)
-                        if reflect_pct:
-                            reflected = max(1, int(incoming * reflect_pct))
-                            self.monster_hp = max(0, self.monster_hp - reflected)
-                            combat_log += f"🛡️⚔️ *โล่กระแทกสวนกลับ!* แรงปะทะสะท้อนใส่ศัตรู `- {reflected}` หน่วย (บอสเหลือ HP: {self.monster_hp})\n"
-                except Exception: pass
-
-                if damage_to_player > 0:
-                    damage_line = f"😱 ศัตรูสวนกลับ **`{damage_to_player:,}`** ใส่คุณ (เกราะเสื่อม `{damage_to_armor}`)"
-                    player["hp"] = max(0, player.get("hp", 100) - damage_to_player)
-                    combat_log += f"⚔️ คุณทอยได้ **🎲 {player_roll}/บอส({monster_roll})** 💥 บอสโจมตีสวน! เสีย HP `- {damage_to_player}` (เกราะเสื่อมสภาพ `- {damage_to_armor}`)\n"
-
-                    # 💍 แหวนหินอัคนี: สะท้อนดาเมจกลับใส่มอนธาตุที่ระบุ (ไฟ)
-                    reflect_pct = game_modifiers.status_reflect_vs(self.statuses, self.element)
-                    if reflect_pct:
-                        reflected = max(1, round(damage_to_player * reflect_pct))
-                        self.monster_hp = max(0, self.monster_hp - reflected)
-                        combat_log += f"💍 **แหวนหินอัคนีลุกโชน!** สะท้อนเพลิง `-{reflected}` กลับใส่ศัตรู (บอสเหลือ HP: {self.monster_hp})\n"
-                    # 💧 ธาตุน้ำ: ดูดเลือดจากดาเมจสุทธิที่ตีโดนจริง
-                    lifesteal = self.element_data.get("lifesteal", 0)
-                    if lifesteal:
-                        healed = max(1, round(damage_to_player * lifesteal))
-                        self.monster_hp += healed
-                        combat_log += f"💧 **ดูดเลือด!** มอนสเตอร์สูบพลังชีวิตจากบาดแผลของคุณ ฟื้น HP `+{healed}` (บอสเหลือ HP: {self.monster_hp})\n"
-
-                    # 🧪 มอนเสกสถานะใส่ผู้เล่นตอนตีโดน — จากธาตุ (element_overrides ได้) หรือระดับทวีป/ธีม
-                    for on_hit in (self.element_data.get("on_hit_status"), self.mods.get("on_hit_status")):
-                        if not on_hit:
-                            continue
-                        if random.randint(1, 100) > on_hit.get("chance", 100):
-                            continue
-                        status_key = on_hit.get("key")
-                        status_cfg = game_modifiers.STATUS_EFFECTS.get(status_key)
-                        if not status_cfg:
-                            continue
-                        if status_key in self.statuses and not status_cfg.get("stacking"):
-                            continue  # สถานะปกติติดซ้ำระหว่างไฟต์ไม่สแปมข้อความ (แบบสะสมสแตกได้เรื่อยๆ)
-                        fresh = game_modifiers.parse_statuses(player_model.get_player(self.user_id))
-                        fresh = game_modifiers.apply_status(fresh, status_key, on_hit.get("turns"))
-                        player_model.update_player_field(self.user_id, "status_effects", fresh)
-                        self.statuses = game_modifiers.apply_status(self.statuses, status_key, on_hit.get("turns"))
-                        if status_cfg.get("stacking"):
-                            transform_to = status_cfg.get("transform_to")
-                            if status_key in self.statuses:
-                                combat_log += (f"🦠 **เชื้อกลายพันธุ์แทรกซึม!** {status_cfg['label']} "
-                                               f"({self.statuses[status_key]}/{status_cfg.get('transform_at')} สแตก)\n")
-                            elif transform_to and transform_to in self.statuses:
-                                frenzy_label = game_modifiers.STATUS_EFFECTS[transform_to]["label"]
-                                combat_log += f"🧟 **เชื้อครบสามสแตก — คุณเสียสติ!** ติดสถานะ {frenzy_label}!\n"
-                        else:
-                            combat_log += f"🧪 **พิษสงจากศัตรู!** คุณติดสถานะ {status_cfg['label']}!\n"
-
-            # 💀 Life Drain (ทวีป/ธีม เช่น เนเธอร์): วิญญาณดูดกลืนชีวิตทุกเทิร์นที่สู้
-            drain_range = self.mods.get("combat_hp_drain")
-            if drain_range:
-                # 📿 สร้อยเนเธอร์: แปลงพลังดูดชีวิตเป็นฮีล % MaxHP (ชนะ block ถ้ามีทั้งคู่)
-                heal_pct = max((game_modifiers.STATUS_EFFECTS[k].get("hp_drain_heal", 0) for k in self.statuses), default=0)
-                if heal_pct:
-                    max_hp = player.get("max_hp", 100)
-                    heal = max(1, round(max_hp * heal_pct))
-                    player["hp"] = min(max_hp, player.get("hp", 100) + heal)
-                    combat_log += f"📿 **สร้อยวิญญาณกลืนพลังดูดชีวิตย้อนกลับ** `+{heal}` HP (เหลือ {player['hp']})\n"
-                elif game_modifiers.has_status_flag(self.statuses, "block_hp_drain"):
-                    combat_log += "✝️ **น้ำมนต์เปล่งแสงคุ้มครอง** — พลังดูดกลืนชีวิตถูกขับไล่ออกไป!\n"
-                else:
-                    drain = random.randint(int(drain_range[0]), int(drain_range[1]))
-                    player["hp"] = max(0, player.get("hp", 100) - drain)
-                    combat_log += f"🩸 **แดนมรณะดูดกลืนชีวิต** `-{drain}` HP (เหลือ {player['hp']})\n"
-
-            # 🔥 สถานะเผาไหม้: เสียเลือดตาม % MaxHP ทุกเทิร์นที่สู้
-            burn_pct = game_modifiers.status_pct_damage(self.statuses)
-            if burn_pct:
-                burn_dmg = max(1, round(player.get("max_hp", 100) * burn_pct))
-                player["hp"] = max(0, player.get("hp", 100) - burn_dmg)
-                combat_log += f"🔥 **แผลแผดเผาลุกลาม** `-{burn_dmg}` HP (เหลือ {player['hp']})\n"
-
-            # 6. 💾 คำนวณค่าทนทานใหม่
-            new_w_dur = max(0, player.get("weapon_dur", 0) - durability_lost_w)
-            new_a_dur = max(0, player.get("armor_dur", 0) - damage_to_armor)
-
-            db_updates["weapon_dur"] = new_w_dur
-            db_updates["armor_dur"] = new_a_dur
-            db_updates["hp"] = player.get("hp", 100)
-
-            # 7. 🚨 แจ้งเตือนของพัง
-            if new_w_dur == 0 and player.get("weapon_dur", 0) > 0:
-                combat_log += "🚨 **อาวุธของคุณพังแตกหัก!**\n"
-            if new_a_dur == 0 and player.get("armor_dur", 0) > 0:
-                combat_log += "🚨 **ชุดเกราะของคุณพังยับเยิน!**\n"
-
-            # หักเทิร์นสถานะบัฟ
-            if self.active_buffs.get("frostbolt", 0) > 0: self.active_buffs["frostbolt"] -= 1
-            if self.active_buffs.get("holy_aura", 0) > 0: self.active_buffs["holy_aura"] -= 1
-            if self.active_buffs.get("shield_bash", 0) > 0: self.active_buffs["shield_bash"] -= 1
-            if self.active_buffs.get("backstab", 0) > 0: self.active_buffs["backstab"] -= 1
+            player = t["player"]
+            p_lvl = player.get("level", 1)
+            self.monster_hp = t["monster_hp"]
+            self.statuses = t["fight"]["statuses"]
+            self.active_buffs = t["fight"]["buffs"]
+            self.m_stats = t["fight"]["stats"]
+            skill_log, combat_log = t["skill_log"], t["combat_log"]
+            damage_line = t["damage_line"]
+            db_updates = dict(t["db_updates"])
+            player_roll, monster_roll = t["player_roll"], t["monster_roll"]
+            roll_parts, mon_parts = t["player_parts"], t["monster_parts"]
+            damage_to_monster, damage_to_player = t["damage_to_monster"], t["damage_to_player"]
 
             # =================================================================
             # 🏆 กรณี: ผู้เล่นชนะ (บอสตาย)

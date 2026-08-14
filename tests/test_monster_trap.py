@@ -35,9 +35,10 @@ def test_trap_beats_travel_special_and_calm():
 
 
 def test_light_monsters_cannot_escape_a_trap():
-    block = SRC[SRC.index("monster_flee = self.element_data.get"):]
+    # การคำนวณเทิร์นย้ายไป adventure_core.fight_turn แล้ว (เว็บเกม เฟส 5.6)
+    block = CORE[CORE.index('monster_flee = element_data.get'):]
     guard = block[:block.index("if monster_flee and")]
-    assert 'has_status_flag(self.statuses, "block_monster_flee")' in guard
+    assert 'has_status_flag(statuses, "block_monster_flee")' in guard
     assert "monster_flee = 0" in guard
     # ธาตุแสงต้องหนีได้จริงตอนไม่มีกับดัก ไม่งั้นเทสนี้ไม่มีความหมาย
     assert gm.ELEMENTS["light"]["monster_flee_chance"] > 0
