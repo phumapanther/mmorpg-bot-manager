@@ -84,6 +84,67 @@ function paint(g) {
   CHAR = { race: id.race, cls: id.class_name,
            armor: g.gear.armor.key, weapon: g.gear.weapon.key, pose: 'idle' };
   drawSprite(document.getElementById('pfp'));
+  paintProfile(g);
+  paintBag(g.bag);
+}
+
+// ── โปรไฟล์ (เฟส 1.3) ──
+function paintProfile(g) {
+  const id = g.identity, v = g.vitals, gear = g.gear;
+  document.getElementById('prName').textContent = id.title || 'นักผจญภัย';
+  document.getElementById('prRace').textContent =
+    [id.race, id.class_name].filter(Boolean).join(' · ') || 'ยังไม่มีเผ่า/คลาส';
+
+  const hp = v.hp ?? 0, mx = v.max_hp || 1, pct = Math.max(0, Math.min(100, hp / mx * 100));
+  document.getElementById('prHp').style.width = pct + '%';
+  document.getElementById('prHpIn').textContent = fmt(hp) + ' / ' + fmt(mx);
+  document.getElementById('prHpTxt').textContent = Math.round(pct) + '%';
+
+  // เกมนับ EXP สะสมรวม ไม่ได้รีเซ็ตต่อเลเวล — โชว์ยอดสะสมตรงๆ ไม่ปั้นสูตรเอง
+  document.getElementById('prExp').style.width = '100%';
+  document.getElementById('prExpIn').textContent = fmt(id.exp) + ' EXP';
+  document.getElementById('prExpTxt').textContent = 'Lv ' + (id.level ?? '—');
+
+  document.getElementById('prRank').textContent = id.rank || '—';
+  document.getElementById('prSan').textContent = fmt(v.sanity);
+  document.getElementById('prCont').textContent = id.continent_label || '—';
+  document.getElementById('prArt').textContent = (gear.artifact_slots ?? 1) + ' ช่อง';
+
+  const durBar = d => d == null ? '' :
+    `<div class="dur${d < 30 ? ' low' : ''}"><i style="width:${Math.max(0, Math.min(100, d))}%"></i></div>`;
+  document.getElementById('prGear').innerHTML = `
+    <div class="slot-card"><div class="ic">🛡️</div><div style="min-width:0">
+      <div class="t">เกราะ</div><div class="v">${esc(gear.armor.name)}</div>${durBar(gear.armor.dur)}</div></div>
+    <div class="slot-card"><div class="ic">⚔️</div><div style="min-width:0">
+      <div class="t">อาวุธ</div><div class="v">${esc(gear.weapon.name)}</div>${durBar(gear.weapon.dur)}</div></div>`;
+
+  const bf = document.getElementById('prBuffs');
+  document.getElementById('prBuffCard').style.display = g.buffs.length ? '' : 'none';
+  bf.innerHTML = g.buffs.map(b =>
+    `<span>${esc(b.label)} ${b.no_tick ? '<b>ค้างไว้</b>' : `<b>${b.turns}</b> ${esc(b.unit)}`}</span>`).join('');
+
+  const big = document.getElementById('bigChar');
+  const ctx = big.getContext('2d');
+  ctx.clearRect(0, 0, big.width, big.height);
+  drawCharacter(ctx, (big.width - 16 * 8) / 2, 4, 8, CHAR);   // ตัวใหญ่ ×8
+}
+
+// ── กระเป๋า (เฟส 1.3) ──
+function paintBag(bag) {
+  const cap = bag.capacity || 0, used = bag.used || 0;
+  document.getElementById('bagCap').style.width =
+    (cap ? Math.min(100, used / cap * 100) : 0) + '%';
+  document.getElementById('bagCapTxt').textContent = cap ? `${used} / ${cap}` : `${used} (ไม่จำกัด)`;
+  const box = document.getElementById('bagItems');
+  if (!bag.items.length) {
+    box.innerHTML = '<div class="empty-bag">กระเป๋าว่างเปล่า — ออกผจญภัยเก็บของก่อนนะ</div>';
+    return;
+  }
+  box.innerHTML = bag.items.map(it => `
+    <div class="item${it.usable ? ' use' : ''}">
+      ${it.usable ? '<span class="badge">กดใช้ได้</span>' : ''}
+      <span class="nm">${esc(it.name)}</span><span class="qty">×${it.count}</span>
+    </div>`).join('');
 }
 
 api("GET", "/api/web/me/session")

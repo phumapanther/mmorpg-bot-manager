@@ -38,7 +38,7 @@
     <div class="g-panelview on" id="v-home">
 
       <div class="g-sec"><h3>ออกผจญภัย</h3><div class="g-grid">
-        <button class="g-tile hot soon" data-go="adventure"><span class="tag">เฟส 5</span>
+        <button class="g-tile hot soon"><span class="tag">เฟส 5</span>
           <span class="ic">🧭</span>เริ่มออกเดินทาง<span class="sub">เดิน สู้มอน เก็บของ</span></button>
         <button class="g-tile soon"><span class="tag">เฟส 5</span>
           <span class="ic">⏩</span>เดินต่อ ×5<span class="sub">เดินรวดจนเจอเหตุการณ์</span></button>
@@ -47,10 +47,10 @@
       </div></div>
 
       <div class="g-sec"><h3>ตัวละคร</h3><div class="g-grid">
-        <button class="g-tile soon"><span class="tag">เฟส 1</span>
+        <button class="g-tile" data-go="profile">
           <span class="ic">🪪</span>โปรไฟล์<span class="sub">ค่าสถานะ อุปกรณ์สวมใส่</span></button>
-        <button class="g-tile soon"><span class="tag">เฟส 1</span>
-          <span class="ic">🎒</span>กระเป๋า<span class="sub">ดูของ ใช้ไอเทม</span></button>
+        <button class="g-tile" data-go="bag">
+          <span class="ic">🎒</span>กระเป๋า<span class="sub">ดูของในกระเป๋า</span></button>
         <button class="g-tile soon"><span class="tag">เฟส 2</span>
           <span class="ic">🔨</span>คราฟของ<span class="sub">รวมวัสดุเป็นของใหม่</span></button>
         <button class="g-tile soon"><span class="tag">เฟส 2</span>
@@ -114,6 +114,57 @@
 
       <p class="g-note"><b>ป้ายเฟสบอกลำดับการเปิดใช้</b> — ปุ่มที่จางยังกดไม่ได้ แต่วางที่ทางไว้ครบแล้ว
       ทยอยเปิดตามแผนใน <code>docs/superpowers/plans/2026-08-13-web-game-plan.md</code></p>
+    </div>
+
+
+    <!-- ══ โปรไฟล์ ══ -->
+    <div class="g-panelview" id="v-profile">
+      <button class="g-back" data-back>← กลับเมนูหลัก</button>
+      <div class="g-head"><h2>🪪 โปรไฟล์</h2>
+        <p>ข้อมูลทั้งหมดดึงจากตัวละครจริงของคุณ — ตรงกับที่เห็นในดิสเสมอ</p></div>
+      <div class="sheet2">
+        <div class="portrait">
+          <canvas id="bigChar" width="140" height="170"></canvas>
+          <div class="nameplate"><b id="prName">—</b><span id="prRace">—</span></div>
+        </div>
+        <div class="col">
+          <div class="g-card">
+            <h3 style="margin-bottom:12px">ค่าสถานะ</h3>
+            <div class="statrow">
+              <div class="lbl"><span>พลังชีวิต</span><span id="prHpTxt">—</span></div>
+              <div class="hpbar"><i class="fill" id="prHp"></i><span class="txt" id="prHpIn"></span></div>
+            </div>
+            <div class="statrow">
+              <div class="lbl"><span>ประสบการณ์</span><span id="prExpTxt">—</span></div>
+              <div class="hpbar exp"><i class="fill" id="prExp"></i><span class="txt" id="prExpIn"></span></div>
+            </div>
+            <div class="kv"><span>แรงค์</span><b id="prRank">—</b></div>
+            <div class="kv"><span>สติ</span><b id="prSan">—</b></div>
+            <div class="kv"><span>ทวีปปัจจุบัน</span><b id="prCont">—</b></div>
+            <div class="kv"><span>ช่องอาร์ติแฟกต์</span><b id="prArt">—</b></div>
+          </div>
+          <div class="g-card">
+            <h3 style="margin-bottom:12px">อุปกรณ์สวมใส่</h3>
+            <div class="slots" id="prGear"></div>
+          </div>
+          <div class="g-card" id="prBuffCard">
+            <h3 style="margin-bottom:10px">บัฟ / สถานะติดตัว</h3>
+            <div class="buffline" id="prBuffs"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ กระเป๋า ══ -->
+    <div class="g-panelview" id="v-bag">
+      <button class="g-back" data-back>← กลับเมนูหลัก</button>
+      <div class="g-head"><h2>🎒 กระเป๋า</h2>
+        <p>ของทั้งหมดในกระเป๋าของคุณ — ปุ่มกดใช้ไอเทมจะเปิดในเฟส 2</p></div>
+      <div class="g-card">
+        <div class="capbar"><span>ความจุ</span><span class="track"><i id="bagCap"></i></span>
+          <b id="bagCapTxt" style="font-family:var(--g-num);color:var(--g-gold)">—</b></div>
+        <div class="items" id="bagItems"></div>
+      </div>
     </div>
 
     <!-- ══ ร้านขายยศ ══ -->

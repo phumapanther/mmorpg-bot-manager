@@ -119,6 +119,77 @@
 .rolls-left { display:flex; align-items:center; gap:9px; font-size:13.5px; color:var(--g-muted); }
 .rolls-left b { font-family:var(--g-num); font-size:19px; color:var(--g-gold); }
 
+/* ── โปรไฟล์ / กระเป๋า (เฟส 1.3) — กรอบหนาแบบเกมพิกเซล ── */
+.sheet2 { display:grid; grid-template-columns:minmax(180px,236px) 1fr; gap:16px; }
+@media (max-width:720px) { .sheet2 { grid-template-columns:1fr; } }
+
+.portrait { background:linear-gradient(#2c2438,#4a2c3c 58%,#8a4a32);
+            border:2px solid var(--g-line); border-radius:var(--g-r);
+            display:grid; place-items:center; padding:14px 0 0; overflow:hidden;
+            box-shadow:inset 0 2px 22px rgba(0,0,0,.55); }
+.portrait canvas { width:132px; height:auto; image-rendering:pixelated;
+                   filter:drop-shadow(0 5px 7px rgba(0,0,0,.55)); }
+.portrait .nameplate { align-self:end; width:100%; padding:9px 12px; text-align:center;
+                       background:rgba(12,8,6,.82); border-top:1px solid var(--g-line); }
+.portrait .nameplate b { display:block; font-size:14px; }
+.portrait .nameplate span { font-size:11.5px; color:var(--g-muted); }
+
+/* แถบเลือดแบบเกม — ขอบหนา มีเส้นแบ่ง มีไฮไลต์ด้านบน */
+.hpbar { position:relative; height:18px; border-radius:5px; overflow:hidden;
+         background:#0b0806; border:2px solid #0b0806;
+         box-shadow:inset 0 0 0 1px var(--g-line); }
+.hpbar .fill { position:absolute; inset:0 auto 0 0; border-radius:2px;
+               background:linear-gradient(#e8654a,#b8331f 55%,#8f2317);
+               transition:width 320ms var(--g-ease); }
+.hpbar .fill::after { content:''; position:absolute; inset:1px 1px auto 1px; height:4px;
+                      border-radius:2px; background:rgba(255,255,255,.28); }
+.hpbar.exp .fill { background:linear-gradient(#6fc8e8,#2f7fa8 55%,#1e5c7d); }
+.hpbar .txt { position:absolute; inset:0; display:grid; place-items:center;
+              font-family:var(--g-num); font-size:11px; font-variant-numeric:tabular-nums;
+              color:#fff; text-shadow:0 1px 2px #000; letter-spacing:.3px; }
+
+.statrow { display:grid; gap:5px; margin-bottom:11px; }
+.statrow .lbl { display:flex; justify-content:space-between; font-size:11.5px;
+                color:var(--g-muted); }
+
+/* ช่องอุปกรณ์สวมใส่ */
+.slots { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.slot-card { display:flex; gap:11px; align-items:center; background:var(--g-hi);
+             border:1px solid var(--g-line); border-radius:12px; padding:10px 12px; }
+.slot-card .ic { width:38px; height:38px; flex:none; border-radius:9px; display:grid;
+                 place-items:center; font-size:20px; background:#1b140f;
+                 border:1px solid var(--g-line); }
+.slot-card .t { font-size:10px; letter-spacing:.8px; color:var(--g-muted);
+                text-transform:uppercase; }
+.slot-card .v { font-size:13px; font-weight:600; }
+.dur { height:4px; border-radius:99px; background:#0b0806; margin-top:4px; overflow:hidden; }
+.dur i { display:block; height:100%; background:var(--g-ok); }
+.dur.low i { background:#c8452f; }
+
+/* กระเป๋า */
+.capbar { display:flex; align-items:center; gap:10px; margin-bottom:12px;
+          font-size:12.5px; color:var(--g-muted); }
+.capbar .track { flex:1; height:8px; border-radius:99px; background:#0b0806;
+                 border:1px solid var(--g-line); overflow:hidden; }
+.capbar .track i { display:block; height:100%;
+                   background:linear-gradient(90deg,var(--g-gold),#b8862c); }
+.items { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:9px; }
+.item { display:flex; gap:10px; align-items:center; background:var(--g-hi);
+        border:1px solid var(--g-line); border-radius:12px; padding:9px 11px;
+        min-height:52px; position:relative; }
+.item.use { border-color:#5d7a4e; }
+.item .nm { font-size:12.5px; line-height:1.3; }
+.item .qty { margin-left:auto; font-family:var(--g-num); font-size:14px;
+             font-variant-numeric:tabular-nums; color:var(--g-gold); flex:none; }
+.item .badge { position:absolute; top:-6px; left:9px; font-size:9px; letter-spacing:.5px;
+               background:#5d7a4e; color:#fff; border-radius:99px; padding:1px 7px; }
+.empty-bag { padding:26px; text-align:center; color:var(--g-muted); font-size:13.5px; }
+
+.buffline { display:flex; flex-wrap:wrap; gap:7px; }
+.buffline span { background:var(--g-hi); border:1px solid var(--g-line); border-radius:99px;
+                 padding:5px 12px; font-size:12.5px; }
+.buffline b { font-family:var(--g-num); color:var(--g-gold); }
+
 .g-note { margin-top:14px; padding:13px 16px; border-radius:12px; background:var(--g-panel);
           border:1px solid var(--g-line); border-left:3px solid var(--g-gold);
           font-size:13px; color:var(--g-muted); }

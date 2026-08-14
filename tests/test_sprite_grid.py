@@ -59,3 +59,17 @@ def test_every_symbol_has_a_colour():
                 used |= set(r)
     unknown = used - known - {"."}
     assert not unknown, f"ตัวอักษรที่ไม่มีสีในพาเลตต์: {sorted(unknown)}"
+
+
+def test_play_page_wires_sprite_engine():
+    """หน้า /play ต้องโหลด sprite.js และมีแผงโปรไฟล์/กระเป๋าครบ"""
+    html = pathlib.Path("license_server/web_static/play.html").read_text(encoding="utf-8")
+    assert '/sprite.js' in html, "play.html ไม่ได้โหลด sprite.js"
+    for pid in ('v-profile', 'v-bag', 'v-roleshop', 'v-gacha', 'v-rewards'):
+        assert f'id="{pid}"' in html, f"ไม่มีแผง {pid}"
+    js = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+    # ทุกแผงที่ปุ่มชี้ไป ต้องมีอยู่จริง ไม่งั้นกดแล้วจอว่าง
+    import re as _re
+    for target in set(_re.findall(r'data-go="(\w+)"', html)):
+        assert f'id="v-{target}"' in html, f'ปุ่ม data-go="{target}" ชี้ไปแผงที่ไม่มีอยู่'
+    assert 'drawCharacter' in js
