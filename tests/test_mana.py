@@ -201,9 +201,10 @@ def test_levelling_up_refills_you(hero):
 
 
 def test_respawning_refills_you():
-    """ตายแล้วเกิดใหม่ = ตั้งหลักใหม่ ต้องได้เม็ดเต็ม"""
-    src = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
-    block = src[src.index("def respawn_player("):src.index("TAIL_CONTINUE")]
+    """ตายแล้วเกิดใหม่ = ตั้งหลักใหม่ ต้องได้เม็ดเต็ม
+    (ตรรกะย้ายไป adventure_core.respawn แล้ว เพราะเว็บก็ต้องฟื้นได้)"""
+    src = pathlib.Path("bot/adventure_core.py").read_text(encoding="utf-8")
+    block = src[src.index("def respawn(user_id):"):]
     assert "_mana.refill(user_id)" in block
 
 

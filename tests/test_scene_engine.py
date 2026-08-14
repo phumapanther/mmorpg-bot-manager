@@ -194,8 +194,10 @@ def test_death_screen_restores_the_character_afterwards():
 
 
 def test_dying_on_the_road_also_shows_the_death_screen():
-    """ตายจากพิษระหว่างเดิน ไม่ใช่แค่ในไฟต์ ก็ต้องเห็นฉากตาย"""
-    assert "if (g.event === 'death') SCENE.killHero();" in PLAY
+    """ตายจากพิษระหว่างเดิน ไม่ใช่แค่ในไฟต์ ก็ต้องเห็นฉากตาย + ปุ่มฟื้น"""
+    block = PLAY[PLAY.index("if (g.event === 'death')"):]
+    assert "SCENE.killHero();" in block[:200]
+    assert "advRespawnButton(" in block[:400], "ตายกลางทางก็ต้องมีปุ่มฟื้น"
 
 
 def test_action_buttons_sit_above_the_log():

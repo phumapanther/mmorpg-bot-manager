@@ -1870,3 +1870,36 @@ def fight_flee(user_id, fight, rng=random):
         msg += "\n🚨 **ชุดเกราะของคุณพังยับเยิน!**"
     return {"outcome": "hit", "text": msg, "player_hp": new_hp, "damage": damage,
             "fight": dict(fight, turn=fight.get("turn", 1) + 1, statuses=statuses)}
+
+
+def respawn(user_id):
+    """💀 ชุบชีวิต — ตรรกะเดียวใช้ทุกเส้นทางตาย ทั้งดิสและเว็บ (เว็บเกม 2026-08-14)
+
+    เดิมฝังอยู่ใน respawn_player ของ Discord ซึ่งสร้าง embed ด้วย เว็บจึงเรียกไม่ได้
+    ผลคือตายบนเว็บแล้วไม่มีปุ่มฟื้น ค้างที่สถานะ dead จนต้องไปกด !play ในดิส
+
+    คืน dict ข้อมูลล้วน — ผู้เรียกเอาไปสร้างหน้าจอเอง (None ถ้าไม่มีตัวละคร)
+    """
+    player = player_model.get_player(user_id)
+    if not player:
+        return None
+    max_hp = player.get("max_hp", 100)
+    hp_pct = int(config_loader.get_balance("drops.respawn_hp_percent", 30))
+    respawn_hp = max(1, int(max_hp * hp_pct / 100))
+    tiers = config_loader.get_balance(
+        "death.respawn_fee_tiers",
+        [[100, 10000], [90, 5000], [50, 2500], [20, 1000], [10, 500], [0, 0]])
+    fee = next((int(f) for lv, f in tiers if player.get("level", 0) >= int(lv)), 0)
+    new_cash = player.get("cash", 0) - fee
+    lost_steps = player.get("dungeon_steps", 0)
+
+    player_model.update_player_fields(user_id, {
+        "hp": respawn_hp, "cash": new_cash,
+        "current_state": "village", "last_event": "village", "dungeon_steps": 0})
+    clear_pending(user_id)                      # ตายแล้วเหตุการณ์ค้างเก่าต้องไม่หลงเหลือ
+
+    from bot import mana as _mana
+    _mana.refill(user_id)                       # 💎 เกิดใหม่ = เม็ดคริสตัลเต็ม
+
+    return {"player": player, "hp": respawn_hp, "max_hp": max_hp, "hp_pct": hp_pct,
+            "fee": fee, "cash": new_cash, "lost_steps": lost_steps}

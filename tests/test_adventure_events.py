@@ -433,3 +433,50 @@ def test_reward_gold_knob_scales_every_source(world, monkeypatch):
 
     adventure_core.resolve_treasure(1, "open", rng=Gold())
     assert world["cash"] == 0, "ตั้งตัวคูณเป็น 0 แล้วต้องไม่ได้ทองเลย"
+
+
+# ── 💀 ตายแล้วต้องฟื้นได้บนเว็บ (บั๊กจากผู้เล่นจริง 2026-08-14) ───────────────
+
+def test_respawn_puts_you_back_in_the_village_alive(world, monkeypatch):
+    monkeypatch.setattr(config_loader, "get_balance",
+                        lambda k, d=None: {"drops.respawn_hp_percent": 30,
+                                           "death.respawn_fee_tiers": [[0, 500]]}.get(k, d))
+    world.update(hp=0, max_hp=260, level=9, cash=10_000, current_state="dead", dungeon_steps=4)
+    r = adventure_core.respawn(1)
+    assert r["hp"] == 78 and r["fee"] == 500
+    assert world["current_state"] == "village" and world["hp"] == 78
+    assert world["dungeon_steps"] == 0 and world["cash"] == 9_500
+
+
+def test_respawn_clears_any_stuck_event(world, tmp_path, monkeypatch):
+    """ตายทั้งที่มีเหตุการณ์ค้าง — ถ้าไม่ล้าง ฟื้นแล้วก็ยังเดินไม่ได้อยู่ดี"""
+    monkeypatch.setattr(pm, "DB_NAME", str(tmp_path / "t.db"))
+    monkeypatch.setattr(config_loader, "get_balance", lambda k, d=None: d)
+    adventure_core.set_pending(1, "monster", {"hp": 5})
+    world.update(hp=0, current_state="dead")
+    adventure_core.respawn(1)
+    assert adventure_core.get_pending(1) == (None, {})
+
+
+def test_the_web_has_a_way_out_of_death():
+    """เดิมตายบนเว็บแล้วค้างถาวร ต้องไปกด !play ในดิสถึงจะฟื้นได้"""
+    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    js = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+    assert '@router.post("/adventure/respawn")' in api
+    assert "advRespawnButton(" in js and "ฟื้นคืนชีพ กลับหมู่บ้าน" in js
+    assert "st.state === 'dead'" in js, "เปิดหน้ามาแล้วตายค้างอยู่ ก็ต้องเจอปุ่มฟื้น"
+
+
+def test_you_cannot_farm_respawns_while_alive():
+    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    block = api[api.index("def adventure_respawn("):]
+    assert 'player.get("current_state") != "dead"' in block
+
+
+def test_a_stale_lock_state_is_cleared_but_a_real_event_is_not():
+    """สถานะค้างที่ไม่มีเหตุการณ์รออยู่จริง = ของเก่าตกค้าง ปลดได้
+    แต่ถ้ามีเหตุการณ์ค้างจริง ห้ามปลด ไม่งั้นรีเฟรชหนีกับดักได้"""
+    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    assert "_STALE_STATES" in api
+    guard = api[api.index("if _p.get(\"current_state\") in _STALE_STATES"):]
+    assert "not adventure_core.get_pending(uid)[0]" in guard[:160]

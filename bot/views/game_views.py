@@ -25,26 +25,14 @@ from bot.event_images import event_image, monster_image, item_use_image, file_kw
 
 
 def respawn_player(user_id):
-    """💀 O3: ชุบชีวิตผู้เล่น — ตรรกะเดียวใช้ทุกเส้นทางตาย (ค่าธรรมเนียม/หน้าจอตรงกันเสมอ)
-    คืน (embed, ข้อมูลสรุป) — ค่าธรรมเนียมตามเลเวลจาก Panel"""
-    player = player_model.get_player(user_id)
-    if not player:
+    """💀 O3: ชุบชีวิตผู้เล่น — ตรรกะอยู่ใน adventure_core.respawn (ใช้ร่วมกับเว็บ)
+    คืน (embed, ข้อมูลสรุป)"""
+    r = adventure_core.respawn(user_id)
+    if not r:
         return None, None
-    level = player.get("level", 0)
-    max_hp = player.get("max_hp", 100)
-    hp_pct = int(config_loader.get_balance("drops.respawn_hp_percent", 30))
-    respawn_hp = max(1, int(max_hp * hp_pct / 100))
-    tiers = config_loader.get_balance("death.respawn_fee_tiers",
-                                      [[100, 10000], [90, 5000], [50, 2500], [20, 1000], [10, 500], [0, 0]])
-    fee = next((int(f) for lv, f in tiers if level >= int(lv)), 0)
-    new_cash = player.get("cash", 0) - fee
-    lost_steps = player.get("dungeon_steps", 0)
-    player_model.update_player_fields(user_id, {
-        "hp": respawn_hp, "cash": new_cash,
-        "current_state": "village", "last_event": "village", "dungeon_steps": 0})
-    _mana.refill(user_id)          # 💎 เกิดใหม่ = เม็ดคริสตัลเต็ม
-    embed = build_respawn_embed(player, respawn_hp, max_hp, fee, new_cash, lost_steps, hp_pct)
-    return embed, {"fee": fee, "hp": respawn_hp, "cash": new_cash}
+    embed = build_respawn_embed(r["player"], r["hp"], r["max_hp"], r["fee"],
+                                r["cash"], r["lost_steps"], r["hp_pct"])
+    return embed, {"fee": r["fee"], "hp": r["hp"], "cash": r["cash"]}
 
 
 TAIL_CONTINUE = "\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?"

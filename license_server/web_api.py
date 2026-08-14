@@ -920,6 +920,11 @@ _WEB_PLAYABLE = {                     # เหตุการณ์ -> สถา
 }
 _WEB_INSTANT = ("calm", "bank_robbery")     # จบในตัว ไม่ต้องเลือกอะไร
 
+# สถานะที่ถือว่า "ค้างได้แต่ปลดได้" — ตรงกับ lock_states ของ !play ในดิส
+# ปลดเฉพาะตอนไม่มีเหตุการณ์รออยู่จริง ไม่งั้นจะกลายเป็นช่องให้รีเฟรชหนีกับดัก
+_STALE_STATES = ("village", "npc_choice", "treasure_choice", "dungeon_choice",
+                 "trap_defense", "shopping", "travel_choice", "special_choice")
+
 
 def _is_rogue(player):
     return (player.get("class_name") or "") == "Rogue"
@@ -935,6 +940,12 @@ def adventure_walk(request: Request):
     with _user_lock(uid):
         # หน้าต่างเหตุการณ์ในดิสมี timeout ของมันเอง เว็บไม่มี จึงต้องหมดอายุเองก่อนเดินก้าวใหม่
         expired_note = adventure_core.expire_pending(uid)
+
+        # สถานะค้างที่ "ไม่มีเหตุการณ์รออยู่จริง" = ของเก่าตกค้าง ปลดให้เหมือนที่ !play ทำ
+        # (เช่นฟื้นคืนชีพเสร็จแล้วสถานะเป็น village — ถ้าไม่ปลด ผู้เล่นเดินต่อไม่ได้เลย)
+        _p = player_model.get_player(uid) or {}
+        if _p.get("current_state") in _STALE_STATES and not adventure_core.get_pending(uid)[0]:
+            player_model.update_player_field(uid, "current_state", "idle")
 
         player = player_model.get_player(uid)
         if not player:
@@ -1288,3 +1299,30 @@ def roleshop_ticket(ticket_id: int, request: Request):
         raise HTTPException(404, "ไม่พบรายการนี้")
     return {"status": row["status"], "label": row["label"], "kind": row["kind"],
             "note": row["note"] or "", "money": _money_now(int(uid))}
+
+
+@router.post("/adventure/respawn")
+def adventure_respawn(request: Request):
+    """💀 ฟื้นคืนชีพกลับหมู่บ้าน — ตรรกะเดียวกับปุ่มฟื้นในดิส
+
+    ตายบนเว็บแล้วเดิมไม่มีทางฟื้น ค้างที่สถานะ dead จนต้องไปกด !play ในดิส
+    """
+    uid = int(require_player(request)["uid"])
+    from bot import adventure_core
+    from bot.models import player_model
+
+    with _user_lock(uid):
+        player = player_model.get_player(uid) or {}
+        if player.get("current_state") != "dead" and player.get("hp", 1) > 0:
+            raise HTTPException(400, "ยังไม่ได้หมดสติ ไม่ต้องฟื้น")
+        r = adventure_core.respawn(uid)
+        if not r:
+            raise HTTPException(400, "ไม่พบข้อมูลตัวละคร")
+
+    return {"ok": True, "money": _money_now(uid), "hp": r["hp"], "fee": r["fee"],
+            "text": (f"🏥 **หมอผีประจำหมู่บ้านดึงวิญญาณคุณกลับมา**\n"
+                     f"❤️ ฟื้นที่ `{r['hp']:,}/{r['max_hp']:,}` HP ({r['hp_pct']}% ของเลือดเต็ม)\n"
+                     f"💰 ค่าทำพิธี `{r['fee']:,}` ทอง (เหลือ `{r['cash']:,}`)"
+                     + (f"\n💀 ความคืบหน้าในดันเจี้ยนหายไป {r['lost_steps']} ตา"
+                        if r["lost_steps"] else "")
+                     + "\n💎 เม็ดคริสตัลเต็มอีกครั้ง")}

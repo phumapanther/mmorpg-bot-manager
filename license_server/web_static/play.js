@@ -741,6 +741,42 @@ function advIdleButton(box) {
   box.appendChild(btn);
 }
 
+
+/** 🏥 หมดสติแล้ว — เหลือทางเดียวคือฟื้นกลับหมู่บ้าน (เดิมเว็บไม่มีปุ่มนี้ ผู้เล่นค้างถาวร) */
+function advRespawnButton(box) {
+  box.innerHTML = '';
+  const btn = document.createElement('button');
+  btn.className = 'g-tile hot casino-go';
+  btn.innerHTML = '<span class="ic">🏥</span>ฟื้นคืนชีพ กลับหมู่บ้าน';
+  btn.onclick = advRespawn;
+  box.appendChild(btn);
+}
+
+
+async function advRespawn() {
+  if (ADV_BUSY) return;
+  if (!await confirmAction({
+        title: '🏥 ฟื้นคืนชีพ',
+        message: 'หมอผีประจำหมู่บ้านจะดึงวิญญาณคุณกลับมา — มีค่าทำพิธีตามเลเวล',
+        lines: [['กลับไปที่', 'หมู่บ้าน'],
+                ['ความคืบหน้าดันเจี้ยน', 'หายทั้งหมด']],
+        okText: 'ยอมรับบทลงโทษ' })) return;
+
+  ADV_BUSY = true;
+  try {
+    const r = await api('POST', '/api/web/adventure/respawn');
+    SCENE.clearFoe(); SCENE.clearRoll();
+    document.getElementById('foeBar').hidden = true;
+    SCENE.setMap((LAST && LAST.identity.continent) || 'main');
+    SCENE.showEvent('village');
+    document.getElementById('sceneTag').textContent = ADV_LABEL.village;
+    advPaint({ text: r.text });
+    boot();
+  } catch (e) {
+    toast(e.message, true);
+  } finally { ADV_BUSY = false; }
+}
+
 /** ตัวหนา **x** และโค้ด `x` จากข้อความเกม — ไม่ใช่ markdown เต็ม แค่สองอย่างที่เกมใช้ */
 function mdLite(t) {
   return esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`(.+?)`/g, '<code>$1</code>')
@@ -764,7 +800,13 @@ async function advWalk() {
     const art = g.event === 'travel' ? 'vehicle_' + g.encounter.vehicle : ADV_ART[g.event];
     if (art) SCENE.showEvent(art); else SCENE.idle();
     tag.textContent = ADV_LABEL[g.event] || g.event;
-    if (g.event === 'death') SCENE.killHero();     // ล้มกลางทางจากพิษ/สถานะ
+    if (g.event === 'death') {                          // ล้มกลางทางจากพิษ/สถานะ
+      SCENE.killHero();
+      advPaint({ text: g.text, notes: g.notes });
+      advRespawnButton(document.getElementById('advActions'));
+      boot();
+      return;
+    }
     paintFoe(g.monster);
     if (g.money != null) boot();      // เงิน/เลือดเปลี่ยน วาดหัวการ์ดใหม่
     advPaint(g);
@@ -806,6 +848,10 @@ async function advAct(action, label, confirmMsg) {
     } else if (r.outcome === 'lose') {
       SCENE.killHero();                                 // 💀 ทรุดลง จอมืด ขึ้น K.O.
       await new Promise(res => setTimeout(res, 900));
+      advPaint({ text: r.text });
+      advRespawnButton(document.getElementById('advActions'));
+      boot();
+      return;                                           // ตายแล้วเหลือทางเดียว: ฟื้น
     }
     if (r.damage_to_player) SCENE.float('-' + fmt(r.damage_to_player), 'miss', 30);
     if (r.healed) SCENE.float('+' + fmt(r.healed) + ' HP', 'heal', 30);
@@ -853,6 +899,13 @@ async function initScene() {
       advPaint({ pending: st.pending, encounter: st.data, win_pct: st.data.win_pct,
                  choices: (st.data.choices || []).map(c => c.label),
                  text: st.data.text || st.data.intro || 'คุณค้างอยู่ที่เหตุการณ์นี้ — เลือกต่อได้เลย' });
+      return;
+    }
+    if (st.state === 'dead') {
+      SCENE.killHero();
+      document.getElementById('advText').textContent =
+        '💀 คุณหมดสติอยู่ — ต้องฟื้นคืนชีพก่อนถึงจะออกเดินทางต่อได้';
+      advRespawnButton(document.getElementById('advActions'));
       return;
     }
     if (st.state && st.state !== 'idle' && st.state !== 'village') {
