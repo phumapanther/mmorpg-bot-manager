@@ -39,6 +39,7 @@ function showPanel(id) {
   if (id === 'daily') fillDaily().catch(e => toast(e.message, true));
   if (id === 'achv') fillAchv().catch(e => toast(e.message, true));
   if (id === 'books') fillBooks().catch(e => toast(e.message, true));
+  if (id === 'elembook') fillElemBook().catch(e => toast(e.message, true));
   if (id === 'season') fillSeason().catch(e => toast(e.message, true));
   if (id === 'partner') fillPartner().catch(e => toast(e.message, true));
   if (id === 'slots' || id === 'hilo' || id === 'bj') buildChips();
@@ -334,6 +335,17 @@ function paintAdvHud(g) {
   document.getElementById('advExp').style.width = (id.exp_pct ?? 0) + '%';
   document.getElementById('advExpTxt').textContent =
     id.max_level ? 'เลเวลเต็ม' : (id.exp_pct ?? 0) + '%';
+
+  // 🛡️ ความทนทานอุปกรณ์ — เดิมต้องออกไปดูหน้าโปรไฟล์ ไม่รู้ว่าเกราะกำลังจะพัง
+  const dur = (o, icon) => o.dur == null ? '' :
+    `<span>${icon} <b class="${o.dur < 30 ? 'low' : ''}">${o.dur}</b></span>`;
+  document.getElementById('advGear').innerHTML =
+    dur(g.gear.weapon, '⚔️') + dur(g.gear.armor, '🛡️');
+
+  // 🧬 สถานะติดตัว — จะได้รู้ว่าทำไมทอยได้ 0 ไม่ต้องเดาว่าบัคไหม
+  document.getElementById('advBuffs').innerHTML = (g.buffs || []).map(b =>
+    `<span class="${BAD_STATUS.test(b.label) ? 'bad' : ''}" title="${esc(b.label)}">${esc(b.label)}` +
+    (b.no_tick ? '' : ` <b>${b.turns}</b>${esc(b.unit || '')}`) + '</span>').join('');
 
   const face = document.getElementById('advFace');
   const ctx = face.getContext('2d');
@@ -782,6 +794,8 @@ const ADV_ART = { calm: 'calm', village: 'village', treasure: 'treasure', trap: 
                   mugging: 'mugging', npc: 'npc', special: 'special', travel: 'travel' };
 
 let ADV_BUSY = false;
+// สถานะที่เป็นโทษ — ขึ้นสีแดงให้เห็นชัดว่ากำลังโดนอะไรอยู่
+const BAD_STATUS = /พิษ|เลือดไหล|ชา|แผลแผดเผา|หนาว|ผนึก|หลุดมือ|พันธนาการ|ราก|คำสาป|เห็ด|ซอมบี้|EMP|หนัก/;
 let MANA_LEFT = 0;      // เม็ดคริสตัลที่เหลือ — ใช้ตัดสินว่าปุ่มสกิลกดได้ไหม
 
 function advPaint(g) {
@@ -1286,10 +1300,13 @@ async function fillDaily() {
   const d = await api('GET', '/api/web/me/daily');
   document.getElementById('dailyStreak').textContent =
     `🔥 ล็อกอินต่อเนื่อง ${d.streak} วัน (สถิติสูงสุด ${d.best} วัน) · รีเซ็ตเที่ยงคืน`;
-  document.getElementById('dailyList').innerHTML = d.quests.map(q => `
-    <div class="kv"><span>${esc(q.label)} <code>${bar10(q.cur, q.target)}</code>
-      ${q.cur}/${q.target}</span>
-      <b>${q.claimed ? '✅ รับแล้ว' : q.ready ? '🎁 รับได้!' : fmt(q.gold) + ' ทอง'}</b></div>`).join('');
+  document.getElementById('dailyList').innerHTML = d.quests.map(q => {
+    const pct = Math.min(100, q.cur / Math.max(1, q.target) * 100);
+    return `<div class="kv"><span style="flex:1">${esc(q.label)}
+      <div class="prog${q.claimed ? ' done' : ''}"><i style="width:${pct}%"></i></div>
+      <small style="color:var(--g-dim)">${q.cur}/${q.target} · ${Math.round(pct)}%</small></span>
+      <b>${q.claimed ? '✅ รับแล้ว' : q.ready ? '🎁 รับได้!' : fmt(q.gold) + ' ทอง'}</b></div>`;
+  }).join('');
   const btn = document.getElementById('dailyClaim');
   btn.disabled = !d.claimable;
   btn.onclick = async () => {
@@ -1306,25 +1323,52 @@ async function fillAchv() {
     try { toast((await api('POST', '/api/web/me/title', { title: v })).message); boot(); }
     catch (e) { toast(e.message, true); fillAchv(); }
   }, d.title || '');
-  document.getElementById('achvList').innerHTML = d.achievements.map(a => `
-    <div class="kv"><span>${a.done ? '✅' : '⬜'} ${esc(a.label)} — ${esc(a.desc)}<br>
-      <code>${bar10(a.cur, a.target)}</code> ${fmt(a.cur)}/${fmt(a.target)}</span>
-      <b>${a.done ? 'สำเร็จ' : fmt(a.gold) + ' ทอง'}</b></div>`).join('');
+  document.getElementById('achvList').innerHTML = d.achievements.map(a => {
+    const pct = Math.min(100, a.cur / Math.max(1, a.target) * 100);
+    return `<div class="kv"><span style="flex:1">${a.done ? '✅' : '⬜'} ${esc(a.label)} — ${esc(a.desc)}
+      <div class="prog${a.done ? ' done' : ''}"><i style="width:${pct}%"></i></div>
+      <small style="color:var(--g-dim)">${fmt(a.cur)}/${fmt(a.target)} · ${pct.toFixed(pct < 10 ? 1 : 0)}%</small></span>
+      <b>${a.done ? 'สำเร็จ' : fmt(a.gold) + ' ทอง'}</b></div>`;
+  }).join('');
 }
 
-// ── 📕 สมุดมอน + 🧬 สมุดธาตุ ──
+// ── 📕 สมุดมอน (ล้มอะไรไปแล้วบ้าง) ──
 async function fillBooks() {
   const d = await api('GET', '/api/web/me/books');
+  const touched = d.continents.filter(c => c.ranks.some(r => r.kills > 0)).length;
   document.getElementById('bookSummary').innerHTML =
-    `⚔️ ล้มมอนสะสม <b>${fmt(d.total_kills)}</b> ตัว · ` +
-    (d.complete ? '🏆 <b>สมุดธาตุสมบูรณ์ทั้ง 9 ทวีป!</b>'
+    `⚔️ ล้มมอนสะสม <b>${fmt(d.total_kills)}</b> ตัว · เคยล่ามาแล้ว <b>${touched}/${d.continents.length}</b> ทวีป`;
+  document.getElementById('bookList').innerHTML = d.continents.map(c => {
+    const sum = c.ranks.reduce((n, r) => n + r.kills, 0);
+    return `<div class="g-card" style="margin-bottom:10px">
+      <h3 style="margin-bottom:6px">${esc(c.label)}
+        <small style="color:var(--g-dim);font-weight:400">· รวม ${fmt(sum)} ตัว</small></h3>
+      ${c.ranks.map(r => `<div class="bk-row">
+        <span class="bk-rank">${esc(r.rank)}</span>
+        <span class="bk-kills ${r.kills ? '' : 'zero'}">${r.kills ? '⚔️ ' + fmt(r.kills) + ' ตัว' : 'ยังไม่เคยล้ม'}</span>
+        <span class="bk-mon">${r.monsters.length ? esc(r.monsters.join(' · ')) : ''}</span>
+      </div>`).join('')}
+    </div>`;
+  }).join('');
+}
+
+// ── 🧬 สมุดธาตุ (ตารางธาตุ ครบ 7 ต่อแรงค์) ──
+async function fillElemBook() {
+  const d = await api('GET', '/api/web/me/books');
+  document.getElementById('elemSummary').innerHTML =
+    `🧬 ครบทั้ง 7 ธาตุแล้ว <b>${d.elements_done}/${d.elements_total}</b> ช่อง · ` +
+    (d.complete ? '🏆 <b>สมุดสมบูรณ์ทั้ง 9 ทวีป!</b>'
                 : 'ครบทุกทวีปได้สัตว์เลี้ยงขั้นสูงสุด');
-  document.getElementById('bookList').innerHTML = d.continents.map(c => `
+  document.getElementById('elemList').innerHTML = d.continents.map(c => `
     <div class="g-card" style="margin-bottom:10px">
-      <h3 style="margin-bottom:8px">${esc(c.label)} ${c.done ? '🏺 <b>ครบทวีป</b>' : ''}</h3>
-      ${d.ranks.map(r => `<div class="kv"><span>${esc(r)}</span>
-        <b>${c.kills[r] ? '⚔️ ' + fmt(c.kills[r]) + ' ตัว · ' : ''}${
-          d.elements.map(e => c.elements[r].includes(e) ? '🟢' : '⚫').join('')}</b></div>`).join('')}
+      <h3 style="margin-bottom:6px">${esc(c.label)}
+        ${c.done ? '<span class="bk-done">🏺 ครบทั้งทวีป</span>' : ''}</h3>
+      ${c.ranks.map(r => `<div class="bk-row">
+        <span class="bk-rank">${esc(r.rank)} ${r.rank_done ? '✅' : ''}</span>
+        <span class="el-grid">${r.elements.map(e =>
+          `<i class="el-dot ${e.got ? 'got' : ''}" title="${esc(e.label)}${e.got ? ' — ล้มแล้ว ' + e.got : ' — ยังไม่เคยล้ม'}"
+           >${esc(e.label.split(' ')[0])}</i>`).join('')}</span>
+      </div>`).join('')}
     </div>`).join('');
 }
 

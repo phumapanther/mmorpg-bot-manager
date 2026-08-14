@@ -553,3 +553,47 @@
   .sheet2 { grid-template-columns: 1fr; }
   .dialog-box { width: calc(100vw - 24px); }
 }
+
+
+/* ── สถานะติดตัว + ความทนทานอุปกรณ์ บนหน้าสู้ (2026-08-14) ── */
+.hud-gear { display: flex; gap: 12px; font-size: 11px; color: var(--g-dim); }
+.hud-gear span { display: flex; align-items: center; gap: 4px; }
+.hud-gear b { color: #cdbba0; font-weight: 600; }
+.hud-gear .low { color: #ff8a6a; }
+.hud-buffs { display: flex; flex-wrap: wrap; gap: 5px; }
+.hud-buffs:empty { display: none; }
+.hud-buffs span { font-size: 10px; padding: 2px 7px; border-radius: 999px;
+  background: rgba(0,0,0,.3); border: 1px solid var(--g-line); color: var(--g-ink); }
+.hud-buffs span.bad { border-color: #8f2317; color: #ff9a8a;
+  background: rgba(143,35,23,.22); }
+
+/* แถบความคืบหน้าความสำเร็จ — ของเดิมใช้อักษรบล็อกจนดูเหมือนกันหมด */
+.prog { position: relative; height: 8px; border-radius: 4px; overflow: hidden;
+  background: rgba(0,0,0,.42); border: 1px solid var(--g-line); margin-top: 5px; }
+.prog i { position: absolute; inset: 0 auto 0 0; border-radius: 3px;
+  background: linear-gradient(#6fc8e8, #2f7fa8 55%, #1e5c7d); }
+.prog.done i { background: linear-gradient(#8fd07a, #4a8f3a 55%, #2f6b25); }
+.stat-list .kv { align-items: flex-start; }
+
+
+/* ── สมุดมอน / สมุดธาตุ ── */
+.bk-row { display: flex; align-items: center; gap: 10px; padding: 7px 0;
+  border-bottom: 1px solid rgba(255,255,255,.05); }
+.bk-row:last-child { border-bottom: 0; }
+.bk-rank { width: 96px; flex: none; font-size: 12px; color: var(--g-ink); }
+.bk-kills { width: 84px; flex: none; font-size: 12px; }
+.bk-kills.zero { color: #6b5c4a; }
+.bk-mon { flex: 1; min-width: 0; font-size: 11px; color: var(--g-dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.el-grid { display: flex; gap: 4px; flex-wrap: wrap; }
+.el-dot { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center;
+  font-size: 13px; background: rgba(0,0,0,.35); border: 1px solid var(--g-line);
+  filter: grayscale(1) opacity(.35); }
+.el-dot.got { filter: none; border-color: var(--g-gold);
+  box-shadow: 0 0 8px rgba(232,176,75,.4); background: rgba(232,176,75,.12); }
+.bk-done { color: #8fd07a; font-size: 12px; }
+@media (max-width: 400px) {
+  .bk-rank { width: 74px; font-size: 11px; }
+  .bk-kills { width: 62px; font-size: 11px; }
+  .bk-mon { display: none; }
+}

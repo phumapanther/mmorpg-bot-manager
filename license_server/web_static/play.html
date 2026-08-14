@@ -104,7 +104,7 @@
       <div class="g-sec"><h3>คู่มือ · สมุดสะสม</h3><div class="g-grid">
         <button class="g-tile" data-go="books">
           <span class="ic">📕</span>สมุดมอน<span class="sub">มอนที่เคยล้ม</span></button>
-        <button class="g-tile" data-go="books">
+        <button class="g-tile" data-go="elembook">
           <span class="ic">🧬</span>สมุดธาตุ<span class="sub">สะสมครบ 7 ธาตุ</span></button>
         <a class="g-tile" href="/game"><span class="ic">📖</span>คู่มือเกม<span class="sub">พร้อมใช้งาน</span></a>
         <button class="g-tile soon"><span class="tag">ภายหลัง</span>
@@ -246,6 +246,8 @@
           <div class="hud-bar"><span class="k">EXP</span>
             <div class="hpbar exp"><i class="fill" id="advExp"></i></div>
             <em id="advExpTxt">—</em></div>
+          <div class="hud-gear" id="advGear"></div>
+          <div class="hud-buffs" id="advBuffs"></div>
         </div>
       </div>
 
@@ -293,13 +295,23 @@
       <div id="achvList" class="stat-list" style="margin-top:14px"></div>
     </div>
 
-    <!-- ══ สมุดสะสม ══ -->
+    <!-- ══ สมุดมอน ══ -->
     <div class="g-panelview" id="v-books">
       <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>📕 สมุดมอน · 🧬 สมุดธาตุ</h2>
-        <p>ล้มมอนครบทุกแรงค์ทุกธาตุในแต่ละทวีป — ครบทวีปได้อาร์ติแฟกต์ ครบ 9 ทวีปได้สัตว์เลี้ยงขั้นสูงสุด</p></div>
+      <div class="g-head"><h2>📕 สมุดมอน</h2>
+        <p>นับจำนวนที่ล้มไปแล้วแยกตามทวีปและแรงค์ — ดูว่ายังไม่เคยแตะทวีปไหน แรงค์ไหน</p></div>
       <div id="bookSummary" class="rolls-left" style="margin-bottom:14px"></div>
       <div id="bookList"></div>
+    </div>
+
+    <!-- ══ สมุดธาตุ ══ -->
+    <div class="g-panelview" id="v-elembook">
+      <button class="g-back" data-back>← กลับเมนูหลัก</button>
+      <div class="g-head"><h2>🧬 สมุดธาตุ</h2>
+        <p>ต้องล้มมอน <b>ครบทั้ง 7 ธาตุ</b> ของแต่ละแรงค์ในแต่ละทวีป —
+        ครบแรงค์ได้ทอง · ครบทั้งทวีปได้อาร์ติแฟกต์ · ครบ 9 ทวีปได้สัตว์เลี้ยงขั้นสูงสุด</p></div>
+      <div id="elemSummary" class="rolls-left" style="margin-bottom:14px"></div>
+      <div id="elemList"></div>
     </div>
 
     <!-- ══ ซีซั่นพาส + สายพรีเมียม ══ -->

@@ -1473,16 +1473,32 @@ def me_books(request: Request):
 
     bestiary = player_model.get_bestiary(uid)          # {(ทวีป, แรงค์): จำนวน}
     book = player_model.get_element_book(uid)          # {(ทวีป, แรงค์, ธาตุ): จำนวน}
+
+    elem_label = {e: game_modifiers.ELEMENTS[e]["label"] for e in elements}
+    out = []
+    for c in conts:
+        cdata = game_modifiers.CONTINENTS[c]
+        pool = (cdata.get("mods", {}) or {}).get("monster_pool", {}) or {}
+        out.append({
+            "key": c, "label": cdata["label"],
+            "done": game_modifiers.element_continent_done(book, c),
+            "ranks": [{
+                "rank": r,
+                "kills": int(bestiary.get((c, r), 0)),
+                "monsters": list(pool.get(r, [])),          # ชื่อมอนที่มีในทวีปนี้
+                "rank_done": game_modifiers.element_rank_done(book, c, r),
+                "elements": [{"key": e, "label": elem_label[e],
+                              "got": int(book.get((c, r, e), 0) or 0)} for e in elements],
+            } for r in ranks],
+        })
     return {
-        "ranks": ranks, "elements": elements,
-        "continents": [{"key": c, "label": game_modifiers.CONTINENTS[c]["label"],
-                        "done": game_modifiers.element_continent_done(book, c),
-                        "kills": {r: int(bestiary.get((c, r), 0)) for r in ranks},
-                        "elements": {r: [e for e in elements if book.get((c, r, e))]
-                                     for r in ranks}}
-                       for c in conts],
+        "ranks": ranks, "elements": elements, "element_labels": elem_label,
+        "continents": out,
         "complete": game_modifiers.element_book_complete(book),
         "total_kills": sum(int(v) for v in bestiary.values()),
+        "elements_done": sum(1 for c in conts for r in ranks
+                             if game_modifiers.element_rank_done(book, c, r)),
+        "elements_total": len(conts) * len(ranks),
     }
 
 
