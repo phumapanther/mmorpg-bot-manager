@@ -1739,3 +1739,46 @@ def fight_victory(user_id, fight, member_roles=(), rng=random):
             "level_up": is_lv_up, "rank_msg": rank_msg, "promoted_rank": promoted_rank,
             "drops": dropped_item_msg, "battle_end_log": battle_end_log,
             "in_dungeon": in_dungeon, "combat_log": combat_log, "statuses": statuses}
+
+
+def fight_flee(user_id, fight, rng=random):
+    """🏃 กดหนีจากไฟต์ (เว็บเกม เฟส 5.6d) — ยกมาจากปุ่มหนีในดิสทั้งชุด
+
+    รากพันธนาการล็อกไว้ = หนีไม่ได้ (เช็คกับสถานะสด ใช้มีดตัดเถากลางไฟต์แล้วหนีได้ทันที)
+    ทอยไม่ผ่านเรทหนีของแรงค์ = โดนสวนกลับ เสีย HP + เกราะสึก
+
+    outcome: blocked | fled | hit | lose
+    """
+    player = player_model.get_player(user_id) or {}
+    statuses = _resync_statuses(fight.get("statuses") or {}, player, fight.get("fight_grace"))
+
+    if game_modifiers.has_status_flag(statuses, "no_flee"):
+        turns = next((v for k, v in statuses.items()
+                      if game_modifiers.STATUS_EFFECTS[k].get("no_flee")), "?")
+        return {"outcome": "blocked", "fight": fight,
+                "text": (f"🌱 **รากไม้รัดขาแน่น!** (สถานะพันธนาการเหลือ `{turns}` ก้าว) "
+                         f"คุณดิ้นเท่าไหร่ก็หนีไม่หลุด — ใช้ 🗡️ มีดตัดเถาวัลย์/🌿 ยาถอนพิษก่อน")}
+
+    if rng.randint(1, 100) <= fight["stats"]["flee_chance"]:
+        player_model.update_player_field(user_id, "current_state", "idle")
+        return {"outcome": "fled", "fight": fight,
+                "text": "💨 **หนีสำเร็จ!** สลัดหลุดจากมอนสเตอร์สำเร็จ!"}
+
+    damage = rng.randint(15, 30)
+    new_hp = max(0, player.get("hp", 0) - damage)
+    dur = player.get("armor_dur", 0)
+    armor_loss = max(1, damage // 10) if dur > 0 else 0
+    updates = {"hp": new_hp, "armor_dur": max(0, dur - armor_loss),
+               "current_state": "dead" if new_hp <= 0 else "fighting"}
+    player_model.update_player_fields(user_id, updates)
+
+    if new_hp <= 0:
+        return {"outcome": "lose", "fight": fight, "player_hp": 0,
+                "text": "💥 หนีไม่พ้นและโดนตบตายคาที่!"}
+
+    msg = (f"💥 หนีไม่พ้น! โดนสวนหลังฟาดกระอักเลือด `- {damage}`! "
+           f"(เกราะเสียหาย `- {armor_loss}`)")
+    if updates["armor_dur"] == 0 and dur > 0:
+        msg += "\n🚨 **ชุดเกราะของคุณพังยับเยิน!**"
+    return {"outcome": "hit", "text": msg, "player_hp": new_hp, "damage": damage,
+            "fight": dict(fight, turn=fight.get("turn", 1) + 1, statuses=statuses)}

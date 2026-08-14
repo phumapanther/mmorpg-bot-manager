@@ -372,61 +372,35 @@ class MonsterEventView(ActionView):
 
     @discord.ui.button(label="🏃 วิ่งหนี!", style=discord.ButtonStyle.secondary, row=0)
     async def flee(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # 🌱 สถานะรากพันธนาการ: หนีไม่ได้จนกว่าสถานะจะหมด
-        # (บั๊กเฟส D #2: ซิงก์กับ DB สดก่อนเช็ค — ใช้ 🗡️ มีดตัดเถากลางไฟต์แล้วต้องหนีได้ทันที)
-        player = player_model.get_player(self.user_id)
-        if player:
-            self._resync_statuses(player)
-        if game_modifiers.has_status_flag(self.statuses, "no_flee"):
-            root_turns = next((v for k, v in self.statuses.items()
-                               if game_modifiers.STATUS_EFFECTS[k].get("no_flee")), "?")
-            return await interaction.response.send_message(
-                f"🌱 **รากไม้รัดขาแน่น!** (สถานะพันธนาการเหลือ `{root_turns}` ก้าว) คุณดิ้นเท่าไหร่ก็หนีไม่หลุด — "
-                f"ใช้ 🗡️ มีดตัดเถาวัลย์/🌿 ยาถอนพิษ ผ่านปุ่ม 🕹️ เมนู แล้วกดหนีใหม่ได้ทันที!", ephemeral=True)
+        # ตรรกะหนีอยู่ใน adventure_core (ใช้ร่วมกับหน้าไฟต์บนเว็บ)
+        _f = {"rank": self.monster_rank, "stats": self.m_stats, "hp": self.monster_hp,
+              "hp_max": self.monster_hp_max, "element": self.element, "statuses": self.statuses,
+              "fight_grace": list(self.fight_grace), "infused": self.infused,
+              "faction_side": self.faction_war_side, "turn": self.turn_count,
+              "buffs": self.active_buffs}
+        r = adventure_core.fight_flee(self.user_id, _f)
 
-        flee_roll = random.randint(1, 100)
-        
-        # ถ้าหนีสำเร็จ
-        if flee_roll <= self.m_stats["flee_chance"]:
-            player_model.update_player_field(self.user_id, "current_state", "idle")
-            await interaction.response.edit_message(content=f"💨 **หนีสำเร็จ!** สลัดหลุดจากมอนสเตอร์สำเร็จ!", view=AdventureView(author_id=self.user_id))
-        
-        # ถ้าหนีไม่สำเร็จ (โดนโจมตีสวน)
-        else:
-            player = player_model.get_player(self.user_id)
-            damage = random.randint(15, 30)
-            new_hp = max(0, player["hp"] - damage)
-            
-            # 🛡️ คำนวณความเสียหายของเกราะ (โดนตี = เกราะลด)
-            if player.get("armor_dur", 0) > 0:
-                damage_to_armor = max(1, int(damage / 10))
-                new_armor_dur = max(0, player.get("armor_dur", 0) - damage_to_armor)
-            else:
-                # ถ้าเกราะพังอยู่แล้ว ก็ไม่ต้องลด และไม่ต้องแสดงค่าความเสื่อมสภาพ
-                damage_to_armor = 0
-                new_armor_dur = 0
-            
-            # อัปเดตข้อมูลทั้งหมดในรอบเดียว
-            db_updates = {
-                "hp": new_hp,
-                "armor_dur": new_armor_dur,
-                "current_state": "fighting"
-            }
-            
-            if new_hp <= 0:
-                db_updates["current_state"] = "dead"
-                player_model.update_player_fields(self.user_id, db_updates)
-                await interaction.response.edit_message(content="💥 หนีไม่พ้นและโดนตบตายคาที่!", view=RespawnView(self.user_id), **({"attachments": [f]} if (f := event_image("death")) else {}))
-            else:
-                player_model.update_player_fields(self.user_id, db_updates)
-                next_turn = self.turn_count + 1
-                msg = f"💥 หนีไม่พ้น! โดนสวนหลังฟาดกระอักเลือด `- {damage}`! (เกราะเสียหาย `- {damage_to_armor}`)"
-                
-                # เพิ่มข้อความแจ้งเตือนถ้าเกราะพัง
-                if new_armor_dur == 0 and player.get("armor_dur", 0) > 0:
-                    msg += "\n🚨 **ชุดเกราะของคุณพังยับเยิน!**"
-                    
-                await interaction.response.edit_message(content=msg, view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank, self.monster_hp, self.active_buffs, turn_count=next_turn, monster_name=self.m_stats.get("name"), element=self.element, fight_statuses=self.statuses, infused=getattr(self, "infused", False), faction_war_side=getattr(self, "faction_war_side", None), fight_grace=getattr(self, "fight_grace", None), monster_hp_max=getattr(self, "monster_hp_max", None)))
+        if r["outcome"] == "blocked":
+            return await interaction.response.send_message(r["text"], ephemeral=True)
+        if r["outcome"] == "fled":
+            return await interaction.response.edit_message(
+                content=r["text"], view=AdventureView(author_id=self.user_id))
+        if r["outcome"] == "lose":
+            return await interaction.response.edit_message(
+                content=r["text"], view=RespawnView(self.user_id),
+                **({"attachments": [f]} if (f := event_image("death")) else {}))
+
+        self.statuses = r["fight"]["statuses"]
+        await interaction.response.edit_message(
+            content=r["text"],
+            view=MonsterEventView(self.user_id, self.member_roles, self.monster_rank,
+                                  self.monster_hp, self.active_buffs,
+                                  turn_count=self.turn_count + 1,
+                                  monster_name=self.m_stats.get("name"), element=self.element,
+                                  fight_statuses=self.statuses, infused=self.infused,
+                                  faction_war_side=self.faction_war_side,
+                                  fight_grace=self.fight_grace,
+                                  monster_hp_max=self.monster_hp_max))
 
     async def skill_callback(self, interaction: discord.Interaction):
         if not await self.interaction_check(interaction): return

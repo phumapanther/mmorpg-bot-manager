@@ -427,3 +427,14 @@
 }
 /* เลือดต่ำกว่า 30% — แถบเปลี่ยนเป็นแดงเตือนให้กินยา */
 .hpbar .fill.low { background: linear-gradient(#ff7a5c, #c8452f 55%, #8f2317); }
+
+
+/* ── แถบเลือดมอนบนฉาก (เฟส 5.6) ── */
+.foe-bar { position: absolute; left: 50%; top: 10px; transform: translateX(-50%);
+           width: min(72%, 420px); text-align: center; pointer-events: none; }
+.foe-bar[hidden] { display: none; }
+.foe-name { font-size: 12px; color: #f2e7d8; text-shadow: 0 1px 3px #000; margin-bottom: 4px; }
+.foe-name span { font-size: 10px; color: var(--g-gold); margin-left: 6px; }
+.foe-bar .hpbar { height: 9px; border-radius: 5px; }
+.hpbar.foe .fill { background: linear-gradient(#ff8a6a, #c8452f 55%, #7a1f14); }
+.foe-num { font-size: 10px; color: #a99274; margin-top: 3px; text-shadow: 0 1px 2px #000; }

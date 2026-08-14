@@ -92,3 +92,26 @@ def test_dice_display_fields_match_core_output():
     ret = re.search(r"return \{\"player_roll\".*?\}", core, re.S).group(0)
     for field in ("player_roll", "monster_roll", "player_parts", "monster_parts"):
         assert f'"{field}"' in ret, f"roll_combat ไม่ได้คืน {field}"
+
+
+def test_web_skill_buttons_send_names_the_server_knows():
+    """ปุ่มสกิลบนเว็บส่งชื่ออะไรไป fight_turn ต้องรู้จัก ไม่งั้นกดแล้วกลายเป็นตีธรรมดาเงียบ ๆ"""
+    ids = set(re.findall(r"'(skill_\w+)'", re.search(r"const SKILL_ID = \{(.*?)\};", PLAY, re.S).group(1)))
+    core = pathlib.Path("bot/adventure_core.py").read_text(encoding="utf-8")
+    known = set(re.findall(r'skill_used == "(skill_\w+)"', core))
+    assert ids, "อ่าน SKILL_ID ไม่ออก"
+    missing = ids - known
+    assert not missing, f"เว็บส่งชื่อสกิลที่เซิร์ฟเวอร์ไม่รู้จัก: {sorted(missing)}"
+
+
+def test_every_class_skill_has_a_server_id():
+    """ทุกสกิลที่ขึ้นปุ่มต้องแปลงเป็นชื่อจริงได้ ไม่งั้นปุ่มนั้นหายไปเงียบ ๆ"""
+    fx_keys = {k for keys in _class_skill_fx().values() for k in keys}
+    mapped = set(re.findall(r"(\w+): 'skill_", re.search(r"const SKILL_ID = \{(.*?)\};", PLAY, re.S).group(1)))
+    assert not (fx_keys - mapped), f"สกิลที่ยังไม่มีชื่อจริง: {sorted(fx_keys - mapped)}"
+
+
+def test_fight_screen_shows_the_monster_hp_bar():
+    html = pathlib.Path("license_server/web_static/play.html").read_text(encoding="utf-8")
+    assert 'id="foeBar"' in html and 'id="foeHp"' in html
+    assert "paintFoe(" in PLAY, "ยังไม่ได้เรียกวาดหลอดเลือดมอน"

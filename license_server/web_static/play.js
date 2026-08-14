@@ -506,6 +506,11 @@ const CLASS_SKILL_FX = {
   Rogue:   [['stab', '🗡️ Backstab'], ['evade', '💨 Evasion']],
   Cleric:  [['heal', '✨ Heal'], ['aura', '🛡️ Holy Aura']],
 };
+// ปุ่มสกิลบนเว็บส่งชื่อนี้ไปให้เซิร์ฟเวอร์ — ต้องตรงกับที่ fight_turn เช็ค ไม่งั้นกดแล้วเงียบ
+const SKILL_ID = { bash: 'skill_shield_bash', heavy: 'skill_heavy_strike',
+                   fire: 'skill_fireball', frost: 'skill_frostbolt',
+                   stab: 'skill_backstab', evade: 'skill_evasion',
+                   heal: 'skill_heal', aura: 'skill_holy_aura' };
 const FOE_SHAPES = ['dragon', 'slime', 'humanoid', 'golem'];
 const FOE_ELEMENTS = ['fire', 'water', 'earth', 'wind', 'wood', 'light', 'dark'];
 
@@ -541,6 +546,12 @@ const ADV_ACTIONS = {
               ['ignore', '🤫 เมินใส่', '']],
   npc_quest: () => [['accept', '✅ แลกเปลี่ยน', 'hot', 'ของในกระเป๋าตามข้อเสนอจะถูกนำไปแลกทันที'],
                     ['decline', '❌ ปฏิเสธ', '']],
+  // ไฟต์: โจมตีปกติ + สกิลของคลาสตัวเอง + หนี (ยกมาจากปุ่มในดิสทั้งชุด)
+  monster: () => [['attack', '⚔️ สู้ต่อ (ทอยเต๋าปกติ)', 'hot'],
+                  ...(CLASS_SKILL_FX[(LAST && LAST.identity.class_name)] || [])
+                      .filter(([fx]) => SKILL_ID[fx])
+                      .map(([fx, label]) => [SKILL_ID[fx], label, '']),
+                  ['flee', '🏃 วิ่งหนี!', '', 'หนีไม่สำเร็จจะโดนสวนกลับเสียเลือด']],
   // อีเวนต์พิเศษ: แบบทอยเต๋าได้ปุ่มเดียว แบบเลือกทางได้ปุ่มตามจำนวนตัวเลือกของอีเวนต์นั้น
   special: g => (g.choices && g.choices.length)
     ? g.choices.map((label, i) => [String(i), esc(label), i === 0 ? 'hot' : ''])
@@ -573,6 +584,21 @@ function advPaint(g) {
   });
 }
 
+function paintFoe(m) {
+  const bar = document.getElementById('foeBar');
+  if (!m) { bar.hidden = true; SCENE.clearFoe(); return; }
+  bar.hidden = false;
+  document.getElementById('foeName').textContent = m.name;
+  document.getElementById('foeRank').textContent = m.rank || '';
+  const pct = Math.max(0, Math.min(100, m.hp / Math.max(1, m.hp_max) * 100));
+  document.getElementById('foeHp').style.width = pct + '%';
+  document.getElementById('foeHpTxt').textContent = fmt(m.hp) + ' / ' + fmt(m.hp_max)
+                                                    + '  ·  เทิร์น ' + (m.turn || 1);
+  SCENE.setFoe({ shape: FOE_SHAPES[(m.name || '').length % FOE_SHAPES.length],
+                 element: m.element || 'fire' });
+}
+
+
 function advIdleButton(box) {
   box.innerHTML = '';
   const btn = document.createElement('button');
@@ -593,6 +619,7 @@ async function advWalk() {
   ADV_BUSY = true;
   const tag = document.getElementById('sceneTag');
   SCENE.clearFoe(); SCENE.clearRoll(); SCENE.walk();
+  document.getElementById('foeBar').hidden = true;
   tag.textContent = 'กำลังเดินทาง...';
   document.getElementById('advActions').innerHTML = '';
   document.getElementById('advText').textContent = '✨ คุณเริ่มก้าวเท้าออกเดินทางตรวจตราเส้นทาง...';
@@ -604,6 +631,7 @@ async function advWalk() {
     const art = g.event === 'travel' ? 'vehicle_' + g.encounter.vehicle : ADV_ART[g.event];
     if (art) SCENE.showEvent(art); else SCENE.idle();
     tag.textContent = ADV_LABEL[g.event] || g.event;
+    paintFoe(g.monster);
     if (g.money != null) boot();      // เงิน/เลือดเปลี่ยน วาดหัวการ์ดใหม่
     advPaint(g);
   } catch (e) {
@@ -621,7 +649,19 @@ async function advAct(action, label, confirmMsg) {
 
   ADV_BUSY = true;
   try {
+    if (action === 'attack' || action.startsWith('skill_')) { SCENE.attack(); }
+    if (action.startsWith('skill_')) SCENE.playSkill(action.slice(6));
+
     const r = await api('POST', '/api/web/adventure/act', { action: action });
+
+    if (r.roll) {
+      SCENE.showRoll(r.roll);
+      await new Promise(res => setTimeout(res, 750));      // ให้เห็นเต๋าเฉลยก่อนตัวเลขเด้ง
+    }
+    if (r.damage_to_monster) { SCENE.hitFoe(); SCENE.float('-' + fmt(r.damage_to_monster), '', 72); }
+    if (r.damage_to_player) SCENE.float('-' + fmt(r.damage_to_player), 'miss', 30);
+    if (r.reward) SCENE.float('+' + fmt(r.reward.gold) + ' ทอง', 'gold', 50);
+    if (r.monster !== undefined) paintFoe(r.pending === 'monster' ? r.monster : null);
     if (r.damage) { SCENE.hitFoe(); SCENE.float('-' + r.damage, '', 40); }
     if (r.gold) SCENE.float('+' + r.gold, 'gold', 50);
     if (r.continent) { SCENE.setMap(r.continent); SCENE.showEvent('village'); }
@@ -649,6 +689,14 @@ async function initScene() {
   // ค้างเหตุการณ์ไหนอยู่ก็กลับมาเล่นต่อจุดเดิม (รีเฟรชหน้าแล้วต้องไม่ตัน)
   try {
     const st = await api('GET', '/api/web/adventure/state');
+    if (st.pending === 'monster') {                       // กลับมาสู้ต่อจากที่ค้างไว้
+      SCENE.showEvent('monster');
+      document.getElementById('sceneTag').textContent = ADV_LABEL.monster;
+      paintFoe({ name: st.data.stats.name, rank: st.data.rank, element: st.data.element,
+                 hp: st.data.hp, hp_max: st.data.hp_max, turn: st.data.turn });
+      advPaint({ pending: 'monster', text: 'คุณยังสู้อยู่กับศัตรูตัวนี้ — เลือกแอคชั่นต่อได้เลย' });
+      return;
+    }
     if (st.pending) {
       SCENE.showEvent(ADV_ART[st.pending] || st.pending);
       document.getElementById('sceneTag').textContent = ADV_LABEL[st.pending] || st.pending;

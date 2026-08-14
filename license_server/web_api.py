@@ -905,7 +905,7 @@ def delete_news(news_id: int, request: Request):
 _WEB_PLAYABLE = {                     # เหตุการณ์ -> สถานะที่ล็อกไว้ระหว่างรอผู้เล่นเลือก
     "village": "village", "treasure": "treasure_choice", "dungeon": "dungeon_choice",
     "trap": "trap_defense", "travel": "travel_choice", "mugging": "mugging",
-    "npc": "npc_choice", "special": "special_choice",
+    "npc": "npc_choice", "special": "special_choice", "monster": "fighting",
 }
 _WEB_INSTANT = ("calm", "bank_robbery")     # จบในตัว ไม่ต้องเลือกอะไร
 
@@ -977,6 +977,10 @@ def adventure_walk(request: Request):
                 out["text"] = special.get("intro", "✨ มีบางอย่างเกิดขึ้นตรงหน้าคุณ...")
                 out["choices"] = ([c["label"] for c in special.get("choices", [])]
                                   if special.get("template") == "choice" else [])
+            elif event == "monster":
+                data = adventure_core.spawn_monster(uid, ())
+                out["monster"] = _monster_card(data)
+                out["text"] = "👹 มีเงาปริศนาพุ่งออกมากระโจนขวางทางคุณ!"
             elif event == "npc":
                 out["text"] = "🧓 คุณเจอนักเดินทางพเนจร (NPC) นั่งอยู่ข้างกองไฟ"
             elif event == "travel":
@@ -1058,6 +1062,8 @@ def adventure_act(body: ActBody, request: Request):
             else:
                 adventure_core._done(uid, "npc")
                 r = {"text": "🤫 คุณแกล้งทำเป็นมองไม่เห็นและเดินผ่าน NPC ไปอย่างรวดเร็ว"}
+        elif event == "monster":
+            return _fight_action(uid, data, body.action)
         elif event == "npc_quest":
             r = adventure_core.npc_quest_settle(uid, data, body.action == "accept")
         elif event == "special":
@@ -1106,3 +1112,77 @@ def adventure_state(request: Request):
     if not event:
         return {"pending": None, "state": state}
     return {"pending": event, "data": data, "state": state}
+
+
+
+def _monster_card(f):
+    """ข้อมูลมอนที่หน้าจอต้องใช้ — ชื่อ แรงค์ ธาตุ หลอดเลือด (ไม่ส่งสถานะภายในออกไป)"""
+    return {"name": f["stats"].get("name", "มอนสเตอร์"), "rank": f["rank"],
+            "element": f.get("element"), "hp": f["hp"], "hp_max": f.get("hp_max", f["hp"]),
+            "turn": f.get("turn", 1)}
+
+
+def _fight_action(uid, fight, action):
+    """หนึ่งการกระทำในไฟต์บนเว็บ — โจมตี / สกิล / หนี
+
+    ผลทั้งหมดออกที่ adventure_core ตัวเดียวกับปุ่มในดิส เบราว์เซอร์แค่เอาไปเล่นอนิเมชัน
+    ยศแรงค์ที่เลื่อนขั้นบนเว็บให้เองไม่ได้ — บอทจะซิงก์ให้ตอนผู้เล่นเข้าเซิร์ฟดิสครั้งถัดไป
+    """
+    from bot import adventure_core
+    from bot.models import player_model
+
+    if action == "flee":
+        r = adventure_core.fight_flee(uid, fight)
+        if r["outcome"] == "blocked":
+            raise HTTPException(400, r["text"])
+        if r["outcome"] == "hit":                       # หนีไม่พ้น สู้ต่อ
+            adventure_core.set_pending(uid, "monster", r["fight"])
+            return {"text": r["text"], "pending": "monster", "outcome": "continue",
+                    "monster": _monster_card(r["fight"]), "money": _money_now(uid)}
+        adventure_core.clear_pending(uid)
+        return {"text": r["text"], "outcome": r["outcome"], "money": _money_now(uid)}
+
+    skill = action if action.startswith("skill_") else None
+    if action != "attack" and not skill:
+        raise HTTPException(400, "ไม่รู้จักแอคชั่นนี้")
+
+    t = adventure_core.fight_turn(uid, fight, (), skill)
+    if t["outcome"] == "no_player":
+        raise HTTPException(400, t["text"])
+
+    out = {"outcome": t["outcome"], "monster": _monster_card(t.get("fight", fight)),
+           "log": (t.get("skill_log", "") + t.get("combat_log", "")).strip(),
+           "roll": {"player_roll": t.get("player_roll", 0), "monster_roll": t.get("monster_roll", 0),
+                    "player_parts": t.get("player_parts", []),
+                    "monster_parts": t.get("monster_parts", [])},
+           "damage_to_monster": t.get("damage_to_monster", 0),
+           "damage_to_player": t.get("damage_to_player", 0),
+           "player_hp": t.get("player_hp", 0)}
+
+    if t["outcome"] in ("monster_fled", "player_fled"):
+        adventure_core.clear_pending(uid)
+        out["text"] = t["text"]
+        return out | {"money": _money_now(uid)}
+
+    if t["outcome"] == "win":
+        v = adventure_core.fight_victory(uid, t["fight"])
+        adventure_core.clear_pending(uid)
+        out["text"] = (f"🏅 **โค่น {t['fight']['stats'].get('name', 'มอนสเตอร์')} สำเร็จ!**\n"
+                       f"💰 **+{v['reward']:,}** ทอง   🔷 **+{v['exp']:,}** EXP"
+                       + ("\n✨🎉 **LEVEL UP!!** เลเวลเพิ่มเป็น Lv." + str(v["level"]) if v["level_up"] else "")
+                       + v["rank_msg"] + v["drops"] + v["battle_end_log"])
+        out["reward"] = {"gold": v["reward"], "exp": v["exp"], "level": v["level"],
+                         "level_up": v["level_up"]}
+        return out | {"money": _money_now(uid)}
+
+    if t["outcome"] == "lose":
+        player_model.update_player_fields(uid, dict(t.get("db_updates") or {}, current_state="dead"))
+        adventure_core.clear_pending(uid)
+        out["text"] = "💀 **คุณหมดสติลงกลางสนามรบ...** ไปกดฟื้นคืนชีพในดิสคอร์ดด้วย `!play`"
+        return out | {"money": _money_now(uid)}
+
+    player_model.update_player_fields(uid, t.get("db_updates") or {})
+    adventure_core.set_pending(uid, "monster", t["fight"])
+    out["pending"] = "monster"
+    out["text"] = out["log"] or "⚔️ ยังไม่มีใครล้ม — สู้ต่อ!"
+    return out | {"money": _money_now(uid)}
