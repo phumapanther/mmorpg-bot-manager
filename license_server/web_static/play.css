@@ -438,3 +438,9 @@
 .foe-bar .hpbar { height: 9px; border-radius: 5px; }
 .hpbar.foe .fill { background: linear-gradient(#ff8a6a, #c8452f 55%, #7a1f14); }
 .foe-num { font-size: 10px; color: #a99274; margin-top: 3px; text-shadow: 0 1px 2px #000; }
+
+
+/* ── เม็ดคริสตัล (มานา) ── */
+.adv-hud .hud-mana { font-size: 12px; letter-spacing: 1px; cursor: help; }
+.adv-hud .hud-mana.empty { filter: grayscale(1) opacity(.55); }
+#advActions button[disabled] { opacity: .42; cursor: not-allowed; filter: grayscale(.6); }

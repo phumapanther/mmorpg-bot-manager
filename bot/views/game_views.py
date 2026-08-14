@@ -173,10 +173,15 @@ class MonsterEventView(ActionView):
             "Cleric":  [("✨ Heal", "skill_heal"),               ("🛡️ Holy Aura", "skill_holy_aura")]
         }
 
+        # 💎 เม็ดคริสตัลหมด = ปุ่มสกิลดับทั้งแถว (ยังตีปกติ/หนีได้)
+        from bot import mana as _mana
+        crystals = _mana.get(self.user_id)
+
         if self.player_class in skills_map:
             for label, custom_id in skills_map[self.player_class]:
-                btn = discord.ui.Button(label=label, style=discord.ButtonStyle.primary, custom_id=custom_id, row=1)
-                btn.callback = self.skill_callback 
+                btn = discord.ui.Button(label=label, style=discord.ButtonStyle.primary,
+                                        custom_id=custom_id, row=1, disabled=crystals <= 0)
+                btn.callback = self.skill_callback
                 self.add_item(btn)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -203,6 +208,9 @@ class MonsterEventView(ActionView):
             t = adventure_core.fight_turn(self.user_id, _f, self.member_roles, skill_used)
 
             if t["outcome"] == "no_player":
+                return await interaction.response.send_message(t["text"], ephemeral=True)
+
+            if t["outcome"] == "no_mana":          # เม็ดหมด — ไม่กินเทิร์น กดปุ่มอื่นต่อได้เลย
                 return await interaction.response.send_message(t["text"], ephemeral=True)
 
             # จบไฟต์ทันที: มอนธาตุแสงเผ่นหนี / Evasion สำเร็จ

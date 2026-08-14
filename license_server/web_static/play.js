@@ -106,6 +106,12 @@ function paintAdvHud(g) {
   document.getElementById('advLv').textContent = 'Lv ' + (id.level ?? '—');
   document.getElementById('advCash').textContent = fmt(g.money.cash);
 
+  // 💎 เม็ดคริสตัล — แถบมาจากเซิร์ฟเวอร์แล้ว ที่นี่แค่วางลงจอ
+  const mn = document.getElementById('advMana');
+  mn.textContent = (v.mana_bar || '') + ' ' + (v.mana ?? 0) + '/' + (v.mana_max ?? 0);
+  mn.classList.toggle('empty', (v.mana ?? 0) <= 0);
+  MANA_LEFT = v.mana ?? 0;
+
   const hp = v.hp ?? 0, mx = v.max_hp || 1;
   const pct = Math.max(0, Math.min(100, hp / mx * 100));
   const hpBar = document.getElementById('advHp');
@@ -564,6 +570,7 @@ const ADV_ART = { calm: 'calm', village: 'village', treasure: 'treasure', trap: 
                   mugging: 'mugging', npc: 'npc', special: 'special', travel: 'travel' };
 
 let ADV_BUSY = false;
+let MANA_LEFT = 0;      // เม็ดคริสตัลที่เหลือ — ใช้ตัดสินว่าปุ่มสกิลกดได้ไหม
 
 function advPaint(g) {
   document.getElementById('advText').innerHTML = mdLite(g.text || '');
@@ -579,7 +586,12 @@ function advPaint(g) {
     const btn = document.createElement('button');
     btn.className = 'g-tile casino-go' + (cls ? ' ' + cls : '');
     btn.innerHTML = label;
-    btn.onclick = () => advAct(action, label, confirmMsg);
+    if (action.startsWith('skill_') && MANA_LEFT <= 0) {   // 💎 เม็ดหมด = ออกท่าไม่ได้
+      btn.disabled = true;
+      btn.title = 'เม็ดคริสตัลหมดแล้ววันนี้ — โจมตีปกติหรือหนีได้';
+    } else {
+      btn.onclick = () => advAct(action, label, confirmMsg);
+    }
     box.appendChild(btn);
   });
 }
@@ -673,6 +685,7 @@ async function advAct(action, label, confirmMsg) {
     }
     if (r.damage_to_player) SCENE.float('-' + fmt(r.damage_to_player), 'miss', 30);
     if (r.healed) SCENE.float('+' + fmt(r.healed) + ' HP', 'heal', 30);
+    if (r.mana) { MANA_LEFT = r.mana.mana; if (r.mana_spent) SCENE.float('💎 -1', 'miss', 46); }
     if (r.reward) SCENE.float('+' + fmt(r.reward.gold) + ' ทอง', 'gold', 50);
     if (r.monster !== undefined) paintFoe(r.pending === 'monster' ? r.monster : null);
     if (r.damage) { SCENE.hitFoe(); SCENE.float('-' + r.damage, '', 40); }

@@ -351,7 +351,7 @@ def resolve_treasure(user_id, action, is_rogue=False, rng=random):
 
     _done(user_id, "treasure")
     if rng.choices(["gold", "item"], weights=[80, 20], k=1)[0] == "gold":
-        gold = rng.randint(50, 150)
+        gold = int(rng.randint(50, 150) * float(config_loader.get_balance("reward.gold_mult", 1.0)))
         player_model.update_player_field(user_id, "cash", player["cash"] + gold)
         return {"text": f"🎉 โชคดีมาก! ด้านในเป็นหีบสมบัติแท้ คุณได้รับเงินสกุลกลาง `{gold}` ทอง!",
                 "gold": gold}
@@ -530,7 +530,7 @@ def npc_talk(user_id, rng=random):
     _done(user_id, "npc")
 
     if outcome == "gift":
-        gold = rng.randint(30, 70)
+        gold = int(rng.randint(30, 70) * float(config_loader.get_balance("reward.gold_mult", 1.0)))
         player_model.update_player_field(user_id, "cash", player["cash"] + gold)
         return {"text": f"🧓 NPC ถูกชะตาในตัวคุณ! เขาใจดีมอบเศษเงินทุนกลางจำนวน `{gold}` ทองให้ฟรี!",
                 "gold": gold}
@@ -573,6 +573,16 @@ def npc_quest_offer(user_id, rng=random):
         return None
 
     items = config_loader.get_all_items()
+
+    # 🧓 NPC เร่ร่อนไม่มีปัญญาซื้อของระดับสมบัติ — ขอเฉพาะของที่ราคาไม่เกินเพดาน
+    # (กันทั้งการฟอกทองคำแท่งเป็นเงินสด และกันผู้เล่นเผลอแลกของล้ำค่าทิ้ง)
+    cap = int(config_loader.get_balance("npc.trade_max_item_value", 200_000))
+    if cap > 0:
+        inv = [i for i in inv if items.get(str(i), {}).get("buy", 0) <= cap]
+        if not inv:
+            _done(user_id, "npc")
+            return None
+
     requested = rng.sample(inv, rng.randint(1, len(inv)))
     counts = {}
     for i in requested:
@@ -580,10 +590,19 @@ def npc_quest_offer(user_id, rng=random):
     req_text = ", ".join(f"**{items.get(str(i), {}).get('name', '???')}** x{c}" for i, c in counts.items())
     req_value = sum(items.get(str(i), {}).get("buy", 0) for i in requested)
 
-    reward_val = rng.randint(int(req_value * 0.5), int(req_value * 2))
+    # 💸 เนิฟ 2026-08-14: ของเดิมสุ่ม 0.5-2.0 เท่า = เฉลี่ย 1.25 เท่า
+    # ซึ่งแปลว่า "แลกกี่รอบก็กำไร" ถือทองคำแท่งพันล้านแลกทีเดียวได้พันสองร้อยล้าน
+    # ตอนนี้เฉลี่ยต่ำกว่า 1 เท่า (เป็นการเสี่ยงดวง ไม่ใช่เครื่องพิมพ์เงิน) + เพดานเงินสดต่อครั้ง
+    lo = float(config_loader.get_balance("npc.trade_min_mult", 0.5))
+    hi = float(config_loader.get_balance("npc.trade_max_mult", 1.3))
+    reward_val = rng.randint(int(req_value * min(lo, hi)), max(1, int(req_value * max(lo, hi))))
     valid = [i for i, d in items.items() if 0 < d.get("buy", 0) <= reward_val]
     reward_item = rng.choice(valid) if valid else None
     reward_cash = reward_val - (items[reward_item]["buy"] if reward_item else 0)
+    cash_cap = int(config_loader.get_balance("npc.trade_cash_cap", 100_000))
+    if cash_cap > 0:
+        reward_cash = min(reward_cash, cash_cap)      # กันฟอกของแพงเป็นเงินสดก้อนโต
+    reward_cash = max(0, reward_cash)
 
     reward_text = (f"**{items[reward_item]['name']}** และเงิน `{reward_cash:,}` ทอง"
                    if reward_item else f"`{reward_cash:,}` ทอง")
@@ -1016,6 +1035,14 @@ def fight_turn(user_id, fight, member_roles=(), skill_used=None, rng=random):
     # ซิงก์สถานะกับ DB สดก่อนคำนวณ — ไอเทมรักษา/บัฟที่กดใช้ระหว่างรอเทิร์นมีผลทันที
     statuses = _resync_statuses(fight["statuses"], player, fight.get("fight_grace"))
 
+    # 💎 มานา: เม็ดหมดแล้วใช้สกิลไม่ได้ (โจมตีปกติ/หนี ยังทำได้ตามเดิม)
+    from bot import mana as _mana
+    if skill_used and not _mana.can_use_skill(user_id, player):
+        st = _mana.status_line(user_id, player)
+        return {"outcome": "no_mana", "fight": fight, "mana": st,
+                "text": (f"💎 **เม็ดคริสตัลหมดแล้ววันนี้!** ({st['bar']}) "
+                         f"ใช้สกิลไม่ได้จนกว่าจะข้ามวัน — โจมตีปกติหรือหนียังทำได้")}
+
     p_lvl = player.get("level", 1)
 
     # ✨ ธาตุแสง: โอกาสมอนสเตอร์เผ่นหนีต้นเทิร์น (แบบ Metal Slime) — จบไฟต์ ไม่ได้รางวัล
@@ -1380,6 +1407,13 @@ def fight_turn(user_id, fight, member_roles=(), skill_used=None, rng=random):
     if active_buffs.get("shield_bash", 0) > 0: active_buffs["shield_bash"] -= 1
     if active_buffs.get("backstab", 0) > 0: active_buffs["backstab"] -= 1
 
+    # 💎 ใช้สกิลแล้ว "ทอยแพ้" เท่านั้นถึงเสียเม็ด — ทอยชนะถือว่าคุ้มค่าท่า ไม่หัก
+    mana_spent = 0
+    if skill_used and player_roll < monster_roll:
+        _mana.spend(user_id, 1, player)
+        mana_spent = 1
+        skill_log += "💎 **เม็ดคริสตัลแตกไปหนึ่งเม็ด** (ออกท่าแล้วทอยแพ้)\n"
+
     fight = dict(fight, stats=m_stats, hp=monster_hp, hp_max=monster_hp_max,
                  element=element, statuses=statuses, buffs=active_buffs,
                  turn=turn_count + 1, infused=infused, faction_side=faction_side)
@@ -1391,7 +1425,8 @@ def fight_turn(user_id, fight, member_roles=(), skill_used=None, rng=random):
             "damage_to_monster": damage_to_monster, "damage_to_player": damage_to_player,
             "healed": healed_amount,
             "monster_hp": monster_hp, "monster_hp_max": monster_hp_max,
-            "player_hp": player.get("hp", 0), "fight": fight, "player": player}
+            "player_hp": player.get("hp", 0), "fight": fight, "player": player,
+            "mana_spent": mana_spent, "mana": _mana.status_line(user_id)}
 
 
 def record_element_book(user_id, cont_key, monster_rank, element, db_updates):

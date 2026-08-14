@@ -36,6 +36,8 @@ NEW_PLAYER_DEFAULTS = {
     "bag": "Medium_Bag",
     "capacity": 50,
     "sanity": 100,
+    "mana": 3,             # 💎 เม็ดคริสตัล = จำนวนครั้งที่ใช้สกิลแล้วพลาดได้ต่อวัน
+    "mana_date": "",       # วันที่เติมเม็ดล่าสุด (ข้ามวันแล้วเติมเต็มตอนอ่าน)
     "last_reward_claim": 0,
     "continent": "main",
     "status_effects": "{}",

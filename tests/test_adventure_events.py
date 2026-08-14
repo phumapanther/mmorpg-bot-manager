@@ -389,3 +389,47 @@ def test_low_level_players_mostly_meet_common_monsters(tmp_path, monkeypatch):
 
 def test_discord_and_web_spawn_the_same_way():
     assert "adventure_core.spawn_monster(" in GV, "ดิสยังไม่ได้เรียกตัวเกิดมอนกลาง"
+
+
+# ── 💸 เนิฟเศรษฐกิจ (2026-08-14) — ปิดเครื่องพิมพ์เงินจากเควส NPC ────────────
+
+def test_trading_with_the_npc_is_a_gamble_not_a_money_printer(world, monkeypatch):
+    """ของเดิมสุ่ม 0.5-2.0 เท่า = เฉลี่ย 1.25 เท่า แลกกี่รอบก็กำไร ถือทองคำแท่งพันล้าน
+    แลกทีเดียวได้พันสองร้อยล้าน ตอนนี้เฉลี่ยต้องต่ำกว่าทุนเสมอ"""
+    monkeypatch.setattr(config_loader, "get_all_items",
+                        lambda: {"1": {"name": "ของกลาง", "buy": 5000}})
+    total_in = total_out = 0
+    for seed in range(200):
+        world.update(inventory='["1"]', cash=0, current_state="npc_choice")
+        offer = adventure_core.npc_quest_offer(1, rng=random.Random(seed))
+        if not offer:
+            continue
+        adventure_core.npc_quest_settle(1, offer, True)
+        kept = pm.load_inventory(world["inventory"])
+        total_in += 5000
+        total_out += world["cash"] + sum(5000 for i in kept if str(i) == "1")
+    assert total_in and total_out < total_in, \
+        f"แลกแล้วได้คืนเฉลี่ย {total_out / total_in:.2f} เท่า — เกิน 1 เท่าคือพิมพ์เงินได้ไม่จำกัด"
+
+
+def test_the_npc_never_asks_for_your_treasures(world, monkeypatch):
+    """กันฟอกทองคำแท่งเป็นเงินสด + กันผู้เล่นเผลอแลกของล้ำค่าทิ้ง"""
+    monkeypatch.setattr(config_loader, "get_all_items",
+                        lambda: {"9": {"name": "ทองคำแท่ง", "buy": 1_000_000_000}})
+    world.update(inventory='["9"]', current_state="npc_choice")
+    assert adventure_core.npc_quest_offer(1) is None
+    assert world["current_state"] == "idle", "ไม่มีอะไรให้แลกก็ต้องปลดสถานะ ไม่ค้าง"
+
+
+def test_reward_gold_knob_scales_every_source(world, monkeypatch):
+    """ปุ่มเดียวปรับทองที่ได้ทั้งเกมจาก Panel — ไม่ต้องแก้โค้ดทีละจุด"""
+    monkeypatch.setattr(config_loader, "get_balance",
+                        lambda k, d=None: 0.0 if k == "reward.gold_mult" else d)
+    world["cash"] = 0
+
+    class Gold(random.Random):
+        def random(self): return 0.9
+        def choices(self, seq, weights=None, k=1): return [seq[0]]
+
+    adventure_core.resolve_treasure(1, "open", rng=Gold())
+    assert world["cash"] == 0, "ตั้งตัวคูณเป็น 0 แล้วต้องไม่ได้ทองเลย"

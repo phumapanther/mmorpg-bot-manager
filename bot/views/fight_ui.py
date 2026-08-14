@@ -19,6 +19,14 @@ RANK_BADGES = {"Common": "🟢 ทั่วไป", "Mini-Boss": "🟡 มิน
                "Secret": "🟣 ลับ", "Unbeatable": "💀 ไร้พ่าย"}
 
 
+def _mana_bar(player):
+    """💎 เม็ดคริสตัลที่เหลือวันนี้ — ใช้สกิลแล้วทอยแพ้ถึงจะเสีย"""
+    from bot import mana as _mana
+    full = _mana.max_mana(player.get("level", 1))
+    cur = max(0, min(full, int(player.get("mana", 0) or 0)))
+    return f"{_mana.bar(cur, full)}  `{cur}/{full}`"
+
+
 def build_fight_embed(view, player, dice, damage_line, events, turn):
     """หน้าจอต่อสู้ — จัดกลุ่มข้อมูลให้อ่านง่ายแต่ครบเหมือนเดิม (B3)
     dice = {"player": แต้มสุดท้าย, "player_parts": [...], "monster": แต้ม, "monster_parts": [...]}"""

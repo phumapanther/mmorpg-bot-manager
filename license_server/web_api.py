@@ -194,6 +194,15 @@ def me_profile(request: Request):
             "topups": [dict(t) | {"has_slip": _slip_path(t["id"]).is_file()} for t in tops]}
 
 
+def _mana_view(p):
+    """สรุปมานาแบบพร้อมแสดงผล — อ่านอย่างเดียว ไม่เขียน DB (endpoint นี้ต้อง read-only)"""
+    from bot import mana as _mana
+    full = _mana.max_mana(p.get("level", 1))
+    fresh = p.get("mana_date") == _mana._today()
+    cur = min(full, int(p.get("mana", 0) or 0)) if fresh else full   # ข้ามวันแล้ว = เต็ม
+    return {"mana": max(0, cur), "mana_max": full, "mana_bar": _mana.bar(max(0, cur), full)}
+
+
 @router.get("/me/game")
 def me_game(request: Request):
     """ข้อมูลตัวละครเต็มสำหรับหน้าเล่นเกม (เว็บเกม เฟส 1.1)
@@ -261,7 +270,9 @@ def me_game(request: Request):
         },
         # current_state บอกว่าตอนนี้ค้างอะไรอยู่ในดิส — ใช้ตัดสินกติกาเล่นสองแพลตฟอร์ม
         "vitals": {"hp": p.get("hp"), "max_hp": p.get("max_hp"),
-                   "sanity": p.get("sanity"), "state": p.get("current_state") or "idle"},
+                   "sanity": p.get("sanity"), "state": p.get("current_state") or "idle",
+                   # 💎 เม็ดคริสตัลที่เหลือวันนี้ — คิดที่เซิร์ฟเวอร์รวมการเติมข้ามวันแล้ว
+                   **{k: v for k, v in _mana_view(p).items()}},
         "money": {"cash": p.get("cash", 0), "bank": p.get("bank", 0)},
         "gear": {
             "armor": {"key": armor_key, "name": armor.get("name", armor_key),
@@ -1159,7 +1170,7 @@ def _fight_action(uid, fight, action):
         raise HTTPException(400, "ไม่รู้จักแอคชั่นนี้")
 
     t = adventure_core.fight_turn(uid, fight, (), skill)
-    if t["outcome"] == "no_player":
+    if t["outcome"] in ("no_player", "no_mana"):     # ไม่กินเทิร์น กดปุ่มอื่นต่อได้เลย
         raise HTTPException(400, t["text"])
 
     out = {"outcome": t["outcome"], "monster": _monster_card(t.get("fight", fight)),
@@ -1169,7 +1180,8 @@ def _fight_action(uid, fight, action):
                     "monster_parts": t.get("monster_parts", [])},
            "damage_to_monster": t.get("damage_to_monster", 0),
            "damage_to_player": t.get("damage_to_player", 0),
-           "healed": t.get("healed", 0),
+           "healed": t.get("healed", 0), "mana": t.get("mana"),
+           "mana_spent": t.get("mana_spent", 0),
            "player_hp": t.get("player_hp", 0)}
 
     if t["outcome"] in ("monster_fled", "player_fled"):
