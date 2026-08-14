@@ -124,6 +124,54 @@
 .rolls-left { display:flex; align-items:center; gap:9px; font-size:13.5px; color:var(--g-muted); }
 .rolls-left b { font-family:var(--g-num); font-size:19px; color:var(--g-gold); }
 
+/* ── คาสิโน (เฟส 3.3) ── */
+.slot-stage, .dice-stage { display:grid; place-items:center; gap:14px; padding:10px 0 18px; }
+.reels { display:flex; gap:10px; padding:16px; border-radius:20px;
+         background:linear-gradient(#100b08,#241a12); border:2px solid #5c4733;
+         box-shadow:inset 0 4px 26px rgba(0,0,0,.8); }
+.reel { width:88px; height:104px; border-radius:12px; background:#2a211a;
+        border:1px solid var(--g-line); display:grid; place-items:center;
+        font-size:44px; overflow:hidden; }
+.reel span { display:block; }
+.reel.spin span { animation:reelSpin 90ms linear infinite; }
+@keyframes reelSpin { 0%{transform:translateY(-42px);opacity:.25}
+                      50%{transform:translateY(0);opacity:1}
+                      100%{transform:translateY(42px);opacity:.25} }
+.reel.hit { border-color:var(--g-gold); box-shadow:0 0 22px rgba(232,176,75,.55);
+            animation:reelPop 420ms var(--g-ease); }
+@keyframes reelPop { 0%{transform:scale(1)} 45%{transform:scale(1.14)} 100%{transform:scale(1)} }
+
+.d6 { width:74px; height:74px; border-radius:16px; display:grid; place-items:center;
+      background:linear-gradient(150deg,#f2e7d8,#c9b79c); color:#241812;
+      font-family:var(--g-num); font-size:36px; font-weight:700;
+      border:2px solid #8a7355; box-shadow:0 5px 0 #6b573d; }
+.dice-stage { grid-auto-flow:column; }
+.d6.roll { animation:d6Roll 620ms var(--g-ease); }
+@keyframes d6Roll { 0%{transform:rotate(0) scale(1)} 30%{transform:rotate(190deg) scale(1.18)}
+                    65%{transform:rotate(340deg) scale(.92)} 100%{transform:rotate(360deg) scale(1)} }
+
+.casino-result { min-height:30px; text-align:center; font-size:15px; font-weight:600;
+                 color:var(--g-muted); }
+.casino-result.win { color:var(--g-gold); animation:pop 420ms var(--g-ease); }
+.casino-result.lose { color:#e8776a; }
+@keyframes pop { 0%{transform:scale(.7);opacity:0} 60%{transform:scale(1.1)}
+                 100%{transform:scale(1);opacity:1} }
+
+.bet-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:center;
+           margin-top:6px; }
+.chips { display:flex; gap:7px; flex-wrap:wrap; justify-content:center; }
+.chips button { border:1px solid var(--g-line); background:var(--g-hi); color:var(--g-ink);
+                border-radius:999px; padding:9px 16px; min-height:44px; cursor:pointer;
+                font-family:var(--g-num); font-size:14px; font-variant-numeric:tabular-nums; }
+.chips button[aria-pressed="true"] { background:var(--g-gold); color:#2b1c06;
+                                     border-color:var(--g-gold); font-weight:700; }
+.chips button:focus-visible { outline:2px solid var(--g-gold); outline-offset:2px; }
+.casino-go { min-height:auto !important; flex-direction:row !important; align-items:center !important;
+             gap:9px; padding:13px 24px !important; }
+.hilo-btns { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px;
+             margin-top:14px; }
+.casino-go[disabled] { opacity:.45; cursor:progress; }
+
 /* ── โปรไฟล์ / กระเป๋า (เฟส 1.3) — กรอบหนาแบบเกมพิกเซล ── */
 .sheet2 { display:grid; grid-template-columns:minmax(180px,236px) 1fr; gap:16px; }
 @media (max-width:720px) { .sheet2 { grid-template-columns:1fr; } }

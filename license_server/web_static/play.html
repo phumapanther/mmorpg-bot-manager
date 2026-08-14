@@ -94,9 +94,9 @@
       </div></div>
 
       <div class="g-sec"><h3>คาสิโน</h3><div class="g-grid">
-        <button class="g-tile soon"><span class="tag">เฟส 3</span>
+        <button class="g-tile" data-go="slots">
           <span class="ic">🎰</span>สล็อต<span class="sub">หมุนลุ้นสามช่องตรง</span></button>
-        <button class="g-tile soon"><span class="tag">เฟส 3</span>
+        <button class="g-tile" data-go="hilo">
           <span class="ic">🎲</span>ไฮโล<span class="sub">สูง-ต่ำ-สิบเอ็ด</span></button>
         <button class="g-tile soon"><span class="tag">เฟส 3</span>
           <span class="ic">🃏</span>แบล็คแจ็ค 24<span class="sub">ดวลกับ AI เจ้ามือ</span></button>
@@ -169,6 +169,50 @@
 
 
 
+
+
+    <!-- ══ สล็อต ══ -->
+    <div class="g-panelview" id="v-slots">
+      <button class="g-back" data-back>← กลับเมนูหลัก</button>
+      <div class="g-head"><h2>🎰 สล็อตแมชชีน</h2>
+        <p>ตรงกัน 3 ตัวได้ ×5 ถึง ×15 · ตรงกัน 2 ตัวได้ ×1.5 — ยิ่งเดิมพันสูง เจ้ามือยิ่งตุกติก</p></div>
+      <div class="g-card">
+        <div class="slot-stage">
+          <div class="reels">
+            <div class="reel" id="sr0"><span>🌀</span></div>
+            <div class="reel" id="sr1"><span>🌀</span></div>
+            <div class="reel" id="sr2"><span>🌀</span></div>
+          </div>
+          <div class="casino-result" id="slotMsg">เลือกเดิมพันแล้วกดหมุน</div>
+        </div>
+        <div class="bet-row">
+          <div class="chips" data-chips="slots"></div>
+          <button class="g-tile hot casino-go" id="spinBtn">
+            <span class="ic">🎰</span>หมุน</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ ไฮโล ══ -->
+    <div class="g-panelview" id="v-hilo">
+      <button class="g-back" data-back>← กลับเมนูหลัก</button>
+      <div class="g-head"><h2>🎲 ไฮโล</h2>
+        <p>สูง (12-18) หรือ ต่ำ (3-10) ได้ ×2 · แทง 11 พอดีได้ ×7</p></div>
+      <div class="g-card">
+        <div class="dice-stage" id="diceStage">
+          <div class="d6" id="d0">?</div><div class="d6" id="d1">?</div><div class="d6" id="d2">?</div>
+        </div>
+        <div class="casino-result" id="hiloMsg">เลือกเดิมพันแล้วเลือกว่าจะแทงอะไร</div>
+        <div class="bet-row">
+          <div class="chips" data-chips="hilo"></div>
+        </div>
+        <div class="hilo-btns">
+          <button class="g-tile casino-go" data-hilo="low"><span class="ic">⬇️</span>ต่ำ 3-10 <span class="sub">×2</span></button>
+          <button class="g-tile hot casino-go" data-hilo="11hilo"><span class="ic">🎯</span>11 พอดี <span class="sub">×7</span></button>
+          <button class="g-tile casino-go" data-hilo="high"><span class="ic">⬆️</span>สูง 12-18 <span class="sub">×2</span></button>
+        </div>
+      </div>
+    </div>
 
     <!-- ══ ร้านค้าไอเทม ══ -->
     <div class="g-panelview" id="v-shop">

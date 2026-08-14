@@ -1,5 +1,5 @@
 // หน้าเล่นเกม Fragment Rift
-// ตัวละคร/กระเป๋า/ธนาคาร/ทองคำแท่ง/คราฟ = ข้อมูลจริง เรียกฟังก์ชันชุดเดียวกับบอทดิส
+// ตัวละคร/กระเป๋า/ธนาคาร/ทองคำแท่ง/คราฟ/ร้านค้า/คาสิโน = ข้อมูลจริง เรียกฟังก์ชันชุดเดียวกับบอทดิส
 // ร้านยศ/กาชา/ทอยเต๋า = ยังเป็นโครงหน้า (เฟส 7-8)
 // กติกา: ไม่มีกฎเกมในไฟล์นี้ — เซิร์ฟเวอร์คำนวณทุกอย่าง ที่นี่แค่วาดกับถามยืนยัน
 renderChrome("/play");
@@ -23,6 +23,7 @@ function showPanel(id) {
   if (id === 'goldbar') fillBars().catch(e => toast(e.message, true));
   if (id === 'craft') fillCraft();
   if (id === 'shop') fillShop();
+  if (id === 'slots' || id === 'hilo') buildChips();
   window.scrollTo({ top: document.getElementById('shell').offsetTop - 80, behavior: 'smooth' });
 }
 document.querySelectorAll('[data-go]').forEach(b => {
@@ -369,6 +370,93 @@ async function useItem(id, name) {
   } catch (e) { toast(e.message, true); }
 }
 
+
+// ══════ คาสิโน (เฟส 3.3) ══════
+// ผลออกที่เซิร์ฟเวอร์ทั้งหมด (รวมระบบเจ้ามือตุกติก) — ตรงนี้แค่เล่นอนิเมชันตามผลที่ได้มา
+const BETS = [1000, 10000, 100000, 1000000];
+const CASINO_BET = { slots: 10000, hilo: 10000 };
+const SLOT_FACES = ['🍒', '🍇', '🍊', '💎', '🔔', '💰'];
+
+function buildChips() {
+  document.querySelectorAll('[data-chips]').forEach(box => {
+    const game = box.dataset.chips;
+    box.innerHTML = BETS.map(v =>
+      '<button data-bet="' + v + '" aria-pressed="' + (v === CASINO_BET[game]) + '">' +
+      fmt(v) + '</button>').join('');
+    box.querySelectorAll('button').forEach(b => b.onclick = () => {
+      CASINO_BET[game] = +b.dataset.bet;
+      box.querySelectorAll('button').forEach(x =>
+        x.setAttribute('aria-pressed', String(x === b)));
+    });
+  });
+}
+
+async function casinoPlay(game, choice) {
+  const bet = CASINO_BET[game];
+  if (LAST && LAST.money.cash < bet) return toast('เงินสดไม่พอเดิมพันจำนวนนี้', true);
+  const btns = document.querySelectorAll('.casino-go');
+  btns.forEach(b => b.disabled = true);
+  try {
+    const r = await api("POST", "/api/web/casino", { game: game, bet: bet, choice: choice || "" });
+    if (!r.ok) { toast(r.result.message, true); return; }
+    if (game === 'slots') await animateSlots(r.result);
+    else await animateHilo(r.result);
+    if (LAST) LAST.money = r.money;
+    document.getElementById('pCash').textContent = fmt(r.money.cash);
+    document.getElementById('pBank').textContent = fmt(r.money.bank);
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    btns.forEach(b => b.disabled = false);
+  }
+}
+
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+async function animateSlots(res) {
+  const msg = document.getElementById('slotMsg');
+  const reels = [0, 1, 2].map(i => document.getElementById('sr' + i));
+  msg.className = 'casino-result';
+  msg.textContent = 'กำลังหมุน...';
+  reels.forEach(r => { r.classList.remove('hit'); r.classList.add('spin'); });
+
+  // หมุนหลอกตาให้ลุ้น แล้วหยุดทีละวงจากซ้ายไปขวา
+  const flick = setInterval(() => reels.forEach(r => {
+    r.querySelector('span').textContent = SLOT_FACES[Math.floor(Math.random() * 6)];
+  }), 90);
+  await wait(700);
+  for (let i = 0; i < 3; i++) {
+    await wait(430);
+    reels[i].classList.remove('spin');
+    reels[i].querySelector('span').textContent = res.reels[i];
+    if (i === 2) clearInterval(flick);
+  }
+  if (res.winnings) reels.forEach(r => r.classList.add('hit'));
+  msg.className = 'casino-result ' + (res.winnings ? 'win' : 'lose');
+  msg.textContent = res.message.replace(/`/g, '');
+}
+
+async function animateHilo(res) {
+  const msg = document.getElementById('hiloMsg');
+  const dice = [0, 1, 2].map(i => document.getElementById('d' + i));
+  msg.className = 'casino-result';
+  msg.textContent = 'กำลังทอย...';
+  dice.forEach(d => { d.classList.remove('roll'); void d.offsetWidth; d.classList.add('roll'); });
+
+  const flick = setInterval(() => dice.forEach(d =>
+    d.textContent = 1 + Math.floor(Math.random() * 6)), 70);
+  await wait(620);
+  clearInterval(flick);
+  res.dice.forEach((v, i) => dice[i].textContent = v);
+  await wait(150);
+  msg.className = 'casino-result ' + (res.winnings ? 'win' : 'lose');
+  msg.textContent = 'รวม ' + res.total + ' — ' + res.message.replace(/`/g, '');
+}
+
+const spinBtn = document.getElementById('spinBtn');
+if (spinBtn) spinBtn.onclick = () => casinoPlay('slots');
+document.querySelectorAll('[data-hilo]').forEach(b =>
+  b.onclick = () => casinoPlay('hilo', b.dataset.hilo));
 
 // ── ร้านค้าไอเทม ──
 let SHOP_MODE = 'buy';

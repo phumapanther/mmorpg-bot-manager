@@ -390,6 +390,33 @@ def item_use(body: UseBody, request: Request):
     return {"ok": ok, "message": msg}
 
 
+class CasinoBody(BaseModel):
+    game: str
+    bet: int
+    choice: str = ""
+
+
+@router.post("/casino")
+def casino(body: CasinoBody, request: Request):
+    """เล่นคาสิโนหนึ่งตา — casino_core ตัวเดียวกับปุ่ม !hilo / !slots ในดิส
+
+    ผลออกที่เซิร์ฟเวอร์ทั้งหมดรวมถึงระบบเจ้ามือตุกติก เบราว์เซอร์แค่เอาไปเล่นอนิเมชัน
+    """
+    uid = require_player(request)["uid"]
+    if body.game not in ("hilo", "slots"):
+        raise HTTPException(400, "ไม่รู้จักเกมนี้")
+    if body.bet <= 0:
+        raise HTTPException(400, "เดิมพันต้องมากกว่า 0")
+
+    from bot import casino_core
+    with _user_lock(uid):
+        if body.game == "hilo":
+            ok, out = casino_core.play_hilo(int(uid), body.choice, body.bet)
+        else:
+            ok, out = casino_core.play_slots(int(uid), body.bet)
+    return {"ok": ok, "result": out, "money": _money_now(uid)}
+
+
 @router.get("/shop/items")
 def shop_items(request: Request):
     """ของที่ร้านขาย — กรอง purchasable เหมือนหน้าร้านในดิสเป๊ะ"""

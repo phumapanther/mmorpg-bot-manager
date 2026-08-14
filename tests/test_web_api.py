@@ -666,3 +666,30 @@ def test_shop_list_hides_unpurchasable(client, tmp_path, monkeypatch):
     ids = {i["id"] for i in client.get("/api/web/shop/items").json()["items"]}
     hidden = {i for i, d in config_loader.get_all_items().items() if d.get("purchasable") is False}
     assert hidden and not (ids & hidden), "ของที่ purchasable=false ต้องไม่โผล่ในร้าน"
+
+
+def test_casino_hilo_and_slots_via_web(client, tmp_path, monkeypatch):
+    pm = _bind_pm(tmp_path, monkeypatch, cash=100000)
+    _login(client)
+    r = client.post("/api/web/casino", json={"game": "hilo", "bet": 1000, "choice": "high"}).json()
+    assert r["ok"] is True
+    res = r["result"]
+    assert len(res["dice"]) == 3 and 3 <= res["total"] <= 18
+    # เงินในตอบกลับต้องตรงกับ DB จริงเสมอ
+    assert r["money"]["cash"] == pm.get_player(555000111)["cash"] == 100000 + res["net"]
+
+    r = client.post("/api/web/casino", json={"game": "slots", "bet": 1000}).json()
+    assert r["ok"] is True and len(r["result"]["reels"]) == 3
+    assert r["money"]["cash"] == pm.get_player(555000111)["cash"]
+
+
+def test_casino_guards(client, tmp_path, monkeypatch):
+    _bind_pm(tmp_path, monkeypatch, cash=100)
+    assert client.post("/api/web/casino", json={"game": "hilo", "bet": 10}).status_code == 401
+    _login(client)
+    assert client.post("/api/web/casino", json={"game": "poker", "bet": 10}).status_code == 400
+    assert client.post("/api/web/casino", json={"game": "hilo", "bet": 0}).status_code == 400
+    # เดิมพันเกินเงินที่มี = ok:false ไม่ใช่ error และต้องไม่หักเงิน
+    r = client.post("/api/web/casino", json={"game": "slots", "bet": 999999})
+    assert r.status_code == 200 and r.json()["ok"] is False
+    assert r.json()["money"]["cash"] == 100
