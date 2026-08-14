@@ -1050,6 +1050,7 @@ async function advAct(action, label, confirmMsg) {
       SFX.play(action.startsWith('skill_') ? 'skill' : 'hit');
     }
     if (action.startsWith('skill_')) SCENE.playSkill(action.slice(6));
+    if (action === 'open') SFX.play('chest');   // ฝาหีบเอี๊ยด — เล่นตอนกด ไม่ต้องรอเซิร์ฟเวอร์เฉลย
 
     const r = await api('POST', '/api/web/adventure/act', { action: action });
 

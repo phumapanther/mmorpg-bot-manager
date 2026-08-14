@@ -114,6 +114,11 @@ const SFX = (() => {
                      noise({ dur: .12, vol: .45 + i * .12, delay: d, hp: 2000 });
                      tone({ freq: 300 - i * 30, dur: .12, type: 'square', vol: .35, delay: d, slide: -120 }); }),
 
+    chest:   () => { noise({ dur: .09, vol: .45, hp: 1400 });          // สลักหีบดีดขึ้น
+                     tone({ freq: 120, dur: .46, type: 'sawtooth', vol: .28, slide: 80 });  // ฝาไม้เอี๊ยด
+                     [1319, 1568, 1976].forEach((f, i) =>              // แสงวาบจากในหีบ
+                       tone({ freq: f, dur: .2, type: 'sine', vol: .3, delay: .3 + i * .07 })); },
+
     // ── กับดัก/หนีไม่รอด ──
     trap:    () => { noise({ dur: .3, vol: .75, hp: 200 });          // ตูมทึบ ๆ แล้วลากต่ำลง
                      tone({ freq: 140, dur: .34, type: 'sawtooth', vol: .55, slide: -90 });
