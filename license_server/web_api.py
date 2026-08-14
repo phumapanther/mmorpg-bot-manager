@@ -1215,3 +1215,76 @@ def _fight_action(uid, fight, action):
     out["pending"] = "monster"
     out["text"] = out["log"] or "⚔️ ยังไม่มีใครล้ม — สู้ต่อ!"
     return out | {"money": _money_now(uid)}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 🛒 ร้านขายยศ + กาชา (เว็บเกม เฟส 7.4)
+# เว็บแจกยศ Discord เองไม่ได้ — หักเงินแล้วโยนเข้า role_grant_queue ให้บอทมาแจก
+# แจกไม่สำเร็จบอทจะคืนเงินให้เอง (ดู bot/cogs/role_grant_worker.py)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_FACTIONS = ("dark", "light")
+
+
+@router.get("/roleshop")
+def roleshop(faction: str, request: Request):
+    """รายการยศ + ราคา + ตู้กาชาของฝ่ายนั้น (อ่านอย่างเดียว)"""
+    uid = int(require_player(request)["uid"])
+    if faction not in _FACTIONS:
+        raise HTTPException(400, "ฝ่ายต้องเป็น dark หรือ light")
+    from bot import role_shop_core
+    return role_shop_core.shop_view(faction, uid)
+
+
+class RoleBuyBody(BaseModel):
+    faction: str
+    value: str = ""
+    action: str = "buy"          # buy = ซื้อเจาะจง | gacha = หมุนตู้
+
+
+def _queue_grant(uid, data):
+    with web_db.connect() as conn:
+        cur = conn.execute(
+            "INSERT INTO role_grant_queue(discord_id, role_id, label, price, kind) "
+            "VALUES (?,?,?,?,?)",
+            (str(uid), int(data["role_id"]), data["label"], int(data["price"]), data["kind"]))
+    return cur.lastrowid
+
+
+@router.post("/roleshop")
+def roleshop_buy(body: RoleBuyBody, request: Request):
+    """ซื้อยศ / หมุนกาชา — ตรรกะเดียวกับปุ่มใน !darkshop / !lightshop"""
+    uid = int(require_player(request)["uid"])
+    if body.faction not in _FACTIONS:
+        raise HTTPException(400, "ฝ่ายต้องเป็น dark หรือ light")
+    from bot import role_shop_core
+
+    with _user_lock(uid):
+        if body.action == "gacha":
+            ok, data = role_shop_core.prepare_gacha(uid, body.faction)
+        elif body.action == "buy":
+            ok, data = role_shop_core.prepare_buy(uid, body.faction, body.value)
+        else:
+            raise HTTPException(400, "ไม่รู้จักแอคชั่นนี้")
+        if not ok:
+            raise HTTPException(400, data["error"])
+        ticket = _queue_grant(uid, data)
+
+    return {"ok": True, "ticket": ticket, "kind": data["kind"], "label": data["label"],
+            "price": data["price"], "money": _money_now(uid),
+            "text": ("🎲 หมุนกาชาแล้ว! บอทกำลังนำยศไปมอบให้ในดิสคอร์ด"
+                     if data["kind"] == "gacha" else
+                     "🎉 ซื้อสำเร็จ! บอทกำลังนำยศไปมอบให้ในดิสคอร์ด")}
+
+
+@router.get("/roleshop/ticket/{ticket_id}")
+def roleshop_ticket(ticket_id: int, request: Request):
+    """เช็คว่าบอทแจกยศให้แล้วหรือยัง — หน้าเว็บถามซ้ำจนกว่าจะไม่ pending"""
+    uid = str(require_player(request)["uid"])
+    with web_db.connect() as conn:
+        row = conn.execute("SELECT * FROM role_grant_queue WHERE id=? AND discord_id=?",
+                           (ticket_id, uid)).fetchone()
+    if not row:
+        raise HTTPException(404, "ไม่พบรายการนี้")
+    return {"status": row["status"], "label": row["label"], "kind": row["kind"],
+            "note": row["note"] or "", "money": _money_now(int(uid))}

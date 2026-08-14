@@ -2,6 +2,7 @@
 """ฐานข้อมูลเว็บไซต์เกม (web.db) — แยกจาก licenses.db เด็ดขาด
 
 ตาราง: news (ข่าว) · login_codes (โค้ดล็อกอินผ่านบอท) · topups (รายการเติมเงิน = audit log ในตัว)
+       role_grant_queue (สะพานให้บอทแจกยศแทนเว็บ — เว็บแจกยศ Discord เองไม่ได้)
 """
 import sqlite3
 from pathlib import Path
@@ -35,6 +36,19 @@ CREATE TABLE IF NOT EXISTS admin_logs (
     guild TEXT DEFAULT '',
     used_at TEXT DEFAULT (datetime('now', 'localtime'))
 );
+CREATE TABLE IF NOT EXISTS role_grant_queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    discord_id TEXT NOT NULL,
+    role_id INTEGER NOT NULL,
+    label TEXT DEFAULT '',
+    price INTEGER DEFAULT 0,          -- ไว้คืนเงินถ้าแจกไม่สำเร็จ
+    kind TEXT DEFAULT 'buy',          -- buy = ซื้อเจาะจง | gacha = หมุนได้มา
+    status TEXT DEFAULT 'pending',    -- pending | done | duplicate | failed | refunded
+    note TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now', 'localtime')),
+    resolved_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_grant_pending ON role_grant_queue(status, id);
 CREATE TABLE IF NOT EXISTS topups (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     discord_id TEXT NOT NULL,

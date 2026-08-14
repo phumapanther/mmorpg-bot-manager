@@ -23,6 +23,8 @@ function showPanel(id) {
   if (id === 'goldbar') fillBars().catch(e => toast(e.message, true));
   if (id === 'craft') fillCraft();
   if (id === 'shop') fillShop();
+  if (id === 'roleshop') fillRoleShop().catch(e => toast(e.message, true));
+  if (id === 'gacha') fillGacha().catch(e => toast(e.message, true));
   if (id === 'slots' || id === 'hilo' || id === 'bj') buildChips();
   if (id === 'bj') bjRestore();
   if (id === 'scene') initScene().catch(e => toast(e.message, true));
@@ -35,20 +37,136 @@ document.querySelectorAll('[data-go]').forEach(b => {
 document.querySelectorAll('[data-back]').forEach(b =>
   b.addEventListener('click', () => showPanel('home')));
 
-// ── ตัวอย่างรายการยศ (เฟส 7 จะดึงจาก auto_trade_roles จริง) ──
-const DEMO_ROLES = [
-  { n: '♆ Maou-sama ⚓️', p: 300000000, c: '#8f2317' },
-  { n: '💀 NECROMANCER', p: 100000000, c: '#5b3a8f' },
-  { n: '👹 Giant-King', p: 50000000, c: '#8f5a17' },
-  { n: '🕯️ Asmodeus', p: 20000000, c: '#2f6d84' },
-];
-document.getElementById('roleList').innerHTML = DEMO_ROLES.map(r => `
-  <div class="role-card" style="--rc:${r.c}">
-    <div class="rn">${esc(r.n)}</div>
-    <div class="rp">${r.p.toLocaleString()} ทอง</div>
-    <button disabled style="opacity:.5;cursor:not-allowed">ยังเปิดไม่ได้ (เฟส 7)</button>
-  </div>`).join('');
-document.getElementById('gachaPrice').textContent = '10,000,000 ทอง/ครั้ง';
+// ── ร้านขายยศ + กาชา (เฟส 7) ──
+// เว็บแจกยศ Discord เองไม่ได้ — กดซื้อแล้วเซิร์ฟเวอร์โยนเข้าคิวให้บอทมาแจก
+// หน้านี้จึงต้องถามสถานะซ้ำจนกว่าบอทจะจัดการเสร็จ แล้วค่อยเฉลยผล
+const FACTIONS = [['dark', '🩸 ฝ่ายความมืด'], ['light', '🕊️ ฝ่ายแสงสว่าง']];
+let ROLE_FACTION = 'dark';
+let GACHA_FACTION = 'dark';
+let SHOP_BUSY = false;
+
+/** ถามสถานะตั๋วจนกว่าบอทจะแจกเสร็จ (หรือหมดเวลา) */
+async function waitTicket(id, onTick) {
+  for (let i = 0; i < 20; i++) {
+    await new Promise(r => setTimeout(r, i < 3 ? 700 : 1600));
+    const t = await api('GET', '/api/web/roleshop/ticket/' + id);
+    if (onTick) onTick(t);
+    if (t.status !== 'pending') return t;
+  }
+  return { status: 'pending', note: 'บอทยังไม่ได้หยิบรายการนี้ — เดี๋ยวจะมอบยศให้เองภายหลัง' };
+}
+
+async function fillRoleShop() {
+  chipRow(document.getElementById('roleFactions'), FACTIONS, v => {
+    ROLE_FACTION = v; fillRoleShop();
+  }, ROLE_FACTION);
+  const box = document.getElementById('roleList');
+  box.innerHTML = '<div class="g-note">กำลังโหลด...</div>';
+  try {
+    const d = await api('GET', '/api/web/roleshop?faction=' + ROLE_FACTION);
+    box.innerHTML = d.roles.map((r, i) => `
+      <div class="role-card" style="--rc:${ROLE_FACTION === 'dark' ? '#8f2317' : '#2f6d84'}">
+        <div class="rn">${esc(r.emoji || '')} ${esc(r.label)}</div>
+        <div class="rp">${fmt(r.price)} ทอง</div>
+        <button data-buy="${i}">ซื้อยศนี้</button>
+      </div>`).join('');
+    box.querySelectorAll('[data-buy]').forEach(btn => {
+      const r = d.roles[+btn.dataset.buy];
+      btn.onclick = () => buyRole(r);
+    });
+  } catch (e) {
+    box.innerHTML = '<div class="g-note">โหลดร้านไม่สำเร็จ: ' + esc(e.message) + '</div>';
+  }
+}
+
+async function buyRole(r) {
+  if (SHOP_BUSY) return;
+  if (!await confirmAction({
+        title: r.label, message: 'ซื้อยศนี้ด้วยทองในเกม',
+        lines: [['ราคา', fmt(r.price) + ' ทอง'],
+                ['ผู้มอบยศ', 'บอทในเซิร์ฟ Discord'],
+                ['ถ้ามอบไม่สำเร็จ', 'คืนเงินอัตโนมัติ']],
+        okText: 'ซื้อเลย' })) return;
+
+  SHOP_BUSY = true;
+  try {
+    const res = await api('POST', '/api/web/roleshop',
+                          { faction: ROLE_FACTION, action: 'buy', value: r.value });
+    toast('กำลังมอบยศ ' + r.label + '...');
+    boot();
+    const t = await waitTicket(res.ticket);
+    const msg = { done: '🎉 ได้รับยศ ' + r.label + ' แล้ว!',
+                  refunded: '↩️ มอบยศไม่สำเร็จ — ' + (t.note || 'คืนเงินแล้ว'),
+                  duplicate: '❌ คุณมียศนี้อยู่แล้ว' }[t.status] || t.note || 'รอบอทมอบยศ';
+    toast(msg, t.status !== 'done');
+    boot();
+  } catch (e) {
+    toast(e.message, true);
+  } finally { SHOP_BUSY = false; }
+}
+
+async function fillGacha() {
+  chipRow(document.getElementById('gachaFactions'), FACTIONS, v => {
+    GACHA_FACTION = v; fillGacha();
+  }, GACHA_FACTION);
+  try {
+    const d = await api('GET', '/api/web/roleshop?faction=' + GACHA_FACTION);
+    document.getElementById('gachaPrice').textContent =
+      fmt(d.gacha.price) + ' ทอง/ครั้ง · ในตู้มี ' + d.gacha.pool_size + ' ยศ';
+    document.getElementById('gachaBtn').onclick = () => spinGacha(d.gacha.price);
+  } catch (e) {
+    document.getElementById('gachaPrice').textContent = 'โหลดไม่สำเร็จ';
+  }
+}
+
+async function spinGacha(price) {
+  if (SHOP_BUSY) return;
+  if (!await confirmAction({
+        title: '🎰 หมุนกาชาสุ่มยศ', message: 'จ่ายค่าหมุนหนึ่งครั้ง',
+        lines: [['ค่าหมุน', fmt(price) + ' ทอง'],
+                ['ได้ของซ้ำ', 'ไม่คืนเงิน (จ่ายค่าหมุน ไม่ใช่ค่ายศ)']],
+        okText: 'หมุนเลย', danger: true })) return;
+
+  const machine = document.getElementById('gachaMachine');
+  const card = document.getElementById('gachaCard');
+  const won = document.getElementById('gachaWon');
+  const state = document.getElementById('gachaState');
+
+  SHOP_BUSY = true;
+  card.hidden = true;
+  card.className = 'gacha-card';
+  machine.classList.add('spin');
+  try {
+    const res = await api('POST', '/api/web/roleshop',
+                          { faction: GACHA_FACTION, action: 'gacha' });
+    await new Promise(r => setTimeout(r, 1500));      // ให้ลูกแก้วหมุนเห็น ๆ ก่อนเฉลย
+    machine.classList.remove('spin');
+    machine.classList.add('pop');
+    setTimeout(() => machine.classList.remove('pop'), 500);
+
+    won.textContent = res.label;
+    state.textContent = 'กำลังมอบยศในดิสคอร์ด...';
+    card.hidden = false;
+    boot();
+
+    const t = await waitTicket(res.ticket);
+    if (t.status === 'done') {
+      state.textContent = '🎉 แจ็คพอตแตก! ยศถูกมอบให้ในดิสคอร์ดแล้ว';
+    } else if (t.status === 'duplicate') {
+      card.className = 'gacha-card dup';
+      state.textContent = '💀 เกลือ! คุณมียศนี้อยู่แล้ว';
+    } else if (t.status === 'refunded') {
+      card.className = 'gacha-card fail';
+      state.textContent = '↩️ ' + (t.note || 'มอบยศไม่สำเร็จ — คืนเงินแล้ว');
+    } else {
+      state.textContent = '⏳ ' + (t.note || 'รอบอทมอบยศ');
+    }
+    boot();
+  } catch (e) {
+    machine.classList.remove('spin');
+    toast(e.message, true);
+  } finally { SHOP_BUSY = false; }
+}
 
 // ── กระดานทอยเต๋า: วาดช่องตัวอย่าง (เฟส 8 จะสร้างจากธีมสัปดาห์จริง) ──
 const TILES = ['🏁','🪙','💉','🌟','🪙','🧭','📦','🪙','🧪','🎁','🪙','🛠️','🌟','🪙','💎','🪙',
@@ -60,8 +178,6 @@ document.getElementById('board').innerHTML = TILES.map((t, i) => {
 
 document.getElementById('rollBtn').addEventListener('click', () =>
   alert('ยังทอยไม่ได้ครับ — ระบบนี้อยู่ในเฟส 8 ของแผน\nตอนนี้เป็นการวางโครงหน้าเท่านั้น'));
-document.getElementById('gachaBtn').addEventListener('click', () =>
-  alert('ยังหมุนไม่ได้ครับ — ระบบนี้อยู่ในเฟส 7 ของแผน\nตอนนี้เป็นการวางโครงหน้าเท่านั้น'));
 
 // ── โหลดตัวละครจริง (เฟส 1.1) ──
 // ทุกค่าที่ใช้แสดงผลถูกแปลงมาจากฝั่งเซิร์ฟเวอร์แล้ว — ตรงนี้แค่วางลงหน้าจอ

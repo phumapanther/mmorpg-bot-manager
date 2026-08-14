@@ -353,10 +353,11 @@
       <button class="g-back" data-back>← กลับเมนูหลัก</button>
       <div class="g-head"><h2>👑 ร้านขายยศ</h2>
         <p>ซื้อยศเผ่าพันธุ์และคลาสอาชีพด้วยทองในเกม — ยศจะถูกมอบให้ในเซิร์ฟ Discord อัตโนมัติ</p></div>
+      <div class="field-row"><label>เลือกฝ่าย</label>
+        <div class="chips" id="roleFactions"></div></div>
       <div class="g-cards" id="roleList"></div>
-      <p class="g-note"><b>โครงหน้าเท่านั้น</b> — ยังไม่เชื่อมข้อมูลจริง (เฟส 7)
-      ของจริงจะดึงรายการยศจาก <code>auto_trade_roles</code> ในคอนฟิก และให้บอทเป็นคนมอบยศ
-      เพราะเว็บแจกยศ Discord เองไม่ได้</p>
+      <p class="g-note">ยศถูกมอบโดยบอทในเซิร์ฟ Discord (เว็บแจกยศเองไม่ได้) —
+      กดซื้อแล้วรอไม่กี่วินาที ถ้าบอทมอบไม่สำเร็จระบบ<b>คืนเงินให้อัตโนมัติ</b></p>
     </div>
 
     <!-- ══ กาชา ══ -->
@@ -365,15 +366,23 @@
       <div class="g-head"><h2>🎰 กาชาสุ่มยศ</h2>
         <p>จ่ายทองหนึ่งครั้ง สุ่มยศหายากจากตู้ — ได้ของซ้ำก็มี ลุ้นกันไป</p></div>
       <div class="g-card">
+        <div class="field-row"><label>เลือกฝ่าย</label>
+          <div class="chips" id="gachaFactions"></div></div>
         <div class="gacha-wrap">
-          <div class="gacha-machine"><div class="gacha-orb"></div><div class="gacha-slot"></div></div>
+          <div class="gacha-machine" id="gachaMachine">
+            <div class="gacha-orb"></div><div class="gacha-slot"></div></div>
+          <div class="gacha-card" id="gachaCard" hidden>
+            <div class="gc-inner"><div class="gc-glow"></div>
+              <div class="gc-label" id="gachaWon">—</div>
+              <div class="gc-sub" id="gachaState">กำลังมอบยศ...</div></div>
+          </div>
           <button class="g-tile hot" style="min-height:auto;flex-direction:row;align-items:center;
                   gap:10px;padding:14px 26px" id="gachaBtn">
             <span class="ic">🎲</span>หมุนกาชา<span class="sub" id="gachaPrice"></span></button>
         </div>
       </div>
-      <p class="g-note"><b>โครงหน้าเท่านั้น</b> — ปุ่มยังไม่หักเงินจริง (เฟส 7)
-      ของจริงจะมีอนิเมชันเต็ม: ลูกแก้วสั่น → แสงพุ่ง → การ์ดยศพลิกเปิด → เอฟเฟกต์แรงตามระดับยศที่ได้</p>
+      <p class="g-note">ตู้กาชามีเฉพาะยศระดับหายาก — <b>สุ่มได้ของซ้ำก็มี</b> (เกลือ)
+      ไม่มีคืนเงินเพราะจ่ายค่าหมุน ไม่ใช่ค่ายศ · ยศถูกมอบโดยบอทในดิสคอร์ด</p>
     </div>
 
     <!-- ══ รางวัล / ทอยเต๋า ══ -->
