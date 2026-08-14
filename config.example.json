@@ -1772,7 +1772,10 @@
       "normal_max": 18,
       "normal_miss_max": 7,
       "normal_hit_pct": 90,
-      "skill_max": 20
+      "skill_max": 20,
+      "level_per_die": 25,
+      "max_dice": 8,
+      "pet_die_max": 6
     },
     "skill": {
       "damage_bonus_mult": 1.3

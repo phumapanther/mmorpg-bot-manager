@@ -135,6 +135,29 @@ def roll_player_die(rng=random, skill_used=None):
     return rng.randint(1, max(1, min(miss_hi, lo - 1)))
 
 
+def player_dice_count(player):
+    """🎲 ผู้เล่นทอยกี่ลูก (2026-08-14) — เดิมทอยลูกเดียวตายตัวทุกคน
+
+    ฐาน 1 ลูก + 1 ลูกทุก 25 เลเวล + ลูกที่ได้จากสัตว์เลี้ยงที่พาไปด้วย
+    คืน (รวมทั้งหมด, จากเลเวล, จากสัตว์เลี้ยง) — ตั้งค่าได้ที่ Panel ทุกตัว
+    """
+    from bot import pets as _pets
+    try:
+        per = int(config_loader.get_balance("dice.level_per_die", 25))
+        cap = int(config_loader.get_balance("dice.max_dice", 8))
+    except (TypeError, ValueError):
+        per, cap = 25, 8
+    lvl_dice = (int(player.get("level", 1) or 1) // per) if per > 0 else 0
+    pet_dice = int(_pets.roll_bonus(player) or 0)
+
+    # ชนเพดานแล้วตัด "เต๋าสัตว์เลี้ยง" ก่อนเสมอ — เต๋าที่ปั้นมาเองจากเลเวลต้องไม่โดนกิน
+    own = 1 + lvl_dice
+    if own >= cap:
+        return max(1, cap), lvl_dice, 0
+    pet_dice = min(pet_dice, cap - own)
+    return own + pet_dice, lvl_dice, pet_dice
+
+
 def roll_combat(user_id, player, statuses, element_data, m_stats, player_elements,
                 rng=random, skill_used=None):
     """ทอยเต๋าหนึ่งเทิร์น — คืนแต้มผู้เล่น/มอน พร้อม "ที่มาของแต้ม" ไว้โชว์บนจอ
@@ -148,11 +171,24 @@ def roll_combat(user_id, player, statuses, element_data, m_stats, player_element
     (statuses อาจเปลี่ยนเมื่อโคลเวอร์ถูกใช้กันราก)
     """
     dice_n = m_stats.get("dice_count", 1)
-    player_roll = roll_player_die(rng, skill_used)
+    my_dice, lvl_dice, pet_dice = player_dice_count(player)
+    # เต๋าของตัวเอง (ฐาน + จากเลเวล) ทอยเต็มช่วงปกติ
+    # ส่วนเต๋าสัตว์เลี้ยงเป็นลูกเล็ก 1-6 กันแต้มเฟ้อจนล้นเกม (ตั้งได้ที่ Panel)
+    own_dice = max(1, my_dice - pet_dice)
+    pet_die_max = int(config_loader.get_balance("dice.pet_die_max", 6) or 6)
+    player_roll = sum(roll_player_die(rng, skill_used) for _ in range(own_dice))
+    pet_points = sum(rng.randint(1, pet_die_max) for _ in range(pet_dice))
+    player_roll += pet_points
     monster_roll = sum(rng.randint(1, 20) for _ in range(dice_n))
-    parts = [f"`{player_roll}` พื้นฐาน" + ("" if skill_used else " (ตีปกติ)")]
+    parts = [f"`{player_roll - pet_points}` พื้นฐาน"
+             + (f" ({own_dice} เต๋า)" if own_dice > 1 else "")
+             + ("" if skill_used else " ตีปกติ")]
     mon_parts = [f"`{monster_roll}` พื้นฐาน" + (f" ({dice_n} เต๋า)" if dice_n > 1 else "")]
     log = ""
+    if my_dice > 1:
+        log += (f"🎲 **คุณทอย {my_dice} ลูกรวมกัน** — ของตัวเอง {own_dice} ลูก"
+                + (f" + สัตว์เลี้ยง {pet_dice} ลูก (ลูกละ 1-{pet_die_max})" if pet_dice else "")
+                + "\n")
 
     # 👝 ถุงเต๋าเทพี / 🍄 สถานะถ่วงเต๋า
     roll_bonus = game_modifiers.status_roll_bonus(statuses)
@@ -172,17 +208,9 @@ def roll_combat(user_id, player, statuses, element_data, m_stats, player_element
         parts.append(f"💨+{wind_bonus}")
         log += f"💨 **สายลมประจำตัวหนุนลูกเต๋า** `+{wind_bonus}` (รวม {player_roll})\n"
 
-    # 🐾 สัตว์เลี้ยงที่ติดตัว
-    try:
-        from bot import pets as _pets
-        pet_bonus = _pets.roll_bonus(player)
-        if pet_bonus:
-            player_roll += pet_bonus
-            parts.append(f"🐾+{pet_bonus}")
-            log += (f"🐾 **{_pets.active(player)['name']} ส่งเสียงเชียร์!** "
-                    f"เต๋า `+{pet_bonus}` (รวม {player_roll})\n")
-    except Exception as e:
-        print(f"⚠️ [pets] โบนัสเต๋าพัง: {e}")
+    # 🐾 สัตว์เลี้ยง: เพิ่ม "จำนวนลูก" แบบลูกเล็ก 1-6 (ดู player_dice_count)
+    if pet_dice:
+        parts.append(f"🐾+{pet_points} ({pet_dice} ลูก)")
 
     # 🎲 เต๋าถ่วงน้ำหนัก: การันตีแต้มขั้นต่ำ (ก่อนราก/เต๋าหลุดมือ)
     weighted_min = game_modifiers.status_min_roll(statuses)

@@ -94,11 +94,42 @@ def test_the_dice_summary_is_computed_on_the_server():
     assert "prDice" in JS and "normal_cap" in JS
 
 
-def test_the_player_always_rolls_exactly_one_die():
-    """ผู้เล่นทอยลูกเดียวเสมอ ที่ทอยหลายลูกคือฝั่งมอน"""
+def test_the_dice_count_grows_with_level_and_pets():
+    """เดิมทุกคนทอยลูกเดียวตายตัว — ตอนนี้ +1 ลูกทุก 25 เลเวล และสัตว์เลี้ยงเพิ่มอีก"""
+    from bot import adventure_core
+    assert adventure_core.player_dice_count({"level": 1, "pet": ""})[0] == 1
+    assert adventure_core.player_dice_count({"level": 24, "pet": ""})[0] == 1
+    assert adventure_core.player_dice_count({"level": 25, "pet": ""})[0] == 2
+    assert adventure_core.player_dice_count({"level": 100, "pet": ""})[0] == 5
+    with_pet = adventure_core.player_dice_count({"level": 25, "pet": "wolfpup"})
+    assert with_pet[0] == 4 and with_pet[2] == 2, "หมาป่าต้องเพิ่ม 2 ลูก"
+
+
+def test_pet_dice_are_small_so_points_do_not_inflate():
+    """เต๋าสัตว์เลี้ยงลูกละ 1-6 เท่านั้น ไม่ใช่เต็มช่วงเหมือนเต๋าตัวเอง"""
     core = pathlib.Path("bot/adventure_core.py").read_text(encoding="utf-8")
-    assert "player_roll = roll_player_die(rng, skill_used)" in core
-    assert '"dice_count": 1' in API
+    assert 'config_loader.get_balance("dice.pet_die_max", 6)' in core
+    assert "rng.randint(1, pet_die_max) for _ in range(pet_dice)" in core
+
+    import json
+    cfg = json.load(open("config.example.json", encoding="utf-8"))
+    assert cfg["game_balance"]["dice"]["pet_die_max"] == 6
+
+
+def test_dice_count_has_a_ceiling(monkeypatch):
+    """กันเต๋าเฟ้อจนไร้ความหมาย — ต้องมีเพดานจำนวนลูก"""
+    from bot import adventure_core, config_loader
+    monkeypatch.setattr(config_loader, "get_balance",
+                        lambda k, d=None: {"dice.level_per_die": 1, "dice.max_dice": 8}.get(k, d))
+    assert adventure_core.player_dice_count({"level": 9999, "pet": "dragonling"})[0] == 8
+
+
+def test_both_platforms_share_the_dice_count_rule():
+    """ดิสกับเว็บใช้ roll_combat ตัวเดียวกัน จำนวนเต๋าจึงต้องตรงกันเสมอ"""
+    core = pathlib.Path("bot/adventure_core.py").read_text(encoding="utf-8")
+    assert "my_dice, lvl_dice, pet_dice = player_dice_count(player)" in core
+    gv = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
+    assert "adventure_core.fight_turn(" in gv, "ดิสต้องเรียกเส้นทางเดียวกัน"
 
 
 def test_max_hp_shown_includes_the_armor_bonus():
@@ -131,3 +162,11 @@ def test_the_api_sends_the_maximum_so_the_page_can_do_the_maths():
     assert '"dur_max"' in API and '"dur_pct"' in API
     assert "o.dur_pct" in JS, "หน้าเว็บต้องใช้ % ที่เซิร์ฟเวอร์คิดให้ ไม่คิดเอง"
     assert "${o.dur}%" not in JS, "ยังมีที่เอาเลขดิบไปติด % ตรง ๆ อยู่"
+
+
+def test_the_dice_cap_trims_pet_dice_not_your_own():
+    """เต๋าที่ปั้นมาเองจากเลเวลต้องไม่โดนเพดานกิน — ตัดของสัตว์เลี้ยงก่อนเสมอ"""
+    from bot import adventure_core
+    total, lvl, pet = adventure_core.player_dice_count({"level": 100, "pet": "dragonling"})
+    assert total == 8 and total - pet == 1 + lvl, \
+        f"Lv100 ควรได้เต๋าตัวเอง {1+lvl} ลูกครบ แต่ได้ {total-pet}"

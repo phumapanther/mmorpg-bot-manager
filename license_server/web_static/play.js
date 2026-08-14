@@ -397,22 +397,25 @@ function paintProfile(g) {
   document.getElementById('prCont').textContent = id.continent_label || '—';
   document.getElementById('prArt').textContent = (gear.artifact_slots ?? 1) + ' ช่อง';
 
-  // 🎲 สรุปเต๋า — ตอบคำถามที่ถามบ่อยว่าทำไมไม่เคยทอยเกิน 20
+  // 🎲 สรุปเต๋า — ตอบคำถามที่ถามบ่อยว่าทอยได้สูงสุดเท่าไหร่ เพราะอะไร
   const dc = g.dice || {};
   document.getElementById('prDice').textContent =
-    `${dc.dice_count ?? 1} ลูก` + (dc.bonus_total ? `  (+${dc.bonus_total})` : '');
-  document.getElementById('prDiceDetail').innerHTML =
-    `⚔️ ตีปกติ ทอย <b>${dc.normal_min}-${dc.normal_max}</b>` +
-    (dc.bonus_total ? ` + โบนัส <b>${dc.bonus_total}</b>` : '') +
-    ` → สูงสุด <b class="cap">${dc.normal_cap}</b><br>` +
-    `✨ ใช้สกิล ทอย <b>1-${dc.skill_max}</b>` +
-    (dc.bonus_total ? ` + โบนัส <b>${dc.bonus_total}</b>` : '') +
-    ` → สูงสุด <b class="cap">${dc.skill_cap}</b>` +
-    ((dc.bonus || []).length
-      ? '<br>' + dc.bonus.map(b => `${esc(b.from)} <b>+${b.value}</b>`).join(' · ')
-      : '<br><span style="color:#a99274">ยังไม่มีโบนัสเต๋า — พาสัตว์เลี้ยงไปด้วยจะได้เพิ่ม</span>');
+    `${dc.dice_count ?? 1} ลูก` +
+    (dc.pet_dice ? `  (ของตัวเอง ${dc.own_dice} + สัตว์เลี้ยง ${dc.pet_dice})` : '');
+  const line = [];
+  line.push(`⚔️ ตีปกติ — เต๋าตัวเอง <b>${dc.own_dice}</b> ลูก (ลูกละ ${dc.normal_min}-${dc.normal_max})` +
+            (dc.pet_dice ? ` + สัตว์เลี้ยง <b>${dc.pet_dice}</b> ลูก (ลูกละ 1-${dc.pet_die_max})` : '') +
+            (dc.bonus_total ? ` + โบนัส <b>${dc.bonus_total}</b>` : '') +
+            ` → สูงสุด <b class="cap">${dc.normal_cap}</b>`);
+  line.push(`✨ ใช้สกิล — ลูกละ 1-${dc.skill_max} → สูงสุด <b class="cap">${dc.skill_cap}</b>`);
+  line.push(`📈 ได้เต๋าเพิ่ม 1 ลูกทุก <b>${dc.level_per_die}</b> เลเวล` +
+            (dc.next_die_at ? ` · ลูกถัดไปที่ <b>Lv ${dc.next_die_at}</b>` : ''));
+  if ((dc.bonus || []).length)
+    line.push(dc.bonus.map(b => `${esc(b.from)} <b>+${b.value}</b>`).join(' · '));
+  if (!dc.pet_dice)
+    line.push('<span style="color:#a99274">พาสัตว์เลี้ยงไปด้วยจะได้เต๋าเพิ่มอีก</span>');
+  document.getElementById('prDiceDetail').innerHTML = line.join('<br>');
 
-  // % คิดจากของเต็มของชิ้นนั้น (เซิร์ฟเวอร์ส่งมาให้แล้ว) ไม่ใช่เอาเลขดิบมาติด %
   const durBar = o => {
     if (!o || o.dur == null) return '';
     const pct = o.dur_pct ?? 0;

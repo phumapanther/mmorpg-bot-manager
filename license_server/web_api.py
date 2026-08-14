@@ -211,33 +211,43 @@ def _role_names_of(p):
 
 
 def _dice_view(p, role_names):
-    """🎲 สรุปเต๋าของผู้เล่น ณ ตอนนี้ — ผู้เล่นทอยลูกเดียวเสมอ แต่มีโบนัสบวกทับ
+    """🎲 สรุปเต๋าของผู้เล่น ณ ตอนนี้ (ปรับ 2026-08-14 — ทอยหลายลูกได้แล้ว)
 
-    ผู้เล่นถามบ่อยว่า "ทำไมไม่เคยทอยเกิน 20" — คำตอบคือเพดาน = ฐานสูงสุด + โบนัส
-    ถ้าโบนัสรวมได้ 2 เพดานตีปกติจะเท่ากับ 20 พอดี ไม่มีทางเกิน
+    ฐาน 1 ลูก + 1 ลูกทุก 25 เลเวล + ลูกจากสัตว์เลี้ยง
+    เต๋าของตัวเองทอยเต็มช่วง (ตีปกติ 8-18 / สกิล 1-20)
+    เต๋าสัตว์เลี้ยงเป็นลูกเล็ก 1-6 กันแต้มเฟ้อ
     """
-    from bot import config_loader, game_modifiers, pets
-    lo = int(config_loader.get_balance("dice.normal_min", 12))
-    hi = int(config_loader.get_balance("dice.normal_max", 19))
+    from bot import adventure_core, config_loader, game_modifiers, pets
+    lo = int(config_loader.get_balance("dice.normal_min", 8))
+    hi = int(config_loader.get_balance("dice.normal_max", 18))
     skill_max = int(config_loader.get_balance("dice.skill_max", 20))
+    pet_max = int(config_loader.get_balance("dice.pet_die_max", 6))
+    per = int(config_loader.get_balance("dice.level_per_die", 25))
+
+    total, lvl_dice, pet_dice = adventure_core.player_dice_count(p)
+    own = max(1, total - pet_dice)
 
     els = game_modifiers.resolve_player_elements(role_names)
     bonus = []
-    pet_b = pets.roll_bonus(p)
-    if pet_b:
-        pet_name = next((x["name"] for x in pets.all_pets() if x["key"] == p.get("pet")), "สัตว์เลี้ยง")
-        bonus.append({"from": f"🐾 {pet_name}", "value": pet_b})
     wind = game_modifiers.player_passive_sum(els, "roll_bonus")
     if wind:
         bonus.append({"from": "💨 ธาตุลมประจำตัว", "value": wind})
     st_b = game_modifiers.status_roll_bonus(game_modifiers.parse_statuses(p))
     if st_b:
         bonus.append({"from": "👝 สถานะติดตัว", "value": st_b})
+    flat = sum(b["value"] for b in bonus)
 
-    total = sum(b["value"] for b in bonus)
-    return {"dice_count": 1, "normal_min": lo, "normal_max": hi, "skill_max": skill_max,
-            "bonus": bonus, "bonus_total": total,
-            "normal_cap": hi + total, "skill_cap": skill_max + total}
+    pet_name = next((x["name"] for x in pets.all_pets() if x["key"] == p.get("pet")), "")
+    lvl = int(p.get("level", 1) or 1)
+    return {
+        "dice_count": total, "own_dice": own, "level_dice": lvl_dice, "pet_dice": pet_dice,
+        "pet_name": pet_name, "level_per_die": per,
+        "next_die_at": ((lvl // per) + 1) * per if per > 0 else None,
+        "normal_min": lo, "normal_max": hi, "skill_max": skill_max, "pet_die_max": pet_max,
+        "bonus": bonus, "bonus_total": flat,
+        "normal_cap": own * hi + pet_dice * pet_max + flat,
+        "skill_cap": own * skill_max + pet_dice * pet_max + flat,
+    }
 
 
 def _mana_view(p):
