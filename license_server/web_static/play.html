@@ -43,9 +43,9 @@
       <div class="g-sec"><h3>ออกผจญภัย</h3><div class="g-grid">
         <button class="g-tile hot" data-go="scene">
           <span class="ic">🧭</span>เริ่มออกเดินทาง<span class="sub">ทดลองฉาก (เฟส 4)</span></button>
-        <button class="g-tile soon"><span class="tag">เฟส 5</span>
-          <span class="ic">⏩</span>เดินต่อ ×5<span class="sub">เดินรวดจนเจอเหตุการณ์</span></button>
-        <button class="g-tile soon"><span class="tag">เฟส 5</span>
+        <button class="g-tile" data-go="scene">
+          <span class="ic">⏩</span>เดินเร็ว ×5<span class="sub">ข้ามช่วงที่ไม่มีอะไร</span></button>
+        <button class="g-tile" data-go="atlas">
           <span class="ic">🗺️</span>สรุปทุกทวีป<span class="sub">9 ทวีป 7 ธาตุ</span></button>
       </div></div>
 
@@ -71,7 +71,7 @@
           <span class="ic">🧈</span>ทองคำแท่ง<span class="sub">แลกเก็บมูลค่า</span></button>
         <button class="g-tile" data-go="shop">
           <span class="ic">🏪</span>ร้านค้าไอเทม<span class="sub">ซื้อ-ขายของใช้</span></button>
-        <button class="g-tile soon"><span class="tag">ภายหลัง</span>
+        <button class="g-tile" data-go="market">
           <span class="ic">🛒</span>ตลาดผู้เล่น<span class="sub">ซื้อขายกับเพื่อน</span></button>
         <a class="g-tile" href="/topup"><span class="ic">💎</span>เติมเกม<span class="sub">พร้อมใช้งาน</span></a>
       </div></div>
@@ -314,6 +314,28 @@
         ครบแรงค์ได้ทอง · ครบทั้งทวีปได้อาร์ติแฟกต์ · ครบ 9 ทวีปได้สัตว์เลี้ยงขั้นสูงสุด</p></div>
       <div id="elemSummary" class="rolls-left" style="margin-bottom:14px"></div>
       <div id="elemList"></div>
+    </div>
+
+    <!-- ══ ตลาดผู้เล่น ══ -->
+    <div class="g-panelview" id="v-market">
+      <button class="g-back" data-back>← กลับเมนูหลัก</button>
+      <div class="g-head"><h2>🛒 ตลาดผู้เล่น</h2>
+        <p>ฝากขายไอเทมให้ผู้เล่นคนอื่นซื้อด้วยทองในเกม — เงินเข้าธนาคารคนขาย ตายแล้วไม่หาย</p></div>
+      <div id="marketHead" class="g-card"></div>
+      <div class="chips" id="marketTabs" style="margin:14px 0">
+        <button data-mk="buy" aria-pressed="true">🛍️ แผงขาย</button>
+        <button data-mk="mine" aria-pressed="false">📦 ของที่ฝากขาย</button>
+        <button data-mk="sell" aria-pressed="false">🏷️ ลงขายเพิ่ม</button>
+      </div>
+      <div id="marketList"></div>
+    </div>
+
+    <!-- ══ สรุปทุกทวีป ══ -->
+    <div class="g-panelview" id="v-atlas">
+      <button class="g-back" data-back>← กลับเมนูหลัก</button>
+      <div class="g-head"><h2>🗺️ สรุปทุกทวีป</h2>
+        <p>ข้ามทวีปมีทางเดียว — สุ่มเจอพาหนะระหว่างผจญภัย (รู้ปลายทางตอนไปถึงเท่านั้น)</p></div>
+      <div id="atlasList"></div>
     </div>
 
     <!-- ══ ซีซั่นพาส + สายพรีเมียม ══ -->

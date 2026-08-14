@@ -1338,6 +1338,15 @@ class AdventureView(ActionView):
         summon_events = adventure_core.SUMMON_EVENTS
         adventure_core.commit_event(user_id, chosen_event, last_evt)
 
+        # ⏩ โหมดเดินเร็ว: ก้าวนี้ไม่ใช่เหตุการณ์ที่ต้องหยุด → เดินผ่านไปเลย ไม่ต้องวาดอะไร
+        #    (หยุดเฉพาะ มอน/ดันเจี้ยน/โจร/หมู่บ้าน/กับดัก/พาหนะข้ามทวีป)
+        #    เลือดต่ำกว่า 30% ก็หยุดเพื่อความปลอดภัย ไม่ให้เดินไปตายเปล่า
+        if max_steps > 1 and not adventure_core.fast_walk_stops_here(chosen_event, last_evt):
+            fresh = player_model.get_player(user_id) or player
+            if fresh.get("hp", 0) > fresh.get("max_hp", 100) * 0.3:
+                self._auto_walked = getattr(self, "_auto_walked", 0) + 1
+                return await self.walk_step(interaction, button, max_steps=max_steps - 1)
+
 
         # ==========================================
         # 🛠️ จุดที่แก้ไข: ท่าส่งข้อความแบบฝัง Timeout ให้เหตุการณ์ถัดไป
@@ -1447,15 +1456,15 @@ class AdventureView(ActionView):
 
         elif chosen_event == "calm":
             # ไม่มีอะไรเกิดขึ้น — สถานะยังเป็น idle กดไปต่อได้ทันที
-            # ⏩ O5: โหมดเดินรวด — ก้าวนี้ไม่มีอะไรให้ตัดสินใจ เดินต่อให้เลย (ยังทอยอีเวนต์ครบทุกก้าว)
+            # (โหมดเดินเร็วเดินผ่านก้าวแบบนี้ไปแล้วตั้งแต่ต้นฟังก์ชัน มาถึงนี่ = หยุดจริง)
             fresh = player_model.get_player(user_id) or player
             hp_ok = fresh.get("hp", 0) > fresh.get("max_hp", 100) * 0.3
-            if max_steps > 1 and hp_ok:
-                self._auto_walked = getattr(self, "_auto_walked", 0) + 1
-                return await self.walk_step(interaction, button, max_steps=max_steps - 1)
             walked = getattr(self, "_auto_walked", 0)
             next_view = AdventureView(author_id=user_id)
             calm_text = game_modifiers.pick_calm_text()
+            mana_note, _left = adventure_core.calm_bonus(user_id, fresh)   # 💎 พักหายใจ ได้เม็ดคืน
+            if mana_note:
+                calm_text += "\n" + mana_note
             if walked:
                 calm_text = f"⏩ **เดินรวด {walked + 1} ก้าว** — เส้นทางเงียบสงบตลอดทาง\n{calm_text}"
                 self._auto_walked = 0

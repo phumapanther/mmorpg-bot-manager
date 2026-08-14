@@ -46,6 +46,40 @@ def event_weights(last_evt):
     return default
 
 
+# ⏩ เดินเร็ว: เหตุการณ์ที่ "หยุดขบวน" — นอกจากนี้เดินผ่านไปเลย ไม่ต้องกดอะไร
+# แลกกัน: ได้ระยะทางเร็ว แต่ไม่เจอหีบ/NPC/อีเวนต์พิเศษ (เก็บของต้องเดินทีละก้าว)
+FAST_WALK_STOPS = ("monster", "dungeon", "mugging", "bank_robbery",
+                   "village", "trap", "travel")
+
+
+# ก้าวที่ "ไอเทมเป็นคนสั่ง" — ต้องหยุดเสมอ ไม่งั้นของที่เพิ่งใช้ไปถูกกินฟรี
+# (เช่นสแกนกล่องสมบัติแล้วเดินเร็วผ่านหีบไปเลย = เสียใบสแกนเปล่า)
+FAST_WALK_FORCED = ("warp_village", "scan_box", "treasure_trap", "revive", "warp_dungeon")
+
+
+def fast_walk_stops_here(event, last_evt=None):
+    """โหมดเดินเร็วต้องหยุดที่ก้าวนี้ไหม — ตัวเดียวกันทั้งดิสและเว็บ"""
+    if last_evt and (last_evt in FAST_WALK_FORCED or last_evt in SUMMON_EVENTS):
+        return True
+    return event in FAST_WALK_STOPS
+
+
+def calm_bonus(user_id, player=None):
+    """🧘 ก้าวที่ไม่มีอะไรเกิดขึ้น = ได้พักหายใจ คืนเม็ดคริสตัล 1 เม็ด
+
+    คืน (ข้อความเสริม, เม็ดที่เหลือ) — ข้อความว่างแปลว่าเต็มอยู่แล้ว ไม่ได้อะไรเพิ่ม
+    """
+    from bot import mana as _mana
+    player = player or player_model.get_player(user_id) or {}
+    amount = int(config_loader.get_balance("mana.calm_gain", 1) or 0)
+    full = _mana.max_mana(player.get("level", 1))
+    cur = _mana.get(user_id, player)
+    if amount <= 0 or cur >= full:
+        return "", cur
+    left = _mana.restore(user_id, amount, player)
+    return (f"💎 พักหายใจริมทาง — เม็ดคริสตัลคืนมา `+{left - cur}` (`{left}/{full}`)", left)
+
+
 def decide_event(user_id, player, statuses, mods, dg_steps, last_evt, cooldown, rng=random):
     """ก้าวนี้เจอเหตุการณ์อะไร — คืน (เหตุการณ์, ข้อมูลอีเวนต์พิเศษ, dungeon_steps ที่เหลือ)
 

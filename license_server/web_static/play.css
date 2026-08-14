@@ -661,3 +661,41 @@
   .sp-row { flex-wrap: wrap; gap: 4px 8px; }
   .sp-st { width: 100%; text-align: right; }
 }
+
+
+/* ── 🗺️ สรุปทุกทวีป ── */
+.atlas { background: var(--g-panel); border: 1px solid var(--g-line); border-radius: var(--g-r);
+  padding: 13px 15px; margin-bottom: 11px; position: relative; overflow: hidden; }
+.atlas::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 3px; background: #4a4038; }
+.atlas.here::before { background: var(--g-gold); }
+.atlas.here { border-color: rgba(214,164,58,.45); }
+.at-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 8px; }
+.at-name { font-size: 15px; font-weight: 700; }
+.at-tag { font-size: 11.5px; padding: 3px 9px; border-radius: 999px; font-weight: 700;
+  background: var(--g-gold); color: #2b1c06; }
+.at-killed { margin-left: auto; font-size: 11.5px; color: #8fd07a; font-family: var(--g-num); }
+.at-killed.off { color: var(--g-dim); }
+.at-rows { display: grid; gap: 4px; }
+.at-row { display: flex; gap: 10px; font-size: 12.5px; align-items: baseline;
+  padding: 4px 8px; border-radius: 8px; background: rgba(0,0,0,.2); }
+.at-row > span { flex: none; width: 122px; color: var(--g-muted); }
+.at-row > b { flex: 1; color: var(--g-ink); font-weight: 600; }
+.at-row small { color: var(--g-dim); font-weight: 400; }
+.at-row.warn > b { color: #ff9a7a; }
+.at-row.hot { background: rgba(214,164,58,.12); }
+.at-row.hot > b { color: #ffe6a8; font-weight: 400; font-size: 12px; }
+.at-mon { font-weight: 400 !important; color: var(--g-muted) !important; }
+
+@media (max-width: 480px) {
+  .at-row { flex-direction: column; gap: 2px; }
+  .at-row > span { width: auto; }
+  .at-killed { margin-left: 0; width: 100%; }
+}
+
+
+/* ช่องกรอกตัวเลขในกล่องยืนยัน (ตั้งราคาลงขาย ฯลฯ) */
+.ask-row { padding: 4px 0 2px; }
+.ask-row input { width: 100%; min-height: 46px; padding: 10px 13px; border-radius: 12px;
+  border: 1px solid var(--g-line); background: rgba(0,0,0,.35); color: var(--g-ink);
+  font-family: var(--g-num); font-size: 17px; font-variant-numeric: tabular-nums; }
+.ask-row input:focus { outline: 2px solid var(--g-gold); outline-offset: 1px; }

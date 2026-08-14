@@ -98,6 +98,50 @@ def gamedata():
             "invite": config_loader.get_main_server_invite() or ""}
 
 
+@router.get("/continents")
+def continents_summary(request: Request):
+    """🗺️ สรุปทุกทวีป — ธาตุชุกชุม สถานะประจำถิ่น มอนประจำแรงค์ อีเวนต์พิเศษ ตัวคูณรางวัล
+
+    อ่านจาก game_data ตัวเดียวกับที่ใช้ตอนเดินจริง — ตัวเลขที่โชว์คือตัวเลขที่ใช้จริง
+    """
+    uid = int(require_player(request)["uid"])
+    from bot.game_data import CONTINENTS
+    from bot.game_modifiers import ELEMENTS, STATUS_EFFECTS
+    from bot.models import player_model
+
+    here = (player_model.get_player(uid) or {}).get("continent") or "main"
+    # ล้มมอนในทวีปนั้นไปแล้วกี่ตัว — เอามาจากสมุดล่ามอนเล่มเดียวกับในดิส
+    seen = {}
+    for (cont, _rank), n in (player_model.get_bestiary(uid) or {}).items():
+        seen[cont] = seen.get(cont, 0) + int(n or 0)
+
+    out = []
+    for key, c in CONTINENTS.items():
+        m = c.get("mods") or {}
+        weights = m.get("element_weights") or {}
+        elems = [{"key": k, "label": ELEMENTS.get(k, {}).get("label", k), "weight": w}
+                 for k, w in sorted(weights.items(), key=lambda kv: -kv[1])]
+        hit = m.get("on_hit_status") or {}
+        status = STATUS_EFFECTS.get(hit.get("key"), {})
+        pool = m.get("monster_pool") or {}
+        out.append({
+            "key": key, "label": c["label"], "here": key == here,
+            "arrival_text": c.get("arrival_text", ""),
+            "elements": elems,
+            "status": ({"label": status.get("label", hit.get("key", "")),
+                        "chance": int(hit.get("chance", 0))} if hit else None),
+            "monsters": [{"rank": rank, "names": names} for rank, names in pool.items()],
+            "specials": [{"key": s.get("key", ""), "chance": int(s.get("chance", 0)),
+                          "intro": (s.get("intro") or "")[:120]}
+                         for s in (m.get("special_events") or [])],
+            "mult": {"hp": float(m.get("monster_hp_mult", 1) or 1),
+                     "gold": float(m.get("monster_gold_mult", 1) or 1),
+                     "exp": float(m.get("monster_exp_mult", 1) or 1)},
+            "killed": int(seen.get(key, 0)),
+        })
+    return {"continents": out, "here": here}
+
+
 # ── ล็อกอินผ่านบอท (device-code — ไม่ต้องมีโดเมน/OAuth) ──
 
 import re
@@ -580,6 +624,74 @@ def shop(body: ShopBody, request: Request):
     return {"ok": ok, "message": msg, "money": _money_now(uid)}
 
 
+@router.get("/market")
+def market_list(request: Request):
+    """🏪 ตลาดผู้เล่น — แผงขายที่เปิดอยู่ + ของเราที่ฝากขายไว้ + ของในกระเป๋าที่ลงขายได้
+
+    ไม่ส่งไอดีคนขายออกไป (บอกแค่ว่า "ของคุณ" ไหม) — หน้าเว็บไม่มีเหตุผลต้องรู้ว่าใครเป็นใคร
+    """
+    uid = int(require_player(request)["uid"])
+    from bot import config_loader, market
+    from bot.cogs.player_commands import usable_kind
+    from bot.models.player_model import get_player, load_inventory
+
+    items = config_loader.get_all_items()
+    name = lambda i: items.get(str(i), {}).get("name", f"ไอเทม {i}")
+
+    listings = [{"id": lid, "item_id": str(iid), "name": name(iid), "price": int(price),
+                 "mine": sid == uid}
+                for lid, sid, iid, price in market.open_listings()]
+    mine = [{"id": lid, "item_id": str(iid), "name": name(iid), "price": int(price)}
+            for lid, iid, price in market.my_listings(uid)]
+
+    # ของในกระเป๋าที่ลงขายได้ — รวมชิ้นซ้ำเป็นแถวเดียวเหมือนหน้ากระเป๋า
+    counts = {}
+    for i in load_inventory((get_player(uid) or {}).get("inventory", "")):
+        counts[str(i)] = counts.get(str(i), 0) + 1
+    bag = [{"id": i, "name": name(i), "count": n, "kind": usable_kind(items.get(i, {})),
+            "sell": int(items.get(i, {}).get("sell", 0))}
+           for i, n in sorted(counts.items(), key=lambda kv: name(kv[0]))]
+
+    cfg = config_loader.get_config().get("market", {})
+    return {"enabled": bool(cfg.get("enabled", True)),
+            "tax_percent": int(cfg.get("tax_percent", 0) or 0),
+            "min_price": int(cfg.get("min_price", 1) or 1),
+            "max_price": int(cfg.get("max_price", 10**12) or 10**12),
+            "max_listings": int(cfg.get("max_listings_per_player", 5) or 5),
+            "listings": listings, "mine": mine, "bag": bag}
+
+
+class MarketBody(BaseModel):
+    action: str
+    listing_id: int = 0
+    item_id: str = ""
+    price: int = 0
+
+
+@router.post("/market")
+def market_action(body: MarketBody, request: Request):
+    """ลงขาย / ยกเลิก / ซื้อ — market.py ตัวเดียวกับ !market ในดิส
+
+    เงินกับของทั้งหมดขยับใน transaction เดียวฝั่ง market.py — เว็บไม่แตะเองสักบรรทัด
+    (ปิดการขายด้วย compare-and-swap แล้ว สองคนกดซื้อพร้อมกันคนที่สองจะถูกปฏิเสธ)
+    """
+    uid = int(require_player(request)["uid"])
+    if body.action not in ("list", "cancel", "buy"):
+        raise HTTPException(400, "ไม่รู้จักคำสั่งนี้")
+
+    from bot import market
+    with _user_lock(uid):
+        if body.action == "list":
+            ok, msg = market.list_item(uid, body.item_id, body.price)
+        elif body.action == "cancel":
+            ok, msg = market.cancel_listing(uid, body.listing_id)
+        else:
+            ok, msg = market.buy_listing(uid, body.listing_id)
+    if not ok:
+        raise HTTPException(400, msg)
+    return {"ok": True, "message": msg, "money": _money_now(uid)}
+
+
 @router.get("/craft/list")
 def craft_list(request: Request):
     """สูตรที่วัตถุดิบครบพร้อมคราฟตอนนี้ — craftable_now() ตัวเดียวกับปุ่ม 🔨 ในดิส"""
@@ -1049,8 +1161,12 @@ def _finish_special(uid, out, outcome, died):
 
 
 @router.post("/adventure/walk")
-def adventure_walk(request: Request):
-    """เดินหนึ่งก้าว — ตรรกะเดียวกับปุ่ม 🧭 ในดิสทุกบรรทัด"""
+def adventure_walk(request: Request, steps: int = 1):
+    """เดินหนึ่งก้าว — ตรรกะเดียวกับปุ่ม 🧭 ในดิสทุกบรรทัด
+
+    steps>1 = ⏩ เดินเร็ว: เดินรวดจนเจอเหตุการณ์ที่ต้องตัดสินใจจริง
+    (มอน/ดันเจี้ยน/โจร/หมู่บ้าน/กับดัก/พาหนะข้ามทวีป) — กติกาเดียวกับปุ่ม ⏩ ในดิส
+    """
     uid = int(require_player(request)["uid"])
     from bot import adventure_core, game_modifiers, robbery
     from bot.models import player_model
@@ -1074,26 +1190,44 @@ def adventure_walk(request: Request):
 
         elements = game_modifiers.resolve_player_elements(
             [player.get("race") or "", player.get("class_name") or ""])
-        pre = adventure_core.step_prelude(uid, player, elements)
-        if pre["dead"]:
-            return {"event": "death", "notes": pre["notes"],
-                    "text": "💀 คุณล้มลงกลางทาง... พิษกัดกินร่างกายจนหมดสติ"}
+        # ⏩ เดินเร็ว: เดินไปเรื่อย ๆ จนเจอเหตุการณ์ที่ต้องหยุด แล้วค่อยวาดอันนั้นอันเดียว
+        left = max(1, min(int(steps or 1), 5))
+        notes, skipped = [], 0
+        while True:
+            pre = adventure_core.step_prelude(uid, player, elements)
+            notes.extend(pre["notes"])
+            if pre["dead"]:
+                return {"event": "death", "notes": notes, "skipped": skipped,
+                        "text": "💀 คุณล้มลงกลางทาง... พิษกัดกินร่างกายจนหมดสติ"}
 
-        player, statuses, mods = pre["player"], pre["statuses"], pre["mods"]
-        event, special, dg_steps = adventure_core.decide_event(
-            uid, player, statuses, mods, pre["dg_steps"], pre["last_evt"], pre["cooldown"])
-        adventure_core.commit_event(uid, event, pre["last_evt"])
+            player, statuses, mods = pre["player"], pre["statuses"], pre["mods"]
+            event, special, dg_steps = adventure_core.decide_event(
+                uid, player, statuses, mods, pre["dg_steps"], pre["last_evt"], pre["cooldown"])
+            adventure_core.commit_event(uid, event, pre["last_evt"])
+
+            if left <= 1 or adventure_core.fast_walk_stops_here(event, pre["last_evt"]):
+                break
+            # เลือดต่ำกว่า 30% หยุดเดินเร็ว ไม่ให้เดินไปตายเปล่า (กติกาเดียวกับในดิส)
+            if player.get("hp", 0) <= player.get("max_hp", 100) * 0.3:
+                notes.append("⚠️ **เลือดต่ำกว่า 30% — หยุดเดินเร็วเพื่อความปลอดภัย** (กินยาก่อนไปต่อ!)")
+                break
+            left -= 1
+            skipped += 1
+            player = player_model.get_player(uid) or player
 
         if expired_note:
-            pre["notes"].insert(0, expired_note)
+            notes.insert(0, expired_note)
 
-        out = {"event": event, "notes": pre["notes"], "continent": player.get("continent") or "main",
+        out = {"event": event, "notes": notes, "continent": player.get("continent") or "main",
                "dungeon_steps": dg_steps, "cooldown": pre["cooldown"],
+               "skipped": skipped,    # เดินผ่านไปกี่ก้าวก่อนจะเจออันนี้
                "playable": True,      # เว็บจัดการเหตุการณ์นี้เองได้ไหม
                "pending": None}       # ค้างรอผู้เล่นเลือก (None = จบในก้าวเดียว)
 
         if event == "calm":
-            out["text"] = game_modifiers.pick_calm_text()
+            # 🧘 ไม่มีอะไรเกิดขึ้น = ได้พักหายใจ คืนเม็ดคริสตัลให้ (เต็มแล้วไม่ได้อะไร)
+            mana_note, _left = adventure_core.calm_bonus(uid, player)
+            out["text"] = game_modifiers.pick_calm_text() + ("\n" + mana_note if mana_note else "")
         elif event == "bank_robbery":
             r = robbery.resolve_bank_robbery(uid, player)
             out["text"] = (f"🏦💥 **โจรปล้นธนาคาร!** แก๊งโจรมือโปรเจาะตู้นิรภัยสาขาที่คุณฝากเงินไว้!\n"

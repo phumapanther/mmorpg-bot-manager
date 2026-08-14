@@ -75,6 +75,8 @@ function showPanel(id) {
   if (id === 'achv') fillAchv().catch(e => toast(e.message, true));
   if (id === 'books') fillBooks().catch(e => toast(e.message, true));
   if (id === 'elembook') fillElemBook().catch(e => toast(e.message, true));
+  if (id === 'atlas') fillAtlas().catch(e => toast(e.message, true));
+  if (id === 'market') fillMarket().catch(e => toast(e.message, true));
   if (id === 'season') fillSeason().catch(e => toast(e.message, true));
   if (id === 'partner') fillPartner().catch(e => toast(e.message, true));
   if (id === 'slots' || id === 'hilo' || id === 'bj') buildChips();
@@ -596,6 +598,35 @@ async function confirmAction({ title, message, lines, okText, danger }) {
   return v === true;
 }
 
+/** ถามตัวเลขหนึ่งค่า — คืนจำนวนเต็มบวก หรือ null เมื่อยกเลิก/กรอกไม่ถูก
+ *  (เช็คค่าจริงอีกรอบที่เซิร์ฟเวอร์เสมอ ตรงนี้แค่กันพิมพ์ผิดให้ผู้เล่น) */
+function askNumber({ title, message, lines, placeholder, okText }) {
+  return new Promise(resolve => {
+    const box = document.getElementById('cfLines');
+    openDialog({
+      title, message, lines,
+      buttons: [{ label: 'ยกเลิก', value: null },
+                { label: okText || 'ตกลง', value: true, cls: 'yes' }],
+    }).then(v => {
+      const raw = (box.querySelector('input') || {}).value;
+      box.querySelector('.ask-row')?.remove();
+      const n = Math.floor(Number(String(raw || '').replace(/[, ]/g, '')));
+      resolve(v === true && Number.isFinite(n) && n > 0 ? n : null);
+    });
+    const row = document.createElement('div');
+    row.className = 'ask-row';
+    row.innerHTML = `<input type="number" inputmode="numeric" min="1" step="1"
+                       placeholder="${esc(placeholder || '')}">`;
+    box.appendChild(row);
+    box.style.display = '';
+    const input = row.querySelector('input');
+    input.focus();
+    input.onkeydown = e => {                       // กด Enter = ตกลง ไม่ต้องเอื้อมไปกดปุ่ม
+      if (e.key === 'Enter') document.querySelector('#cfBtns button.yes')?.click();
+    };
+  });
+}
+
 function toast(msg, bad) {
   if (bad) SFX.play('error');
   const t = document.getElementById('toast');
@@ -970,8 +1001,17 @@ function advIdleButton(box) {
   const btn = document.createElement('button');
   btn.className = 'g-tile hot casino-go';
   btn.innerHTML = '<span class="ic">🧭</span>ออกเดินทาง';
-  btn.onclick = advWalk;
+  btn.onclick = () => advWalk(1);
   box.appendChild(btn);
+
+  // ⏩ เดินเร็ว — ข้ามช่วงที่ไม่มีอะไรให้ตัดสินใจ แลกกับการไม่เจอหีบ/NPC/อีเวนต์พิเศษ
+  const fast = document.createElement('button');
+  fast.className = 'g-tile casino-go';
+  fast.innerHTML = '<span class="ic">⏩</span>เดินเร็ว ×5';
+  fast.title = 'เดินรวดจนเจอ มอน · ดันเจี้ยน · โจร · หมู่บ้าน · กับดัก · พาหนะข้ามทวีป\n'
+             + '(ระหว่างทางจะไม่แวะหีบสมบัติ NPC หรืออีเวนต์พิเศษ)';
+  fast.onclick = () => advWalk(5);
+  box.appendChild(fast);
 }
 
 
@@ -1017,20 +1057,23 @@ function mdLite(t) {
                .replace(/\n/g, '<br>');
 }
 
-async function advWalk() {
+async function advWalk(steps) {
   if (ADV_BUSY) return;
   ADV_BUSY = true;
+  const fast = steps > 1;
   const tag = document.getElementById('sceneTag');
   SFX.walking(true);                    // 👣 ฝีเท้าดังไปเรื่อย ๆ จนกว่าจะถึงจุดหมาย
   SCENE.clearFoe(); SCENE.clearRoll(); SCENE.walk();
   document.getElementById('foeBar').hidden = true;
-  tag.textContent = 'กำลังเดินทาง...';
+  tag.textContent = fast ? 'กำลังเดินเร็ว...' : 'กำลังเดินทาง...';
   document.getElementById('advActions').innerHTML = '';
-  document.getElementById('advText').textContent = '✨ คุณเริ่มก้าวเท้าออกเดินทางตรวจตราเส้นทาง...';
+  document.getElementById('advText').textContent = fast
+    ? '⏩ คุณเร่งฝีเท้า มุ่งหน้าไปข้างหน้าโดยไม่แวะข้างทาง...'
+    : '✨ คุณเริ่มก้าวเท้าออกเดินทางตรวจตราเส้นทาง...';
 
   try {
-    const g = await api('POST', '/api/web/adventure/walk');
-    await new Promise(r => setTimeout(r, 900));       // ให้เห็นอนิเมชันเดินก่อนเฉลย
+    const g = await api('POST', '/api/web/adventure/walk?steps=' + (fast ? 5 : 1));
+    await new Promise(r => setTimeout(r, fast ? 1400 : 900));   // เดินเร็วให้เห็นระยะทางนานกว่า
     SFX.walking(false);                               // ถึงที่แล้ว หยุดเดิน
     SCENE.setMap(g.continent || 'main');
     const art = g.event === 'travel' ? 'vehicle_' + g.encounter.vehicle : ADV_ART[g.event];
@@ -1051,6 +1094,7 @@ async function advWalk() {
     paintFoe(g.monster);
     IN_FIGHT = !!g.monster; SCENE_EVENT = g.event; sceneMusic();
     if (g.money != null) boot();      // เงิน/เลือดเปลี่ยน วาดหัวการ์ดใหม่
+    if (g.skipped) g.text = `⏩ **เดินเร็วผ่านไป ${g.skipped + 1} ก้าว**\n${g.text || ''}`;
     advPaint(g);
   } catch (e) {
     SCENE.idle();
@@ -1543,6 +1587,168 @@ async function fillElemBook() {
           `<i class="el-dot ${e.got ? 'got' : ''}" title="${esc(e.label)}${e.got ? ' — ล้มแล้ว ' + e.got : ' — ยังไม่เคยล้ม'}"
            >${esc(e.label.split(' ')[0])}</i>`).join('')}</span>
       </div>`).join('')}
+    </div>`).join('');
+}
+
+// ── 🛒 ตลาดผู้เล่น ──
+// เงินกับของขยับที่ market.py ทั้งหมด (transaction เดียว) — ที่นี่แค่ถามยืนยันแล้วส่งคำสั่ง
+let MK_TAB = 'buy';
+let MK = null;
+
+async function fillMarket() {
+  const box = document.getElementById('marketList');
+  box.innerHTML = '<div class="g-note">กำลังโหลด...</div>';
+  try { MK = await api('GET', '/api/web/market'); }
+  catch (e) { box.innerHTML = '<div class="g-note">โหลดไม่สำเร็จ: ' + esc(e.message) + '</div>'; return; }
+
+  document.getElementById('marketHead').innerHTML = MK.enabled
+    ? `<div class="rolls-left">🏪 แผงที่เปิดขายอยู่ <b>${MK.listings.length}</b> ·
+         ของคุณ <b>${MK.mine.length}</b>/${MK.max_listings} แผง</div>
+       <small style="color:var(--g-dim)">ราคา ${fmt(MK.min_price)}–${fmt(MK.max_price)} ทอง${
+         MK.tax_percent ? ` · ค่าธรรมเนียมตลาด ${MK.tax_percent}% หักจากคนขาย` : ''}
+         · เงินที่ขายได้เข้าธนาคาร ไม่ใช่เงินสด</small>`
+    : '<div class="rolls-left">🚫 ตอนนี้ปิดตลาดผู้เล่นอยู่</div>';
+
+  document.querySelectorAll('[data-mk]').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.mk === MK_TAB)));
+
+  if (MK_TAB === 'buy') return paintMarketBuy(box);
+  if (MK_TAB === 'mine') return paintMarketMine(box);
+  paintMarketSell(box);
+}
+
+function paintMarketBuy(box) {
+  const others = MK.listings;
+  if (!others.length) {
+    box.innerHTML = '<div class="empty-bag">ยังไม่มีใครลงขายอะไรเลย — ลงขายเป็นคนแรกได้ที่แท็บ 🏷️</div>';
+    return;
+  }
+  box.innerHTML = others.map((l, i) => `
+    <div class="bar-card">
+      <div class="bn">${esc(l.name)}${l.mine ? ' <span class="badge">แผงของคุณ</span>' : ''}</div>
+      <div class="px"><span>ราคา</span><b>${fmt(l.price)} ทอง</b></div>
+      <div class="btns"><button data-mk-buy="${i}"${l.mine ? ' disabled' : ''}>${
+        l.mine ? 'ซื้อของตัวเองไม่ได้' : 'ซื้อเลย'}</button></div>
+    </div>`).join('');
+  box.querySelectorAll('[data-mk-buy]').forEach(b => b.onclick = () =>
+    marketBuy(others[+b.dataset.mkBuy]));
+}
+
+function paintMarketMine(box) {
+  if (!MK.mine.length) {
+    box.innerHTML = '<div class="empty-bag">คุณยังไม่ได้ฝากขายอะไรไว้</div>';
+    return;
+  }
+  box.innerHTML = MK.mine.map((l, i) => `
+    <div class="bar-card">
+      <div class="bn">${esc(l.name)}</div>
+      <div class="px"><span>ตั้งราคาไว้</span><b>${fmt(l.price)} ทอง</b></div>
+      <div class="btns"><button data-mk-cancel="${i}">↩️ ยกเลิก เอาของคืน</button></div>
+    </div>`).join('');
+  box.querySelectorAll('[data-mk-cancel]').forEach(b => b.onclick = () =>
+    marketCancel(MK.mine[+b.dataset.mkCancel]));
+}
+
+function paintMarketSell(box) {
+  if (!MK.bag.length) {
+    box.innerHTML = '<div class="empty-bag">กระเป๋าว่างเปล่า — ออกผจญภัยเก็บของก่อนนะ</div>';
+    return;
+  }
+  if (MK.mine.length >= MK.max_listings) {
+    box.innerHTML = `<div class="g-note">แผงเต็มแล้ว (${MK.mine.length}/${MK.max_listings}) —
+      ปิดแผงเก่าที่แท็บ 📦 ก่อนถึงจะลงขายเพิ่มได้</div>`;
+    return;
+  }
+  box.innerHTML = MK.bag.map((it, i) => `
+    <div class="bar-card">
+      <div class="bn">${esc(it.name)} <span class="qty">×${it.count}</span></div>
+      <div class="px"><span>ขายร้านได้</span><b>${fmt(it.sell)} ทอง/ชิ้น</b></div>
+      <div class="btns"><button data-mk-sell="${i}">🏷️ ตั้งราคาลงขาย</button></div>
+    </div>`).join('');
+  box.querySelectorAll('[data-mk-sell]').forEach(b => b.onclick = () =>
+    marketSell(MK.bag[+b.dataset.mkSell]));
+}
+
+async function marketBuy(l) {
+  const ok = await confirmAction({
+    title: '🛒 ยืนยันซื้อจากตลาด',
+    message: 'จ่ายจากเงินสดในกระเป๋า — ของเข้ากระเป๋าทันที',
+    lines: [['ไอเทม', l.name], ['ราคา', fmt(l.price) + ' ทอง', 'warn']],
+    okText: 'ซื้อเลย',
+  });
+  if (!ok) return;
+  try {
+    const r = await api('POST', '/api/web/market', { action: 'buy', listing_id: l.id });
+    SFX.play('buy'); toast(r.message); await reload(); await fillMarket();
+  } catch (e) { SFX.play('error'); toast(e.message, true); }
+}
+
+async function marketCancel(l) {
+  const ok = await confirmAction({
+    title: '↩️ ยกเลิกแผงขาย',
+    message: 'ของจะกลับเข้ากระเป๋าทันที (กระเป๋าต้องมีที่ว่าง)',
+    lines: [['ไอเทม', l.name], ['ราคาที่ตั้งไว้', fmt(l.price) + ' ทอง']],
+    okText: 'ยกเลิกแผง',
+  });
+  if (!ok) return;
+  try {
+    const r = await api('POST', '/api/web/market', { action: 'cancel', listing_id: l.id });
+    toast(r.message); await reload(); await fillMarket();
+  } catch (e) { SFX.play('error'); toast(e.message, true); }
+}
+
+async function marketSell(it) {
+  const price = await askNumber({
+    title: '🏷️ ตั้งราคาขาย',
+    message: `ลงขาย ${it.name} 1 ชิ้น — ของจะออกจากกระเป๋าทันทีจนกว่าจะขายได้หรือยกเลิก`,
+    lines: [['ขายให้ร้านได้', fmt(it.sell) + ' ทอง/ชิ้น'],
+            ['ช่วงราคาที่ตั้งได้', fmt(MK.min_price) + ' – ' + fmt(MK.max_price) + ' ทอง'],
+            ...(MK.tax_percent ? [['ค่าธรรมเนียมตลาด', MK.tax_percent + '% หักจากคุณ', 'warn']] : [])],
+    placeholder: 'ราคาที่ต้องการ',
+    okText: 'ลงขาย',
+  });
+  if (!price) return;
+  try {
+    const r = await api('POST', '/api/web/market',
+                        { action: 'list', item_id: it.id, price: price });
+    SFX.play('coin'); toast(r.message); await reload(); await fillMarket();
+  } catch (e) { SFX.play('error'); toast(e.message, true); }
+}
+
+document.querySelectorAll('[data-mk]').forEach(t => t.onclick = () => {
+  MK_TAB = t.dataset.mk; fillMarket();
+});
+
+// ── 🗺️ สรุปทุกทวีป ──
+// ตัวเลขทุกตัวมาจาก game_data ชุดเดียวกับที่ใช้ตอนเดินจริง ที่นี่แค่จัดหน้า
+async function fillAtlas() {
+  const box = document.getElementById('atlasList');
+  box.innerHTML = '<div class="g-note">กำลังโหลด...</div>';
+  let d;
+  try { d = await api('GET', '/api/web/continents'); }
+  catch (e) { box.innerHTML = '<div class="g-note">โหลดไม่สำเร็จ: ' + esc(e.message) + '</div>'; return; }
+
+  const x = n => (n === 1 ? '' : `<b>×${n}</b>`);
+  box.innerHTML = d.continents.map(c => `
+    <div class="atlas${c.here ? ' here' : ''}">
+      <div class="at-head">
+        <span class="at-name">${esc(c.label)}</span>
+        ${c.here ? '<span class="at-tag">📍 อยู่ที่นี่</span>' : ''}
+        ${c.killed ? `<span class="at-killed">⚔️ ล้มไปแล้ว ${fmt(c.killed)} ตัว</span>`
+                   : '<span class="at-killed off">ยังไม่เคยไป</span>'}
+      </div>
+      <div class="at-rows">
+        <div class="at-row"><span>ธาตุชุกชุม</span><b>${c.elements.length
+          ? c.elements.map(e => esc(e.label)).join(' · ') : 'สมดุลทุกธาตุ'}</b></div>
+        ${c.status ? `<div class="at-row warn"><span>สถานะประจำถิ่น</span>
+          <b>${esc(c.status.label)} <small>โดนตี ${c.status.chance}%</small></b></div>` : ''}
+        <div class="at-row"><span>มอนแรงกว่า / รางวัลดีกว่า</span>
+          <b>❤️ ${x(c.mult.hp) || '—'} 🪙 ${x(c.mult.gold) || '—'} 🔷 ${x(c.mult.exp) || '—'}</b></div>
+        ${c.monsters.map(m => `<div class="at-row"><span>${esc(m.rank)}</span>
+          <b class="at-mon">${m.names.map(esc).join(' · ')}</b></div>`).join('')}
+        ${c.specials.map(s => `<div class="at-row hot"><span>อีเวนต์พิเศษ ${s.chance}%</span>
+          <b>${esc(s.intro)}…</b></div>`).join('')}
+      </div>
     </div>`).join('');
 }
 
