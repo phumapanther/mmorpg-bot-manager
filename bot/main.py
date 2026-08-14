@@ -140,6 +140,9 @@ def create_bot(bot_type: str):
                 await bot.load_extension("bot.cogs.role_grant_worker")
                 print("🌉[RoleQueue] โหลดสะพานแจกยศจากเว็บ สำเร็จ!")
 
+                await bot.load_extension("bot.cogs.dice_board_cmd")
+                print("🎲[Board] โหลดกระดานทอยเต๋ารายวัน สำเร็จ!")
+
                 await bot.load_extension("bot.cogs.payment")
                 print("💳[Payment] โหลดระบบคำสั่ง เติมเงิน สำเร็จ!")
 

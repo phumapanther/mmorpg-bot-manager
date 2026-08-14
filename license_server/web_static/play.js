@@ -25,6 +25,7 @@ function showPanel(id) {
   if (id === 'shop') fillShop();
   if (id === 'roleshop') fillRoleShop().catch(e => toast(e.message, true));
   if (id === 'gacha') fillGacha().catch(e => toast(e.message, true));
+  if (id === 'rewards') fillBoard();
   if (id === 'slots' || id === 'hilo' || id === 'bj') buildChips();
   if (id === 'bj') bjRestore();
   if (id === 'scene') initScene().catch(e => toast(e.message, true));
@@ -168,16 +169,95 @@ async function spinGacha(price) {
   } finally { SHOP_BUSY = false; }
 }
 
-// ── กระดานทอยเต๋า: วาดช่องตัวอย่าง (เฟส 8 จะสร้างจากธีมสัปดาห์จริง) ──
-const TILES = ['🏁','🪙','💉','🌟','🪙','🧭','📦','🪙','🧪','🎁','🪙','🛠️','🌟','🪙','💎','🪙',
-               '🧱','🪙','💉','🎁','🪙','🧭','🪙','🏆'];
-document.getElementById('board').innerHTML = TILES.map((t, i) => {
-  const cls = i === 0 ? 'sq start' : (t === '🏆' || t === '💎' ? 'sq big' : 'sq');
-  return `<div class="${cls}">${t}${i === 0 ? '<i class="me"></i>' : ''}</div>`;
-}).join('');
+// ── กระดานทอยเต๋ารับของรายวัน (เฟส 8) ──
+// กระดาน/รางวัล/โควตา มาจากเซิร์ฟเวอร์ทั้งหมด ที่นี่แค่วาดกับเล่นอนิเมชัน
+let BOARD = null;
+let BOARD_BUSY = false;
 
-document.getElementById('rollBtn').addEventListener('click', () =>
-  alert('ยังทอยไม่ได้ครับ — ระบบนี้อยู่ในเฟส 8 ของแผน\nตอนนี้เป็นการวางโครงหน้าเท่านั้น'));
+function paintBoard(st) {
+  BOARD = st;
+  document.getElementById('rollsLeft').textContent = st.rolls_left;
+  document.getElementById('boardTheme').textContent = 'ธีมสัปดาห์นี้: ' + st.theme_label;
+  document.getElementById('board').innerHTML = st.board.map((t, i) => {
+    const cls = i === 0 ? 'sq start' : (t.kind === 'gold' && (t.amount || [0])[1] > 250 ? 'sq big' : 'sq');
+    return `<div class="${cls}" data-i="${i}" title="${esc(t.label)}">${t.icon}` +
+           (i === st.pos ? '<i class="me"></i>' : '') + '</div>';
+  }).join('');
+  const btn = document.getElementById('rollBtn');
+  btn.disabled = st.rolls_left <= 0;
+  btn.title = st.rolls_left <= 0 ? 'วันนี้ทอยครบโควตาแล้ว — พรุ่งนี้มาใหม่' : '';
+}
+
+async function fillBoard() {
+  try {
+    paintBoard(await api('GET', '/api/web/board'));
+  } catch (e) {
+    document.getElementById('boardTheme').textContent = 'โหลดกระดานไม่สำเร็จ: ' + e.message;
+  }
+}
+
+/** เดินหมากทีละช่องให้เห็น ๆ ไม่ใช่วาร์ปไปเลย */
+async function hopTo(from, steps, size) {
+  const squares = document.getElementById('board').children;
+  squares[from].querySelector('.me')?.remove();
+  let cur = from;
+  for (let n = 0; n < steps; n++) {
+    cur = (cur + 1) % size;
+    squares[cur].classList.add('hop');
+    const me = document.createElement('i');
+    me.className = 'me';
+    squares[cur].appendChild(me);
+    await new Promise(r => setTimeout(r, 190));
+    squares[cur].classList.remove('hop');
+    if (n < steps - 1) squares[cur].querySelector('.me')?.remove();
+  }
+  squares[cur].classList.add('landed');
+  return cur;
+}
+
+async function rollBoard() {
+  if (BOARD_BUSY || !BOARD) return;
+  BOARD_BUSY = true;
+  const dice = document.getElementById('diceRoller');
+  const result = document.getElementById('boardResult');
+  const btn = document.getElementById('rollBtn');
+  btn.disabled = true;
+  result.hidden = true;
+  document.querySelectorAll('.board .sq.landed').forEach(s => s.classList.remove('landed'));
+
+  dice.classList.remove('landed');
+  dice.classList.add('rolling');
+  const tumble = setInterval(() => {
+    dice.textContent = ['⚀','⚁','⚂','⚃','⚄','⚅'][Math.floor(Math.random() * 6)];
+  }, 90);
+
+  try {
+    const r = await api('POST', '/api/web/board/roll');
+    await new Promise(res => setTimeout(res, 900));      // ให้เต๋ากลิ้งเห็น ๆ ก่อนเฉลย
+    clearInterval(tumble);
+    dice.classList.remove('rolling');
+    dice.textContent = ['⚀','⚁','⚂','⚃','⚄','⚅'][r.steps - 1];
+    dice.classList.add('landed');
+
+    await hopTo(r.from, r.steps, BOARD.size);
+    result.innerHTML = mdLite(`ตกช่อง **${r.tile.icon} ${r.tile.label}**\n${r.text}`);
+    result.hidden = false;
+    document.getElementById('rollsLeft').textContent = r.rolls_left;
+    BOARD.pos = r.to;
+    BOARD.rolls_left = r.rolls_left;
+    boot();
+  } catch (e) {
+    clearInterval(tumble);
+    dice.classList.remove('rolling');
+    dice.textContent = '🎲';
+    toast(e.message, true);
+  } finally {
+    BOARD_BUSY = false;
+    btn.disabled = (BOARD.rolls_left ?? 0) <= 0;
+  }
+}
+
+document.getElementById('rollBtn').addEventListener('click', rollBoard);
 
 // ── โหลดตัวละครจริง (เฟส 1.1) ──
 // ทุกค่าที่ใช้แสดงผลถูกแปลงมาจากฝั่งเซิร์ฟเวอร์แล้ว — ตรงนี้แค่วางลงหน้าจอ

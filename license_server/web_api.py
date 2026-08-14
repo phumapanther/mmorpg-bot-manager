@@ -1326,3 +1326,28 @@ def adventure_respawn(request: Request):
                      + (f"\n💀 ความคืบหน้าในดันเจี้ยนหายไป {r['lost_steps']} ตา"
                         if r["lost_steps"] else "")
                      + "\n💎 เม็ดคริสตัลเต็มอีกครั้ง")}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 🎲 กระดานทอยเต๋ารายวัน (เว็บเกม เฟส 8.4)
+# โควตา 3 ครั้ง/วัน ใช้ร่วมกับ !board ในดิส — ทอยที่ไหนก็หักโควตาเดียวกัน
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/board")
+def board_state(request: Request):
+    """กระดานของสัปดาห์นี้ + ตำแหน่งหมาก + โควตาที่เหลือ (อ่านอย่างเดียว)"""
+    uid = int(require_player(request)["uid"])
+    from bot import dice_board
+    return dice_board.state(uid)
+
+
+@router.post("/board/roll")
+def board_roll(request: Request):
+    """ทอยหนึ่งครั้ง — โควตาถูกหักในจังหวะเดียวกับการทอย กดรัวไม่ได้ของเกิน"""
+    uid = int(require_player(request)["uid"])
+    from bot import dice_board
+    with _user_lock(uid):
+        ok, r = dice_board.roll(uid)
+    if not ok:
+        raise HTTPException(400, r["error"])
+    return r | {"money": _money_now(uid)}
