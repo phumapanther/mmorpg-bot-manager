@@ -285,6 +285,7 @@ def me_game(request: Request):
     from bot.game_data import CONTINENTS
     from bot.models.player_model import MAX_LEVEL, exp_required, load_inventory
     from bot.cogs.player_commands import usable_kind
+    from bot import season as _season
 
     p = dict(row)
     items = config_loader.get_all_items()
@@ -358,6 +359,8 @@ def me_game(request: Request):
                        "dur_pct": _dur_pct(p.get("weapon_dur"), weapon.get("dur", 100))},
             "artifact_slots": p.get("artifact_slots", 1),
         },
+        # ป้าย "มีของค้างรับ" บนปุ่มเมนู — ต้องเห็นตั้งแต่ยังไม่กดเข้าไปดู
+        "season": {"claimable": _season.season_view(uid)["claimable"]},
         "bag": {"capacity": p.get("capacity", 0), "used": len(inv), "items": bag},
         "buffs": buffs,
     }
@@ -1581,20 +1584,14 @@ def me_books(request: Request):
 
 @router.get("/me/season")
 def me_season(request: Request):
-    """🎟️ ซีซั่นพาส + ⭐ สายพรีเมียม (ระบบเดียวกัน สองแทร็ก)"""
+    """🎟️ ซีซั่นพาส + ⭐ สายพรีเมียม (ระบบเดียวกัน สองแทร็ก)
+
+    ใช้ season_view() ตัวเดียวกับเอมเบดในดิส — ช่องไหนรับแล้ว/ยังไม่ถึง/ต้องเปิดพรีเมียม
+    ต้องตรงกันทั้งสองที่ ห้ามเว็บคำนวณเอง
+    """
     uid = int(require_player(request)["uid"])
     from bot import season
-    from bot.models import player_model
-    points = int(player_model.get_season_points(uid) or 0)
-    premium = season.is_premium(uid)
-    tiers = []
-    for i, t in enumerate(season.tiers()):
-        need = int(t.get("points", 0))
-        tiers.append({"index": i, "points": need, "reached": points >= need,
-                      "free": t.get("free") or {}, "premium": t.get("premium") or {}})
-    return {"points": points, "premium": premium, "tiers": tiers,
-            "enabled": season.enabled(),
-            "premium_price": season.premium_price()}
+    return season.season_view(uid)
 
 
 @router.post("/me/season/claim")

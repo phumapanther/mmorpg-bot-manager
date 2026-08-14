@@ -87,11 +87,9 @@
         <button class="g-tile" data-go="daily">
           <span class="ic">📅</span>ภารกิจวันนี้<span class="sub">เควสรายวัน</span></button>
         <button class="g-tile" data-go="season">
-          <span class="ic">🎟️</span>ซีซั่นพาส<span class="sub">รางวัลตามแต้มสะสม</span></button>
+          <span class="ic">🎟️</span>ซีซั่นพาส<span class="sub" id="tileSeasonSub">รางวัล + สายพรีเมียม</span></button>
         <button class="g-tile" data-go="achv">
           <span class="ic">🏅</span>ความสำเร็จ<span class="sub">รับรางวัลที่ทำครบ</span></button>
-        <button class="g-tile" data-go="season">
-          <span class="ic">⭐</span>สายพรีเมียม<span class="sub">สิทธิพิเศษรายเดือน</span></button>
       </div></div>
 
       <div class="g-sec"><h3>คาสิโน</h3><div class="g-grid">
@@ -323,11 +321,12 @@
       <button class="g-back" data-back>← กลับเมนูหลัก</button>
       <div class="g-head"><h2>🎟️ ซีซั่นพาส</h2>
         <p>สะสมแต้มจาก EXP ที่ได้ทั้งซีซั่น — สายฟรีทุกคนได้ สายพรีเมียมได้เพิ่มอีกชั้น</p></div>
-      <div class="g-card"><div id="seasonHead" class="rolls-left"></div>
+      <div class="g-card sp-top">
+        <div id="seasonHead"></div>
         <div class="bet-row"><button class="g-tile hot casino-go" id="seasonClaim"
-            ><span class="ic">🎁</span>รับรางวัลที่ถึงแล้ว</button>
+            ><span class="ic">🎁</span>รับรางวัล<span class="sub" id="seasonClaimSub"></span></button>
           <button class="g-tile casino-go" id="seasonBuy"><span class="ic">⭐</span>ซื้อสายพรีเมียม</button></div></div>
-      <div id="seasonList" class="stat-list" style="margin-top:14px"></div>
+      <div id="seasonList" style="margin-top:14px"></div>
     </div>
 
     <!-- ══ คู่หู ══ -->

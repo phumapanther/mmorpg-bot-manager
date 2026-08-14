@@ -625,3 +625,39 @@
 .dice-detail .cap { color: #8fd07a; }
 .dur-pct { font-size: 11px; color: var(--g-dim); margin-left: 6px; }
 .dur-pct.low { color: #ff8a6a; font-weight: 700; }
+
+
+/* ── 🎟️ ซีซั่นพาส — สายฟรีกับสายพรีเมียมอยู่การ์ดเดียวกัน ── */
+.sp-top { display: grid; gap: 10px; }
+.sp-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sp-badge { font-size: 12px; font-weight: 700; padding: 4px 11px; border-radius: 999px;
+  background: var(--g-hi); border: 1px solid var(--g-line); color: var(--g-muted); }
+.sp-badge.prem { background: linear-gradient(#7a5a12, #4a3408); border-color: var(--g-gold);
+  color: #ffe6a8; }
+.sp-season { font-family: var(--g-num); font-size: 12.5px; color: var(--g-dim); }
+
+.sp-tier { background: var(--g-panel); border: 1px solid var(--g-line); border-radius: var(--g-r);
+  padding: 11px 13px; margin-bottom: 9px; display: grid; gap: 7px; position: relative;
+  overflow: hidden; opacity: .72; }
+.sp-tier.hit { opacity: 1; }
+.sp-tier::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 3px;
+  background: #4a4038; }
+.sp-tier.hit::before { background: var(--g-gold); }
+.sp-th { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+.sp-th span { font-size: 12px; color: var(--g-muted); font-family: var(--g-num); }
+
+.sp-row { display: flex; align-items: center; gap: 9px; font-size: 12.5px;
+  padding: 5px 8px; border-radius: 9px; background: rgba(0,0,0,.22); }
+.sp-tr { flex: none; }
+.sp-rw { flex: 1; color: var(--g-ink); }
+.sp-st { flex: none; font-size: 11.5px; color: var(--g-dim); white-space: nowrap; }
+.sp-row.ok .sp-st { color: #8fd07a; }
+.sp-row.hot { background: rgba(214,164,58,.15); border: 1px solid rgba(214,164,58,.4); }
+.sp-row.hot .sp-st { color: var(--g-gold); font-weight: 700; }
+.sp-row.prem .sp-st { color: #c9a2e8; }
+.sp-row.off { opacity: .6; }
+
+@media (max-width: 420px) {
+  .sp-row { flex-wrap: wrap; gap: 4px 8px; }
+  .sp-st { width: 100%; text-align: right; }
+}

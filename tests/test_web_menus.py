@@ -34,10 +34,19 @@ def test_the_web_reads_from_the_same_modules_as_discord():
             or f", {mod}" in API, f"API ไม่ได้เรียกโมดูล {mod}"
 
 
+def _js_fn(name):
+    """เนื้อฟังก์ชันหนึ่งตัวใน play.js — ตัดถึงฟังก์ชันถัดไป ไม่ใช่นับตัวอักษรเอา
+    (เคยพัง: ฟังก์ชันยาวขึ้นแล้วเทสมองไม่เห็นโค้ดที่ยังอยู่ครบ)"""
+    start = JS.index(f"async function {name}(")
+    rest = JS[start + 10:]
+    marks = ["\nasync function ", "\nfunction "]
+    ends = [rest.index(m) for m in marks if m in rest]
+    return rest[:min(ends)] if ends else rest
+
+
 def test_actions_that_spend_gold_ask_first():
     """ซื้อสายพรีเมียมเป็นการจ่ายทองก้อน ต้องเด้งยืนยันก่อนเสมอ"""
-    block = JS[JS.index("async function fillSeason("):]
-    assert "confirmAction(" in block[:2200], "ปุ่มซื้อสายพรีเมียมไม่ได้ถามยืนยัน"
+    assert "confirmAction(" in _js_fn("fillSeason"), "ปุ่มซื้อสายพรีเมียมไม่ได้ถามยืนยัน"
 
 
 def test_pet_equip_goes_through_the_shared_rule():
@@ -68,20 +77,21 @@ def test_the_premium_price_shown_is_the_price_charged():
     import inspect
     charge = inspect.getsource(season.buy_premium)
     assert "premium_price()" in charge, "ตัวหักเงินไม่ได้ใช้ premium_price()"
-    assert "season.premium_price()" in API, "API ไม่ได้ใช้ premium_price() ตัวเดียวกัน"
+    view = inspect.getsource(season.season_view)       # API ส่ง season_view ออกไปตรง ๆ
+    assert "premium_price()" in view, "สรุปสถานะไม่ได้ใช้ premium_price() ตัวเดียวกัน"
+    assert "season.season_view(uid)" in API, "API ไม่ได้อ่านราคาจากที่เดียวกับตัวหักเงิน"
     assert season.premium_price() > 0, "ราคาต้องอ่านออก ไม่ใช่ 0"
 
 
 def test_the_price_is_visible_before_you_click():
     """ราคาต้องอยู่บนปุ่มตั้งแต่แรก ไม่ใช่ไปเห็นตอนป็อปอัพเด้ง"""
-    block = JS[JS.index("async function fillSeason("):]
-    assert "d.premium_price" in block[:1800]
-    assert "buy.innerHTML" in block[:1800], "ปุ่มไม่ได้อัปเดตข้อความให้มีราคา"
+    block = _js_fn("fillSeason")
+    assert "d.premium_price" in block
+    assert "buy.innerHTML" in block, "ปุ่มไม่ได้อัปเดตข้อความให้มีราคา"
 
 
 def test_a_closed_season_disables_the_button():
-    block = JS[JS.index("async function fillSeason("):]
-    assert "!d.enabled" in block[:1800], "ซีซั่นปิดอยู่ต้องกดซื้อไม่ได้"
+    assert "!d.enabled" in _js_fn("fillSeason"), "ซีซั่นปิดอยู่ต้องกดซื้อไม่ได้"
 
 
 # ── 🎲 สรุปเต๋า + ความทนทาน (คำถามจากผู้เล่นจริง 2026-08-14) ──────────────────

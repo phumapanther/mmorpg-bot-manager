@@ -348,6 +348,11 @@ function paint(g) {
     esc(bits.join(' · ')) + (note ? ' <span style="color:var(--g-gold)">· ' + esc(note) + '</span>' : '');
   document.getElementById('pCash').textContent = fmt(m.cash);
   document.getElementById('pBank').textContent = fmt(m.bank);
+  const spTile = document.getElementById('tileSeasonSub');
+  if (spTile) {                                    // ป้ายบนปุ่มซีซั่นพาส — มีของค้างรับไหม
+    const n = (g.season && g.season.claimable) || 0;
+    spTile.textContent = n ? `🎁 ${n} ช่องรอรับ` : 'รางวัล + สายพรีเมียม';
+  }
 
   // ตัวละครประกอบจากของที่สวมจริง — เผ่า/คลาส/เกราะ/อาวุธ มาจาก DB ทั้งหมด
   CHAR = { race: id.race, cls: id.class_name,
@@ -1523,22 +1528,60 @@ async function fillElemBook() {
     </div>`).join('');
 }
 
-// ── 🎟️ ซีซั่นพาส + ⭐ สายพรีเมียม ──
+// ── 🎟️ ซีซั่นพาส + ⭐ สายพรีเมียม (แผงเดียวจบ) ──
+// สถานะแต่ละช่อง (รับแล้ว/ยังไม่ถึง/ต้องเปิดพรีเมียม/กดรับได้) เซิร์ฟเวอร์เป็นคนตัดสิน
+// ที่นี่แค่แปลงเป็นป้ายสี — จะได้ตรงกับที่ดิสโชว์เป๊ะ ๆ
+const SP_STATUS = {
+  claimed:      ['✅ รับแล้ว', 'ok'],
+  ready:        ['🎁 กดรับได้!', 'hot'],
+  locked:       ['🔒 ยังไม่ถึง', 'off'],
+  need_premium: ['🔐 ต้องเปิดพรีเมียม', 'prem'],
+};
+
 async function fillSeason() {
   const d = await api('GET', '/api/web/me/season');
-  document.getElementById('seasonHead').innerHTML =
-    `🎟️ แต้มซีซั่นนี้ <b>${fmt(d.points)}</b> · สาย${d.premium ? '<b>พรีเมียม ⭐</b>' : 'ฟรี'}`;
-  document.getElementById('seasonList').innerHTML = d.tiers.map(t => {
-    const rw = o => [o.gold ? fmt(o.gold) + ' ทอง' : '', o.exp ? fmt(o.exp) + ' EXP' : '',
-                     o.item ? 'ไอเทม' : ''].filter(Boolean).join(' + ') || '—';
-    return `<div class="kv"><span>${t.reached ? '✅' : '🔒'} ${fmt(t.points)} แต้ม</span>
-      <b>ฟรี: ${rw(t.free)}${d.premium ? ' · ⭐ ' + rw(t.premium) : ''}</b></div>`;
-  }).join('');
-  document.getElementById('seasonClaim').onclick = async () => {
+  const nx = d.next;
+
+  // หัวแผง: ปลดไปกี่ขั้นแล้ว + อีกกี่แต้มถึงขั้นถัดไป (เห็นความคืบหน้าในบรรทัดเดียว)
+  const pct = nx ? Math.max(0, Math.min(100, d.points / Math.max(1, nx.points) * 100)) : 100;
+  document.getElementById('seasonHead').innerHTML = `
+    <div class="sp-line"><span class="sp-badge ${d.premium ? 'prem' : ''}">${
+      d.premium ? '⭐ สายพรีเมียม' : '🆓 สายฟรี'}</span>
+      <span class="sp-season">ซีซั่น ${esc(d.season)}</span></div>
+    <div class="rolls-left">🎟️ แต้มสะสม <b>${fmt(d.points)}</b> ·
+      ปลดแล้ว <b>${d.tiers_done}</b>/${d.tiers_total} ขั้น</div>
+    <div class="prog${nx ? '' : ' done'}"><i style="width:${pct}%"></i></div>
+    <small style="color:var(--g-dim)">${nx
+      ? `อีก ${fmt(nx.need_more)} แต้ม ถึงขั้น ${nx.index + 1} (${fmt(nx.points)} แต้ม)`
+      : '🏆 ปลดครบทุกขั้นแล้ว!'}</small>`;
+
+  // รายขั้น: การ์ดใบเดียวเห็นทั้งสายฟรีและสายพรีเมียม พร้อมชื่อของที่จะได้
+  document.getElementById('seasonList').innerHTML = d.tiers.map(t => `
+    <div class="sp-tier${t.reached ? ' hit' : ''}">
+      <div class="sp-th"><b>ขั้น ${t.index + 1}</b>
+        <span>${t.reached ? '✅ ปลดแล้ว' : '🔒 ' + fmt(t.points) + ' แต้ม'}</span></div>
+      ${t.tracks.map(k => {
+        const [label, cls] = SP_STATUS[k.status] || ['—', 'off'];
+        return `<div class="sp-row ${cls}">
+          <span class="sp-tr">${k.track === 'free' ? '🆓' : '⭐'}</span>
+          <span class="sp-rw">${esc(k.text)}</span>
+          <span class="sp-st">${label}</span></div>`;
+      }).join('') || '<div class="sp-row off"><span class="sp-rw">— ไม่มีรางวัลขั้นนี้ —</span></div>'}
+    </div>`).join('');
+
+  // ปุ่มรับรางวัล: บอกจำนวนช่องที่กดได้ตรงปุ่ม ไม่ต้องไล่หาเองว่ามีอะไรค้างไหม
+  const claim = document.getElementById('seasonClaim');
+  document.getElementById('seasonClaimSub').textContent =
+    d.claimable ? d.claimable + ' ช่องรอรับ' : 'ยังไม่มีให้รับ';
+  claim.disabled = !d.claimable;
+  claim.onclick = async () => {
     try { toast((await api('POST', '/api/web/me/season/claim')).message);
           SFX.play('reward'); fillSeason(); boot(); }
     catch (e) { toast(e.message, true); }
   };
+  // ป้ายบนปุ่มเมนูหลัก — เห็นตั้งแต่ยังไม่เข้ามาว่ามีของค้างรับ
+  const tile = document.getElementById('tileSeasonSub');
+  if (tile) tile.textContent = d.claimable ? `🎁 ${d.claimable} ช่องรอรับ` : 'รางวัล + สายพรีเมียม';
   // ราคาต้องอยู่บนปุ่มตั้งแต่ยังไม่กด — ไม่ใช่ไปเห็นตอนป็อปอัพเด้ง
   const buy = document.getElementById('seasonBuy');
   buy.innerHTML = d.premium

@@ -109,46 +109,87 @@ def claim_all(user_id, season=None):
     return "🎁 **รับรางวัลซีซั่นสำเร็จ!**\n" + "\n".join(f"• {g}" for g in got)
 
 
-def build_season_embed(user_id, display_name):
-    season = player_model.season_key()
-    points = player_model.get_season_points(user_id, season)
+def _reward_view(reward):
+    """รางวัลหนึ่งช่อง -> ข้อมูลที่เอาไปโชว์ได้เลย (ชื่อไอเทมแปลงให้แล้ว)"""
+    item_id = reward.get("item")
+    item = None
+    if item_id:
+        cfg = config_loader.get_item_config(str(item_id)) or {}
+        item = {"id": str(item_id), "name": cfg.get("name", f"ไอเทม {item_id}")}
+    bits = []
+    if reward.get("gold"):
+        bits.append(f"🪙 {int(reward['gold']):,}")
+    if reward.get("exp"):
+        bits.append(f"🔷 {int(reward['exp']):,} EXP")
+    if item:
+        bits.append(item["name"])
+    return {"gold": int(reward.get("gold", 0) or 0), "exp": int(reward.get("exp", 0) or 0),
+            "item": item, "text": " · ".join(bits) or "—"}
+
+
+def season_view(user_id, season=None):
+    """สถานะซีซั่นพาสทั้งใบ — ทั้งเอมเบดในดิสและหน้าเว็บอ่านจากตัวนี้ตัวเดียว
+
+    เคยเป็นปัญหา: เว็บคำนวณเองว่าช่องไหนรับแล้ว/ยังไม่ถึง แล้วไม่ตรงกับดิส
+    """
+    season = season or player_model.season_key()
+    points = int(player_model.get_season_points(user_id, season) or 0)
     premium = is_premium(user_id, season)
     claimed = player_model.get_claimed_rewards(user_id)
     all_tiers = tiers()
 
-    done_tiers = sum(1 for t in all_tiers if points >= int(t.get("points", 0)))
+    rows, claimable, nxt = [], 0, None
+    for i, tier in enumerate(all_tiers):
+        need = int(tier.get("points", 0))
+        reached = points >= need
+        if not reached and nxt is None:
+            nxt = {"index": i, "points": need, "need_more": need - points}
+        tracks = []
+        for track in ("free", "premium"):
+            reward = tier.get(track)
+            if not reward:
+                continue
+            if f"sp:{season}:{i}:{track}" in claimed:
+                status = "claimed"
+            elif not reached:
+                status = "locked"
+            elif track == "premium" and not premium:
+                status = "need_premium"
+            else:
+                status = "ready"
+                claimable += 1
+            tracks.append({"track": track, "status": status, **_reward_view(reward)})
+        rows.append({"index": i, "points": need, "reached": reached, "tracks": tracks})
+
+    done = sum(1 for t in all_tiers if points >= int(t.get("points", 0)))
+    return {"season": season, "points": points, "premium": premium, "enabled": enabled(),
+            "premium_price": premium_price(), "tiers": rows,
+            "tiers_done": done, "tiers_total": len(all_tiers),
+            "claimable": claimable, "next": nxt}
+
+
+STATUS_MARK = {"claimed": "✅ รับแล้ว", "locked": "🔒 ยังไม่ถึง",
+               "need_premium": "🔐 ต้องเปิดพรีเมียม", "ready": "🎁 **กดรับได้!**"}
+TRACK_ICON = {"free": "🆓", "premium": "⭐"}
+
+
+def build_season_embed(user_id, display_name):
+    v = season_view(user_id)
+    season, points, premium = v["season"], v["points"], v["premium"]
+    all_tiers = tiers()
+
+    done_tiers = v["tiers_done"]
     embed = discord.Embed(
         title=f"🎟️ ซีซั่นพาส {season} — {display_name}",
         color=0xe67e22 if premium else 0x95a5a6,
         description=(f"{'⭐ **สายพรีเมียมเปิดอยู่**' if premium else '🆓 สายฟรี (ยังไม่เปิดพรีเมียม)'}\n"
                      f"แต้มซีซั่น **{points:,}** · ปลดแล้ว **{done_tiers}/{len(all_tiers)}** ขั้น"))
 
-    for i, tier in enumerate(all_tiers[:24]):
-        need = int(tier.get("points", 0))
-        reached = points >= need
-        lines = []
-        for track, icon in (("free", "🆓"), ("premium", "⭐")):
-            reward = tier.get(track)
-            if not reward:
-                continue
-            got = f"sp:{season}:{i}:{track}" in claimed
-            if got:
-                mark = "✅ รับแล้ว"
-            elif not reached:
-                mark = "🔒 ยังไม่ถึง"
-            elif track == "premium" and not premium:
-                mark = "🔐 ต้องเปิดพรีเมียม"
-            else:
-                mark = "🎁 **กดรับได้!**"
-            bits = []
-            if reward.get("gold"):
-                bits.append(f"🪙 {int(reward['gold']):,}")
-            if reward.get("exp"):
-                bits.append(f"🔷 {int(reward['exp']):,}")
-            if reward.get("item"):
-                bits.append(config_loader.get_item_config(str(reward["item"])).get("name", "ไอเทมพิเศษ"))
-            lines.append(f"{icon} {' · '.join(bits) or '—'} → {mark}")
-        embed.add_field(name=f"ขั้น {i + 1} · ต้องมี {need:,} แต้ม", value="\n".join(lines), inline=False)
+    for row in v["tiers"][:24]:
+        lines = [f"{TRACK_ICON[t['track']]} {t['text']} → {STATUS_MARK[t['status']]}"
+                 for t in row["tracks"]]
+        embed.add_field(name=f"ขั้น {row['index'] + 1} · ต้องมี {row['points']:,} แต้ม",
+                        value="\n".join(lines) or "—", inline=False)
 
     price = int(_cfg("price_gold", 0) or 0)
     embed.set_footer(text=("แต้ม = EXP ที่หาได้ในเดือนนี้ · รางวัลทองเข้าธนาคาร"
