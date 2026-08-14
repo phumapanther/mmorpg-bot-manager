@@ -26,6 +26,15 @@ CREATE TABLE IF NOT EXISTS login_codes (
     expires_at REAL NOT NULL,
     used INTEGER DEFAULT 0
 );
+-- 🔑 ตั๋วล็อกอินคลิกเดียวจากปุ่มในดิสคอร์ด — ใช้ได้ครั้งเดียว อายุสั้น
+-- ต่างจาก login_codes ตรงที่ตัวตนถูกผูกไว้ตั้งแต่ตอนสร้าง (บอทรู้อยู่แล้วว่าใครกด)
+CREATE TABLE IF NOT EXISTS login_tickets (
+    token TEXT PRIMARY KEY,
+    discord_id TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now', 'localtime')),
+    expires_at REAL NOT NULL,
+    used INTEGER DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS admin_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     discord_id TEXT NOT NULL,

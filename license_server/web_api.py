@@ -178,6 +178,35 @@ def login_status(code: str, response: Response):
     return {"status": "ok"}
 
 
+_TICKET_RE = re.compile(r"^[A-Za-z0-9_-]{20,64}$")
+
+
+@router.get("/login/t/{token}")
+def login_ticket(token: str):
+    """🔑 เข้าเกมคลิกเดียวจากปุ่มในดิสคอร์ด — ตั๋วใช้ได้ครั้งเดียวและอายุสั้น
+
+    ตัวตนมาจากตอนบอทออกตั๋ว (บอทรู้อยู่แล้วว่าใครกดปุ่ม) หน้าเว็บจึงไม่ต้องถามอะไรอีก
+    ตั๋วรั่วก็ใช้ได้แค่ครั้งเดียวและหมดอายุใน 2 นาที
+    """
+    from fastapi.responses import RedirectResponse
+
+    tok = (token or "").strip()
+    if not _TICKET_RE.match(tok):
+        raise HTTPException(400, "ลิงก์เข้าเกมไม่ถูกต้อง")
+    with web_db.connect() as conn:
+        row = conn.execute("SELECT discord_id, expires_at, used FROM login_tickets WHERE token=?",
+                           (tok,)).fetchone()
+        if not row or row["used"] or row["expires_at"] < time.time():
+            raise HTTPException(400, "ลิงก์นี้ถูกใช้ไปแล้วหรือหมดอายุ — "
+                                     "พิมพ์คำสั่งขอลิงก์ใหม่ในดิสคอร์ดได้เลย")
+        conn.execute("UPDATE login_tickets SET used=1 WHERE token=?", (tok,))
+
+    resp = RedirectResponse("/play", status_code=303)
+    _set_cookie(resp, "web_session", {"uid": str(row["discord_id"]),
+                                      "exp": time.time() + _SESSION_TTL})
+    return resp
+
+
 @router.get("/me/session")
 def me_session(request: Request):
     return {"discord_id": require_player(request)["uid"]}

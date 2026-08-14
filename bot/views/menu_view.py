@@ -622,7 +622,7 @@ class GameMenuView(discord.ui.View):
         embed = discord.Embed(
             title="🌐 เว็บไซต์เกม Fragment Rift",
             description=(f"ข่าวสาร · อัพเดทแพทช์ · ข้อมูลเกม · เติมเกม · โปรไฟล์\n{url}\n\n"
-                         f"🔑 ล็อกอินเว็บ: กดขอโค้ดที่หน้าเว็บ แล้วพิมพ์ `!weblogin <โค้ด>` ในเซิร์ฟนี้"),
+                         f"🔑 เข้าเกมบนเว็บ: พิมพ์ `!login` ในห้องผจญภัย แล้วกดปุ่มได้เลย"),
             color=0xd93b2b)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
