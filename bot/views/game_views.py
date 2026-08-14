@@ -8,6 +8,7 @@ import json
 from bot import config_loader
 from bot import game_modifiers
 from bot import robbery
+from bot import adventure_core
 from bot.views.fight_ui import (ELEMENT_COLORS, RANK_BADGES, build_fight_embed,  # noqa: F401 (B6)
                                 build_respawn_embed, hp_bar)
 from bot.event_images import event_image, monster_image, item_use_image, file_kwargs  # noqa: F401
@@ -16,17 +17,9 @@ def _holy_aura_chance(p_lvl):
     cfg = config_loader.get_skill_config("Cleric", "holy_aura")
     return cfg["chance_base"] + (p_lvl * cfg["chance_lvl_scale"])
 
-# ตารางสัดส่วนน้ำหนักเหตุการณ์ (อ้างอิงจาก last_event)
-EVENT_WEIGHTS = {
-    "village":            [2,   0,        3,      1,       90,       4],
-    "dungeon_inside":     [45,  5,        35,     0,       5,        10],
-    "monster":            [25,  25,       20,     10,      10,       10],
-    "treasure":           [30,  20,       10,     15,      15,       10],
-    "npc":                [20,  40,       15,     10,      5,        10],
-    "trap":               [35,  15,       15,     10,      10,       15],
-    "none":               [25,  25,       20,     15,      10,       5]
-}
-EVENT_LIST = ["monster", "village", "treasure", "dungeon", "npc", "trap"]
+# ตารางน้ำหนักเหตุการณ์ย้ายไป bot/adventure_core.py แล้ว (ใช้ร่วมกับเว็บ)
+# re-export ไว้ให้โค้ด/เทสเดิมที่อ้างจากไฟล์นี้ยังใช้ได้
+from bot.adventure_core import EVENT_WEIGHTS, EVENT_LIST, event_weights  # noqa: E402,F401
 
 
 # เรทเกิดมอนรายแรงค์ตามช่วงเลเวล (ค่าเดิมในโค้ด — ใช้เมื่อ Panel ไม่ได้ตั้ง)
@@ -71,24 +64,6 @@ def spawn_weights_for(player_level, rank_keys):
     fallback = max((lv for lv in DEFAULT_SPAWN_WEIGHTS if player_level >= lv), default=0)
     return list(DEFAULT_SPAWN_WEIGHTS[fallback])
 
-
-def event_weights(last_evt):
-    """น้ำหนักอีเวนต์ของสถานการณ์นั้น — ตั้งได้ที่ Panel (ไม่ตั้ง/ตั้งไม่ครบ = ค่าเดิมในโค้ด)
-
-    รับได้ทั้งรูป dict จาก Panel {"monster": 25, ...} และ list เรียงตาม EVENT_LIST
-    """
-    if last_evt not in EVENT_WEIGHTS:
-        last_evt = "none"
-    default = list(EVENT_WEIGHTS[last_evt])
-    row = (config_loader.get_balance("events.weights", {}) or {}).get(last_evt)
-    try:
-        if isinstance(row, dict):
-            return [max(0, int(row.get(evt, default[i]))) for i, evt in enumerate(EVENT_LIST)]
-        if isinstance(row, list) and len(row) == len(EVENT_LIST):
-            return [max(0, int(w)) for w in row]
-    except (TypeError, ValueError):
-        pass                       # ค่าใน Panel เพี้ยน = ใช้ของเดิม ดีกว่าเกมพัง
-    return default
 
 # โครงสร้างข้อมูลระดับความโหดของมอนสเตอร์
 MONSTER_RANKS = {
@@ -2797,84 +2772,12 @@ class AdventureView(ActionView):
                 player["hp"] = new_hp
                 player_model.update_player_field(user_id, "hp", new_hp)
 
-        # 2. จัดลำดับความสำคัญ (Priority Order)
-        
-        # [Priority 1: วาปกลับเมือง] - สำคัญที่สุด ต้องทำก่อนเสมอ
-        if last_evt == "warp_village":
-            chosen_event = "village"
-            dg_steps = 0  # รีเซ็ตดันเจี้ยนทิ้งทันที
-            player_model.update_player_field(user_id, "dungeon_steps", 0)
-            
-        # [Priority 2: สแกนกล่องสมบัติ] - อยู่ในดันเจี้ยนได้ แต่ไม่ลบเทิร์น
-        elif last_evt == "scan_box":
-            chosen_event = "treasure"
-            # ไม่มีการลบ dg_steps
-            
-        # [Priority 3: เช็กสถานะอยู่ในดันเจี้ยน หรือ ใช้ใบเรียกบอส]
-        # เงื่อนไข: ถ้าอยู่ในดันเจี้ยน (dg_steps > 0) หรือ ใช้ใบเรียกบอส
-        elif dg_steps > 0 or last_evt in ["mini_summon", "main_summon", "unbeatable_summon"]:
-            
-            # ดักเคส: ถ้าอยู่ในดันเจี้ยน ห้ามใช้ warp_dungeon (Error/Block ไว้)
-            if dg_steps > 0 and last_evt == "warp_dungeon":
-                chosen_event = "monster" # บังคับสู้ต่อ
-            else:
-                chosen_event = "monster"
-            
-            # ถ้าอยู่ในดันเจี้ยน และเป็นเหตุการณ์มอนสเตอร์ ให้ลบเทิร์น
-            if dg_steps > 0:
-                dg_steps = max(0, dg_steps - 1)
-                player_model.update_player_field(user_id, "dungeon_steps", dg_steps)
+        # 2. เลือกเหตุการณ์ของก้าวนี้ — ตรรกะอยู่ใน adventure_core (ใช้ร่วมกับเว็บ)
+        chosen_event, special_event, dg_steps = adventure_core.decide_event(
+            user_id, player, statuses, mods, dg_steps, last_evt, current_cooldown)
 
-        # [Priority 4: เหตุการณ์พิเศษอื่นๆ ที่ไม่มีผลกับดันเจี้ยน]
-        elif last_evt == "treasure_trap":
-            chosen_event = "trap"
-        elif last_evt == "revive":
-            chosen_event = "village"
-        elif last_evt == "warp_dungeon":
-            # กรณีวาปเข้าดันเจี้ยน (เข้าได้เฉพาะตอนอยู่นอกดันเจี้ยน)
-            chosen_event = "dungeon"
-
-        # [Priority 5: สุ่มปกติ]
-        else:
-            special_event = None
-            # 🪤 กับดักมอนสเตอร์: วางไว้แล้วก้าวถัดไปเจอมอนแน่นอน — ตัดหน้าทั้งพาหนะ/อีเวนต์พิเศษ/สงบ
-            forced_event, _trap_key = game_modifiers.status_forced_event(statuses)
-            if forced_event:
-                chosen_event = forced_event
-            # 🥷 โจรปล้น (spec 2026-08-06): รวยเกินล้านเริ่มตกเป็นเป้า — มีบัตรประกันคุ้มครอง = รอดทั้งทาง
-            elif (rob_event := robbery.roll_robbery(player.get("cash", 0), player.get("bank", 0), statuses)):
-                chosen_event = rob_event
-            # 🧭 โอกาสสุ่มเจอพาหนะข้ามทวีป (แทรกเฉพาะจังหวะสุ่มปกติ ไม่ชนดันเจี้ยน/บอส/วาร์ป)
-            elif game_modifiers.roll_travel_chance(mods):
-                chosen_event = "travel"
-            # 🎪 อีเวนต์พิเศษประจำทวีป/ธีมสัปดาห์ (ทอยตาม chance รายอีเวนต์)
-            elif (special_event := game_modifiers.roll_special_event(mods)):
-                chosen_event = "special"
-            # 🍃 โอกาสเจออีเวนต์เงียบสงบ — ไม่มีอะไรเกิดขึ้น แค่บรรยากาศ
-            elif game_modifiers.roll_calm_chance():
-                chosen_event = "calm"
-            else:
-                current_weights = event_weights(last_evt)
-                if current_cooldown > 0:
-                    current_weights[1] = 0
-                # ตัวคูณน้ำหนักอีเวนต์จากทวีป/ธีมสัปดาห์ (mult ว่าง = น้ำหนักเดิมเป๊ะ)
-                current_weights = game_modifiers.apply_event_weights(current_weights, EVENT_LIST, mods)
-                # 🧭 ตัวคูณน้ำหนักจากสถานะติดตัว (เช่น เข็มทิศขบวนหลวง ×2 หีบ)
-                status_weight_mult = game_modifiers.status_event_weight_mult(statuses)
-                if status_weight_mult:
-                    current_weights = [w * status_weight_mult.get(evt, 1.0) for w, evt in zip(current_weights, EVENT_LIST)]
-                chosen_event = random.choices(EVENT_LIST, weights=current_weights, k=1)[0]
-
-        summon_events = ["mini_summon", "main_summon", "unbeatable_summon"]
-        # 4. อัปเดต last_event
-        if chosen_event == "monster" and last_evt in summon_events:
-            pass # ไม่ต้องทำอะไร ปล่อย last_event เป็นค่าเรียกบอสเหมือนเดิม
-        else:
-            # ถ้าเป็นเหตุการณ์อื่นๆ ให้บันทึกลงฐานข้อมูลตามปกติ
-            player_model.update_player_field(user_id, "last_event", chosen_event)
-        
-        if chosen_event == "village":
-            player_model.update_player_field(user_id, "village_cooldown", 10)
+        summon_events = adventure_core.SUMMON_EVENTS
+        adventure_core.commit_event(user_id, chosen_event, last_evt)
 
 
         # ==========================================

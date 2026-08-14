@@ -6,6 +6,8 @@ from bot import config_loader
 from bot import game_modifiers as gm
 
 SRC = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
+# ตรรกะเลือกเหตุการณ์ย้ายไป adventure_core แล้ว (เว็บเกม เฟส 5.1)
+CORE = pathlib.Path("bot/adventure_core.py").read_text(encoding="utf-8")
 
 
 def test_status_exists_with_the_right_flags():
@@ -24,11 +26,12 @@ def test_forced_event_lookup():
 
 def test_trap_beats_travel_special_and_calm():
     """กับดักต้องตัดหน้าทุกอีเวนต์ในสาขาสุ่มปกติ ไม่งั้นวางแล้วยังเจออีเวนต์สงบ"""
-    block = SRC[SRC.index("# [Priority 5: สุ่มปกติ]"):SRC.index("summon_events = ")]
+    block = CORE[CORE.index("# [5] สุ่มปกติ"):]
     trap_at = block.index("status_forced_event")
-    for other in ("roll_travel_chance", "roll_special_event", "roll_calm_chance", "random.choices"):
+    for other in ("roll_robbery", "roll_travel_chance", "roll_special_event",
+                  "roll_calm_chance", "rng.choices"):
         assert trap_at < block.index(other), f"กับดักต้องถูกเช็คก่อน {other}"
-    assert "if forced_event:" in block and "elif game_modifiers.roll_travel_chance" in block
+    assert "if forced_event:" in block
 
 
 def test_light_monsters_cannot_escape_a_trap():
