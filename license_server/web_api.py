@@ -1355,3 +1355,183 @@ def board_roll(request: Request):
     if not ok:
         raise HTTPException(400, r["error"])
     return r | {"money": _money_now(uid)}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 📚 เมนูสะสม/รางวัล ที่มีในดิสอยู่แล้ว — ต่อขึ้นเว็บ (เว็บเกม รอบเก็บเมนู)
+# ทุกอันเรียกโมดูลเดียวกับคำสั่งในดิส เว็บแค่แปลงเป็น JSON พร้อมแสดงผล
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/me/pets")
+def me_pets(request: Request):
+    """🐾 สัตว์เลี้ยงที่จับได้ + ตัวที่ติดอยู่"""
+    uid = int(require_player(request)["uid"])
+    from bot import pets
+    from bot.models import player_model
+    owned = pets.owned(uid)
+    active = (player_model.get_player(uid) or {}).get("pet", "")
+    return {"active": active,
+            "pets": [{"key": p["key"], "name": p["name"], "dice": p.get("dice", 0),
+                      "from_rank": p.get("from_rank", ""), "owned": p["key"] in owned,
+                      "active": p["key"] == active}
+                     for p in pets.all_pets()]}
+
+
+class PetBody(BaseModel):
+    key: str = ""
+
+
+@router.post("/me/pets")
+def me_pets_equip(body: PetBody, request: Request):
+    """ติด/ปล่อยสัตว์เลี้ยง — ตรรกะเดียวกับปุ่มในดิส (มีแล้วเท่านั้นถึงติดได้)"""
+    uid = int(require_player(request)["uid"])
+    from bot import pets
+    with _user_lock(uid):
+        ok, msg = pets.set_active(uid, body.key)
+    if not ok:
+        raise HTTPException(400, msg)
+    return {"ok": True, "message": msg}
+
+
+@router.get("/me/daily")
+def me_daily(request: Request):
+    """📅 เควสรายวัน + ความคืบหน้า + streak"""
+    uid = int(require_player(request)["uid"])
+    from bot import config_loader
+    from bot.models import player_model
+    progress = player_model.get_daily_progress(uid)
+    streak, best, _new = player_model.touch_login_streak(uid)
+    quests = []
+    for q in config_loader.get_daily_quests():
+        cur, claimed = progress.get(q["key"], (0, False))
+        target = int(q.get("target", 1))
+        quests.append({"key": q["key"], "label": q.get("label", q["key"]),
+                       "cur": min(cur, target), "target": target, "claimed": bool(claimed),
+                       "ready": cur >= target and not claimed,
+                       "gold": q.get("gold", 0), "exp": q.get("exp", 0)})
+    return {"quests": quests, "streak": streak, "best": best,
+            "claimable": any(q["ready"] for q in quests)}
+
+
+@router.post("/me/daily/claim")
+def me_daily_claim(request: Request):
+    uid = int(require_player(request)["uid"])
+    from bot import daily
+    with _user_lock(uid):
+        msg = daily.claim_all(uid)
+    return {"ok": True, "message": msg, "money": _money_now(uid)}
+
+
+@router.get("/me/achievements")
+def me_achievements(request: Request):
+    """🏅 ความสำเร็จ + ฉายาที่ปลดแล้ว"""
+    uid = int(require_player(request)["uid"])
+    from bot import achievements, config_loader
+    from bot.models import player_model
+    stats = achievements.player_stats(uid)
+    done = achievements.unlocked_keys(uid)
+    cur_title = (player_model.get_player(uid) or {}).get("title", "")
+    items = []
+    for a in config_loader.get_config().get("achievements", []):
+        cur = int(stats.get(a.get("stat", ""), 0) or 0)
+        target = int(a.get("target", 1))
+        items.append({"key": a["key"], "label": a.get("label", a["key"]),
+                      "desc": a.get("desc", ""), "cur": min(cur, target), "target": target,
+                      "done": a["key"] in done, "gold": a.get("gold", 0),
+                      "title": a.get("title", "")})
+    return {"achievements": items, "titles": sorted(achievements.unlocked_titles(uid)),
+            "title": cur_title, "stats": stats}
+
+
+class TitleBody(BaseModel):
+    title: str = ""
+
+
+@router.post("/me/title")
+def me_set_title(body: TitleBody, request: Request):
+    """เปลี่ยนฉายา — ต้องปลดจากความสำเร็จมาแล้วเท่านั้น"""
+    uid = int(require_player(request)["uid"])
+    from bot import achievements
+    with _user_lock(uid):
+        ok, msg = achievements.set_title(uid, body.title)
+    if not ok:
+        raise HTTPException(400, msg)
+    return {"ok": True, "message": msg}
+
+
+@router.get("/me/books")
+def me_books(request: Request):
+    """📕 สมุดมอน + 🧬 สมุดธาตุ — สองสมุดในคำขอเดียว (หน้าเดียวกันอ่านทั้งคู่)"""
+    uid = int(require_player(request)["uid"])
+    from bot import game_modifiers
+    from bot.models import player_model
+    from bot.adventure_core import MONSTER_RANKS
+    ranks = list(MONSTER_RANKS)
+    conts = list(game_modifiers.CONTINENTS)
+    elements = list(game_modifiers.ELEMENTS)
+
+    bestiary = player_model.get_bestiary(uid)          # {(ทวีป, แรงค์): จำนวน}
+    book = player_model.get_element_book(uid)          # {(ทวีป, แรงค์, ธาตุ): จำนวน}
+    return {
+        "ranks": ranks, "elements": elements,
+        "continents": [{"key": c, "label": game_modifiers.CONTINENTS[c]["label"],
+                        "done": game_modifiers.element_continent_done(book, c),
+                        "kills": {r: int(bestiary.get((c, r), 0)) for r in ranks},
+                        "elements": {r: [e for e in elements if book.get((c, r, e))]
+                                     for r in ranks}}
+                       for c in conts],
+        "complete": game_modifiers.element_book_complete(book),
+        "total_kills": sum(int(v) for v in bestiary.values()),
+    }
+
+
+@router.get("/me/season")
+def me_season(request: Request):
+    """🎟️ ซีซั่นพาส + ⭐ สายพรีเมียม (ระบบเดียวกัน สองแทร็ก)"""
+    uid = int(require_player(request)["uid"])
+    from bot import config_loader, season
+    from bot.models import player_model
+    points = int(player_model.get_season_points(uid) or 0)
+    premium = season.is_premium(uid)
+    tiers = []
+    for i, t in enumerate(season.tiers()):
+        need = int(t.get("points", 0))
+        tiers.append({"index": i, "points": need, "reached": points >= need,
+                      "free": t.get("free") or {}, "premium": t.get("premium") or {}})
+    return {"points": points, "premium": premium, "tiers": tiers,
+            "premium_price": int(config_loader.get_balance("season.premium_price", 0) or 0)}
+
+
+@router.post("/me/season/claim")
+def me_season_claim(request: Request):
+    uid = int(require_player(request)["uid"])
+    from bot import season
+    with _user_lock(uid):
+        msg = season.claim_all(uid)
+    return {"ok": True, "message": msg, "money": _money_now(uid)}
+
+
+@router.post("/me/season/premium")
+def me_season_premium(request: Request):
+    """ซื้อสายพรีเมียมของซีซั่นนี้"""
+    uid = int(require_player(request)["uid"])
+    from bot import season
+    with _user_lock(uid):
+        ok, msg = season.buy_premium(uid)
+    if not ok:
+        raise HTTPException(400, msg)
+    return {"ok": True, "message": msg, "money": _money_now(uid)}
+
+
+@router.get("/me/partner")
+def me_partner(request: Request):
+    """💍 คู่หู — ดูสถานะ/โบนัส/ประวัติ (ขอแต่งงานยังต้องทำในดิส เพราะต้องแท็กอีกฝ่าย)"""
+    uid = int(require_player(request)["uid"])
+    from bot import partner
+    pid = partner.partner_of(uid)
+    mult, note = partner.bonus_for(uid)
+    return {"partner_id": str(pid) if pid else None, "bonus_mult": mult, "note": note,
+            "played_today": partner.played_today(uid) if pid else False,
+            "history": [str(h) for h in (partner.history_of(uid) or [])],
+            "ring": {"name": partner.ring_name(), "price": partner.ring_price(),
+                     "has": partner.has_ring(uid)}}

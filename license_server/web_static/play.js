@@ -35,6 +35,12 @@ function showPanel(id) {
   if (id === 'roleshop') fillRoleShop().catch(e => toast(e.message, true));
   if (id === 'gacha') fillGacha().catch(e => toast(e.message, true));
   if (id === 'rewards') fillBoard();
+  if (id === 'pets') fillPets().catch(e => toast(e.message, true));
+  if (id === 'daily') fillDaily().catch(e => toast(e.message, true));
+  if (id === 'achv') fillAchv().catch(e => toast(e.message, true));
+  if (id === 'books') fillBooks().catch(e => toast(e.message, true));
+  if (id === 'season') fillSeason().catch(e => toast(e.message, true));
+  if (id === 'partner') fillPartner().catch(e => toast(e.message, true));
   if (id === 'slots' || id === 'hilo' || id === 'bj') buildChips();
   if (id === 'bj') bjRestore();
   if (id === 'scene') initScene().catch(e => toast(e.message, true));
@@ -1237,4 +1243,123 @@ async function openItemMenu(it) {
   const choice = await openDialog({ title: it.name, message: 'เลือกสิ่งที่ต้องการทำ', lines, buttons });
   if (choice === 'use') await useItem(it.id, it.name);
   if (choice === 'drop') await dropItem(it.id, it.name, it.count, it.sell);
+}
+
+
+// ══════ เมนูสะสม/รางวัล ที่ยกมาจากดิส ══════
+// ทุกหน้าอ่านจาก API ที่เรียกโมดูลเดียวกับคำสั่งในดิส — ที่นี่แค่วาด
+
+const bar10 = (cur, target) => {
+  const n = Math.max(0, Math.min(10, Math.round(cur / Math.max(1, target) * 10)));
+  return '█'.repeat(n) + '░'.repeat(10 - n);
+};
+
+// ── 🐾 สัตว์เลี้ยง ──
+async function fillPets() {
+  const box = document.getElementById('petList');
+  box.innerHTML = '<div class="g-note">กำลังโหลด...</div>';
+  const d = await api('GET', '/api/web/me/pets');
+  box.innerHTML = d.pets.map((p, i) => `
+    <div class="role-card${p.active ? ' owned' : ''}" style="--rc:${p.owned ? '#6fa860' : '#4a4038'}">
+      <div class="rn">${esc(p.name)}</div>
+      <div class="rp">${p.owned ? '🎲 หนุนเต๋า +' + p.dice : '🔒 ยังไม่ได้จับ (' + esc(p.from_rank) + ')'}</div>
+      ${p.owned ? `<button data-pet="${i}">${p.active ? 'ปล่อยออก' : 'พาไปด้วย'}</button>` : ''}
+    </div>`).join('');
+  box.querySelectorAll('[data-pet]').forEach(btn => {
+    const p = d.pets[+btn.dataset.pet];
+    btn.onclick = async () => {
+      try {
+        const r = await api('POST', '/api/web/me/pets', { key: p.active ? '' : p.key });
+        toast(r.message); fillPets(); boot();
+      } catch (e) { toast(e.message, true); }
+    };
+  });
+}
+
+// ── 📅 ภารกิจวันนี้ ──
+async function fillDaily() {
+  const d = await api('GET', '/api/web/me/daily');
+  document.getElementById('dailyStreak').textContent =
+    `🔥 ล็อกอินต่อเนื่อง ${d.streak} วัน (สถิติสูงสุด ${d.best} วัน) · รีเซ็ตเที่ยงคืน`;
+  document.getElementById('dailyList').innerHTML = d.quests.map(q => `
+    <div class="kv"><span>${esc(q.label)} <code>${bar10(q.cur, q.target)}</code>
+      ${q.cur}/${q.target}</span>
+      <b>${q.claimed ? '✅ รับแล้ว' : q.ready ? '🎁 รับได้!' : fmt(q.gold) + ' ทอง'}</b></div>`).join('');
+  const btn = document.getElementById('dailyClaim');
+  btn.disabled = !d.claimable;
+  btn.onclick = async () => {
+    try { toast((await api('POST', '/api/web/me/daily/claim')).message); fillDaily(); boot(); }
+    catch (e) { toast(e.message, true); }
+  };
+}
+
+// ── 🏅 ความสำเร็จ ──
+async function fillAchv() {
+  const d = await api('GET', '/api/web/me/achievements');
+  const chips = [['', '— ไม่สวมฉายา —'], ...d.titles.map(t => [t, t])];
+  chipRow(document.getElementById('titleChips'), chips, async v => {
+    try { toast((await api('POST', '/api/web/me/title', { title: v })).message); boot(); }
+    catch (e) { toast(e.message, true); fillAchv(); }
+  }, d.title || '');
+  document.getElementById('achvList').innerHTML = d.achievements.map(a => `
+    <div class="kv"><span>${a.done ? '✅' : '⬜'} ${esc(a.label)} — ${esc(a.desc)}<br>
+      <code>${bar10(a.cur, a.target)}</code> ${fmt(a.cur)}/${fmt(a.target)}</span>
+      <b>${a.done ? 'สำเร็จ' : fmt(a.gold) + ' ทอง'}</b></div>`).join('');
+}
+
+// ── 📕 สมุดมอน + 🧬 สมุดธาตุ ──
+async function fillBooks() {
+  const d = await api('GET', '/api/web/me/books');
+  document.getElementById('bookSummary').innerHTML =
+    `⚔️ ล้มมอนสะสม <b>${fmt(d.total_kills)}</b> ตัว · ` +
+    (d.complete ? '🏆 <b>สมุดธาตุสมบูรณ์ทั้ง 9 ทวีป!</b>'
+                : 'ครบทุกทวีปได้สัตว์เลี้ยงขั้นสูงสุด');
+  document.getElementById('bookList').innerHTML = d.continents.map(c => `
+    <div class="g-card" style="margin-bottom:10px">
+      <h3 style="margin-bottom:8px">${esc(c.label)} ${c.done ? '🏺 <b>ครบทวีป</b>' : ''}</h3>
+      ${d.ranks.map(r => `<div class="kv"><span>${esc(r)}</span>
+        <b>${c.kills[r] ? '⚔️ ' + fmt(c.kills[r]) + ' ตัว · ' : ''}${
+          d.elements.map(e => c.elements[r].includes(e) ? '🟢' : '⚫').join('')}</b></div>`).join('')}
+    </div>`).join('');
+}
+
+// ── 🎟️ ซีซั่นพาส + ⭐ สายพรีเมียม ──
+async function fillSeason() {
+  const d = await api('GET', '/api/web/me/season');
+  document.getElementById('seasonHead').innerHTML =
+    `🎟️ แต้มซีซั่นนี้ <b>${fmt(d.points)}</b> · สาย${d.premium ? '<b>พรีเมียม ⭐</b>' : 'ฟรี'}`;
+  document.getElementById('seasonList').innerHTML = d.tiers.map(t => {
+    const rw = o => [o.gold ? fmt(o.gold) + ' ทอง' : '', o.exp ? fmt(o.exp) + ' EXP' : '',
+                     o.item ? 'ไอเทม' : ''].filter(Boolean).join(' + ') || '—';
+    return `<div class="kv"><span>${t.reached ? '✅' : '🔒'} ${fmt(t.points)} แต้ม</span>
+      <b>ฟรี: ${rw(t.free)}${d.premium ? ' · ⭐ ' + rw(t.premium) : ''}</b></div>`;
+  }).join('');
+  document.getElementById('seasonClaim').onclick = async () => {
+    try { toast((await api('POST', '/api/web/me/season/claim')).message); fillSeason(); boot(); }
+    catch (e) { toast(e.message, true); }
+  };
+  const buy = document.getElementById('seasonBuy');
+  buy.disabled = d.premium;
+  buy.onclick = async () => {
+    if (!await confirmAction({ title: '⭐ ซื้อสายพรีเมียม',
+                               message: 'ปลดรางวัลสายพรีเมียมของซีซั่นนี้ทั้งหมด',
+                               lines: [['ราคา', fmt(d.premium_price) + ' ทอง']],
+                               okText: 'ซื้อเลย' })) return;
+    try { toast((await api('POST', '/api/web/me/season/premium')).message); fillSeason(); boot(); }
+    catch (e) { toast(e.message, true); }
+  };
+}
+
+// ── 💍 คู่หู ──
+async function fillPartner() {
+  const d = await api('GET', '/api/web/me/partner');
+  document.getElementById('partnerCard').innerHTML = d.partner_id
+    ? `<div class="kv"><span>คู่หูปัจจุบัน</span><b>&lt;@${esc(d.partner_id)}&gt;</b></div>
+       <div class="kv"><span>โบนัสตอนนี้</span><b>×${d.bonus_mult}</b></div>
+       <div class="kv"><span>วันนี้เล่นด้วยกันแล้ว</span><b>${d.played_today ? '✅ ได้โบนัส' : '⏳ ยังไม่ได้'}</b></div>
+       ${d.note ? `<p class="g-note">${esc(d.note)}</p>` : ''}`
+    : `<div class="kv"><span>สถานะ</span><b>ยังไม่มีคู่</b></div>
+       <div class="kv"><span>${esc(d.ring.name)}</span>
+         <b>${d.ring.has ? '✅ มีแหวนแล้ว' : fmt(d.ring.price) + ' ทอง'}</b></div>` +
+      (d.history.length ? `<div class="kv"><span>เคยแต่งมาแล้ว</span><b>${d.history.length} ครั้ง</b></div>` : '');
 }
