@@ -13,9 +13,33 @@ async function api(method, url, body) {
   }
   const res = await fetch(url, opts);
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && !url.includes("/me/session")) {
+    // session หมดอายุ/ถูกลบ — บอกให้รู้แล้วพากลับไปล็อกอิน ไม่ใช่ปล่อยให้กดแล้วเงียบ
+    onSessionExpired();
+    throw new Error(data.detail || "หมดเวลาเข้าสู่ระบบ — กรุณาล็อกอินใหม่");
+  }
   if (!res.ok) throw new Error(data.detail || res.statusText);
   return data;
 }
+
+let _expiredShown = false;
+
+/** เรียกเมื่อเซิร์ฟเวอร์ตอบ 401 — เตือนครั้งเดียวแล้วพากลับหน้าล็อกอิน */
+function onSessionExpired() {
+  if (_expiredShown) return;
+  _expiredShown = true;
+  const box = document.createElement("div");
+  box.style.cssText = "position:fixed;inset:0;z-index:9999;display:grid;place-items:center;" +
+    "background:rgba(8,6,4,.86);color:#f2e7d8;font-family:inherit;text-align:center;padding:24px";
+  box.innerHTML = '<div style="max-width:420px">' +
+    '<div style="font-size:44px;margin-bottom:10px">🔒</div>' +
+    '<h2 style="margin:0 0 8px">หมดเวลาเข้าสู่ระบบ</h2>' +
+    '<p style="color:#a99274;margin:0 0 18px">เพื่อความปลอดภัย ระบบให้ล็อกอินใหม่อีกครั้ง</p>' +
+    '<a href="/login" style="display:inline-block;padding:12px 26px;border-radius:10px;' +
+    'background:#c8452f;color:#fff;text-decoration:none;font-weight:700">ไปหน้าล็อกอิน</a></div>';
+  document.body.appendChild(box);
+}
+
 
 function esc(s) {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");

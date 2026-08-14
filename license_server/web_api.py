@@ -1318,8 +1318,12 @@ def adventure_respawn(request: Request):
         r = adventure_core.respawn(uid)
         if not r:
             raise HTTPException(400, "ไม่พบข้อมูลตัวละคร")
+        # ฟื้นแล้วยืนอยู่ในหมู่บ้านจริง ๆ — เปิดเมนูหมู่บ้านให้เลย จะได้พักแรมฟื้นเลือดต่อได้
+        # (เกิดใหม่ได้แค่ 30% ของเลือดเต็ม ไม่ให้เมนูก็ต้องออกเดินทางทั้งที่เลือดน้อย)
+        adventure_core.set_pending(uid, "village", {})
 
     return {"ok": True, "money": _money_now(uid), "hp": r["hp"], "fee": r["fee"],
+            "pending": "village",
             "text": (f"🏥 **หมอผีประจำหมู่บ้านดึงวิญญาณคุณกลับมา**\n"
                      f"❤️ ฟื้นที่ `{r['hp']:,}/{r['max_hp']:,}` HP ({r['hp_pct']}% ของเลือดเต็ม)\n"
                      f"💰 ค่าทำพิธี `{r['fee']:,}` ทอง (เหลือ `{r['cash']:,}`)"

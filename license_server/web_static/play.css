@@ -528,3 +528,28 @@
 .board-result code { background: rgba(0,0,0,.35); border-radius: 4px; padding: 1px 5px;
   font-family: ui-monospace, monospace; color: #ffe6a8; }
 #rollBtn[disabled] { opacity: .45; cursor: not-allowed; filter: grayscale(.6); }
+
+
+/* ── ปุ่มออกจากระบบ + รองรับจอแคบ 375px (เฟส 6) ── */
+.g-logout { margin-left: 10px; background: transparent; border: 1px solid var(--g-line);
+  color: var(--g-dim); border-radius: 8px; padding: 5px 9px; cursor: pointer; font-size: 14px; }
+.g-logout:hover { border-color: #c8452f; color: #ff8a6a; }
+
+@media (max-width: 400px) {
+  .play-shell { padding: 12px; }
+  .g-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .g-tile { min-height: 92px; padding: 10px 8px; font-size: 13px; }
+  .g-tile .sub { font-size: 10px; }
+  .g-head h2 { font-size: 19px; }
+  .board { grid-template-columns: repeat(4, 1fr); }
+  .adv-hud { gap: 8px; padding: 8px 10px; }
+  .adv-hud .hud-top b { font-size: 13px; }
+  .adv-hud .hud-cash { font-size: 11px; }
+  .bet-row { flex-wrap: wrap; }
+  .bet-row .g-tile { flex: 1 1 44%; min-height: auto; padding: 11px 8px; }
+  .adv-log { max-height: 190px; }
+  .foe-bar { width: 88%; }
+  .g-cards { grid-template-columns: 1fr; }
+  .sheet2 { grid-template-columns: 1fr; }
+  .dialog-box { width: calc(100vw - 24px); }
+}

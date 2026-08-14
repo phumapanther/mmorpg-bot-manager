@@ -3,6 +3,15 @@
 // ร้านยศ/กาชา/ทอยเต๋า = ยังเป็นโครงหน้า (เฟส 7-8)
 // กติกา: ไม่มีกฎเกมในไฟล์นี้ — เซิร์ฟเวอร์คำนวณทุกอย่าง ที่นี่แค่วาดกับถามยืนยัน
 renderChrome("/play");
+
+// 🚪 ออกจากระบบ — เว็บนี้เก็บ session ไว้ 30 วัน เครื่องสาธารณะต้องมีทางออก
+document.getElementById('playLogout')?.addEventListener('click', async () => {
+  if (!await confirmAction({ title: '🚪 ออกจากระบบ',
+                             message: 'ต้องล็อกอินด้วยโค้ดจากบอทใหม่อีกครั้ง',
+                             okText: 'ออกจากระบบ', danger: true })) return;
+  try { await api('POST', '/api/web/logout'); } catch (e) { /* ออกอยู่ดี */ }
+  location.href = '/login';
+});
 fillDiscordInvite();
 
 // ── สไปรต์ตัวละคร (เฟส 1.2 — เอนจินอยู่ใน sprite.js) ──
@@ -850,7 +859,7 @@ async function advRespawn() {
     SCENE.setMap((LAST && LAST.identity.continent) || 'main');
     SCENE.showEvent('village');
     document.getElementById('sceneTag').textContent = ADV_LABEL.village;
-    advPaint({ text: r.text });
+    advPaint({ text: r.text, pending: r.pending });   // เปิดเมนูหมู่บ้านต่อทันที (พักแรม/เดินทาง)
     boot();
   } catch (e) {
     toast(e.message, true);

@@ -52,7 +52,7 @@ def create_app():
 
     # 🌐 เว็บไซต์เกม (ข่าว/ข้อมูลเกม/ล็อกอิน/เติมเงิน) — โฮสต์บนแอปเดียวกัน ลิงก์ tunnel เดียวกัน
     # ⚠️ ต้องอยู่ท้ายสุดเสมอ: Starlette จับเส้นทางตามลำดับ — mount "/" ก่อน route จะทับ /redeem (405)
-    from fastapi.responses import FileResponse
+    from fastapi.responses import FileResponse, JSONResponse
     from fastapi.staticfiles import StaticFiles
 
     from license_server import web_api
@@ -69,6 +69,22 @@ def create_app():
     # 🔄 หน้าเว็บ/สคริปต์/สไตล์ ต้องให้เบราว์เซอร์ถามเซิร์ฟเวอร์ทุกครั้งว่ามีของใหม่ไหม
     # (ไฟล์ไม่เปลี่ยน = ตอบ 304 ไม่โหลดซ้ำ จึงไม่เปลืองเน็ต แต่แก้โค้ดแล้วเห็นทันทีไม่ต้อง Ctrl+F5)
     # เคสจริง: แก้ play.js แล้วผู้ใช้ยังเห็นของเก่าจนเมนูไม่เปิด หาสาเหตุกันอยู่นาน
+    # 🚦 จำกัดอัตราการยิง API — กันสคริปต์ยิงรัวฟาร์มของ และกันยิงถล่มจนล่ม
+    # นับรายคนจาก session ไม่ใช่รายไอพี (บ้าน/มือถือเน็ตเดียวกันจะโดนหางเลขกันหมด)
+    @app.middleware("http")
+    async def _rate_limit(request, call_next):
+        from license_server import rate_limit
+        path = request.url.path
+        if path.startswith("/api/web"):
+            who = (request.cookies.get("web_session")
+                   or (request.client.host if request.client else "?"))
+            ok, retry = rate_limit.check(who[:64], path, request.method)
+            if not ok:
+                return JSONResponse(
+                    {"detail": f"⏳ ยิงคำสั่งถี่เกินไป — รออีก {retry} วินาทีแล้วลองใหม่"},
+                    status_code=429, headers={"Retry-After": str(retry)})
+        return await call_next(request)
+
     @app.middleware("http")
     async def _no_stale_pages(request, call_next):
         resp = await call_next(request)
