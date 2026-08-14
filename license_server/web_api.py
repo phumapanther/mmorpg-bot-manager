@@ -213,7 +213,7 @@ def me_game(request: Request):
 
     from bot import config_loader, game_modifiers
     from bot.game_data import CONTINENTS
-    from bot.models.player_model import load_inventory
+    from bot.models.player_model import MAX_LEVEL, exp_required, load_inventory
 
     p = dict(row)
     items = config_loader.get_all_items()
@@ -247,6 +247,13 @@ def me_game(request: Request):
         "identity": {
             "discord_id": str(uid),
             "level": p.get("level"), "exp": p.get("exp"), "rank": p.get("rank"),
+            # แถบ EXP: exp ใน DB คือความคืบหน้าในเลเวลนี้ (เกมหักออกทุกครั้งที่อัป)
+            # คิด % ให้เสร็จฝั่งนี้ เบราว์เซอร์ไม่ต้องรู้สูตร
+            "exp_required": exp_required(p.get("level") or 1),
+            "exp_pct": (round(min(100.0, (p.get("exp") or 0) * 100.0
+                                  / exp_required(p.get("level") or 1)), 1)
+                        if exp_required(p.get("level") or 1) else 100.0),
+            "max_level": (p.get("level") or 1) >= MAX_LEVEL,
             "race": p.get("race"), "class_name": p.get("class_name"),
             "title": p.get("title"), "pet": p.get("pet"),
             "continent": cont,

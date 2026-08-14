@@ -85,3 +85,24 @@ def test_panel_init_never_broken_by_balance_tab():
     balance_at = init_body.index("renderBalance()")
     assert status_at < balance_at, "Dashboard ต้องโหลดก่อนแท็บ Balance"
     assert "try {" in init_body[status_at:balance_at + 200], "renderBalance ต้องอยู่ใน try"
+
+
+def test_exp_required_is_the_only_formula(tmp_path, monkeypatch):
+    """add_exp ต้องอัปเลเวลตรงกับ exp_required() เป๊ะ — กันสูตรสองที่เพี้ยนกัน"""
+    import bot.models.player_model as pm
+    monkeypatch.setattr(pm, "DB_NAME", str(tmp_path / "e.db"))
+    pm.init_db()
+    uid = 777
+    pm.get_player(uid)
+    pm.update_player_fields(uid, {"level": 3, "exp": 0})
+    need = pm.exp_required(3)                    # 3²×70 = 630
+    assert need == 630
+
+    pm.add_exp(uid, need - 1)                    # ขาดอีก 1 → ยังไม่อัป
+    p = pm.get_player(uid)
+    assert p["level"] == 3 and p["exp"] == need - 1
+
+    pm.add_exp(uid, 1)                           # ครบพอดี → อัปแล้วเหลือ 0
+    p = pm.get_player(uid)
+    assert p["level"] == 4 and p["exp"] == 0
+    assert pm.exp_required(100) == 0             # เลเวลเต็ม ไม่มีขั้นถัดไป

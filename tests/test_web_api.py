@@ -447,3 +447,20 @@ def test_me_game_new_player(client, tmp_path, monkeypatch):
     monkeypatch.setattr(web_api, "GAME_DB_PATH", p)
     _login(client)
     assert client.get("/api/web/me/game").json() == {"new_player": True}
+
+
+def test_exp_bar_matches_real_levelup_formula(client, tmp_path, monkeypatch):
+    """แถบ EXP ต้องใช้สูตรเดียวกับที่เกมอัปเลเวลจริง ไม่งั้นเว็บโชว์คนละเรื่องกับดิส"""
+    import bot.models.player_model as pm
+    _real_game_db(tmp_path, monkeypatch, level=5, exp=875)   # ต้องใช้ 5²×70 = 1750 → 50%
+    _login(client)
+    id_ = client.get("/api/web/me/game").json()["identity"]
+    assert id_["exp_required"] == pm.exp_required(5) == 1750
+    assert id_["exp_pct"] == 50.0 and id_["max_level"] is False
+
+
+def test_exp_bar_at_max_level(client, tmp_path, monkeypatch):
+    _real_game_db(tmp_path, monkeypatch, level=100, exp=0)
+    _login(client)
+    id_ = client.get("/api/web/me/game").json()["identity"]
+    assert id_["max_level"] is True and id_["exp_pct"] == 100.0

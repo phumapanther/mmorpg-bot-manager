@@ -100,10 +100,12 @@ function paintProfile(g) {
   document.getElementById('prHpIn').textContent = fmt(hp) + ' / ' + fmt(mx);
   document.getElementById('prHpTxt').textContent = Math.round(pct) + '%';
 
-  // เกมนับ EXP สะสมรวม ไม่ได้รีเซ็ตต่อเลเวล — โชว์ยอดสะสมตรงๆ ไม่ปั้นสูตรเอง
-  document.getElementById('prExp').style.width = '100%';
-  document.getElementById('prExpIn').textContent = fmt(id.exp) + ' EXP';
-  document.getElementById('prExpTxt').textContent = 'Lv ' + (id.level ?? '—');
+  // % คิดมาจากเซิร์ฟเวอร์ด้วยสูตรเดียวกับที่เกมใช้อัปเลเวลจริง
+  document.getElementById('prExp').style.width = (id.exp_pct ?? 0) + '%';
+  document.getElementById('prExpIn').textContent = id.max_level
+    ? 'เลเวลเต็ม' : fmt(id.exp) + ' / ' + fmt(id.exp_required);
+  document.getElementById('prExpTxt').textContent = id.max_level
+    ? 'Lv ' + id.level + ' MAX' : 'Lv ' + (id.level ?? '—') + ' · ' + (id.exp_pct ?? 0) + '%';
 
   document.getElementById('prRank').textContent = id.rank || '—';
   document.getElementById('prSan').textContent = fmt(v.sanity);

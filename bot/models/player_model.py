@@ -193,6 +193,21 @@ def update_player_fields(user_id, updates: dict):
     conn.commit()
     conn.close()
 
+MAX_LEVEL = 100
+
+
+def exp_required(level):
+    """EXP ที่ต้องใช้เพื่อขึ้นเลเวลถัดไป — แหล่งเดียวของสูตร
+
+    ทั้งการอัปเลเวลจริงและแถบ EXP บนเว็บอ่านจากที่นี่ที่เดียว สูตรเปลี่ยนแล้วตรงกันหมด
+    เลเวลเต็ม (100) คืน 0 = ไม่มีขั้นถัดไป
+    """
+    level = int(level or 1)
+    if level >= MAX_LEVEL:
+        return 0
+    return (level ** 2) * 70
+
+
 def add_exp(user_id, exp_to_add):
     player = get_player(user_id)
     # 🗓️ C3 + 🎟️ C2: EXP ทุกทางไหลผ่านที่นี่ที่เดียว — แบ่งไปเป็นแต้มรายสัปดาห์และแต้มซีซั่นด้วย
@@ -207,10 +222,10 @@ def add_exp(user_id, exp_to_add):
     level_up_occurred = False
     
     while True:
-        if current_level >= 100:
+        if current_level >= MAX_LEVEL:
             current_exp = 0
             break
-        required_exp = (current_level ** 2) * 70
+        required_exp = exp_required(current_level)
         if current_exp >= required_exp:
             current_exp -= required_exp
             current_level += 1
