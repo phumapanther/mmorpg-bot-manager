@@ -517,7 +517,11 @@ function initScene() {
   chipRow(document.getElementById('sceneSkills'), skills, v => {
     SCENE.attack();
     SCENE.playSkill(v);
-    setTimeout(() => { SCENE.hitFoe(); SCENE.float('-' + (120 + Math.floor(Math.random() * 300)), 'crit', 72); }, 420);
+    const spr = 1 + Math.floor(Math.random() * 20), smr = 1 + Math.floor(Math.random() * 20);
+    SCENE.showRoll({ player_roll: spr, monster_roll: smr,
+                     player_parts: ['`' + spr + '` พื้นฐาน', '⚔️สกิล'],
+                     monster_parts: ['`' + smr + '` พื้นฐาน'] });
+    setTimeout(() => { SCENE.hitFoe(); SCENE.float('-' + (120 + Math.floor(Math.random() * 300)), 'crit', 72); }, 700);
   });
 
   document.getElementById('scWalk').onclick = () => { SCENE.walk(); tag.textContent = label(curMap) + ' · กำลังเดินทาง'; };
@@ -529,7 +533,16 @@ function initScene() {
   };
   document.getElementById('scHit').onclick = () => {
     SCENE.attack();
-    setTimeout(() => { SCENE.hitFoe(); SCENE.float('-' + (60 + Math.floor(Math.random() * 200)), '', 70); }, 300);
+    // ตัวอย่างผลทอย — เฟส 5.4 จะแทนด้วยผลจริงจาก API (โครงข้อมูลเดียวกันเป๊ะ)
+    const pr = 1 + Math.floor(Math.random() * 20);
+    const mr = 1 + Math.floor(Math.random() * 20);
+    SCENE.showRoll({ player_roll: pr, monster_roll: mr,
+                     player_parts: ['`' + pr + '` พื้นฐาน'],
+                     monster_parts: ['`' + mr + '` พื้นฐาน'] });
+    setTimeout(() => {
+      if (pr > mr) { SCENE.hitFoe(); SCENE.float('-' + (pr - mr) * 12, '', 70); }
+      else SCENE.float('พลาด!', 'miss', 30);
+    }, 700);
   };
 }
 

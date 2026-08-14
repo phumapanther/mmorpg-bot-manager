@@ -82,6 +82,7 @@ class Scene {
     this.parts = [];
     this.fx = [];
     this.floats = [];
+    this.roll = null;
     for (let i = 0; i < 26; i++) {
       this.parts.push({ x: Math.random() * this.W, y: Math.random() * GROUND_Y,
                         s: .1 + Math.random() * .35, r: Math.random() * 1.6 + .6 });
@@ -121,6 +122,61 @@ class Scene {
   attack() { this.state = 'fight'; this.char.pose = 'atk'; this.heroLunge = 14;
              setTimeout(() => this.char.pose = 'idle', 420); }
   hitFoe() { this.foeShake = 14; this.foeFlash = 5; }
+
+  /** โชว์ผลทอยเต๋าของทั้งสองฝั่ง — ผู้เล่นต้องเห็นว่าชนะ/แพ้เพราะอะไร ห่างกันเท่าไหร่
+   *  roll = {player_roll, monster_roll, player_parts, monster_parts} จากเซิร์ฟเวอร์ */
+  showRoll(roll) {
+    this.roll = { ...roll, t: 0, dur: 150 };
+  }
+  clearRoll() { this.roll = null; }
+
+  _drawRoll() {
+    const r = this.roll;
+    if (!r) return;
+    r.t++;
+    if (r.t > r.dur) { this.roll = null; return; }
+
+    const ctx = this.ctx;
+    const rolling = r.t < 24;                       // ช่วงแรกให้เลขวิ่งก่อนเฉลย
+    const pv = rolling ? 1 + Math.floor(Math.random() * 20) : r.player_roll;
+    const mv = rolling ? 1 + Math.floor(Math.random() * 20) : r.monster_roll;
+    const win = r.player_roll > r.monster_roll;
+    const gap = Math.abs(r.player_roll - r.monster_roll);
+
+    const box = (x, label, val, hot) => {
+      ctx.fillStyle = 'rgba(12,8,6,.82)';
+      ctx.fillRect(x, 6, 62, 30);
+      ctx.strokeStyle = hot ? '#e8b04b' : '#5c4733';
+      ctx.lineWidth = hot ? 2 : 1;
+      ctx.strokeRect(x + .5, 6.5, 61, 29);
+      ctx.textAlign = 'center';
+      ctx.font = '8px system-ui';
+      ctx.fillStyle = '#a99274';
+      ctx.fillText(label, x + 31, 16);
+      ctx.font = 'bold 15px system-ui';
+      ctx.fillStyle = hot ? '#ffe6a8' : '#f2e7d8';
+      ctx.fillText(String(val), x + 31, 31);
+    };
+    box(10, '🎲 คุณ', pv, !rolling && win);
+    box(this.W - 72, '🎲 มอน', mv, !rolling && !win);
+
+    if (!rolling) {
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 11px system-ui';
+      ctx.fillStyle = win ? '#8fd07a' : '#e8776a';
+      ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.lineWidth = 3;
+      const txt = gap === 0 ? 'เสมอ' : (win ? `ชนะ +${gap} แต้ม` : `แพ้ -${gap} แต้ม`);
+      ctx.strokeText(txt, this.W / 2, 22);
+      ctx.fillText(txt, this.W / 2, 22);
+
+      // ที่มาของแต้ม (โบนัสต่างๆ) บรรทัดเล็กใต้กล่อง
+      ctx.font = '8px system-ui';
+      ctx.fillStyle = '#a99274';
+      const strip = s => String(s).replace(/`/g, '');
+      if (r.player_parts) ctx.fillText(strip(r.player_parts.join(' ')), 41, 45);
+      if (r.monster_parts) ctx.fillText(strip(r.monster_parts.join(' ')), this.W - 41, 45);
+    }
+  }
 
   /** เลขลอย (ดาเมจ/ฮีล/ทอง) — คืนค่าเป็นพิกัดภายใน canvas */
   float(text, kind, xPct) {
@@ -283,6 +339,8 @@ class Scene {
       if (p >= 1) { this.fx.splice(i, 1); continue; }
       this._drawFx(f, p);
     }
+
+    this._drawRoll();
 
     // เลขลอย
     for (let i = this.floats.length - 1; i >= 0; i--) {

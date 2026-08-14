@@ -451,19 +451,12 @@ class MonsterEventView(ActionView):
             durability_lost_w = 3 if skill_used else 1
             damage_to_armor = 0 
             
-            player_roll = random.randint(1, 20)
-            monster_roll = sum(random.randint(1, 20) for _ in range(self.m_stats.get("dice_count", 1)))
-            # 🎲 B3: จดที่มาของแต้มไว้โชว์ในหน้าจอไฟต์
-            roll_parts = [f"`{player_roll}` พื้นฐาน"]
-            _dice_n = self.m_stats.get("dice_count", 1)
-            mon_parts = [f"`{monster_roll}` พื้นฐาน" + (f" ({_dice_n} เต๋า)" if _dice_n > 1 else "")]
-            
             skill_log = ""
             if shock_note:
                 skill_log += shock_note
             combat_log = ""
             db_updates = {}
-            
+
             enrage_bonus = 0
             # 🌑 ธาตุมืด: เข้าสถานะคลั่งตั้งแต่เทิร์นแรก (ระบบคลั่งปกติเริ่มหลังเทิร์น 3)
             enraged_turns = self.turn_count if self.element_data.get("pre_enraged") else self.turn_count - 3
@@ -472,90 +465,16 @@ class MonsterEventView(ActionView):
                 enrage_bonus = enraged_turns * rank_danger.get(self.monster_rank, 2)
                 skill_log += f"😡 **{self.m_stats.get('name', 'บอส')} กำลังคลั่ง!** บอสสะสมความโกรธเพิ่มพลังโจมตีเด็ดขาด `+{enrage_bonus}` หน่วยในเทิร์นนี้!\n"
 
-            # ─── 🧪 เอฟเฟกต์ธาตุช่วงทอยเต๋า ───
-            # 👝 ถุงเต๋าเทพี: โบนัสเต๋าถาวร
-            roll_bonus = game_modifiers.status_roll_bonus(self.statuses)
-            if roll_bonus > 0:
-                player_roll += roll_bonus
-                roll_parts.append(f"👝+{roll_bonus}")
-                skill_log += f"👝 **ถุงเต๋าเทพีสั่นกรุ๋งกริ๋ง** เต๋า `+{roll_bonus}` (รวม {player_roll})\n"
-            elif roll_bonus < 0:
-                # 🍄 สถานะถ่วงเต๋า (เช่น เห็ดงอกทั่วร่าง) — กดต่ำสุดที่ 1 ไม่ทับกลไกราก (เต๋า=0)
-                player_roll = max(1, player_roll + roll_bonus)
-                roll_parts.append(f"🍄{roll_bonus}")
-                skill_log += f"🍄 **ร่างกายหนักอึ้ง** เต๋า `{roll_bonus}` (เหลือ {player_roll})\n"
-
-            # 💨 Passive ธาตุลมของผู้เล่น: เต๋า +1 ทุกเทิร์น
-            wind_bonus = game_modifiers.player_passive_sum(getattr(self, "player_elements", []), "roll_bonus")
-            if wind_bonus:
-                player_roll += wind_bonus
-                roll_parts.append(f"💨+{wind_bonus}")
-                skill_log += f"💨 **สายลมประจำตัวหนุนลูกเต๋า** `+{wind_bonus}` (รวม {player_roll})\n"
-
-            # 🐾 C4: สัตว์เลี้ยงที่ติดตัว หนุนเต๋าให้ทุกเทิร์น (ใช้ dict ผู้เล่นที่โหลดไว้แล้ว ไม่ยิง DB ซ้ำ)
-            try:
-                from bot import pets as _pets
-                pet_bonus = _pets.roll_bonus(player)
-                if pet_bonus:
-                    player_roll += pet_bonus
-                    roll_parts.append(f"🐾+{pet_bonus}")
-                    skill_log += (f"🐾 **{_pets.active(player)['name']} ส่งเสียงเชียร์!** "
-                                  f"เต๋า `+{pet_bonus}` (รวม {player_roll})\n")
-            except Exception as e:
-                print(f"⚠️ [pets] โบนัสเต๋าพัง: {e}")
-
-            # 🎲 เต๋าถ่วงน้ำหนัก: การันตีแต้มขั้นต่ำ (ก่อนผลราก/เต๋าหลุดมือ — ของพวกนั้นทำเต๋าหลุดจากมือ ไม่ใช่แต้มไม่ดี)
-            weighted_min = game_modifiers.status_min_roll(self.statuses)
-            if weighted_min and player_roll < weighted_min:
-                skill_log += f"🎲 **เต๋าถ่วงน้ำหนักทำงาน!** แต้ม `{player_roll}` ถูกดันขึ้นเป็น `{weighted_min}`\n"
-                player_roll = weighted_min
-                roll_parts = [f"🎲 ดันขึ้นเป็น `{weighted_min}` (เต๋าถ่วง)"]
-
-            # 🌿 ไม้: รากพันธนาการ — โอกาสล็อกเต๋าผู้เล่นเหลือ 0 ในเทิร์นนี้
-            root_chance = self.element_data.get("root_chance", 0)
-            if root_chance and random.randint(1, 100) <= root_chance:
-                if game_modifiers.has_status_flag(self.statuses, "block_root"):
-                    # กันราก: อาร์ติแฟกต์ (เสื้อคลุมเปลือกไม้) กันถาวร / โคลเวอร์กันครั้งเดียวแล้วสลาย
-                    consumed = [k for k in self.statuses
-                                if game_modifiers.STATUS_EFFECTS[k].get("block_root")
-                                and not game_modifiers.STATUS_EFFECTS[k].get("artifact")]
-                    if consumed:
-                        self.statuses = {k: v for k, v in self.statuses.items() if k not in consumed}
-                        fresh = game_modifiers.parse_statuses(player_model.get_player(self.user_id))
-                        fresh = {k: v for k, v in fresh.items() if k not in consumed}
-                        player_model.update_player_field(self.user_id, "status_effects", fresh)
-                        skill_log += "🍀 **โคลเวอร์นำโชคเปล่งแสง!** รากไม้เหี่ยวเฉาก่อนแตะตัวคุณ (เครื่องรางสลายไป)\n"
-                    else:
-                        skill_log += "🧥 **เสื้อคลุมเปลือกไม้สั่นไหว** — รากไม้จำต้นตระกูลตัวเองได้ ถอยหนีไปเอง!\n"
-                else:
-                    player_roll = 0
-                    roll_parts = ["🌿 ถูกรากล็อกเหลือ `0`"]
-                    skill_log += "🌿 **รากพันธนาการ!** เถาวัลย์พุ่งขึ้นรัดแขนคุณแน่น เต๋าโจมตีถูกล็อกเหลือ `0` ในเทิร์นนี้!\n"
-            # 💨 ลม / 🌿 ไม้: โบนัสเต๋ามอนสเตอร์
-            elem_dice = self.element_data.get("dice_bonus")
-            if elem_dice:
-                dice_bonus = random.randint(elem_dice[0], elem_dice[1])
-                monster_roll += dice_bonus
-                mon_parts.append(f"{self.element_data['label'].split()[0]}+{dice_bonus}")
-                skill_log += f"{self.element_data['label']}: กระแสธาตุหนุนเต๋ามอนสเตอร์ `+{dice_bonus}` หน่วย!\n"
-
-            # ─── 🧬 สถานะติดตัวช่วงทอยเต๋า ───
-            # 🤲 เต๋าหลุดมือ: โอกาสลูกเต๋าร่วงจากมือ เสียจังหวะโจมตีเทิร์นนี้
-            fumble_chance = game_modifiers.status_fumble_chance(self.statuses)
-            if fumble_chance and random.randint(1, 100) <= fumble_chance:
-                player_roll = 0
-                skill_log += "🤲 **เต๋าหลุดมือ!** นิ้วที่แข็งชาทำลูกเต๋าร่วงพื้น — เสียจังหวะโจมตีเทิร์นนี้!\n"
-            # 🎲 เต๋าถูกผนึก: ทอยได้สูงถึงเพดานผนึก ถูกกดเหลือ 1
-            seal_at = game_modifiers.status_seal_threshold(self.statuses)
-            if seal_at and player_roll >= seal_at:
-                skill_log += f"🎲 **เต๋าถูกกดทับ!** สถานะบนร่างคุณบีบแต้ม `{player_roll}` ให้เหลือ `1`!\n"
-                player_roll = 1
-            # 🌱 รากรัด/สถานะอื่น: โบนัสเต๋ามอนสเตอร์
-            status_dice_bonus = game_modifiers.status_monster_dice_bonus(self.statuses)
-            if status_dice_bonus:
-                monster_roll += status_dice_bonus
-                mon_parts.append(f"🌱+{status_dice_bonus}")
-                skill_log += f"🌱 ร่างที่ถูกพันธนาการขยับลำบาก — เต๋ามอนสเตอร์ `+{status_dice_bonus}` หน่วย!\n"
+            # 🎲 ทอยเต๋าทั้งเทิร์น — ตรรกะอยู่ใน adventure_core (ใช้ร่วมกับหน้าไฟต์บนเว็บ)
+            _roll = adventure_core.roll_combat(
+                self.user_id, player, self.statuses, self.element_data,
+                self.m_stats, getattr(self, "player_elements", []))
+            player_roll = _roll["player_roll"]
+            monster_roll = _roll["monster_roll"]
+            roll_parts = _roll["player_parts"]      # 🎲 B3: ที่มาของแต้ม ไว้โชว์ในหน้าจอไฟต์
+            mon_parts = _roll["monster_parts"]
+            self.statuses = _roll["statuses"]       # โคลเวอร์อาจถูกใช้ไปกันราก
+            skill_log += _roll["log"]
 
             damage_multiplier = 1
 

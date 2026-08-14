@@ -76,8 +76,10 @@ def test_embed_marks_owned_and_locked(world):
 def test_wired_into_the_fight():
     import pathlib
     src = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
-    assert "_pets.roll_bonus(player)" in src, "โบนัสเต๋าต้องเข้าไปในการทอยจริง"
-    assert 'roll_parts.append(f"🐾' in src, "ต้องโชว์ที่มาของแต้มในหน้าจอไฟต์"
+    # การทอยเต๋าย้ายไป adventure_core แล้ว (เว็บเกม เฟส 5.2) — โบนัสสัตว์เลี้ยงตามไปด้วย
+    core = pathlib.Path("bot/adventure_core.py").read_text(encoding="utf-8")
+    assert "_pets.roll_bonus(player)" in core, "โบนัสเต๋าต้องเข้าไปในการทอยจริง"
+    assert 'parts.append(f"🐾' in core, "ต้องโชว์ที่มาของแต้มในหน้าจอไฟต์"
     assert "_pets.try_tame(self.user_id, self.monster_rank)" in src
 
 

@@ -75,3 +75,20 @@ def test_real_event_art_exists_for_every_continent():
                for e in ("village", "monster", "treasure", "trap", "npc", "dungeon", "calm")
                if not (art / f"{c}_{e}.png").is_file()]
     assert not missing, f"ภาพฉากที่ขาด: {missing[:8]}"
+
+
+def test_scene_shows_both_dice_and_the_gap():
+    """ผู้เล่นต้องเห็นเต๋าทั้งสองฝั่ง + ห่างกันกี่แต้ม ไม่งั้นไม่รู้ว่าชนะเพราะอะไร"""
+    assert "showRoll" in SCENE and "_drawRoll" in SCENE
+    for field in ("player_roll", "monster_roll", "player_parts", "monster_parts"):
+        assert field in SCENE, f"กล่องเต๋าไม่ได้ใช้ {field} จากเซิร์ฟเวอร์"
+    assert "ชนะ +" in SCENE and "แพ้ -" in SCENE and "เสมอ" in SCENE, "ต้องบอกผลต่างแต้ม"
+    assert "this._drawRoll();" in SCENE, "ยังไม่ได้เรียกวาดในลูปเรนเดอร์"
+
+
+def test_dice_display_fields_match_core_output():
+    """ชื่อฟิลด์บนจอต้องตรงกับที่ roll_combat คืนมา ไม่งั้นขึ้นค่าว่าง"""
+    core = pathlib.Path("bot/adventure_core.py").read_text(encoding="utf-8")
+    ret = re.search(r"return \{\"player_roll\".*?\}", core, re.S).group(0)
+    for field in ("player_roll", "monster_roll", "player_parts", "monster_parts"):
+        assert f'"{field}"' in ret, f"roll_combat ไม่ได้คืน {field}"
