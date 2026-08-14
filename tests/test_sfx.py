@@ -159,7 +159,7 @@ def test_the_new_sounds_the_player_asked_for_are_there(report):
     """รายการที่ผู้เล่นสั่งไว้ — ครบทุกช่องไหม"""
     want = {"item", "trap", "caught", "use", "equip", "craft", "reward",
             "slot", "reel", "card", "bust", "bank", "gold", "buy", "pet", "chest",
-            "foehit", "foecrit", "sellall", "gacha"}
+            "foehit", "foecrit", "sellall", "gacha", "rest", "revive"}
     assert want <= set(report["names"]), f"ยังขาดเสียง: {sorted(want - set(report['names']))}"
     assert want <= _played_names(), \
         f"มีเสียงแต่ไม่มีใครเรียกใช้: {sorted(want - _played_names())}"

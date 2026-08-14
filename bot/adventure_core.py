@@ -1878,6 +1878,10 @@ def fight_victory(user_id, fight, member_roles=(), rng=random, carry=None):
     battle_end_log = ("\n⚔️ มอนสเตอร์ในชั้นนี้ถูกกำจัดแล้ว! "
                       "เตรียมตัวเดินทางลึกเข้าไปในดันเจี้ยนขั้นถัดไป...") if in_dungeon else ""
 
+    # ไฟต์คำนวณเลเวลเอง (ไม่ได้เรียก add_exp) — ต้องเก็บแต้มซีซั่น/รายสัปดาห์เองด้วย
+    # ไม่งั้นทางได้ EXP หลักของเกมไม่นับแต้มเลย ซีซั่นพาสก็ไม่ขยับ
+    player_model.track_exp_points(user_id, gained_exp)
+
     current_exp = player.get("exp", 0) + gained_exp
     current_level = player.get("level", 1)
     max_hp = player.get("max_hp", 100)

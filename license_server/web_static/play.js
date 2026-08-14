@@ -1052,6 +1052,7 @@ async function advRespawn() {
   ADV_BUSY = true;
   try {
     const r = await api('POST', '/api/web/adventure/respawn');
+    SFX.play('revive');                               // 🏥 ลุกกลับมาแล้ว
     SCENE.clearFoe(); SCENE.clearRoll();
     document.getElementById('foeBar').hidden = true;
     SCENE.setMap((LAST && LAST.identity.continent) || 'main');
@@ -1132,6 +1133,7 @@ async function advAct(action, label, confirmMsg) {
     }
     if (action.startsWith('skill_')) SCENE.playSkill(action.slice(6));
     if (action === 'open') SFX.play('chest');   // ฝาหีบเอี๊ยด — เล่นตอนกด ไม่ต้องรอเซิร์ฟเวอร์เฉลย
+    if (action === 'rest') SFX.play('rest');    // 🛏️ พักแรมที่หมู่บ้าน
 
     const r = await api('POST', '/api/web/adventure/act', { action: action });
 

@@ -169,6 +169,17 @@ const SFX = (() => {
                      [1319, 1568, 1976].forEach((f, i) =>              // แสงวาบจากในหีบ
                        tone({ freq: f, dur: .2, type: 'sine', vol: .3, delay: .3 + i * .07 })); },
 
+    // 🛏️ พักแรมที่หมู่บ้าน — หายใจยาว ๆ แล้วเลือดไหลกลับเข้าตัว
+    rest:    () => { noise({ dur: .5, vol: .12, hp: 300 });                    // ลมหายใจ
+                     [392, 523, 659, 784].forEach((f, i) =>
+                       tone({ freq: f, dur: .5, type: 'sine', vol: .3, delay: .12 + i * .13 }));
+                     tone({ freq: 1047, dur: .8, type: 'triangle', vol: .2, delay: .6 }); },
+    // 🏥 ฟื้นคืนชีพ — ลากขึ้นจากที่ต่ำแล้วสว่างวาบ ต้องรู้สึกว่า "กลับมาแล้ว"
+    revive:  () => { tone({ freq: 90, dur: .7, type: 'sawtooth', vol: .3, slide: 260 });
+                     [523, 659, 784, 1047, 1319].forEach((f, i) =>
+                       tone({ freq: f, dur: .45, type: 'sine', vol: .38, delay: .35 + i * .1 }));
+                     noise({ dur: .35, vol: .18, delay: .35, hp: 2600 }); },
+
     // ── กับดัก/หนีไม่รอด ──
     trap:    () => { noise({ dur: .3, vol: .75, hp: 200 });          // ตูมทึบ ๆ แล้วลากต่ำลง
                      tone({ freq: 140, dur: .34, type: 'sawtooth', vol: .55, slide: -90 });

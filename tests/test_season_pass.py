@@ -95,10 +95,48 @@ def test_config_tiers_sorted():
 
 
 def test_points_come_from_add_exp():
+    """EXP ทุกทางต้องไหลเข้าแต้ม — ผ่าน track_exp_points() จุดเดียว"""
     import pathlib
     src = pathlib.Path("bot/models/player_model.py").read_text(encoding="utf-8")
-    add_exp = src[src.index("def add_exp("):src.index("def add_exp(") + 800]
-    assert "add_season_points" in add_exp and "add_weekly_points" in add_exp
+    collector = src[src.index("def track_exp_points("):src.index("def add_exp(")]
+    assert "add_season_points" in collector and "add_weekly_points" in collector
+    add_exp = src[src.index("def add_exp("):src.index("def add_exp(") + 400]
+    assert "track_exp_points(user_id, exp_to_add)" in add_exp
+
+
+def test_killing_monsters_gives_season_points(tmp_path, monkeypatch):
+    """บั๊กที่ผู้เล่นเจอ: ล้มมอนคือทางได้ EXP หลัก แต่ไฟต์คำนวณเลเวลเอง
+    ไม่ได้เรียก add_exp() แต้มซีซั่นเลยไม่ขยับเลยสักแต้มไม่ว่าจะเล่นนานแค่ไหน"""
+    import inspect
+    from bot import adventure_core
+
+    src = inspect.getsource(adventure_core.fight_victory)
+    assert "track_exp_points" in src, "ไฟต์ไม่ได้เก็บแต้มซีซั่น — ซีซั่นพาสจะไม่ขยับ"
+    assert 'db_updates["exp"]' in src, "ไฟต์ยังคำนวณ EXP เอง (จึงต้องเก็บแต้มเองด้วย)"
+
+
+def test_every_place_that_earns_exp_also_banks_the_points():
+    """ที่ไหน "บวก" EXP ให้ผู้เล่น ที่นั่นต้องเก็บแต้มซีซั่นด้วย — ไล่ทั้งโปรเจ็ค
+
+    คำสั่งแอดมินที่ "ตั้งค่า" EXP ตรง ๆ (!set_exp) ไม่นับ — ตั้งค่าไม่ใช่การหามาได้
+    ถ้านับด้วย แอดมินเซ็ต EXP ทีก็ดันอันดับ/ซีซั่นพาสไปด้วย
+    """
+    import ast
+    import pathlib
+
+    EARNS = ('db_updates["exp"] =', 'update_player_field(user_id, "exp", current_exp)')
+    for f in sorted(pathlib.Path("bot").rglob("*.py")):
+        src = f.read_text(encoding="utf-8")
+        if not any(e in src for e in EARNS):
+            continue
+        for fn in [n for n in ast.walk(ast.parse(src))
+                   if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]:
+            body = ast.unparse(fn)
+            if not any(e.replace(" =", "] =").replace("]]", "]") in body or e in body
+                       for e in EARNS):
+                continue
+            assert "track_exp_points" in body, \
+                f"{f.name}:{fn.name}() บวก EXP ให้ผู้เล่นแต่ไม่ได้เก็บแต้มซีซั่น"
 
 
 # ── สรุปสถานะทั้งใบ (season_view) — ดิสกับเว็บอ่านตัวเดียวกัน ──

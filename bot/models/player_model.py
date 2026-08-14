@@ -219,14 +219,25 @@ def exp_required(level):
     return (level ** 2) * 70
 
 
-def add_exp(user_id, exp_to_add):
-    player = get_player(user_id)
-    # 🗓️ C3 + 🎟️ C2: EXP ทุกทางไหลผ่านที่นี่ที่เดียว — แบ่งไปเป็นแต้มรายสัปดาห์และแต้มซีซั่นด้วย
+def track_exp_points(user_id, exp_to_add):
+    """🗓️ C3 + 🎟️ C2: แบ่ง EXP ไปเป็นแต้มรายสัปดาห์และแต้มซีซั่น
+
+    ทุกทางที่ให้ EXP ต้องเรียกตัวนี้ ไม่ว่าจะผ่าน add_exp() หรือคำนวณเลเวลเอง
+    (การล้มมอนคำนวณเลเวลเองใน fight_victory จึงเคยไม่นับแต้มซีซั่นเลยสักแต้ม
+     ทั้งที่เป็นทางได้ EXP หลักของเกม — ผู้เล่นเจอว่าซีซั่นพาสไม่ขยับ)
+    """
     try:
+        if int(exp_to_add or 0) <= 0:
+            return
         add_weekly_points(user_id, exp_to_add)
         add_season_points(user_id, exp_to_add)
     except Exception as e:
         print(f"⚠️ [score] เก็บแต้มไม่สำเร็จ: {e}")     # ห้ามพังการอัป EXP หลัก
+
+
+def add_exp(user_id, exp_to_add):
+    player = get_player(user_id)
+    track_exp_points(user_id, exp_to_add)
     current_exp = player.get("exp", 0) + exp_to_add
     current_level = player.get("level", 1)
     max_hp = player.get("max_hp", 100)
