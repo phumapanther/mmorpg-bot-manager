@@ -115,3 +115,17 @@ def test_fight_screen_shows_the_monster_hp_bar():
     html = pathlib.Path("license_server/web_static/play.html").read_text(encoding="utf-8")
     assert 'id="foeBar"' in html and 'id="foeHp"' in html
     assert "paintFoe(" in PLAY, "ยังไม่ได้เรียกวาดหลอดเลือดมอน"
+
+
+def test_dice_box_ignores_anything_that_is_not_a_pair_of_rolls():
+    """กับดักคืน roll เป็นเลขเดี่ยว เคยหลุดเข้ากล่องเต๋าจนขึ้น undefined / -NaN แต้ม"""
+    assert "typeof roll !== 'object'" in SCENE
+    assert "Number.isFinite(+roll.player_roll)" in SCENE
+
+
+def test_trap_and_mugging_send_their_own_dice_labels():
+    """สองอันนี้ทอยแล้ว 'ต่ำกว่าเกณฑ์ = รอด' สวนทางกับเต๋าไฟต์ ป้ายกับข้อสรุปต้องมาจากเซิร์ฟเวอร์"""
+    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    assert '"labels": ["🎲 ทอยหลบ", "🛡️ ค่าเกราะ"]' in api
+    assert '"labels": ["🎲 ทอยสู้", "🥷 โอกาสชนะ"]' in api
+    assert "r.verdict ||" in SCENE, "ฉากต้องยอมให้เซิร์ฟเวอร์กำหนดข้อสรุปเอง"

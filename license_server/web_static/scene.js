@@ -126,7 +126,11 @@ class Scene {
   /** โชว์ผลทอยเต๋าของทั้งสองฝั่ง — ผู้เล่นต้องเห็นว่าชนะ/แพ้เพราะอะไร ห่างกันเท่าไหร่
    *  roll = {player_roll, monster_roll, player_parts, monster_parts} จากเซิร์ฟเวอร์ */
   showRoll(roll) {
-    this.roll = { ...roll, t: 0, dur: 150 };
+    // ต้องเป็นก้อนข้อมูลเต๋าสองฝั่งเท่านั้น (เคยมีเลขทอยเดี่ยวหลุดเข้ามาจนขึ้น undefined/NaN)
+    if (!roll || typeof roll !== 'object'
+        || !Number.isFinite(+roll.player_roll) || !Number.isFinite(+roll.monster_roll)) return;
+    this.roll = { ...roll, player_roll: +roll.player_roll, monster_roll: +roll.monster_roll,
+                  t: 0, dur: 150 };
   }
   clearRoll() { this.roll = null; }
 
@@ -157,15 +161,18 @@ class Scene {
       ctx.fillStyle = hot ? '#ffe6a8' : '#f2e7d8';
       ctx.fillText(String(val), x + 31, 31);
     };
-    box(10, '🎲 คุณ', pv, !rolling && win);
-    box(this.W - 72, '🎲 มอน', mv, !rolling && !win);
+    const [lLabel, rLabel] = r.labels || ['🎲 คุณ', '🎲 มอน'];
+    const hotLeft = r.win === undefined ? win : !!r.win;
+    box(10, lLabel, pv, !rolling && hotLeft);
+    box(this.W - 72, rLabel, mv, !rolling && !hotLeft);
 
     if (!rolling) {
       ctx.textAlign = 'center';
       ctx.font = 'bold 11px system-ui';
-      ctx.fillStyle = win ? '#8fd07a' : '#e8776a';
+      ctx.fillStyle = hotLeft ? '#8fd07a' : '#e8776a';
       ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.lineWidth = 3;
-      const txt = gap === 0 ? 'เสมอ' : (win ? `ชนะ +${gap} แต้ม` : `แพ้ -${gap} แต้ม`);
+      const txt = r.verdict || (gap === 0 ? 'เสมอ'
+                                : (win ? `ชนะ +${gap} แต้ม` : `แพ้ -${gap} แต้ม`));
       ctx.strokeText(txt, this.W / 2, 22);
       ctx.fillText(txt, this.W / 2, 22);
 

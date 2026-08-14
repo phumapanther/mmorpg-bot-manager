@@ -1044,6 +1044,11 @@ def adventure_act(body: ActBody, request: Request):
             r = adventure_core.resolve_dungeon(uid, body.action)
         elif event == "trap":
             r = adventure_core.resolve_trap(uid, rogue)
+            if "roll" in r:      # ทอยต่ำกว่าค่าหลบของเกราะ = รอด (กติกาสวนทางกับเต๋าไฟต์)
+                r["roll"] = {"player_roll": r["roll"], "monster_roll": r["eva"],
+                             "labels": ["🎲 ทอยหลบ", "🛡️ ค่าเกราะ"], "win": r["dodged"],
+                             "verdict": "หลบพ้น!" if r["dodged"] else "โดนเต็ม ๆ",
+                             "player_parts": ["ทอยได้"], "monster_parts": ["ต้องทอยไม่เกินนี้"]}
         elif event == "travel":
             r = adventure_core.resolve_travel(uid, data, body.action)
         elif event == "npc":
@@ -1086,6 +1091,11 @@ def adventure_act(body: ActBody, request: Request):
                 r = {"text": f"⚔️💀 **เงินถ่วงแข้งขาจนสู้ไม่ไหว...** "
                              f"โจรกวาดเงินติดตัวไปหมด `{m['lost']:,}` ทอง!{m['theft']}"}
             r |= m
+            if m.get("roll"):
+                r["roll"] = {"player_roll": m["roll"], "monster_roll": m["win_pct"],
+                             "labels": ["🎲 ทอยสู้", "🥷 โอกาสชนะ"], "win": m["won"],
+                             "verdict": "ชนะโจร!" if m["won"] else "สู้ไม่ไหว...",
+                             "player_parts": ["ทอยได้"], "monster_parts": ["ต้องทอยไม่เกินนี้"]}
         else:
             raise HTTPException(400, f"เหตุการณ์ {event} ยังเล่นบนเว็บไม่ได้")
 
