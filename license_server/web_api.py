@@ -330,6 +330,20 @@ def bank(body: BankBody, request: Request):
     return {"ok": ok, "message": msg, "money": _money_now(uid)}
 
 
+@router.get("/bank/fee")
+def bank_fee_preview(amount: int, request: Request):
+    """ดูค่าธรรมเนียมก่อนยืนยัน — คิดด้วย bank_fee() ตัวเดียวกับตอนทำจริง
+
+    มีไว้ให้หน้ายืนยันบอกตัวเลขจริงได้ ไม่ต้องให้เบราว์เซอร์คำนวณเอง (จะเพี้ยนจากของจริง)
+    """
+    require_player(request)
+    if amount <= 0:
+        raise HTTPException(400, "จำนวนเงินต้องมากกว่า 0")
+    from bot.cogs.player_commands import bank_fee
+    fee, pct = bank_fee(amount)
+    return {"amount": amount, "fee": fee, "pct": pct, "net": amount - fee}
+
+
 class BarBody(BaseModel):
     action: str
     item_id: str

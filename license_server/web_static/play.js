@@ -5,6 +5,7 @@ renderChrome("/play");
 fillDiscordInvite();
 
 // ── สไปรต์ตัวละคร (เฟส 1.2 — เอนจินอยู่ใน sprite.js) ──
+let LAST = null;                 // ข้อมูลตัวละครล่าสุดจาก API
 let CHAR = { race: null, cls: null, armor: 'None', weapon: null, pose: 'idle' };
 
 function drawSprite(cv, scale) {
@@ -17,6 +18,8 @@ function drawSprite(cv, scale) {
 // ── สลับแผง ──
 function showPanel(id) {
   document.querySelectorAll('.g-panelview').forEach(v => v.classList.toggle('on', v.id === 'v-' + id));
+  if (id === 'bank') fillQuick();
+  if (id === 'goldbar') fillBars().catch(e => toast(e.message, true));
   window.scrollTo({ top: document.getElementById('shell').offsetTop - 80, behavior: 'smooth' });
 }
 document.querySelectorAll('[data-go]').forEach(b => {
@@ -142,11 +145,16 @@ function paintBag(bag) {
     box.innerHTML = '<div class="empty-bag">กระเป๋าว่างเปล่า — ออกผจญภัยเก็บของก่อนนะ</div>';
     return;
   }
-  box.innerHTML = bag.items.map(it => `
+  box.innerHTML = bag.items.map((it, i) => `
     <div class="item${it.usable ? ' use' : ''}">
       ${it.usable ? '<span class="badge">กดใช้ได้</span>' : ''}
       <span class="nm">${esc(it.name)}</span><span class="qty">×${it.count}</span>
+      ${it.usable ? `<button class="use-btn" data-use="${i}">ใช้</button>` : ''}
     </div>`).join('');
+  box.querySelectorAll('[data-use]').forEach(b => b.onclick = () => {
+    const it = bag.items[+b.dataset.use];
+    useItem(it.id, it.name);
+  });
 }
 
 api("GET", "/api/web/me/session")
@@ -160,6 +168,166 @@ api("GET", "/api/web/me/session")
       drawSprite(document.getElementById('pfp'));
       return;
     }
+    LAST = g;
     paint(g);
   })
   .catch(() => document.getElementById('needLogin').classList.remove('hidden'));
+
+
+// ══════ เฟส 2: ธุรกรรมจริง — ทุกรายการต้องยืนยันก่อนเสมอ (กันกดผิด) ══════
+
+/** หน้าต่างยืนยัน — คืน true เมื่อกดยืนยัน
+ *  lines: [[ป้าย, ค่า, สไตล์('warn'|'good'|'')]] บอกผลลัพธ์ที่จะเกิดขึ้นจริง */
+function confirmAction({ title, message, lines, okText }) {
+  return new Promise(resolve => {
+    const wrap = document.getElementById('confirmWrap');
+    document.getElementById('cfTitle').textContent = title;
+    document.getElementById('cfMsg').textContent = message || '';
+    document.getElementById('cfLines').innerHTML = (lines || [])
+      .map(([k, v, cls]) => '<div class="' + (cls || '') + '"><span>' + esc(k) +
+                            '</span><b>' + esc(v) + '</b></div>').join('');
+    const yes = document.getElementById('cfYes'), no = document.getElementById('cfNo');
+    yes.textContent = okText || 'ยืนยัน';
+    yes.disabled = false;
+    wrap.classList.add('on');
+    yes.focus();
+
+    const onKey = e => { if (e.key === 'Escape') done(false); };
+    function done(ok) {
+      wrap.classList.remove('on');
+      yes.onclick = no.onclick = wrap.onclick = null;
+      document.removeEventListener('keydown', onKey);
+      resolve(ok);
+    }
+    yes.onclick = () => { yes.disabled = true; done(true); };
+    no.onclick = () => done(false);
+    wrap.onclick = e => { if (e.target === wrap) done(false); };   // คลิกนอกกล่อง = ยกเลิก
+    document.addEventListener('keydown', onKey);
+  });
+}
+
+function toast(msg, bad) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.toggle('bad', !!bad);
+  t.classList.add('on');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove('on'), 4200);
+}
+
+async function reload() {
+  const g = await api("GET", "/api/web/me/game");
+  if (!g.new_player) { LAST = g; paint(g); }
+}
+
+// ── ธนาคาร ──
+const BANK_LABEL = { deposit: 'ฝากเงิน', withdraw: 'ถอนเงิน', transfer: 'โอนเงิน' };
+
+document.querySelectorAll('[data-bank]').forEach(btn => btn.addEventListener('click', async () => {
+  const action = btn.dataset.bank;
+  document.getElementById('bankTargetRow').style.display = action === 'transfer' ? '' : 'none';
+
+  const amount = parseInt(document.getElementById('bankAmt').value, 10);
+  const target = document.getElementById('bankTarget').value.trim();
+  if (!(amount > 0)) return toast('ใส่จำนวนเงินก่อนนะครับ', true);
+  if (action === 'transfer' && !/^\d+$/.test(target))
+    return toast('ใส่ไอดี Discord ของผู้รับเป็นตัวเลข แล้วกดโอนอีกครั้ง', true);
+
+  // ถามค่าธรรมเนียมจากเซิร์ฟเวอร์ — ไม่คำนวณเองเพราะจะเพี้ยนจากของจริง
+  let fee;
+  try { fee = await api("GET", "/api/web/bank/fee?amount=" + amount); }
+  catch (e) { return toast(e.message, true); }
+
+  const netLabel = action === 'deposit' ? 'เข้าธนาคารจริง'
+                 : action === 'withdraw' ? 'ได้รับจริง' : 'ผู้รับได้จริง';
+  const lines = [
+    ['จำนวนที่ทำรายการ', fmt(fee.amount) + ' ทอง'],
+    ['ค่าธรรมเนียม ' + fee.pct + '%', '-' + fmt(fee.fee) + ' ทอง', 'warn'],
+    [netLabel, fmt(fee.net) + ' ทอง', 'good'],
+  ];
+  if (action === 'transfer') lines.push(['ไอดีผู้รับ', target]);
+
+  const ok = await confirmAction({
+    title: '🏦 ยืนยัน' + BANK_LABEL[action],
+    message: 'ตรวจตัวเลขให้ดีก่อนนะครับ — ทำรายการแล้วย้อนกลับไม่ได้',
+    lines, okText: 'ยืนยัน' + BANK_LABEL[action],
+  });
+  if (!ok) return;
+
+  try {
+    const r = await api("POST", "/api/web/bank", { action: action, amount: amount, target_id: target });
+    toast(r.message, !r.ok);
+    if (r.ok) { document.getElementById('bankAmt').value = ''; await reload(); }
+  } catch (e) { toast(e.message, true); }
+}));
+
+// ปุ่มลัดจำนวนเงิน — อิงยอดที่มีจริง
+function fillQuick() {
+  const box = document.getElementById('bankQuick');
+  if (!box || !LAST) return;
+  const cash = LAST.money.cash, bank = LAST.money.bank;
+  const preset = [10000, 100000, 1000000].filter(v => v <= Math.max(cash, bank));
+  box.innerHTML = preset.map(v => '<button data-amt="' + v + '">' + fmt(v) + '</button>').join('')
+    + '<button data-amt="' + cash + '">เงินสดทั้งหมด</button>'
+    + '<button data-amt="' + bank + '">ในธนาคารทั้งหมด</button>';
+  box.querySelectorAll('button').forEach(b => b.onclick = () => {
+    document.getElementById('bankAmt').value = b.dataset.amt;
+  });
+}
+
+// ── ทองคำแท่ง ──
+async function fillBars() {
+  const box = document.getElementById('barList');
+  if (!box || box.dataset.ready) return;
+  const d = await api("GET", "/api/web/goldbar/prices");
+  box.dataset.ready = '1';
+  box.innerHTML = d.bars.map(b =>
+    '<div class="bar-card">' +
+      '<div class="bn">' + esc(b.name) + '</div>' +
+      '<div class="px"><span>ซื้อ (หักจากธนาคาร)</span><b>' + fmt(b.buy) + '</b></div>' +
+      '<div class="px"><span>ขายคืน (เข้าธนาคาร)</span><b>' + fmt(b.sell) + '</b></div>' +
+      '<div class="btns"><button data-bar-buy="' + b.id + '">ซื้อ</button>' +
+      '<button data-bar-sell="' + b.id + '">ขายคืน</button></div>' +
+    '</div>').join('');
+
+  const run = async (id, action) => {
+    const b = d.bars.find(x => x.id === id);
+    const buying = action === 'buy';
+    const ok = await confirmAction({
+      title: buying ? '🧈 ยืนยันซื้อทองคำแท่ง' : '🧈 ยืนยันขายคืนทองคำแท่ง',
+      message: buying ? 'แท่งทองจะเข้ากระเป๋า และมีโอกาสถูกโจรฉกระหว่างผจญภัย'
+                      : 'แท่งทองจะหายจากกระเป๋า เงินเข้าธนาคาร',
+      lines: buying
+        ? [['ได้รับ', b.name], ['หักจากธนาคาร', fmt(b.buy) + ' ทอง', 'warn'],
+           ['มูลค่าหน้าแท่ง', fmt(b.face) + ' ทอง'],
+           ['ค่าธรรมเนียม ' + d.fee_pct + '%', '-' + fmt(b.buy - b.face) + ' ทอง', 'warn']]
+        : [['ขาย', b.name], ['ได้รับเข้าธนาคาร', fmt(b.sell) + ' ทอง', 'good'],
+           ['ค่าธรรมเนียม ' + d.fee_pct + '%', '-' + fmt(b.face - b.sell) + ' ทอง', 'warn']],
+      okText: buying ? 'ยืนยันซื้อ' : 'ยืนยันขายคืน',
+    });
+    if (!ok) return;
+    try {
+      const r = await api("POST", "/api/web/goldbar", { action: action, item_id: id });
+      toast(r.message, !r.ok);
+      if (r.ok) await reload();
+    } catch (e) { toast(e.message, true); }
+  };
+  box.querySelectorAll('[data-bar-buy]').forEach(b => b.onclick = () => run(b.dataset.barBuy, 'buy'));
+  box.querySelectorAll('[data-bar-sell]').forEach(b => b.onclick = () => run(b.dataset.barSell, 'sell'));
+}
+
+// ── ใช้ไอเทมจากกระเป๋า ──
+async function useItem(id, name) {
+  const ok = await confirmAction({
+    title: '🧪 ยืนยันใช้ไอเทม',
+    message: 'ไอเทมจะถูกใช้ทันทีและหายจากกระเป๋า 1 ชิ้น',
+    lines: [['ไอเทม', name], ['ใช้ไป', '1 ชิ้น', 'warn']],
+    okText: 'ยืนยันใช้',
+  });
+  if (!ok) return;
+  try {
+    const r = await api("POST", "/api/web/item/use", { item_id: id });
+    toast(r.message, !r.ok);
+    if (r.ok) await reload();
+  } catch (e) { toast(e.message, true); }
+}

@@ -190,6 +190,81 @@
                  padding:5px 12px; font-size:12.5px; }
 .buffline b { font-family:var(--g-num); color:var(--g-gold); }
 
+/* ── หน้าต่างยืนยัน (เฟส 2) — กันกดผิด ทุกธุรกรรมต้องผ่านตรงนี้ ── */
+#confirmWrap { position:fixed; inset:0; z-index:200; display:none;
+               align-items:center; justify-content:center; padding:18px;
+               background:rgba(10,7,5,.72); backdrop-filter:blur(3px); }
+#confirmWrap.on { display:flex; animation:cfade 160ms var(--g-ease); }
+@keyframes cfade { from{opacity:0} to{opacity:1} }
+.confirm-box { width:min(420px,100%); background:var(--g-panel); color:var(--g-ink);
+               border:2px solid var(--g-line); border-radius:var(--g-r); padding:20px;
+               box-shadow:0 24px 70px rgba(0,0,0,.66);
+               animation:cpop 220ms var(--g-ease); }
+@keyframes cpop { from{transform:scale(.9) translateY(10px);opacity:0}
+                  to{transform:none;opacity:1} }
+.confirm-box h3 { font-size:17px; margin-bottom:6px; display:flex; align-items:center; gap:9px; }
+.confirm-box .msg { font-size:13.5px; color:var(--g-muted); margin-bottom:14px; }
+.confirm-lines { display:grid; gap:7px; background:var(--g-bg); border:1px solid var(--g-line);
+                 border-radius:12px; padding:12px 14px; margin-bottom:16px; }
+.confirm-lines div { display:flex; justify-content:space-between; gap:12px; font-size:13.5px; }
+.confirm-lines b { font-family:var(--g-num); font-variant-numeric:tabular-nums; color:var(--g-gold); }
+.confirm-lines .warn b { color:#e8776a; }
+.confirm-lines .good b { color:var(--g-ok); }
+.confirm-btns { display:flex; gap:10px; }
+.confirm-btns button { flex:1; min-height:46px; border-radius:12px; cursor:pointer;
+                       font-family:inherit; font-size:14px; font-weight:600;
+                       border:1px solid var(--g-line); background:var(--g-hi); color:var(--g-ink);
+                       transition:all 140ms var(--g-ease); }
+.confirm-btns button:hover { background:#40311f; }
+.confirm-btns .yes { background:linear-gradient(160deg,#d93b2b,#8f2317); border-color:#6d1a11;
+                     color:#fff; box-shadow:0 3px 0 #5a150e; }
+.confirm-btns .yes:hover { filter:brightness(1.1); }
+.confirm-btns button:focus-visible { outline:2px solid var(--g-gold); outline-offset:2px; }
+.confirm-btns button[disabled] { opacity:.5; cursor:progress; }
+
+/* แจ้งผลหลังทำรายการ */
+#toast { position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
+         z-index:210; max-width:min(460px,92vw); padding:13px 20px; border-radius:14px;
+         background:var(--g-panel); color:var(--g-ink); border:1px solid var(--g-line);
+         border-left:3px solid var(--g-ok); font-size:13.5px; box-shadow:0 14px 40px rgba(0,0,0,.5);
+         opacity:0; pointer-events:none; transition:all 260ms var(--g-ease); }
+#toast.on { opacity:1; transform:translateX(-50%) translateY(0); }
+#toast.bad { border-left-color:#e8776a; }
+
+/* ฟอร์มธนาคาร */
+.bank-actions { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px;
+                margin-bottom:14px; }
+.field-row { display:grid; gap:7px; margin-bottom:12px; }
+.field-row label { font-size:11px; letter-spacing:1px; text-transform:uppercase;
+                   color:var(--g-muted); font-weight:700; }
+.field-row input { background:var(--g-bg); border:1px solid var(--g-line); color:var(--g-ink);
+                   border-radius:12px; padding:12px 14px; min-height:46px;
+                   font-family:var(--g-num); font-size:16px; font-variant-numeric:tabular-nums; }
+.field-row input:focus { outline:2px solid var(--g-gold); outline-offset:1px; }
+.quick { display:flex; gap:7px; flex-wrap:wrap; }
+.quick button { border:1px solid var(--g-line); background:var(--g-hi); color:var(--g-ink);
+                border-radius:999px; padding:8px 14px; min-height:40px; cursor:pointer;
+                font-family:var(--g-num); font-size:13px; }
+.quick button:hover { background:#40311f; }
+
+.bar-card { display:grid; gap:9px; background:var(--g-panel); border:1px solid var(--g-line);
+            border-radius:var(--g-r); padding:14px; }
+.bar-card .bn { font-size:14px; font-weight:700; }
+.bar-card .px { display:flex; justify-content:space-between; font-size:12.5px;
+                color:var(--g-muted); }
+.bar-card .px b { font-family:var(--g-num); color:var(--g-gold);
+                  font-variant-numeric:tabular-nums; }
+.bar-card .btns { display:flex; gap:8px; }
+.bar-card .btns button { flex:1; min-height:42px; border-radius:11px; cursor:pointer;
+                         border:1px solid var(--g-line); background:var(--g-hi);
+                         color:var(--g-ink); font-family:inherit; font-size:13px; font-weight:600; }
+.bar-card .btns button:hover { background:#40311f; }
+
+.item .use-btn { margin-left:auto; border:1px solid #5d7a4e; background:#33452a; color:#e6f2df;
+                 border-radius:9px; min-height:34px; padding:0 12px; cursor:pointer;
+                 font-family:inherit; font-size:12px; font-weight:600; flex:none; }
+.item .use-btn:hover { background:#42582f; }
+
 .g-note { margin-top:14px; padding:13px 16px; border-radius:12px; background:var(--g-panel);
           border:1px solid var(--g-line); border-left:3px solid var(--g-gold);
           font-size:13px; color:var(--g-muted); }

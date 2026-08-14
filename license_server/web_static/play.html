@@ -62,9 +62,9 @@
       </div></div>
 
       <div class="g-sec"><h3>เศรษฐกิจ</h3><div class="g-grid">
-        <button class="g-tile soon"><span class="tag">เฟส 2</span>
+        <button class="g-tile" data-go="bank">
           <span class="ic">🏦</span>ธนาคาร<span class="sub">ฝาก ถอน โอน</span></button>
-        <button class="g-tile soon"><span class="tag">เฟส 2</span>
+        <button class="g-tile" data-go="goldbar">
           <span class="ic">🧈</span>ทองคำแท่ง<span class="sub">แลกเก็บมูลค่า</span></button>
         <button class="g-tile soon"><span class="tag">เฟส 2</span>
           <span class="ic">🏪</span>ร้านค้าไอเทม<span class="sub">ซื้อ-ขายของใช้</span></button>
@@ -167,6 +167,45 @@
       </div>
     </div>
 
+
+    <!-- ══ ธนาคาร ══ -->
+    <div class="g-panelview" id="v-bank">
+      <button class="g-back" data-back>← กลับเมนูหลัก</button>
+      <div class="g-head"><h2>🏦 ธนาคาร</h2>
+        <p>ทุกธุรกรรมมีค่าธรรมเนียมตามยอด — ระบบจะแสดงให้ดูก่อนยืนยันทุกครั้ง</p></div>
+      <div class="g-card">
+        <div class="bank-actions">
+          <button class="g-tile" data-bank="deposit" style="min-height:auto;align-items:center">
+            <span class="ic">💰</span>ฝากเงิน</button>
+          <button class="g-tile" data-bank="withdraw" style="min-height:auto;align-items:center">
+            <span class="ic">💸</span>ถอนเงิน</button>
+          <button class="g-tile" data-bank="transfer" style="min-height:auto;align-items:center">
+            <span class="ic">🤝</span>โอนให้เพื่อน</button>
+        </div>
+        <div class="field-row">
+          <label>จำนวนเงิน</label>
+          <input type="number" id="bankAmt" min="1" placeholder="เช่น 50000" inputmode="numeric">
+          <div class="quick" id="bankQuick"></div>
+        </div>
+        <div class="field-row" id="bankTargetRow" style="display:none">
+          <label>ไอดี Discord ของผู้รับ</label>
+          <input type="text" id="bankTarget" placeholder="ตัวเลขไอดี เช่น 123456789012345678" inputmode="numeric">
+        </div>
+        <p class="g-note" style="margin:0">💡 ค่าธรรมเนียมยิ่งโอนเยอะยิ่งแพง (5% ถึง 50%) —
+        แบ่งโอนหลายครั้งเสียถูกกว่าโอนก้อนใหญ่ครั้งเดียว</p>
+      </div>
+    </div>
+
+    <!-- ══ ทองคำแท่ง ══ -->
+    <div class="g-panelview" id="v-goldbar">
+      <button class="g-back" data-back>← กลับเมนูหลัก</button>
+      <div class="g-head"><h2>🧈 ทองคำแท่ง</h2>
+        <p>แปลงเงินในธนาคารเป็นแท่งทองเก็บในกระเป๋า — ขายคืนที่นี่ได้ราคาดีกว่าร้านค้า</p></div>
+      <div class="g-cards" id="barList"></div>
+      <p class="g-note">⚠️ ทองคำแท่งอยู่ในกระเป๋า จึงมีโอกาสถูกโจรฉกระหว่างผจญภัย
+      ต่างจากเงินในธนาคารที่โจรปล้นได้แต่ไม่หมดเกลี้ยง</p>
+    </div>
+
     <!-- ══ ร้านขายยศ ══ -->
     <div class="g-panelview" id="v-roleshop">
       <button class="g-back" data-back>← กลับเมนูหลัก</button>
@@ -216,6 +255,19 @@
 
   </div>
 </div></section>
+
+<div id="confirmWrap" role="dialog" aria-modal="true" aria-labelledby="cfTitle">
+  <div class="confirm-box">
+    <h3 id="cfTitle"></h3>
+    <p class="msg" id="cfMsg"></p>
+    <div class="confirm-lines" id="cfLines"></div>
+    <div class="confirm-btns">
+      <button id="cfNo">ยกเลิก</button>
+      <button class="yes" id="cfYes">ยืนยัน</button>
+    </div>
+  </div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
 
 <footer id="footer"></footer>
 

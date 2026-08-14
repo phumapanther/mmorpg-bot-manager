@@ -73,3 +73,14 @@ def test_play_page_wires_sprite_engine():
     for target in set(_re.findall(r'data-go="(\w+)"', html)):
         assert f'id="v-{target}"' in html, f'ปุ่ม data-go="{target}" ชี้ไปแผงที่ไม่มีอยู่'
     assert 'drawCharacter' in js
+
+
+def test_every_money_action_goes_through_confirm():
+    """ทุกธุรกรรมเงิน/ใช้ไอเทมต้องเรียก confirmAction ก่อน — กันเผลอต่อปุ่มตรงเข้า API"""
+    js = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+    for call in ('"/api/web/bank"', '"/api/web/goldbar"', '"/api/web/item/use"'):
+        idx = js.index(call)
+        before = js[max(0, idx - 1400):idx]
+        assert "confirmAction" in before, f"{call} ถูกเรียกโดยไม่ผ่านหน้ายืนยัน"
+    html = pathlib.Path("license_server/web_static/play.html").read_text(encoding="utf-8")
+    assert 'id="confirmWrap"' in html and 'id="cfYes"' in html and 'id="toast"' in html

@@ -548,3 +548,21 @@ def test_item_use_calls_game_logic(client, tmp_path, monkeypatch):
     assert r["ok"] is True
     p = pm.get_player(555000111)
     assert p["hp"] > 10 and "1" not in p["inventory"]    # ฟื้นเลือดจริง + ของหายจากกระเป๋า
+
+
+def test_bank_fee_preview_matches_actual_charge(client, tmp_path, monkeypatch):
+    """หน้ายืนยันต้องบอกค่าธรรมเนียมตรงกับที่หักจริง ไม่งั้นผู้ใช้โดนหักไม่ตรงที่ตกลง"""
+    pm = _bind_pm(tmp_path, monkeypatch, cash=500000, bank=0)
+    _login(client)
+    preview = client.get("/api/web/bank/fee?amount=500000").json()
+    assert preview["pct"] == 10 and preview["fee"] == 50000 and preview["net"] == 450000
+
+    client.post("/api/web/bank", json={"action": "deposit", "amount": 500000})
+    assert pm.get_player(555000111)["bank"] == preview["net"]      # ตรงกับที่พรีวิวบอกเป๊ะ
+
+
+def test_bank_fee_preview_guards(client, tmp_path, monkeypatch):
+    _bind_pm(tmp_path, monkeypatch)
+    assert client.get("/api/web/bank/fee?amount=100").status_code == 401   # ต้องล็อกอิน
+    _login(client)
+    assert client.get("/api/web/bank/fee?amount=0").status_code == 400
