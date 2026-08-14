@@ -2001,6 +2001,59 @@ def craftable_now(user_id):
     return out
 
 
+def buy_item_for(user_id, item_id):
+    """🛒 ซื้อไอเทมจากร้าน — ตรรกะกลาง ใช้ทั้งปุ่มร้านค้าในดิสและหน้าร้านบนเว็บ
+
+    คืน (สำเร็จ, ข้อความ) — ลำดับการตรวจเหมือนเดิมทุกข้อ: มีของ → ซื้อได้ → เงินพอ → กระเป๋าไม่เต็ม
+    """
+    item_id = str(item_id)
+    item = config_loader.get_item_config(item_id)
+    if not item:
+        return False, "❌ ไอเทมนี้ไม่มีอยู่ในระบบ!"
+    if not item.get("purchasable", True):
+        return False, "❌ ไอเทมนี้ไม่สามารถซื้อจากร้านค้าได้!"
+
+    player = player_model.get_player(user_id)
+    if not player:
+        return False, "❌ ไม่พบข้อมูลตัวละครของคุณ!"
+
+    price = int(item.get("buy", 0))
+    if player.get("cash", 0) < price:
+        return False, f"❌ เงินไม่พอ! ต้องใช้ `{price:,}` ทอง (คุณมี `{player.get('cash', 0):,}` ทอง)"
+
+    inv = player_model.load_inventory(player.get("inventory", ""))
+    capacity = int(player.get("capacity", 10) or 0)
+    if capacity != 0 and len(inv) >= capacity:
+        return False, f"❌ กระเป๋าเต็มแล้ว! ({len(inv)}/{capacity}) จัดการของก่อนซื้อเพิ่ม"
+
+    inv.append(item_id)
+    player_model.update_player_fields(user_id, {
+        "cash": player["cash"] - price, "inventory": json.dumps(inv)})
+    return True, f"✅ ซื้อ **{item.get('name', item_id)}** เข้ากระเป๋าเรียบร้อย! (-{price:,} ทอง)"
+
+
+def sell_item_for(user_id, item_id):
+    """📦 ขายไอเทมทีละชิ้นให้ร้าน — ตรรกะกลาง ใช้ทั้งดิสและเว็บ"""
+    item_id = str(item_id)
+    item = config_loader.get_item_config(item_id)
+    if not item:
+        return False, "❌ ไอเทมนี้ไม่มีอยู่ในระบบ!"
+
+    player = player_model.get_player(user_id)
+    if not player:
+        return False, "❌ ไม่พบข้อมูลตัวละครของคุณ!"
+
+    inv = player_model.load_inventory(player.get("inventory", ""))
+    if item_id not in inv:
+        return False, "❌ คุณไม่มีไอเทมชิ้นนี้ให้ขายแล้ว!"
+
+    price = int(item.get("sell", 0))
+    inv.remove(item_id)
+    player_model.update_player_fields(user_id, {
+        "cash": player.get("cash", 0) + price, "inventory": json.dumps(inv)})
+    return True, f"✅ ขาย **{item.get('name', item_id)}** แล้ว! ได้เงินมา `{price:,}` ทอง"
+
+
 def drop_item_for(user_id, item_id, amount=1):
     """🗑️ B1: ทิ้งไอเทมออกจากกระเป๋า — ใช้ทั้งคำสั่ง !drop และปุ่มในกระเป๋า"""
     player = player_model.get_player(user_id)

@@ -66,7 +66,7 @@
           <span class="ic">🏦</span>ธนาคาร<span class="sub">ฝาก ถอน โอน</span></button>
         <button class="g-tile" data-go="goldbar">
           <span class="ic">🧈</span>ทองคำแท่ง<span class="sub">แลกเก็บมูลค่า</span></button>
-        <button class="g-tile soon"><span class="tag">เฟส 2</span>
+        <button class="g-tile" data-go="shop">
           <span class="ic">🏪</span>ร้านค้าไอเทม<span class="sub">ซื้อ-ขายของใช้</span></button>
         <button class="g-tile soon"><span class="tag">ภายหลัง</span>
           <span class="ic">🛒</span>ตลาดผู้เล่น<span class="sub">ซื้อขายกับเพื่อน</span></button>
@@ -168,6 +168,19 @@
     </div>
 
 
+
+
+    <!-- ══ ร้านค้าไอเทม ══ -->
+    <div class="g-panelview" id="v-shop">
+      <button class="g-back" data-back>← กลับเมนูหลัก</button>
+      <div class="g-head"><h2>🏪 ร้านค้าไอเทม</h2>
+        <p>ซื้อของใช้และอุปกรณ์ — ขายของในกระเป๋าคืนร้านได้ที่แท็บขาย</p></div>
+      <div class="shop-tabs">
+        <button class="shop-tab" data-shop="buy" aria-pressed="true">💰 ซื้อ</button>
+        <button class="shop-tab" data-shop="sell" aria-pressed="false">📦 ขาย</button>
+      </div>
+      <div class="items" id="shopList"></div>
+    </div>
 
     <!-- ══ คราฟของ ══ -->
     <div class="g-panelview" id="v-craft">

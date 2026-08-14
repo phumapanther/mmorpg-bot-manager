@@ -390,6 +390,39 @@ def item_use(body: UseBody, request: Request):
     return {"ok": ok, "message": msg}
 
 
+@router.get("/shop/items")
+def shop_items(request: Request):
+    """ของที่ร้านขาย — กรอง purchasable เหมือนหน้าร้านในดิสเป๊ะ"""
+    require_player(request)
+    from bot import config_loader
+    out = [{"id": iid, "name": d.get("name", iid), "buy": int(d.get("buy", 0)),
+            "sell": int(d.get("sell", 0)), "type": d.get("type", ""),
+            "usable": bool(d.get("effect")) and d.get("type") == "use"}
+           for iid, d in config_loader.get_all_items().items()
+           if d.get("purchasable", True)]
+    out.sort(key=lambda x: x["buy"])
+    return {"items": out}
+
+
+class ShopBody(BaseModel):
+    action: str
+    item_id: str
+
+
+@router.post("/shop")
+def shop(body: ShopBody, request: Request):
+    """ซื้อ/ขายไอเทมกับร้าน — buy_item_for()/sell_item_for() ตัวเดียวกับปุ่มร้านในดิส"""
+    uid = require_player(request)["uid"]
+    if body.action not in ("buy", "sell"):
+        raise HTTPException(400, "ไม่รู้จักคำสั่งนี้")
+
+    from bot.cogs.player_commands import buy_item_for, sell_item_for
+    with _user_lock(uid):
+        fn = buy_item_for if body.action == "buy" else sell_item_for
+        ok, msg = fn(int(uid), body.item_id)
+    return {"ok": ok, "message": msg, "money": _money_now(uid)}
+
+
 @router.get("/craft/list")
 def craft_list(request: Request):
     """สูตรที่วัตถุดิบครบพร้อมคราฟตอนนี้ — craftable_now() ตัวเดียวกับปุ่ม 🔨 ในดิส"""

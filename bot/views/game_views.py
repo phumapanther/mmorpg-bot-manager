@@ -1497,61 +1497,21 @@ class BuySelectView(View):
 
     # 🛒 ซื้อไอเทม — เรียกจาก BuyItemSelect
     async def buy_item(self, interaction: discord.Interaction, item_id):
-        ITEM_CONFIG = config_loader.get_all_items()
-        # 🛡️ 1. สั่ง Defer ทันทีที่เลือก
+        from bot.cogs.player_commands import buy_item_for
         await interaction.response.defer()
 
-        item_id = str(item_id)
-        player = player_model.get_player(self.user_id)
-        item_data = ITEM_CONFIG.get(item_id)
-        
-        if not item_data:
-            return await interaction.followup.send("❌ ไอเทมนี้ไม่มีอยู่ในระบบ!", ephemeral=True)
+        ok, msg = buy_item_for(self.user_id, item_id)      # ตรรกะกลาง ใช้ร่วมกับหน้าร้านบนเว็บ
+        if not ok:
+            return await interaction.followup.send(msg, ephemeral=True)
 
-        price = item_data["buy"]
-        
-        # 🛡️ เช็กเงิน
-        if player["cash"] < price:
-            await interaction.followup.send("❌ เงินไม่พอ!", ephemeral=True)
-            return
-        
-        # 🛡️ เช็กว่าขายได้ไหม
-        if not item_data.get("purchasable", True):
-            await interaction.followup.send("❌ ไอเทมนี้ไม่สามารถซื้อจากร้านค้าได้!", ephemeral=True)
-            return
-
-        # 🧹 ดึงข้อมูลกระเป๋าและถอดรหัส
-        raw_inv = player.get("inventory", [])
-        # ตรวจสอบรูปแบบข้อมูลกระเป๋า (ต้องเป็น List เท่านั้น)
-        if isinstance(raw_inv, str):
-            inv = raw_inv.split(",") if raw_inv else []
-        elif isinstance(raw_inv, list):
-            inv = raw_inv
-        else:
-            inv = []
-
-        # 🛡️ 2. เช็กความจุ (Capacity) ก่อนซื้อ
-        capacity = player.get("capacity", 10)
-        # ถ้า capacity เป็น 0 คือไม่จำกัด (Unlimited)
-        if capacity != 0 and len(inv) >= capacity:
-            await interaction.followup.send(f"❌ กระเป๋าเต็มแล้ว! ({len(inv)}/{capacity}) กรุณาจัดการของในกระเป๋าก่อนซื้อเพิ่ม", ephemeral=True)
-            return
-
-        # 💰 ดำเนินการซื้อ (หักเงิน + เพิ่มไอเทม)
-        inv.append(item_id)
-        player["cash"] -= price
-        
-        # อัปเดตฐานข้อมูล
-        player_model.update_player_field(self.user_id, "cash", player["cash"])
-        player_model.update_player_field(self.user_id, "inventory", ",".join(inv)) # เก็บเป็น String คอมม่า
-        
-        # 🛠️ รีเฟรชข้อความร้านค้า
-        # กรองเฉพาะไอเทมที่ซื้อได้มาแสดงผล
-        market_list = [f"**เลข {k}:** {v['name']} ({v['buy']} ทอง)" for k, v in ITEM_CONFIG.items() if v.get("purchasable", True)]
-        content = f"🛒 เลือกไอเทมที่ต้องการซื้อ: (เงินคงเหลือ: {player['cash']:,} ทอง)\n\n" + "\n".join(market_list)
-        
+        # รีเฟรชรายการในร้านให้เห็นเงินคงเหลือใหม่
+        ITEM_CONFIG = config_loader.get_all_items()
+        cash = player_model.get_player(self.user_id).get("cash", 0)
+        market_list = [f"**เลข {k}:** {v['name']} ({v['buy']} ทอง)"
+                       for k, v in ITEM_CONFIG.items() if v.get("purchasable", True)]
+        content = f"🛒 เลือกไอเทมที่ต้องการซื้อ: (เงินคงเหลือ: {cash:,} ทอง)\n\n" + "\n".join(market_list)
         await interaction.edit_original_response(content=content, view=self)
-        await interaction.followup.send(f"✅ ซื้อ {item_data['name']} เข้ากระเป๋าเรียบร้อย!", ephemeral=True)
+        await interaction.followup.send(msg, ephemeral=True)
 
     async def back_callback(self, interaction: discord.Interaction):
         await interaction.response.edit_message(view=ShopEventView(self.user_id))
@@ -1603,34 +1563,17 @@ class SellSelectView(View):
 
     # 💰 ขายไอเทม — เรียกจาก SellItemSelect
     async def sell_item(self, interaction: discord.Interaction, item_id):
-        ITEM_CONFIG = config_loader.get_all_items()
-        # 🛡️ 1. สั่ง Defer ทันทีที่เลือก
+        from bot.cogs.player_commands import sell_item_for
         await interaction.response.defer()
 
-        item_id = str(item_id)
-        player = player_model.get_player(self.user_id)
+        ok, msg = sell_item_for(self.user_id, item_id)     # ตรรกะกลาง ใช้ร่วมกับหน้าร้านบนเว็บ
+        if not ok:
+            return await interaction.followup.send(msg, ephemeral=True)
 
-        raw_inv = player.get("inventory", "")
-        clean_inv = str(raw_inv)
-        for char in ["(", ")", "[", "]", "'", '"', " "]:
-            clean_inv = clean_inv.replace(char, "")
-            
-        inv = clean_inv.split(",") if clean_inv and clean_inv not in ["None", "null"] else []
-        
-        if item_id in inv:
-            inv.remove(item_id)
-            player["cash"] += ITEM_CONFIG[item_id]["sell"]
-            
-            player_model.update_player_field(self.user_id, "cash", player["cash"])
-            player_model.update_player_field(self.user_id, "inventory", ",".join(inv))
-            
-            content = f"📦 เลือกไอเทมที่จะขาย: (เงินคงเหลือ: {player['cash']} ทอง)"
-            # 🛡️ 2. เปลี่ยนมาใช้ edit_original_response
-            await interaction.edit_original_response(content=content, view=SellSelectView(self.user_id))
-            
-            await interaction.followup.send(f"✅ ขาย {ITEM_CONFIG[item_id]['name']} แล้ว! ได้เงินมา {ITEM_CONFIG[item_id]['sell']} ทอง", ephemeral=True)
-        else:
-            await interaction.followup.send("❌ คุณไม่มีไอเทมชิ้นนี้ให้ขายแล้ว!", ephemeral=True)
+        cash = player_model.get_player(self.user_id).get("cash", 0)
+        content = f"📦 เลือกไอเทมที่จะขาย: (เงินคงเหลือ: {cash:,} ทอง)"
+        await interaction.edit_original_response(content=content, view=SellSelectView(self.user_id))
+        await interaction.followup.send(msg, ephemeral=True)
             
     async def back_callback(self, interaction: discord.Interaction):
         await interaction.response.edit_message(view=ShopEventView(self.user_id))

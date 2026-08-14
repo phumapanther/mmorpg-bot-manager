@@ -199,7 +199,20 @@
 .confirm-btns .danger { background:linear-gradient(160deg,#8f3327,#5e1d14); border-color:#4d1710;
                         color:#fff; box-shadow:0 3px 0 #3d120c; }
 .confirm-btns .danger:hover { filter:brightness(1.12); }
-.empty-bag { padding:26px; text-align:center; color:var(--g-muted); font-size:13.5px; }
+.empty-bag { padding:26px; text-align:center; color:var(--g-muted); font-size:13.5px;
+             grid-column:1/-1; }
+
+/* แท็บซื้อ/ขายในร้าน */
+.shop-tabs { display:flex; gap:8px; margin-bottom:14px; }
+.shop-tab { flex:0 0 auto; min-height:44px; padding:10px 22px; border-radius:999px;
+            border:1px solid var(--g-line); background:var(--g-panel); color:var(--g-muted);
+            font-family:inherit; font-size:14px; font-weight:600; cursor:pointer;
+            transition:all 140ms var(--g-ease); }
+.shop-tab:hover { color:var(--g-ink); }
+.shop-tab[aria-pressed="true"] { background:var(--g-gold); color:#2b1c06; border-color:var(--g-gold); }
+.shop-tab:focus-visible { outline:2px solid var(--g-gold); outline-offset:2px; }
+.item.poor { opacity:.5; }
+.item.poor .qty { color:#e8776a; }
 
 .buffline { display:flex; flex-wrap:wrap; gap:7px; }
 .buffline span { background:var(--g-hi); border:1px solid var(--g-line); border-radius:99px;

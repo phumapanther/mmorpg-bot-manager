@@ -633,3 +633,36 @@ def test_login_failure_is_the_only_thing_that_hides_the_menu():
     # ต้องเปิด shell ก่อนเรียก /me/game ไม่งั้น error ตอนโหลดข้อมูลจะทำให้เมนูไม่เปิด
     assert boot.index("classList.remove('hidden')") < boot.index('"/api/web/me/game"')
     assert boot.count("needLogin") == 1, "needLogin ต้องโผล่เฉพาะตอน session ล้มเท่านั้น"
+
+
+def test_shop_buy_and_sell_via_web(client, tmp_path, monkeypatch):
+    from bot import config_loader
+    pm = _bind_pm(tmp_path, monkeypatch, cash=100000, inventory="[]", capacity=20)
+    _login(client)
+    price = int(config_loader.get_item_config("1")["buy"])
+
+    r = client.post("/api/web/shop", json={"action": "buy", "item_id": "1"}).json()
+    assert r["ok"] is True and r["money"]["cash"] == 100000 - price
+    assert "1" in pm.get_player(555000111)["inventory"]
+
+    r = client.post("/api/web/shop", json={"action": "sell", "item_id": "1"}).json()
+    sell = int(config_loader.get_item_config("1")["sell"])
+    assert r["ok"] is True and r["money"]["cash"] == 100000 - price + sell
+
+
+def test_shop_guards(client, tmp_path, monkeypatch):
+    _bind_pm(tmp_path, monkeypatch, cash=0, inventory="[]", capacity=20)
+    assert client.post("/api/web/shop", json={"action": "buy", "item_id": "1"}).status_code == 401
+    _login(client)
+    assert client.post("/api/web/shop", json={"action": "steal", "item_id": "1"}).status_code == 400
+    r = client.post("/api/web/shop", json={"action": "buy", "item_id": "1"})
+    assert r.status_code == 200 and r.json()["ok"] is False        # เงินไม่พอ
+
+
+def test_shop_list_hides_unpurchasable(client, tmp_path, monkeypatch):
+    from bot import config_loader
+    _bind_pm(tmp_path, monkeypatch)
+    _login(client)
+    ids = {i["id"] for i in client.get("/api/web/shop/items").json()["items"]}
+    hidden = {i for i, d in config_loader.get_all_items().items() if d.get("purchasable") is False}
+    assert hidden and not (ids & hidden), "ของที่ purchasable=false ต้องไม่โผล่ในร้าน"

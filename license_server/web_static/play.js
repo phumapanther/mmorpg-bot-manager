@@ -22,6 +22,7 @@ function showPanel(id) {
   if (id === 'bank') fillQuick();
   if (id === 'goldbar') fillBars().catch(e => toast(e.message, true));
   if (id === 'craft') fillCraft();
+  if (id === 'shop') fillShop();
   window.scrollTo({ top: document.getElementById('shell').offsetTop - 80, behavior: 'smooth' });
 }
 document.querySelectorAll('[data-go]').forEach(b => {
@@ -368,6 +369,74 @@ async function useItem(id, name) {
   } catch (e) { toast(e.message, true); }
 }
 
+
+// ── ร้านค้าไอเทม ──
+let SHOP_MODE = 'buy';
+
+async function fillShop() {
+  const box = document.getElementById('shopList');
+  if (!box) return;
+  box.innerHTML = '<div class="empty-bag">กำลังโหลด...</div>';
+
+  if (SHOP_MODE === 'buy') {
+    let d;
+    try { d = await api("GET", "/api/web/shop/items"); }
+    catch (e) { return toast(e.message, true); }
+    const cash = LAST ? LAST.money.cash : 0;
+    box.innerHTML = d.items.map((it, i) =>
+      '<button class="item' + (it.buy > cash ? ' poor' : '') + '" data-shop-buy="' + i + '">' +
+        (it.usable ? '<span class="badge">ใช้ได้</span>' : '') +
+        '<span class="nm">' + esc(it.name) + '</span>' +
+        '<span class="qty">' + fmt(it.buy) + '</span>' +
+      '</button>').join('');
+    box.querySelectorAll('[data-shop-buy]').forEach(b => b.onclick = () =>
+      shopAction('buy', d.items[+b.dataset.shopBuy]));
+    return;
+  }
+
+  // แท็บขาย — ใช้ของในกระเป๋าจากข้อมูลตัวละครที่โหลดไว้แล้ว
+  const items = (LAST && LAST.bag.items) ? LAST.bag.items.filter(i => i.sell > 0) : [];
+  if (!items.length) {
+    box.innerHTML = '<div class="empty-bag">ไม่มีของที่ขายได้ในกระเป๋า</div>';
+    return;
+  }
+  box.innerHTML = items.map((it, i) =>
+    '<button class="item" data-shop-sell="' + i + '">' +
+      '<span class="nm">' + esc(it.name) + ' ×' + it.count + '</span>' +
+      '<span class="qty">' + fmt(it.sell) + '</span>' +
+    '</button>').join('');
+  box.querySelectorAll('[data-shop-sell]').forEach(b => b.onclick = () =>
+    shopAction('sell', items[+b.dataset.shopSell]));
+}
+
+async function shopAction(action, it) {
+  const buying = action === 'buy';
+  const price = buying ? it.buy : it.sell;
+  const cash = LAST ? LAST.money.cash : 0;
+  const lines = [['ไอเทม', it.name],
+                 [buying ? 'ราคาซื้อ' : 'ขายได้', fmt(price) + ' ทอง', buying ? 'warn' : 'good'],
+                 ['เงินสดหลังทำรายการ', fmt(buying ? cash - price : cash + price) + ' ทอง']];
+  if (!buying) lines.push(['มีอยู่', it.count + ' ชิ้น']);
+
+  const ok = await confirmAction({
+    title: buying ? '🏪 ยืนยันซื้อไอเทม' : '📦 ยืนยันขายไอเทม',
+    message: buying ? 'ซื้อครั้งละ 1 ชิ้น หักจากเงินสด' : 'ขายครั้งละ 1 ชิ้น ได้เป็นเงินสด',
+    lines, okText: buying ? 'ยืนยันซื้อ' : 'ยืนยันขาย', danger: !buying,
+  });
+  if (!ok) return;
+  try {
+    const r = await api("POST", "/api/web/shop", { action: action, item_id: it.id });
+    toast(r.message, !r.ok);
+    if (r.ok) { await reload(); await fillShop(); }
+  } catch (e) { toast(e.message, true); }
+}
+
+document.querySelectorAll('[data-shop]').forEach(t => t.onclick = () => {
+  SHOP_MODE = t.dataset.shop;
+  document.querySelectorAll('[data-shop]').forEach(x =>
+    x.setAttribute('aria-pressed', String(x === t)));
+  fillShop();
+});
 
 // ── คราฟของ ──
 async function fillCraft() {
