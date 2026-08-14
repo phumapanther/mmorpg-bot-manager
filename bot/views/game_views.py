@@ -719,57 +719,29 @@ class NpcEventView(ActionView):
         return True
 
     async def _masquerade_ambush(self, interaction: discord.Interaction):
-        """🎭 มอนปลอมตัวจู่โจมคนที่ไม่ทันระวัง — ดาเมจเปิดฉากแล้วเข้าไฟต์"""
-        dmg = random.randint(10, 20)
-        player = player_model.get_player(self.user_id)
-        new_hp = max(0, player.get("hp", 100) - dmg)
-        if new_hp <= 0:
-            player_model.update_player_fields(self.user_id, {"hp": 0, "current_state": "dead"})
+        """🎭 มอนปลอมตัวจู่โจมคนที่ไม่ทันระวัง — ดาเมจเปิดฉากแล้วเข้าไฟต์
+        (ตรรกะอยู่ใน adventure_core.npc_ambush ใช้ร่วมกับเว็บ)"""
+        r = adventure_core.npc_ambush(self.user_id)
+        if r["died"]:
             return await interaction.response.edit_message(
-                content=f"🎭 **'NPC' ฉีกคราบออก — มันคือมอนสเตอร์ปลอมตัวมา!** จู่โจมจากระยะประชิด `-{dmg}` HP... คุณหมดสติ!",
+                content=r["text"],
                 view=RespawnView(self.user_id), **({"attachments": [f]} if (f := event_image("death")) else {}))
-        player_model.update_player_fields(self.user_id, {"hp": new_hp, "current_state": "fighting"})
-        next_view = MonsterEventView(self.user_id, interaction.user.roles)
         await interaction.response.edit_message(
-            content=(
-                f"🎭 **'NPC' ฉีกคราบออก — มันคือมอนสเตอร์ปลอมตัวมา!**\n"
-                f"💥 โดนจู่โจมเปิดฉาก `-{dmg}` HP (เหลือ {new_hp}) — เข้าสู่การต่อสู้ทั้งแบบนั้น!"
-            ),
-            view=next_view)
+            content=r["text"], view=MonsterEventView(self.user_id, interaction.user.roles))
 
     async def inspect(self, interaction: discord.Interaction):
         """🔍 ตรวจตัวตน — มีแว่นส่องสัจจะ (id 38) ใช้แว่นฟรี ไม่มีก็จ่ายเงิน"""
-        player = player_model.get_player(self.user_id)
-        fee = self.masq_cfg.get("inspect_fee", 1500)
+        r = adventure_core.npc_inspect(self.user_id, self.disguised,
+                                       self.masq_cfg.get("inspect_fee", 1500))
+        if not r["ok"]:                                     # เงินไม่พอ ยังไม่ได้ตรวจ ไม่หักอะไร
+            return await interaction.response.send_message(r["text"], ephemeral=True)
 
-        inv = player_model.load_inventory(player.get("inventory", "[]"))
-        if game_modifiers.has_status_flag(game_modifiers.parse_statuses(player), "free_inspect"):
-            # 🎭 แว่นเดี่ยวหน้ากาก (อาร์ติแฟกต์): มองทะลุการอำพรางฟรีตลอดกาล
-            paid_note = "🎭 แว่นเดี่ยวหน้ากากของคุณเรืองแสง มองทะลุทุกการอำพราง (ฟรี — พลังถาวร)"
-        elif "38" in inv:
-            inv.remove("38")
-            player_model.update_player_field(self.user_id, "inventory", inv)
-            paid_note = "🔍 คุณยกแว่นส่องสัจจะขึ้นส่องทะลุหน้ากาก... (ไม่เสียเงิน — เลนส์แตกสลายหลังใช้)"
-        elif player.get("cash", 0) < fee:
-            return await interaction.response.send_message(f"❌ เงินสดไม่พอค่าตรวจสอบ (`{fee:,}` ทอง) — หรือหาซื้อ 🔍 แว่นส่องสัจจะติดกระเป๋าไว้", ephemeral=True)
-        else:
-            player_model.update_player_field(self.user_id, "cash", player["cash"] - fee)
-            paid_note = f"🔍 คุณจ่าย `{fee:,}` ทองให้ผู้เชี่ยวชาญส่องหน้ากาก..."
+        if r["start_fight"]:
+            return await interaction.response.edit_message(
+                content=r["text"], view=MonsterEventView(self.user_id, interaction.user.roles))
 
-        if self.disguised:
-            player_model.update_player_field(self.user_id, "current_state", "fighting")
-            next_view = MonsterEventView(self.user_id, interaction.user.roles)
-            await interaction.response.edit_message(
-                content=(
-                    f"{paid_note}\n"
-                    f"🎭 **จับได้! มันคือมอนสเตอร์ปลอมตัวมา!** มันจนมุมก่อนได้ลงมือ — คุณเข้าปะทะแบบไม่เสียเปรียบ!"
-                ),
-                view=next_view)
-        else:
-            self.remove_item(next(c for c in self.children if getattr(c, "label", "").startswith("🔍")))
-            await interaction.response.edit_message(
-                content=f"{paid_note}\nผลออกมา: **เป็น NPC ตัวจริง!** คุยต่อได้ตามปกติ 🧓",
-                view=self)
+        self.remove_item(next(c for c in self.children if getattr(c, "label", "").startswith("🔍")))
+        await interaction.response.edit_message(content=r["text"], view=self)
 
     # ==========================================
     # ปุ่ม 1: พูดคุยปกติ (สุ่มให้เงิน / ขายของ / ไม่มีอะไร)

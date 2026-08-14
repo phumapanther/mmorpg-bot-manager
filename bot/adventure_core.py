@@ -591,6 +591,57 @@ def npc_disguise(player, rng=random):
     return cfg, bool(cfg and rng.randint(1, 100) <= cfg.get("chance", 0))
 
 
+def npc_ambush(user_id, rng=random):
+    """🎭 มอนปลอมตัวซุ่มตีก่อนที่จะทันระวัง — คืน {text, died, damage, start_fight}
+
+    ตรรกะกลาง: ทั้งปุ่มในดิสและปุ่มบนเว็บเรียกตัวนี้ ห้ามคิดดาเมจกันเอง
+    """
+    dmg = rng.randint(10, 20)
+    player = player_model.get_player(user_id) or {}
+    new_hp = max(0, int(player.get("hp", 100) or 0) - dmg)
+    if new_hp <= 0:
+        player_model.update_player_fields(user_id, {"hp": 0, "current_state": "dead"})
+        return {"text": f"🎭 **'NPC' ฉีกคราบออก — มันคือมอนสเตอร์ปลอมตัวมา!** "
+                        f"จู่โจมจากระยะประชิด `-{dmg}` HP... คุณหมดสติ!",
+                "died": True, "damage": dmg, "start_fight": False}
+    player_model.update_player_fields(user_id, {"hp": new_hp, "current_state": "fighting"})
+    return {"text": f"🎭 **'NPC' ฉีกคราบออก — มันคือมอนสเตอร์ปลอมตัวมา!**\n"
+                    f"💥 โดนจู่โจมเปิดฉาก `-{dmg}` HP (เหลือ {new_hp}) — เข้าสู่การต่อสู้ทั้งแบบนั้น!",
+            "died": False, "damage": dmg, "start_fight": True}
+
+
+def npc_inspect(user_id, disguised, fee):
+    """🔍 ตรวจตัวตน NPC — แว่นเดี่ยวหน้ากาก/แว่นส่องสัจจะใช้ฟรี ไม่มีก็จ่ายเงิน
+
+    คืน {ok, text, start_fight} — ok=False คือเงินไม่พอ (ยังไม่ได้ตรวจ ไม่หักอะไร)
+    """
+    fee = int(fee or 0)
+    player = player_model.get_player(user_id) or {}
+    inv = player_model.load_inventory(player.get("inventory", "[]"))
+
+    if game_modifiers.has_status_flag(game_modifiers.parse_statuses(player), "free_inspect"):
+        note = "🎭 แว่นเดี่ยวหน้ากากของคุณเรืองแสง มองทะลุทุกการอำพราง (ฟรี — พลังถาวร)"
+    elif "38" in inv:
+        inv.remove("38")
+        player_model.update_player_field(user_id, "inventory", inv)
+        note = "🔍 คุณยกแว่นส่องสัจจะขึ้นส่องทะลุหน้ากาก... (ไม่เสียเงิน — เลนส์แตกสลายหลังใช้)"
+    elif int(player.get("cash", 0) or 0) < fee:
+        return {"ok": False, "start_fight": False,
+                "text": f"❌ เงินสดไม่พอค่าตรวจสอบ (`{fee:,}` ทอง) — "
+                        "หรือหาซื้อ 🔍 แว่นส่องสัจจะติดกระเป๋าไว้"}
+    else:
+        player_model.update_player_field(user_id, "cash", int(player.get("cash", 0)) - fee)
+        note = f"🔍 คุณจ่าย `{fee:,}` ทองให้ผู้เชี่ยวชาญส่องหน้ากาก..."
+
+    if disguised:
+        player_model.update_player_field(user_id, "current_state", "fighting")
+        return {"ok": True, "start_fight": True,
+                "text": f"{note}\n🎭 **จับได้! มันคือมอนสเตอร์ปลอมตัวมา!** "
+                        "มันจนมุมก่อนได้ลงมือ — คุณเข้าปะทะแบบไม่เสียเปรียบ!"}
+    return {"ok": True, "start_fight": False,
+            "text": f"{note}\nผลออกมา: **เป็น NPC ตัวจริง!** คุยต่อได้ตามปกติ 🧓"}
+
+
 def npc_talk(user_id, rng=random):
     """💬 คุยกับ NPC — สุ่มได้ของขวัญ / โดนยัดขาย / ไม่มีอะไร (ยกมาจากปุ่มในดิสทั้งชุด)"""
     player = player_model.get_player(user_id) or {}

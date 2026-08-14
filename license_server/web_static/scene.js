@@ -8,6 +8,7 @@
 
 const GROUND_Y = 108;
 const FLASH_FRAMES = 9;
+const HIT_FRAMES = 16;      // ความยาวจังหวะ "โดนตีแล้วเจ็บ" ของมอน (เฟรม)
 // ชนิดกับดักที่วาดได้ — คีย์ตรงกับทวีปในเกม (ทวีปที่ไม่มีในนี้ใช้หนามแหลมกลาง)
 const TRAP_FX = { main: 1, demon: 1, frozen: 1, nether: 1, volcanic: 1,
                   sylvan: 1, mechanized: 1, skyward: 1, ocean: 1 };               // จำนวนเฟรมที่มอนแฟลชขาวก่อนแตกเป็นเศษ
@@ -88,6 +89,8 @@ class Scene {
     this.heroAlpha = 1;
     this.foeShake = 0;
     this.foeFlash = 0;
+    this.foeHit = 0;                 // แรงกระแทกตอนโดนตี — เด้งถอยแล้วสปริงกลับที่
+    this.foeSpark = 0;               // ประกายไฟตรงจุดปะทะ
     this.dust = [];
     this.parts = [];
     this.fx = [];
@@ -300,7 +303,9 @@ class Scene {
 
   attack() { this.state = 'fight'; this.char.pose = 'atk'; this.heroLunge = 14;
              setTimeout(() => this.char.pose = 'idle', 420); }
-  hitFoe() { this.foeShake = 14; this.foeFlash = 5; }
+  /** โดนตีแต่ยังไม่ตาย — ต้องเห็นว่า "เจ็บ" ไม่ใช่แค่หลอดเลือดลด
+   *  กระเด็นถอย + ตัวยุบ + ประกายไฟ + วาบขาว แล้วค่อยสปริงกลับที่เดิม */
+  hitFoe() { this.foeHit = HIT_FRAMES; this.foeSpark = 10; this.foeShake = 8; this.foeFlash = 5; }
 
   /** โชว์ผลทอยเต๋าของทั้งสองฝั่ง — ผู้เล่นต้องเห็นว่าชนะ/แพ้เพราะอะไร ห่างกันเท่าไหร่
    *  roll = {player_roll, monster_roll, player_parts, monster_parts} จากเซิร์ฟเวอร์ */
@@ -414,8 +419,14 @@ class Scene {
     const col = ELEMENT_COLOR[this.foe.element] || ELEMENT_COLOR.fire;
     const dying = this.death && this.death.t < FLASH_FRAMES;
     const c = dying ? '#ffffff' : (this.foeFlash > 0 ? col.hi : col.c);
-    const x = 258 + (this.foeShake ? Math.random() * 6 - 3 : 0), y = GROUND_Y - 44, s = 3;
-    const R = (dx, dy, w, h, cc) => { ctx.fillStyle = cc; ctx.fillRect(x + dx * s, y + dy * s, w * s, h * s); };
+    const s = 3;
+    // k: 1 ตอนเพิ่งโดน → 0 ตอนกลับที่เดิม · kb: กระเด็นถอยแล้วแกว่งกลับแบบสปริง
+    const k = this.foeHit > 0 ? this.foeHit / HIT_FRAMES : 0;
+    const kb = k ? Math.cos((1 - k) * 9) * 13 * k : 0;
+    const sx = s * (1 + .20 * k), sy = s * (1 - .24 * k);      // โดนอัดจนตัวยุบแบน
+    const x = 258 + kb + (this.foeShake ? Math.random() * 4 - 2 : 0);
+    const y = (GROUND_Y - 44) + 14 * (s - sy);                 // ยุบจากหัวลง เท้ายังติดพื้น
+    const R = (dx, dy, w, h, cc) => { ctx.fillStyle = cc; ctx.fillRect(x + dx * sx, y + dy * sy, w * sx, h * sy); };
 
     switch (this.foe.shape) {
       case 'slime':
@@ -437,6 +448,19 @@ class Scene {
         R(3,6,2,2,col.eye); R(9,6,2,2,col.eye);
         R(4,10,6,1,'#241812'); R(4,12,2,2,c); R(8,12,2,2,c);
     }
+    // ประกายไฟกระจายออกจากจุดปะทะ — บอกว่า "โดนตรงนี้" ไม่ใช่แค่ตัวสั่น
+    if (this.foeSpark > 0 && !dying) {
+      const p = 1 - this.foeSpark / 10;
+      ctx.fillStyle = p < .5 ? '#fff4d0' : col.hi;
+      for (let i = 0; i < 6; i++) {
+        const a = i * (Math.PI / 3) + .4;
+        const d = 7 + p * 22;
+        ctx.fillRect(x + 7 * sx + Math.cos(a) * d, y + 7 * sy + Math.sin(a) * d,
+                     3 - p * 2, 3 - p * 2);
+      }
+      this.foeSpark--;
+    }
+    if (this.foeHit) this.foeHit--;
     if (this.foeShake) this.foeShake--;
     if (this.foeFlash) this.foeFlash--;
   }

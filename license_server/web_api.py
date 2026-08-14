@@ -1010,6 +1010,44 @@ def _is_rogue(player):
     return (player.get("class_name") or "") == "Rogue"
 
 
+def _start_ambush_fight(uid, text):
+    """เข้าไฟต์กลางคันจากเหตุการณ์อื่น (มอนปลอมตัวฉีกคราบ) — เกิดมอนแล้วส่งการ์ดให้เว็บวาด"""
+    from bot import adventure_core
+    data = adventure_core.spawn_monster(uid, ())
+    adventure_core.set_pending(uid, "monster", data)
+    return {"text": text, "pending": "monster", "monster": _monster_card(data),
+            "money": _money_now(uid)}
+
+
+def _finish_special(uid, out, outcome, died):
+    """ปิดท้ายอีเวนต์พิเศษ — ตาย / ลากเข้าไฟต์ / จบเฉย ๆ
+
+    กติกาชุดเดียวกับ SpecialEventView._finish() ในดิส: ถ้า outcome สั่ง start_fight
+    ต้องเกิดมอนแล้วเข้าไฟต์ทันที ไม่ใช่ปล่อยผ่าน
+    """
+    from bot import adventure_core
+    from bot.models import player_model
+
+    if died:
+        player_model.update_player_fields(uid, {"current_state": "dead", "last_event": "none"})
+        adventure_core.clear_pending(uid)
+        out["died"] = True
+        return out
+
+    if outcome.get("start_fight"):
+        data = adventure_core.spawn_monster(uid, ())
+        player_model.update_player_fields(uid, {"current_state": "fighting", "last_event": "none"})
+        adventure_core.set_pending(uid, "monster", data)
+        out["pending"] = "monster"
+        out["monster"] = _monster_card(data)
+        out["text"] += "\n👹 **ศัตรูไม่ให้เวลาคุณหายใจ — เข้าสู่การต่อสู้ทันที!**"
+        return out
+
+    player_model.update_player_fields(uid, {"current_state": "idle", "last_event": "none"})
+    adventure_core.clear_pending(uid)
+    return out
+
+
 @router.post("/adventure/walk")
 def adventure_walk(request: Request):
     """เดินหนึ่งก้าว — ตรรกะเดียวกับปุ่ม 🧭 ในดิสทุกบรรทัด"""
@@ -1062,16 +1100,24 @@ def adventure_walk(request: Request):
                            f"เงินฝากหายไป `{r['lost']:,}` ทอง — เหลือในบัญชี `{r['left']:,}` ทอง{r['theft']}\n"
                            f"*(กันได้ด้วย 🪪 บัตรประกัน — หาซื้อที่ร้านค้าประจำหมู่บ้าน)*")
         elif event == "npc" and adventure_core.npc_disguise(player)[0]:
-            # 🎭 สัปดาห์ธีม Masquerade — NPC อาจฉีกคราบเป็นมอนแล้วลากเข้าไฟต์ ซึ่งเว็บยังสู้ไม่ได้
-            out["playable"] = False
-            out["text"] = ("🧓 นักเดินทางพเนจรนั่งอยู่ข้างกองไฟ... แต่บางอย่างดูผิดปกติ "
-                           "คุณเลือกเดินเลี่ยงไป *(สัปดาห์นี้มีธีมปลอมตัว — คุยกับ NPC ได้เฉพาะในดิสคอร์ด)*")
-        elif event == "special" and (special.get("template") == "instant"
-                                     or adventure_core.special_leads_to_fight(special)):
-            # instant จ่ายผลทันทีตั้งแต่ในดิส / อีเวนต์ที่ลากเข้าไฟต์ = เว็บยังไม่รองรับ
-            out["playable"] = False
-            out["text"] = ("✨ มีบางอย่างเกิดขึ้นตรงหน้าคุณ... แต่คุณเดินผ่านไป "
-                           "*(อีเวนต์พิเศษแบบนี้ยังเล่นได้เฉพาะในดิสคอร์ด)*")
+            # 🎭 สัปดาห์ธีม Masquerade — NPC อาจฉีกคราบเป็นมอน ตัดสินตอนนี้แล้วเก็บไว้ฝั่งเซิร์ฟเวอร์
+            # (ห้ามส่งออกไปให้เบราว์เซอร์รู้ ไม่งั้นเปิดดูก็รู้ว่าตัวไหนปลอม)
+            masq_cfg, disguised = adventure_core.npc_disguise(player)
+            fee = int(masq_cfg.get("inspect_fee", 1500))
+            data = {"disguised": disguised, "fee": fee}
+            out["encounter"] = {"masquerade": True, "inspect_fee": fee}
+            out["text"] = ("🧓 นักเดินทางพเนจรนั่งอยู่ข้างกองไฟ... "
+                           "🎭 *สัปดาห์นี้มีธีมปลอมตัว — จ่ายเงินตรวจตัวตนก่อนก็ได้*")
+            player_model.update_player_field(uid, "current_state", _WEB_PLAYABLE["npc"])
+            adventure_core.set_pending(uid, "npc", data)
+            out["pending"] = "npc"
+        elif event == "special" and special.get("template") == "instant":
+            # ไม่มีสิทธิ์เลือก — จ่ายผลทันทีเหมือนในดิส (เช่น งานเลี้ยงบรรพชน)
+            outcome = adventure_core.resolve_instant_special(special)
+            lines, died = adventure_core.execute_special_outcome(uid, outcome)
+            out["text"] = "\n".join(
+                [special.get("intro", "✨ มีบางอย่างเกิดขึ้นตรงหน้าคุณ...")] + lines)
+            _finish_special(uid, out, outcome, died)
         elif event in _WEB_PLAYABLE:
             data = {}
             if event == "special":
@@ -1156,6 +1202,22 @@ def adventure_act(body: ActBody, request: Request):
         elif event == "travel":
             r = adventure_core.resolve_travel(uid, data, body.action)
         elif event == "npc":
+            # 🎭 สัปดาห์ปลอมตัว: เข้าไปคุย/ฟังเควสกับตัวปลอม = โดนซุ่มตีก่อนแล้วเข้าไฟต์
+            masq = bool((data or {}).get("disguised"))
+            if body.action == "inspect":
+                r = adventure_core.npc_inspect(uid, masq, (data or {}).get("fee", 1500))
+                if not r["ok"]:                       # เงินไม่พอ ยังยืนอยู่ที่เดิม กดใหม่ได้
+                    raise HTTPException(400, r["text"])
+                if not r["start_fight"]:              # เป็นตัวจริง — คุยต่อได้ ยังไม่จบเหตุการณ์
+                    return {"text": r["text"], "pending": "npc",
+                            "encounter": {"masquerade": False}, "money": _money_now(uid)}
+                return _start_ambush_fight(uid, r["text"])
+            if masq and body.action in ("talk", "quest"):
+                a = adventure_core.npc_ambush(uid)
+                if a["died"]:
+                    adventure_core.clear_pending(uid)
+                    return {"text": a["text"], "died": True, "money": _money_now(uid)}
+                return _start_ambush_fight(uid, a["text"])
             if body.action == "talk":
                 r = adventure_core.npc_talk(uid)
             elif body.action == "quest":
@@ -1180,9 +1242,11 @@ def adventure_act(body: ActBody, request: Request):
             lines, died = adventure_core.execute_special_outcome(uid, outcome)
             if prefix:
                 lines.insert(0, prefix)
-            player_model.update_player_fields(
-                uid, {"current_state": "dead" if died else "idle", "last_event": "none"})
             r = {"text": "\n".join(lines) or "…ไม่มีอะไรเกิดขึ้น", "died": died}
+            _finish_special(uid, r, outcome, died)
+            if r.get("pending") == "monster":
+                # ลากเข้าไฟต์ต่อทันที — ห้ามให้ clear_pending ท้ายฟังก์ชันมาล้างมอนทิ้ง
+                return r | {"money": _money_now(uid)}
         elif event == "mugging":
             m = robbery.resolve_mugging(uid, body.action)
             if body.action == "flee":
@@ -1225,6 +1289,9 @@ def adventure_state(request: Request):
     state = (player_model.get_player(uid) or {}).get("current_state", "idle")
     if not event:
         return {"pending": None, "state": state}
+    if event == "npc" and isinstance(data, dict) and "disguised" in data:
+        # 🎭 ห้ามส่งคำเฉลยออกไป — เปิด devtools ดูก็รู้ทันทีว่าตัวไหนปลอม
+        data = {"masquerade": True, "inspect_fee": data.get("fee", 1500)}
     return {"pending": event, "data": data, "state": state}
 
 

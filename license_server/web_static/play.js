@@ -883,9 +883,14 @@ const ADV_ACTIONS = {
                 ['decline', '🙅 ไม่ไป เดินทางต่อ', '']],
   mugging: g => [['fight', '⚔️ สู้', 'hot', `โอกาสชนะ ${g.win_pct}% — แพ้โดนกวาดเงินติดตัวหมด`],
                  ['flee', '🏃 หนี (-50% เงินติดตัว)', '', 'โยนถุงทองครึ่งหนึ่งสกัดโจรแล้ววิ่ง']],
-  npc: () => [['talk', '💬 เข้าไปพูดคุย', 'hot'],
-              ['quest', '📜 ฟังข้อเสนอเควส', ''],
-              ['ignore', '🤫 เมินใส่', '']],
+  // 🎭 สัปดาห์ธีมปลอมตัว: มีปุ่มตรวจตัวตนเพิ่มมา — เข้าไปคุยดื้อ ๆ กับตัวปลอมจะโดนซุ่มตี
+  npc: g => [...((g.encounter && g.encounter.masquerade)
+                 ? [['inspect', `🔍 ตรวจสอบตัวตน (${fmt(g.encounter.inspect_fee)} ทอง)`, 'danger',
+                     'จ่ายค่าตรวจ (มีแว่นส่องสัจจะใช้ฟรี) — ถ้าเป็นของปลอมจะได้เปรียบตอนเข้าปะทะ']]
+                 : []),
+             ['talk', '💬 เข้าไปพูดคุย', 'hot'],
+             ['quest', '📜 ฟังข้อเสนอเควส', ''],
+             ['ignore', '🤫 เมินใส่', '']],
   npc_quest: () => [['accept', '✅ แลกเปลี่ยน', 'hot', 'ของในกระเป๋าตามข้อเสนอจะถูกนำไปแลกทันที'],
                     ['decline', '❌ ปฏิเสธ', '']],
   // ไฟต์: โจมตีปกติ + สกิลของคลาสตัวเอง + หนี (ยกมาจากปุ่มในดิสทั้งชุด)
@@ -1031,7 +1036,8 @@ async function advWalk() {
     const art = g.event === 'travel' ? 'vehicle_' + g.encounter.vehicle : ADV_ART[g.event];
     if (art) SCENE.showEvent(art); else SCENE.idle();
     tag.textContent = ADV_LABEL[g.event] || g.event;
-    if (g.event === 'death') {                          // ล้มกลางทางจากพิษ/สถานะ
+    // ล้มกลางทางจากพิษ/สถานะ หรือโดนอีเวนต์พิเศษเล่นจนหมดสติ
+    if (g.event === 'death' || g.died) {
       SCENE.killHero();
       SFX.play('lose');
       IN_FIGHT = false; SCENE_EVENT = ''; sceneMusic();
@@ -1080,6 +1086,17 @@ async function advAct(action, label, confirmMsg) {
       SCENE.showRoll(r.roll);
       await new Promise(res => setTimeout(res, 750));      // ให้เห็นเต๋าเฉลยก่อนตัวเลขเด้ง
     }
+    // อีเวนต์พิเศษ/กับดักเล่นจนหมดสติ — ต้องมีปุ่มฟื้นคืนชีพ ไม่ใช่ค้างอยู่เฉย ๆ
+    if (r.died) {
+      SFX.play('lose');
+      IN_FIGHT = false; sceneMusic();
+      SCENE.killHero();
+      await new Promise(res => setTimeout(res, 900));
+      advPaint({ text: r.text });
+      advRespawnButton(document.getElementById('advActions'));
+      boot();
+      return;
+    }
     if (r.damage_to_monster) {                          // มอนกินดาเมจ — เข้าแรงเสียงหนักกว่า
       SCENE.hitFoe(); SCENE.float('-' + fmt(r.damage_to_monster), '', 72);
       const foeMax = (r.monster && r.monster.hp_max) || 0;
@@ -1118,7 +1135,8 @@ async function advAct(action, label, confirmMsg) {
     if (r.continent) { SCENE.setMap(r.continent); SCENE.showEvent('village'); SCENE_EVENT = 'village'; }
     IN_FIGHT = r.pending === 'monster';
     sceneMusic();                                       // จบยกแล้วเพลงต้องกลับมาตรงกับฉาก
-    advPaint({ text: r.text, pending: r.pending });   // ยังมีขั้นต่อ (เช่นข้อเสนอเควส) ก็โชว์ปุ่มต่อ
+    // ยังมีขั้นต่อ (ข้อเสนอเควส / คุย NPC ต่อหลังตรวจตัวตน) ก็โชว์ปุ่มต่อ
+    advPaint({ text: r.text, pending: r.pending, encounter: r.encounter });
     boot();                                           // เลือด/เงิน/กระเป๋าเปลี่ยน โหลดใหม่
   } catch (e) {
     toast(e.message, true);
