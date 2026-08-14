@@ -216,31 +216,27 @@
 
 
 
-    <!-- ══ ฉากผจญภัย (เฟส 4 — เอนจินฉาก ยังไม่ต่อ logic จริง) ══ -->
+    <!-- ══ ผจญภัย (เฟส 5.4 — ต่อกับตรรกะเดินทางจริงแล้ว) ══ -->
     <div class="g-panelview" id="v-scene">
       <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🧭 ฉากผจญภัย</h2>
-        <p>เอนจินฉากพิกเซล — ตัวละครของคุณจริง ฉากตามทวีป และภาพเหตุการณ์
-        พิกเซลอาร์ต 175 ใบที่มีอยู่แล้ว</p></div>
+      <div class="g-head"><h2>🧭 ออกผจญภัย</h2>
+        <p>เดินทางด้วยตรรกะเดียวกับปุ่ม <b>!play</b> ในดิสคอร์ด — ตัวละคร เงิน
+        และเหตุการณ์เป็นข้อมูลจริงชุดเดียวกัน เล่นสลับสองแพลตฟอร์มได้</p></div>
+
       <div class="stage-wrap">
         <canvas id="scene" width="320" height="132" aria-label="ฉากผจญภัย"></canvas>
         <div class="stage-tag"><i class="dot"></i><span id="sceneTag">—</span></div>
       </div>
+
       <div class="g-card" style="margin-top:14px">
-        <div class="field-row"><label>ทวีป</label>
-          <div class="chips" id="sceneMaps"></div></div>
-        <div class="field-row"><label>เหตุการณ์ (ใช้ภาพจริงจาก assets/events)</label>
-          <div class="chips" id="sceneEvents"></div></div>
-        <div class="field-row"><label>สกิลของคลาสคุณ</label>
-          <div class="chips" id="sceneSkills"></div></div>
-        <div class="bet-row">
-          <button class="g-tile casino-go" id="scWalk"><span class="ic">🚶</span>เดินทาง</button>
-          <button class="g-tile casino-go" id="scFoe"><span class="ic">👹</span>เรียกมอน</button>
-          <button class="g-tile hot casino-go" id="scHit"><span class="ic">⚔️</span>โจมตี</button>
-        </div>
+        <div class="adv-text" id="advText">กดปุ่มออกเดินทางเพื่อเริ่มก้าวแรก</div>
+        <div class="adv-notes" id="advNotes"></div>
+        <div class="bet-row" id="advActions"></div>
       </div>
-      <p class="g-note"><b>นี่คือเอนจินฉาก ยังไม่ใช่การผจญภัยจริง</b> — เฟส 5 จะต่อเข้ากับ
-      ตรรกะเดินทาง/สู้มอนของเกม แล้วทุกอย่างที่เห็นตรงนี้จะขยับตามผลจริงจากเซิร์ฟเวอร์</p>
+
+      <p class="g-note">⚠️ <b>เหตุการณ์ที่ยังเล่นบนเว็บไม่ได้</b> (เจอมอนสเตอร์ · เควส NPC ·
+      อีเวนต์พิเศษ) จะเดินผ่านไปเฉย ๆ และ<b>ไม่ล็อกสถานะตัวละคร</b> — ไปสู้ในดิสคอร์ดได้ตามปกติ
+      ระบบสู้บนเว็บอยู่ในเฟส 5.6</p>
     </div>
 
     <!-- ══ แบล็กแจ็ค 24 ══ -->

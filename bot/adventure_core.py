@@ -6,6 +6,7 @@
 หมายเหตุ: ฟังก์ชันนี้เขียน DB ตรงบางจุด (dungeon_steps/last_event/village_cooldown)
 เหมือนของเดิมเป๊ะ เพื่อไม่ให้พฤติกรรมฝั่งดิสเปลี่ยน
 """
+import json
 import random
 
 import bot.models.player_model as player_model
@@ -225,3 +226,245 @@ def commit_event(user_id, chosen_event, last_evt):
         player_model.update_player_field(user_id, "last_event", chosen_event)
     if chosen_event == "village":
         player_model.update_player_field(user_id, "village_cooldown", 10)
+
+
+def step_prelude(user_id, player, player_elements=()):
+    """งานต้นก้าวก่อนสุ่มเหตุการณ์ — ใช้ร่วมกันทั้ง Discord และเว็บ (เว็บเกม เฟส 5.4)
+
+    ทำตามลำดับเดิมเป๊ะ: นับเควสรายวัน > ลดคูลดาวน์หมู่บ้าน > ติดสถานะประจำธีม
+    > เลือดไหล/พิษกัดกิน + tick สถานะ > passive ธาตุไม้ฟื้น HP
+
+    คืน dict — ผู้เรียกเอา notes ไปแสดงเอง (ดิสส่ง followup, เว็บส่ง JSON)
+    dead=True คือหมดสติกลางทาง ผู้เรียกต้องพาไปหน้าฟื้นคืนชีพ
+    """
+    try:
+        from bot import daily as _daily
+        _daily.track(user_id, "walk", 1)
+    except Exception as e:
+        print(f"⚠️ [daily] นับเควสเดินทางพัง: {e}")
+
+    cooldown = player.get("village_cooldown", 0)
+    if cooldown > 0:
+        cooldown -= 1
+        player_model.update_player_field(user_id, "village_cooldown", cooldown)
+
+    mods = game_modifiers.get_active_modifiers(player)
+    statuses = game_modifiers.parse_statuses(player)
+    notes = []
+
+    # 🌨️ สถานะแวดล้อมของธีม (เช่น frostbite ช่วง Absolute Zero): ยังไม่ติด = ติดทันที
+    ambient = mods.get("ambient_status")
+    if ambient and ambient in game_modifiers.STATUS_EFFECTS and ambient not in statuses:
+        statuses = game_modifiers.apply_status(statuses, ambient)
+        if ambient in statuses:      # ติดจริงเท่านั้น (สถานะภูมิคุ้มกันเช่น "อบอุ่น" อาจกันไว้)
+            notes.append(f"🌨️ {game_modifiers.STATUS_EFFECTS[ambient]['label']} แทรกซึมเข้าร่างคุณ! "
+                         f"(หาความอบอุ่นจากหมู่บ้าน/NPC/ดันเจี้ยนเพื่อคลายหนาว)")
+
+    if statuses:
+        step_dmg, dmg_details = game_modifiers.roll_step_damage(
+            statuses, max_hp=player.get("max_hp", 100))
+        statuses, expired = game_modifiers.tick_statuses(statuses, "step")
+        player_model.update_player_field(user_id, "status_effects", statuses)
+
+        if step_dmg:
+            new_hp = max(0, player.get("hp", 100) - step_dmg)
+            player_model.update_player_field(user_id, "hp", new_hp)
+            player["hp"] = new_hp
+            detail = " ".join(f"{label} `-{dmg}`" for label, dmg in dmg_details)
+            notes.append(f"🩸 สถานะกัดกินร่างกาย: {detail} (HP เหลือ `{new_hp}`)")
+            if new_hp <= 0:
+                player_model.update_player_fields(user_id, {"current_state": "dead", "hp": 0})
+                return {"notes": notes, "dead": True, "player": player, "statuses": statuses,
+                        "mods": mods, "dg_steps": player.get("dungeon_steps", 0),
+                        "last_evt": player.get("last_event", "none"), "cooldown": cooldown}
+
+        for key in expired:
+            notes.append(f"⏳ {game_modifiers.STATUS_EFFECTS[key]['label']} หมดฤทธิ์แล้ว")
+
+    # 🌿 Passive ธาตุไม้ (สังเคราะห์แสง): ฟื้น % MaxHP ทุกก้าว — เงียบ ๆ เห็นผลที่ตัวเลข HP
+    regen_pct = game_modifiers.player_passive_sum(player_elements, "step_regen")
+    if regen_pct:
+        max_hp = player.get("max_hp", 100)
+        if 0 < player.get("hp", 100) < max_hp:
+            player["hp"] = min(max_hp, player.get("hp", 100) + max(1, round(max_hp * regen_pct)))
+            player_model.update_player_field(user_id, "hp", player["hp"])
+
+    return {"notes": notes, "dead": False, "player": player, "statuses": statuses, "mods": mods,
+            "dg_steps": player.get("dungeon_steps", 0),
+            "last_evt": player.get("last_event", "none"), "cooldown": cooldown}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ตัวตัดสินผลของแต่ละเหตุการณ์ (เว็บเกม เฟส 5.4)
+# ทุกตัวคืน dict {"text": ข้อความผลลัพธ์, ...ข้อมูลดิบ} — ผู้เรียกเอาไปแสดงเอง
+# เขียน DB จบในตัว รวมถึงปลดสถานะกลับ idle เสมอ ผู้เล่นจะได้ไม่ค้าง
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _done(user_id, last_event):
+    player_model.update_player_fields(user_id, {"current_state": "idle", "last_event": last_event})
+
+
+def rest_cost(player):
+    """ค่าพักแรมในหมู่บ้าน — ตั้งได้ที่ Panel และคิดเพิ่มตามเลเวลได้"""
+    return (int(config_loader.get_balance("village.rest_cost", 2000))
+            + int(config_loader.get_balance("village.rest_cost_per_level", 0)) * player.get("level", 1))
+
+
+def resolve_village(user_id, action):
+    """🏡 หมู่บ้าน — rest (พักแรมฟื้น HP เต็ม) | leave (เดินต่อ)
+
+    เกราะที่ความคงทนหมดจะไม่ให้โบนัส HP — ฟื้นได้แค่ max_hp เปล่า
+    """
+    player = player_model.get_player(user_id) or {}
+    if action != "rest":
+        _done(user_id, "village")
+        return {"text": "🚶 คุณก้าวเท้าเดินออกจากหมู่บ้านมุ่งสู่เส้นทางหลัก...", "hp": player.get("hp", 0)}
+
+    cost = rest_cost(player)
+    if player.get("cash", 0) < cost:
+        return {"error": f"❌ เงินสดไม่พอจ่ายค่าห้องนอน (ต้องมี `{cost:,}` ทอง)!"}
+
+    armor = config_loader.get_armor_stats(player.get("armor", "None")) or config_loader.get_armor_stats("None")
+    hp_bonus = armor.get("hp", 0) if player.get("armor_dur", 0) > 0 else 0
+    full_hp = player["max_hp"] + hp_bonus
+
+    player_model.update_player_fields(user_id, {"cash": player["cash"] - cost, "hp": full_hp,
+                                                "current_state": "idle", "last_event": "village"})
+    return {"text": f"💤 คุณนอนพักผ่อนอย่างเต็มอิ่ม ฟื้นฟู HP จนเต็ม! *(จ่าย {cost:,} ทอง)*",
+            "hp": full_hp, "cost": cost}
+
+
+def resolve_treasure(user_id, action, is_rogue=False, rng=random):
+    """📦 หีบสมบัติ — open (25% เป็นมิมิก, Rogue กันได้ 100%) | ignore
+
+    เปิดได้จริง: เงิน 80% / ไอเทม 20% (ของแพงออกยากตามราคาซื้อ)
+    """
+    if action != "open":
+        _done(user_id, "treasure")
+        return {"text": "👀 คุณเลือกที่จะละสายตาจากกล่องและเดินผ่านไปเนิบๆ"}
+
+    player = player_model.get_player(user_id) or {}
+    if rng.random() < 0.25 and not is_rogue:
+        _done(user_id, "treasure_trap")
+        return {"text": "💥 **มันคือหีบกับดักมิมิก (Mimic)!** กลไกกับดักทำงานครอบงำคุณ! "
+                        "(ครั้งหน้าคุณจะเจอกับดักชัวร์ๆ 100%)", "mimic": True}
+
+    _done(user_id, "treasure")
+    if rng.choices(["gold", "item"], weights=[80, 20], k=1)[0] == "gold":
+        gold = rng.randint(50, 150)
+        player_model.update_player_field(user_id, "cash", player["cash"] + gold)
+        return {"text": f"🎉 โชคดีมาก! ด้านในเป็นหีบสมบัติแท้ คุณได้รับเงินสกุลกลาง `{gold}` ทอง!",
+                "gold": gold}
+
+    items = config_loader.get_all_items()
+    ids = list(items.keys())
+    chosen = rng.choices(ids, weights=[1.0 / max(items[i]["buy"], 1) for i in ids], k=1)[0]
+    name = items[chosen]["name"]
+
+    inv = player_model.load_inventory(player.get("inventory", ""))
+    cap = player.get("capacity", 10)
+    if cap and len(inv) >= cap:
+        return {"text": f"🎉 แจ็คพอต!! คุณเปิดหีบได้ **{name}**!\n"
+                        f"⚠️ **แต่กระเป๋าของคุณเต็ม ({len(inv)}/{cap}) เลยเก็บไม่ได้!**",
+                "item": name, "bag_full": True}
+    inv.append(int(chosen))
+    player_model.update_player_field(user_id, "inventory", json.dumps(inv))
+    return {"text": f"🎉 แจ็คพอต!! หีบมี **{name}** ซ่อนอยู่!\n✅ คุณเก็บไอเทมล้ำค่าชิ้นนี้เข้ากระเป๋าไปได้ฟรีๆ!",
+            "item": name}
+
+
+def resolve_dungeon(user_id, action):
+    """💀 ปากดันเจี้ยน — enter (สู้ต่อเนื่อง 10 ตา) | leave"""
+    if action == "enter":
+        player_model.update_player_fields(user_id, {"current_state": "idle", "last_event": "dungeon_inside",
+                                                    "dungeon_steps": 10})
+        return {"text": "💀 คุณก้าวเท้าเข้าสู่ประตูดันเจี้ยนสุดมืดมิด! มีไอชั่วร้ายแผ่ออกมา... "
+                        "ต่อจากนี้คุณต้องสู้กับมอนสเตอร์ต่อเนื่อง 10 ตา!", "steps": 10}
+    _done(user_id, "dungeon")
+    return {"text": "🏃 ปลอดภัยไว้ก่อน คุณตัดสินใจเดินหันหลังกลับช้าๆ"}
+
+
+def resolve_trap(user_id, is_rogue=False, rng=random):
+    """⚠️ กับดัก — ทอยหลบด้วยค่าหลบของเกราะ (Rogue รอด 100%) พลาดเสีย HP + เกราะสึก"""
+    player = player_model.get_player(user_id) or {}
+    _done(user_id, "trap")
+    if is_rogue:
+        return {"text": "💨 **พรสวรรค์คลาส Rogue ทำงาน!** คุณกระโดดม้วนตัวหลบกลไกกับดักพ้นได้อย่างงดงาม 100%!",
+                "dodged": True, "hp": player.get("hp", 0)}
+
+    armor = config_loader.get_armor_stats(player.get("armor", "None")) or config_loader.get_armor_stats("None")
+    eva = armor.get("eva", 0)
+    roll = rng.randint(1, 100)
+    if roll <= eva:
+        return {"text": f"🎉 รอดหวุดหวิด! (เต๋าสุ่ม {roll} vs อัตราเกราะ {eva}%) คุณก้าวขาหลบใบมีดกับดักพ้นสำเร็จ!",
+                "dodged": True, "roll": roll, "eva": eva, "hp": player.get("hp", 0)}
+
+    dmg = rng.randint(15, 35)
+    new_hp = max(0, player["hp"] - dmg)
+    dur = player.get("armor_dur", 0)
+    player_model.update_player_fields(user_id, {
+        "hp": new_hp, "armor_dur": max(0, dur - max(1, dmg // 10)) if dur > 0 else 0})
+    return {"text": f"💥 พลาดท่ากระแทกกับดัก! โดนหนามแทงเสีย HP `- {dmg}` หน่วย! (เลือดคงเหลือ: {new_hp})",
+            "dodged": False, "roll": roll, "eva": eva, "damage": dmg, "hp": new_hp}
+
+
+def resolve_travel(user_id, encounter, action):
+    """🧭 พาหนะข้ามทวีป — board (จ่ายค่าโดยสาร วัดดวงปลายทาง) | decline
+
+    encounter ต้องมาจากฝั่งเซิร์ฟเวอร์ (เก็บไว้ตอนเจอ) ห้ามรับค่าโดยสารจากเบราว์เซอร์
+    """
+    player = player_model.get_player(user_id) or {}
+    fare = int(encounter.get("fare", 0))
+    label = encounter.get("label", "ยานพาหนะ")
+
+    if action != "board":
+        player_model.update_player_field(user_id, "current_state", "idle")
+        return {"text": f"🙅 คุณโบกมือปฏิเสธ {label} แล้วออกเดินทางต่อ..."}
+
+    if player.get("cash", 0) < fare:
+        player_model.update_player_field(user_id, "current_state", "idle")
+        return {"text": f"💸 เงินสดของคุณไม่พอค่าโดยสาร (`{fare:,}` ทอง) — {label} จากไปต่อหน้าต่อตา..."}
+
+    dest = game_modifiers.roll_destination(encounter["vehicle"], player.get("continent") or "main")
+    info = game_modifiers.CONTINENTS[dest]
+    player_model.update_player_fields(user_id, {"cash": player.get("cash", 0) - fare, "continent": dest,
+                                                "current_state": "idle", "last_event": "none"})
+    return {"text": f"{label} ➜ {info['label']}\n{info['arrival_text']}\n\n💰 จ่ายค่าโดยสาร `{fare:,}` ทอง",
+            "continent": dest, "fare": fare}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# เหตุการณ์ค้าง (เว็บเกม เฟส 5.4)
+# เว็บไม่มี "ข้อความที่มีปุ่ม" แบบดิส จึงต้องจำไว้ใน DB ว่าผู้เล่นค้างอยู่ที่อะไร
+# ไม่งั้นรีเฟรชหน้าแล้ว current_state ค้างจนเล่นไม่ได้ทั้งสองแพลตฟอร์ม
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _pending_table(conn):
+    conn.execute("CREATE TABLE IF NOT EXISTS adventure_pending "
+                 "(user_id INTEGER PRIMARY KEY, event TEXT, data TEXT, updated_at REAL)")
+
+
+def set_pending(user_id, event, data=None):
+    import sqlite3
+    import time
+    with sqlite3.connect(player_model.DB_NAME, timeout=10) as conn:
+        _pending_table(conn)
+        conn.execute("INSERT OR REPLACE INTO adventure_pending VALUES (?,?,?,?)",
+                     (int(user_id), event, json.dumps(data or {}), time.time()))
+
+
+def get_pending(user_id):
+    """คืน (event, data) ของเหตุการณ์ที่ค้างอยู่ — (None, {}) ถ้าไม่มี"""
+    import sqlite3
+    with sqlite3.connect(player_model.DB_NAME, timeout=10) as conn:
+        _pending_table(conn)
+        row = conn.execute("SELECT event, data FROM adventure_pending WHERE user_id=?",
+                           (int(user_id),)).fetchone()
+    return (row[0], json.loads(row[1])) if row else (None, {})
+
+
+def clear_pending(user_id):
+    import sqlite3
+    with sqlite3.connect(player_model.DB_NAME, timeout=10) as conn:
+        _pending_table(conn)
+        conn.execute("DELETE FROM adventure_pending WHERE user_id=?", (int(user_id),))

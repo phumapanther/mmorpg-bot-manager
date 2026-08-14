@@ -3,6 +3,7 @@
 ทุกขั้นตั้งได้ที่ Panel (robbery.*) รูปแบบ [เพดานเงิน, ค่า] ขั้นสุดท้าย null = ไม่จำกัด
 ตั้งเพี้ยน = ตกกลับค่าในโค้ด เกมต้องไม่พังเพราะพิมพ์ผิดในพาแนล
 """
+import json
 import random
 
 from bot import config_loader, game_modifiers
@@ -109,3 +110,69 @@ def roll_item_theft(inventory, total_wealth, item_catalog, rng=random):
     if not ranked:
         return []
     return rng.sample(ranked, min(len(ranked), rng.randint(1, 2)))
+
+
+def apply_item_theft(user_id, player=None):
+    """🎒 โจรฉกของแพง (spec 2026-08-06): ทอยครั้งเดียวต่อเหตุการณ์ปล้น — คืนข้อความแจ้ง ('' = รอด)
+
+    หยิบ 1-2 ชิ้นจาก top 5 ของแพงสุดในกระเป๋า (มูลค่า = ราคาซื้อ) โอกาสตามขั้นความรวย
+    """
+    from bot.models import player_model
+    player = player or player_model.get_player(user_id) or {}
+    inv = player_model.load_inventory(player.get("inventory", ""))
+    total = int(player.get("cash", 0) or 0) + int(player.get("bank", 0) or 0)
+    catalog = config_loader.get_all_items()
+    taken = roll_item_theft(inv, total, catalog)
+    if not taken:
+        return ""
+    names = []
+    for i in sorted(taken, reverse=True):
+        iid = inv.pop(i)
+        names.append(catalog.get(str(iid), {}).get("name", f"ไอเทม {iid}"))
+    player_model.update_player_field(user_id, "inventory", json.dumps(inv))
+    print(f"[LOG] [ROBBERY] 🎒 ผู้เล่น {user_id} โดนฉกของแพง: {', '.join(names)}")
+    return f"\n🎒💨 **โจรฉกของแพงในกระเป๋าไปด้วย:** {', '.join(names)}!"
+
+
+def resolve_bank_robbery(user_id, player=None):
+    """🏦💥 ปล้นธนาคาร — เหตุการณ์ทันที ไม่มีให้เลือก คืน dict ผลลัพธ์ (ใช้ทั้งดิสและเว็บ)"""
+    from bot.models import player_model
+    player = player or player_model.get_player(user_id) or {}
+    bank = int(player.get("bank", 0) or 0)
+    left = bank_rob_left(bank)
+    player_model.update_player_field(user_id, "bank", left)
+    theft = apply_item_theft(user_id, player)      # ทอยฉกของจากความรวย "ก่อน" โดนปล้น
+    print(f"[LOG] [ROBBERY] 🏦 ผู้เล่น {user_id} โดนปล้นธนาคาร -{bank - left:,} ทอง (เหลือ {left:,})")
+    return {"lost": bank - left, "left": left, "theft": theft}
+
+
+def resolve_mugging(user_id, action, rng=random):
+    """🥷 ตัดสินผลดักปล้น — action: fight | flee (หมดเวลาในดิสนับเป็น flee)
+
+    คืน dict {won, lost, gain, cash, win_pct, roll, theft} — ผู้เรียกเอาไปแต่งข้อความเอง
+    """
+    from bot.models import player_model
+    player = player_model.get_player(user_id) or {}
+    cash = int(player.get("cash", 0) or 0)
+    win_pct = mug_win_chance(cash + int(player.get("bank", 0) or 0))
+    out = {"won": False, "lost": 0, "gain": 0, "win_pct": win_pct, "roll": 0}
+
+    if action == "flee":
+        out["lost"] = cash // 2
+        player_model.update_player_field(user_id, "cash", cash - out["lost"])
+    else:
+        out["roll"] = rng.randint(1, 100)
+        out["won"] = out["roll"] <= win_pct
+        if out["won"]:
+            out["gain"] = cash // 10
+            player_model.update_player_field(user_id, "cash", cash + out["gain"])
+        else:
+            out["lost"] = cash
+            player_model.update_player_field(user_id, "cash", 0)
+
+    player_model.update_player_field(user_id, "current_state", "idle")
+    out["cash"] = int((player_model.get_player(user_id) or {}).get("cash", 0) or 0)
+    out["theft"] = apply_item_theft(user_id)
+    print(f"[LOG] [MUGGING] {'⚔️' if action == 'fight' else '🏃'} ผู้เล่น {user_id} "
+          f"{action} (ชนะ {win_pct}% ทอย {out['roll']}) → เหลือ {out['cash']:,} ทอง")
+    return out

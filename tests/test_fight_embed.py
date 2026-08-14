@@ -120,5 +120,6 @@ def test_village_rest_cost_from_config():
     cfg = json.load(open("config.example.json", encoding="utf-8"))
     assert cfg["game_balance"]["village"]["rest_cost"] == 2000
     assert "rest_cost_per_level" in cfg["game_balance"]["village"]
-    src = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
+    # ค่าพักแรมย้ายไป adventure_core แล้ว (เว็บเกม เฟส 5.4) — พักแรมบนเว็บต้องคิดราคาเดียวกัน
+    src = pathlib.Path("bot/adventure_core.py").read_text(encoding="utf-8")
     assert 'village.rest_cost' in src and 'player["cash"] < 2000' not in src

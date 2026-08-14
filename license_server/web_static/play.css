@@ -382,3 +382,17 @@
   .play-shell *, .play-shell *::before { animation-duration:.01ms !important;
     animation-iteration-count:1 !important; transition-duration:.01ms !important; }
 }
+
+
+/* ── ผจญภัย (เฟส 5.4) ── */
+.adv-text { font-size: 15px; line-height: 1.65; color: var(--g-text);
+            white-space: pre-wrap; word-break: break-word; }
+.adv-text b { color: #ffe6a8; }
+.adv-text code { background: rgba(0,0,0,.35); border-radius: 4px; padding: 1px 5px;
+                 font-family: ui-monospace, monospace; color: #ffe6a8; }
+.adv-notes { margin-top: 10px; display: grid; gap: 6px; }
+.adv-notes span { font-size: 13px; color: var(--g-dim); background: rgba(0,0,0,.22);
+                  border-left: 3px solid var(--g-line); border-radius: 6px; padding: 6px 10px; }
+.adv-notes:empty { display: none; }
+#advActions { margin-top: 14px; }
+#advActions:empty { display: none; }

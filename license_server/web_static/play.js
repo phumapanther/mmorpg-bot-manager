@@ -25,7 +25,7 @@ function showPanel(id) {
   if (id === 'shop') fillShop();
   if (id === 'slots' || id === 'hilo' || id === 'bj') buildChips();
   if (id === 'bj') bjRestore();
-  if (id === 'scene') initScene();
+  if (id === 'scene') initScene().catch(e => toast(e.message, true));
   window.scrollTo({ top: document.getElementById('shell').offsetTop - 80, behavior: 'smooth' });
 }
 document.querySelectorAll('[data-go]').forEach(b => {
@@ -492,58 +492,144 @@ function chipRow(box, items, onPick, initial) {
   });
 }
 
-function initScene() {
-  if (SCENE) return;
-  SCENE = new Scene(document.getElementById('scene'));
-  SCENE.setCharacter(CHAR);
+// ── ผจญภัยจริง (เฟส 5.4) ──
+// ปุ่มทุกปุ่มยกมาจากเกมในดิสเป๊ะ ๆ ผลลัพธ์คำนวณที่เซิร์ฟเวอร์ทั้งหมด
+// ที่นี่แค่ส่ง action แล้วเอาข้อความ+ฉากที่ได้กลับมาวาด
 
+// เหตุการณ์ -> ปุ่มที่ต้องขึ้น [action, ป้าย, สไตล์, ข้อความยืนยัน(ถ้ามี)]
+const ADV_ACTIONS = {
+  village: g => [['rest', '🛏️ พักแรม (ฟื้น HP เต็ม)', 'hot', 'จ่ายค่าห้องนอนเพื่อฟื้น HP จนเต็ม'],
+                 ['leave', '🚶 ออกเดินทางต่อ', '']],
+  treasure: () => [['open', '📦 เปิดกล่องสมบัติ', 'hot', 'หีบอาจเป็นมิมิกกับดักได้ (Rogue กันได้ 100%)'],
+                   ['ignore', '❌ เมินเฉยและเดินผ่าน', '']],
+  dungeon: () => [['enter', '🚪 บุกเข้าดันเจี้ยน', 'hot', 'เข้าไปแล้วต้องสู้มอนต่อเนื่อง 10 ตา'],
+                  ['leave', '🏃 ไม่เข้าดีกว่า', '']],
+  trap: () => [['dodge', '🎲 ทอยเต๋าหลบกับดัก', 'hot']],
+  travel: g => [['board', `🧳 ขึ้นยาน (จ่าย ${fmt(g.encounter.fare)} ทอง)`, 'hot',
+                 `จ่ายค่าโดยสาร ${fmt(g.encounter.fare)} ทอง — ปลายทางรู้ตอนไปถึงเท่านั้น`],
+                ['decline', '🙅 ไม่ไป เดินทางต่อ', '']],
+  mugging: g => [['fight', '⚔️ สู้', 'hot', `โอกาสชนะ ${g.win_pct}% — แพ้โดนกวาดเงินติดตัวหมด`],
+                 ['flee', '🏃 หนี (-50% เงินติดตัว)', '', 'โยนถุงทองครึ่งหนึ่งสกัดโจรแล้ววิ่ง']],
+};
+
+// เหตุการณ์ -> คีย์ภาพในโฟลเดอร์ assets/events (ชื่อเดียวกับที่ดิสใช้)
+const ADV_ART = { calm: 'calm', village: 'village', treasure: 'treasure', trap: 'trap',
+                  dungeon: 'dungeon', monster: 'monster', bank_robbery: 'bank_robbery',
+                  mugging: 'mugging', npc: 'npc', special: 'special', travel: 'travel' };
+
+let ADV_BUSY = false;
+
+function advPaint(g) {
+  document.getElementById('advText').innerHTML = mdLite(g.text || '');
+  document.getElementById('advNotes').innerHTML =
+    (g.notes || []).map(n => '<span>' + esc(n) + '</span>').join('');
+
+  const box = document.getElementById('advActions');
+  const build = ADV_ACTIONS[g.pending];
+  if (!build) { advIdleButton(box); return; }
+
+  box.innerHTML = '';
+  build(g).forEach(([action, label, cls, confirmMsg]) => {
+    const btn = document.createElement('button');
+    btn.className = 'g-tile casino-go' + (cls ? ' ' + cls : '');
+    btn.innerHTML = label;
+    btn.onclick = () => advAct(action, label, confirmMsg);
+    box.appendChild(btn);
+  });
+}
+
+function advIdleButton(box) {
+  box.innerHTML = '';
+  const btn = document.createElement('button');
+  btn.className = 'g-tile hot casino-go';
+  btn.innerHTML = '<span class="ic">🧭</span>ออกเดินทาง';
+  btn.onclick = advWalk;
+  box.appendChild(btn);
+}
+
+/** ตัวหนา **x** และโค้ด `x` จากข้อความเกม — ไม่ใช่ markdown เต็ม แค่สองอย่างที่เกมใช้ */
+function mdLite(t) {
+  return esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`(.+?)`/g, '<code>$1</code>')
+               .replace(/\n/g, '<br>');
+}
+
+async function advWalk() {
+  if (ADV_BUSY) return;
+  ADV_BUSY = true;
   const tag = document.getElementById('sceneTag');
-  let curMap = (LAST && LAST.identity.continent) || 'main';
-  SCENE.setMap(curMap);
-  const label = k => (SCENE_MAPS.find(m => m[0] === k) || [k, k])[1];
-  tag.textContent = label(curMap);
+  SCENE.clearFoe(); SCENE.clearRoll(); SCENE.walk();
+  tag.textContent = 'กำลังเดินทาง...';
+  document.getElementById('advActions').innerHTML = '';
+  document.getElementById('advText').textContent = '✨ คุณเริ่มก้าวเท้าออกเดินทางตรวจตราเส้นทาง...';
 
-  chipRow(document.getElementById('sceneMaps'), SCENE_MAPS, v => {
-    curMap = v; SCENE.setMap(v); SCENE.clearBackdrop(); tag.textContent = label(v);
-  }, curMap);
+  try {
+    const g = await api('POST', '/api/web/adventure/walk');
+    await new Promise(r => setTimeout(r, 900));       // ให้เห็นอนิเมชันเดินก่อนเฉลย
+    SCENE.setMap(g.continent || 'main');
+    const art = g.event === 'travel' ? 'vehicle_' + g.encounter.vehicle : ADV_ART[g.event];
+    if (art) SCENE.showEvent(art); else SCENE.idle();
+    tag.textContent = ADV_LABEL[g.event] || g.event;
+    if (g.money != null) boot();      // เงิน/เลือดเปลี่ยน วาดหัวการ์ดใหม่
+    advPaint(g);
+  } catch (e) {
+    SCENE.idle();
+    toast(e.message, true);
+    advIdleButton(document.getElementById('advActions'));
+  } finally { ADV_BUSY = false; }
+}
 
-  chipRow(document.getElementById('sceneEvents'), SCENE_EVENTS, v => {
-    SCENE.clearFoe();
-    SCENE.showEvent(v);
-    tag.textContent = label(curMap) + ' · ' + (SCENE_EVENTS.find(e => e[0] === v) || [])[1];
-  });
+async function advAct(action, label, confirmMsg) {
+  if (ADV_BUSY) return;
+  if (confirmMsg && !await confirmAction({
+        title: label.replace(/<[^>]+>/g, ''), message: confirmMsg,
+        okText: 'ยืนยัน', danger: action === 'fight' })) return;
 
-  const skills = CLASS_SKILL_FX[(LAST && LAST.identity.class_name)] || CLASS_SKILL_FX.Warrior;
-  chipRow(document.getElementById('sceneSkills'), skills, v => {
-    SCENE.attack();
-    SCENE.playSkill(v);
-    const spr = 1 + Math.floor(Math.random() * 20), smr = 1 + Math.floor(Math.random() * 20);
-    SCENE.showRoll({ player_roll: spr, monster_roll: smr,
-                     player_parts: ['`' + spr + '` พื้นฐาน', '⚔️สกิล'],
-                     monster_parts: ['`' + smr + '` พื้นฐาน'] });
-    setTimeout(() => { SCENE.hitFoe(); SCENE.float('-' + (120 + Math.floor(Math.random() * 300)), 'crit', 72); }, 700);
-  });
+  ADV_BUSY = true;
+  try {
+    const r = await api('POST', '/api/web/adventure/act', { action: action });
+    if (r.damage) { SCENE.hitFoe(); SCENE.float('-' + r.damage, '', 40); }
+    if (r.gold) SCENE.float('+' + r.gold, 'gold', 50);
+    if (r.continent) { SCENE.setMap(r.continent); SCENE.showEvent('village'); }
+    advPaint({ text: r.text });
+    boot();                                           // เลือด/เงิน/กระเป๋าเปลี่ยน โหลดใหม่
+  } catch (e) {
+    toast(e.message, true);
+  } finally { ADV_BUSY = false; }
+}
 
-  document.getElementById('scWalk').onclick = () => { SCENE.walk(); tag.textContent = label(curMap) + ' · กำลังเดินทาง'; };
-  document.getElementById('scFoe').onclick = () => {
-    SCENE.clearBackdrop();
-    SCENE.setFoe({ shape: FOE_SHAPES[Math.floor(Math.random() * FOE_SHAPES.length)],
-                   element: FOE_ELEMENTS[Math.floor(Math.random() * FOE_ELEMENTS.length)] });
-    tag.textContent = label(curMap) + ' · เจอมอนสเตอร์';
-  };
-  document.getElementById('scHit').onclick = () => {
-    SCENE.attack();
-    // ตัวอย่างผลทอย — เฟส 5.4 จะแทนด้วยผลจริงจาก API (โครงข้อมูลเดียวกันเป๊ะ)
-    const pr = 1 + Math.floor(Math.random() * 20);
-    const mr = 1 + Math.floor(Math.random() * 20);
-    SCENE.showRoll({ player_roll: pr, monster_roll: mr,
-                     player_parts: ['`' + pr + '` พื้นฐาน'],
-                     monster_parts: ['`' + mr + '` พื้นฐาน'] });
-    setTimeout(() => {
-      if (pr > mr) { SCENE.hitFoe(); SCENE.float('-' + (pr - mr) * 12, '', 70); }
-      else SCENE.float('พลาด!', 'miss', 30);
-    }, 700);
-  };
+const ADV_LABEL = { calm: 'เส้นทางเงียบสงบ', village: 'หมู่บ้านอุ่นใจ', treasure: 'หีบสมบัติ',
+                    trap: 'กับดัก', dungeon: 'ปากดันเจี้ยน', monster: 'เงาปริศนา',
+                    bank_robbery: 'โจรปล้นธนาคาร', mugging: 'โดนดักปล้น', npc: 'นักเดินทาง',
+                    travel: 'พาหนะข้ามทวีป', special: 'เหตุการณ์พิเศษ', death: 'หมดสติ' };
+
+async function initScene() {
+  if (!SCENE) {
+    SCENE = new Scene(document.getElementById('scene'));
+    SCENE.setCharacter(CHAR);
+    SCENE.setMap((LAST && LAST.identity.continent) || 'main');
+  }
+  document.getElementById('sceneTag').textContent =
+    (LAST && LAST.identity.continent_label) || '—';
+
+  // ค้างเหตุการณ์ไหนอยู่ก็กลับมาเล่นต่อจุดเดิม (รีเฟรชหน้าแล้วต้องไม่ตัน)
+  try {
+    const st = await api('GET', '/api/web/adventure/state');
+    if (st.pending) {
+      SCENE.showEvent(ADV_ART[st.pending] || st.pending);
+      document.getElementById('sceneTag').textContent = ADV_LABEL[st.pending] || st.pending;
+      advPaint({ pending: st.pending, encounter: st.data, win_pct: st.data.win_pct,
+                 text: 'คุณค้างอยู่ที่เหตุการณ์นี้ — เลือกต่อได้เลย' });
+      return;
+    }
+    if (st.state && st.state !== 'idle' && st.state !== 'village') {
+      document.getElementById('advText').textContent =
+        '⚠️ ตัวละครของคุณติดเหตุการณ์อยู่ในดิสคอร์ด — เล่นให้จบที่นั่นก่อนถึงจะเดินทางบนเว็บได้';
+      document.getElementById('advActions').innerHTML = '';
+      return;
+    }
+  } catch (e) { /* ยังไม่มีตัวละคร/ยังไม่ล็อกอิน — ปุ่มเดินทางจะฟ้องเองตอนกด */ }
+
+  advIdleButton(document.getElementById('advActions'));
 }
 
 // ══════ แบล็กแจ็ค 24 (เฟส 3.4) ══════

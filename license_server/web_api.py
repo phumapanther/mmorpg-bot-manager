@@ -891,3 +891,165 @@ def delete_news(news_id: int, request: Request):
     if cur.rowcount == 0:
         raise HTTPException(404, "ไม่พบข่าวนี้")
     return {"ok": True}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 🧭 ผจญภัยบนเว็บ (เว็บเกม เฟส 5.4)
+# ทุกผลออกที่เซิร์ฟเวอร์ด้วย adventure_core ตัวเดียวกับ !play ในดิส
+# เบราว์เซอร์แค่เอาไปวาดฉากกับเล่นอนิเมชัน — ไม่รู้กฎเกมอะไรเลย
+#
+# เหตุการณ์ที่เว็บยังเล่นเองไม่ได้ (มอนสเตอร์ / NPC / อีเวนต์พิเศษ) จะ "ไม่ล็อกสถานะ"
+# ผู้เล่นจึงไม่มีทางค้างจนเล่นไม่ได้ทั้งสองแพลตฟอร์ม — รอเฟส 5.5-5.6 มาเปิดเพิ่ม
+# ─────────────────────────────────────────────────────────────────────────────
+
+_WEB_PLAYABLE = {                     # เหตุการณ์ -> สถานะที่ล็อกไว้ระหว่างรอผู้เล่นเลือก
+    "village": "village", "treasure": "treasure_choice", "dungeon": "dungeon_choice",
+    "trap": "trap_defense", "travel": "travel_choice", "mugging": "mugging",
+}
+_WEB_INSTANT = ("calm", "bank_robbery")     # จบในตัว ไม่ต้องเลือกอะไร
+
+
+def _is_rogue(player):
+    return (player.get("class_name") or "") == "Rogue"
+
+
+@router.post("/adventure/walk")
+def adventure_walk(request: Request):
+    """เดินหนึ่งก้าว — ตรรกะเดียวกับปุ่ม 🧭 ในดิสทุกบรรทัด"""
+    uid = int(require_player(request)["uid"])
+    from bot import adventure_core, game_modifiers, robbery
+    from bot.models import player_model
+
+    with _user_lock(uid):
+        player = player_model.get_player(uid)
+        if not player:
+            raise HTTPException(400, "ยังไม่มีตัวละคร — ทักบอทในดิสคอร์ดก่อนหนึ่งครั้ง")
+        if player["current_state"] != "idle":
+            pending, data = adventure_core.get_pending(uid)
+            raise HTTPException(409, f"คุณกำลังติดเหตุการณ์อื่นอยู่ ({pending or player['current_state']})")
+
+        elements = game_modifiers.resolve_player_elements(
+            [player.get("race") or "", player.get("class_name") or ""])
+        pre = adventure_core.step_prelude(uid, player, elements)
+        if pre["dead"]:
+            return {"event": "death", "notes": pre["notes"],
+                    "text": "💀 คุณล้มลงกลางทาง... พิษกัดกินร่างกายจนหมดสติ"}
+
+        player, statuses, mods = pre["player"], pre["statuses"], pre["mods"]
+        event, special, dg_steps = adventure_core.decide_event(
+            uid, player, statuses, mods, pre["dg_steps"], pre["last_evt"], pre["cooldown"])
+        adventure_core.commit_event(uid, event, pre["last_evt"])
+
+        out = {"event": event, "notes": pre["notes"], "continent": player.get("continent") or "main",
+               "dungeon_steps": dg_steps, "cooldown": pre["cooldown"],
+               "playable": True,      # เว็บจัดการเหตุการณ์นี้เองได้ไหม
+               "pending": None}       # ค้างรอผู้เล่นเลือก (None = จบในก้าวเดียว)
+
+        if event == "calm":
+            out["text"] = game_modifiers.pick_calm_text()
+        elif event == "bank_robbery":
+            r = robbery.resolve_bank_robbery(uid, player)
+            out["text"] = (f"🏦💥 **โจรปล้นธนาคาร!** แก๊งโจรมือโปรเจาะตู้นิรภัยสาขาที่คุณฝากเงินไว้!\n"
+                           f"เงินฝากหายไป `{r['lost']:,}` ทอง — เหลือในบัญชี `{r['left']:,}` ทอง{r['theft']}\n"
+                           f"*(กันได้ด้วย 🪪 บัตรประกัน — หาซื้อที่ร้านค้าประจำหมู่บ้าน)*")
+        elif event in _WEB_PLAYABLE:
+            data = {}
+            if event == "travel":
+                data = game_modifiers.roll_travel_encounter(player.get("cash", 0))
+                out["encounter"] = data
+                out["text"] = (f"🧭 ระหว่างทาง... **{data['label']}** ปรากฏขึ้นตรงหน้าคุณ!\n"
+                               f"💰 ค่าโดยสาร: `{data['fare']:,}` ทอง (จ่ายจากเงินสดในกระเป๋า)")
+            elif event == "mugging":
+                total = int(player.get("cash", 0) or 0) + int(player.get("bank", 0) or 0)
+                out["win_pct"] = robbery.mug_win_chance(total)
+                out["text"] = (f"🥷 **โดนดักปล้น!** โจรถือมีดโผล่จากพุ่มไม้ "
+                               f"จ้องถุงทอง `{player.get('cash', 0):,}` ทองของคุณ! "
+                               f"*(โอกาสชนะ {out['win_pct']}% — เงินยิ่งหนักยิ่งถ่วงแข้งขา)*")
+            else:
+                out["text"] = {
+                    "village": "🏡 คุณเดินทางมาพบ **'หมู่บ้านอุ่นใจ'**",
+                    "treasure": mods["theme_texts"].get("treasure", "📦 คุณพบ **'หีบสมบัติปริศนาลงอักขระโบราณ'**"),
+                    "dungeon": "💀 คุณส่องเห็น **'ช่องอุโมงค์ถ้ำใต้พิภพ (Dungeon)'**",
+                    "trap": mods["theme_texts"].get("trap", "⚠️ *แก๊ก!* คุณพลาดก้าวขาไปเกี่ยวสายสลิง **'กับดักโบราณ'** เข้าให้แล้ว!"),
+                }[event]
+            player_model.update_player_field(uid, "current_state", _WEB_PLAYABLE[event])
+            adventure_core.set_pending(uid, event, data)
+            out["pending"] = event
+        else:
+            # มอนสเตอร์ / NPC / อีเวนต์พิเศษ — ยังไม่เปิดบนเว็บ ปล่อยสถานะ idle ไว้ ห้ามล็อก
+            out["playable"] = False
+            out["text"] = "🌫️ มีบางอย่างเคลื่อนไหวอยู่ในเงา... แต่คุณเดินผ่านไปเงียบ ๆ *(เหตุการณ์นี้ยังเล่นได้เฉพาะในดิสคอร์ด)*"
+
+    return out | {"money": _money_now(uid)}
+
+
+class ActBody(BaseModel):
+    action: str = ""
+
+
+@router.post("/adventure/act")
+def adventure_act(body: ActBody, request: Request):
+    """ตอบเหตุการณ์ที่ค้างอยู่ — ปุ่มบนเว็บส่ง action มาที่นี่ตัวเดียว"""
+    uid = int(require_player(request)["uid"])
+    from bot import adventure_core, robbery
+    from bot.models import player_model
+
+    with _user_lock(uid):
+        event, data = adventure_core.get_pending(uid)
+        if not event:
+            raise HTTPException(409, "ไม่มีเหตุการณ์ค้างอยู่")
+        player = player_model.get_player(uid) or {}
+        # กันกดซ้ำ: สถานะต้องยังตรงกับเหตุการณ์ที่ค้างอยู่จริง
+        # (ถ้าไม่เช็ค แล้วมีอะไรปลดสถานะไปก่อน จะเปิดหีบ/พักแรมซ้ำได้ฟรี ๆ)
+        if player.get("current_state") != _WEB_PLAYABLE.get(event):
+            adventure_core.clear_pending(uid)
+            raise HTTPException(409, "เหตุการณ์นี้จบไปแล้ว — กดออกเดินทางใหม่ได้เลย")
+        rogue = _is_rogue(player)
+
+        if event == "village":
+            r = adventure_core.resolve_village(uid, body.action)
+        elif event == "treasure":
+            r = adventure_core.resolve_treasure(uid, body.action, rogue)
+        elif event == "dungeon":
+            r = adventure_core.resolve_dungeon(uid, body.action)
+        elif event == "trap":
+            r = adventure_core.resolve_trap(uid, rogue)
+        elif event == "travel":
+            r = adventure_core.resolve_travel(uid, data, body.action)
+        elif event == "mugging":
+            m = robbery.resolve_mugging(uid, body.action)
+            if body.action == "flee":
+                r = {"text": f"🏃💨 คุณโยนถุงทองสกัดโจรแล้ววิ่งสุดชีวิต — เสีย `{m['lost']:,}` ทอง "
+                             f"(เหลือ `{m['cash']:,}`){m['theft']}"}
+            elif m["won"]:
+                r = {"text": f"⚔️🏆 **คุณสู้จนโจรเผ่นหนี!** ริบของกลางจากโจรได้ `{m['gain']:,}` ทอง "
+                             f"(ติดตัวตอนนี้ `{m['cash']:,}`){m['theft']}"}
+            else:
+                r = {"text": f"⚔️💀 **เงินถ่วงแข้งขาจนสู้ไม่ไหว...** "
+                             f"โจรกวาดเงินติดตัวไปหมด `{m['lost']:,}` ทอง!{m['theft']}"}
+            r |= m
+        else:
+            raise HTTPException(400, f"เหตุการณ์ {event} ยังเล่นบนเว็บไม่ได้")
+
+        if r.get("error"):                     # เงินไม่พอ ฯลฯ — ยังค้างอยู่ที่เดิม กดใหม่ได้
+            raise HTTPException(400, r["error"])
+        adventure_core.clear_pending(uid)
+
+    return r | {"money": _money_now(uid)}
+
+
+@router.get("/adventure/state")
+def adventure_state(request: Request):
+    """เหตุการณ์ที่ค้างอยู่ — เว็บเรียกตอนเปิดหน้า/รีเฟรช จะได้กลับมาเล่นต่อจุดเดิมได้
+
+    ไม่มีอันนี้ = รีเฟรชแล้วสถานะค้างจนเล่นไม่ได้ทั้งเว็บและดิส
+    """
+    uid = int(require_player(request)["uid"])
+    from bot import adventure_core
+    from bot.models import player_model
+
+    event, data = adventure_core.get_pending(uid)
+    state = (player_model.get_player(uid) or {}).get("current_state", "idle")
+    if not event:
+        return {"pending": None, "state": state}
+    return {"pending": event, "data": data, "state": state}

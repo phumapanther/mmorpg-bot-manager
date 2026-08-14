@@ -1227,39 +1227,13 @@ class VillageEventView(ActionView):
 
     @discord.ui.button(label="🛏️ พักแรม", style=discord.ButtonStyle.primary)
     async def rest(self, interaction: discord.Interaction, button: discord.ui.Button):
-        player = player_model.get_player(self.user_id)
-        # O4: ค่าพักแรมตั้งได้ที่ Panel (+ คิดเพิ่มตามเลเวลได้ถ้าตั้ง rest_cost_per_level)
-        rest_cost = (int(config_loader.get_balance("village.rest_cost", 2000))
-                     + int(config_loader.get_balance("village.rest_cost_per_level", 0)) * player.get("level", 1))
-        if player["cash"] < rest_cost:
-            await interaction.response.send_message(f"❌ เงินสดไม่พอจ่ายค่าห้องนอน (ต้องมี `{rest_cost:,}` ทอง)!", ephemeral=True)
+        r = adventure_core.resolve_village(self.user_id, "rest")
+        if r.get("error"):
+            await interaction.response.send_message(r["error"], ephemeral=True)
             return
-        
-        # ดึงข้อมูลจากฐานข้อมูล
-        armor_key = player.get("armor", "None")
-        current_dur = player.get("armor_dur", 0) # ดึงค่าความคงทนมาเช็กด้วย
-        # ดึงข้อมูล Config เกราะ
-        armor_info = config_loader.get_armor_stats(armor_key) or config_loader.get_armor_stats("None")
-        armor_hp_bonus = armor_info.get("hp", 0)
-        # 🛡️ เงื่อนไขพิเศษ: ถ้าความคงทนเป็น 0 ให้โบนัส HP เป็น 0
-        if current_dur <= 0:
-            effective_hp_bonus = 0
-            # print(f"DEBUG: เกราะ {armor_key} พัง (Dur: {current_dur}) -> โบนัส HP: 0")
-        else:
-            effective_hp_bonus = armor_hp_bonus
-            # print(f"DEBUG: เกราะ {armor_key} ปกติ (Dur: {current_dur}) -> โบนัส HP: {effective_hp_bonus}")
-        # คำนวณ HP รวม
-        max_hp_total = player["max_hp"] + effective_hp_bonus
-            
-        player_model.update_player_field(self.user_id, "cash", player["cash"] - rest_cost)
-        player_model.update_player_field(self.user_id, "hp", max_hp_total)
-        player_model.update_player_field(self.user_id, "current_state", "idle")
-        player_model.update_player_field(self.user_id, "last_event", "village")
-        
         await interaction.response.edit_message(
-            content=f"💤 คุณนอนพักผ่อนอย่างเต็มอิ่ม ฟื้นฟู HP จนเต็ม! *(จ่าย {rest_cost:,} ทอง)*\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?", 
-            view=AdventureView(author_id=self.user_id)
-        )
+            content=f"{r['text']}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
+            view=AdventureView(author_id=self.user_id))
 
     @discord.ui.button(label="🏪 ร้านค้าประจำ", style=discord.ButtonStyle.primary)
     async def shop(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -1289,13 +1263,12 @@ class VillageEventView(ActionView):
 
     @discord.ui.button(label="🚶 ออกเดินทางต่อ", style=discord.ButtonStyle.secondary)
     async def leave(self, interaction: discord.Interaction, button: discord.ui.Button):
-        player_model.update_player_field(self.user_id, "current_state", "idle")
-        player_model.update_player_field(self.user_id, "last_event", "village")
-        
+        r = adventure_core.resolve_village(self.user_id, "leave")
         await interaction.response.edit_message(
-            content="🚶 คุณก้าวเท้าเดินออกจากหมู่บ้านมุ่งสู่เส้นทางหลัก...\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?", 
-            view=AdventureView(author_id=self.user_id)
-        )
+            content=f"{r['text']}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
+            view=AdventureView(author_id=self.user_id))
+
+
 class DeathRespawnView(ActionView):
     def __init__(self, user_id):
         super().__init__(timeout=120) # ให้เวลาตัดสินใจ 2 นาที
@@ -1486,97 +1459,19 @@ class TreasureEventView(ActionView):
 
     @discord.ui.button(label="📦 เปิดกล่องสมบัติ", style=discord.ButtonStyle.success)
     async def open_box(self, interaction: discord.Interaction, button: discord.ui.Button):
-        ITEM_CONFIG = config_loader.get_all_items()
-        player = player_model.get_player(self.user_id)
-
-        # 🗡️ เช็กว่าผู้เล่นมีโรล Rogue หรือไม่
         is_rogue = any(role.name == "Rogue" for role in interaction.user.roles)
-        
-        # 🚨 แก้บั๊กทับซ้อน: คำนวณครั้งเดียว ถ้าเป็น Rogue is_trap จะเป็น False เสมอ
-        is_trap = random.random() < 0.25 and not is_rogue
-
-        if is_trap:
-            player_model.update_player_field(self.user_id, "current_state", "idle")
-            player_model.update_player_field(self.user_id, "last_event", "treasure_trap")
-            
-            # [ระบบเช็กไฟล์/แคช]
-            # print(f"DEBUG: [Treasure] User {self.user_id} โดนกับดัก Mimic!")
-            
-            await interaction.response.edit_message(
-                content="💥 **มันคือหีบกับดักมิมิก (Mimic)!** กลไกกับดักทำงานครอบงำคุณ! (ครั้งหน้าคุณจะเจอกับดักชัวร์ๆ 100%)\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?", 
-                view=AdventureView(author_id=self.user_id)
-            )
-        else:
-            player_model.update_player_field(self.user_id, "current_state", "idle")
-            player_model.update_player_field(self.user_id, "last_event", "treasure")
-            
-            # 🎁 สุ่มประเภทของรางวัล: เงิน (80%) หรือ ไอเทม (20%)
-            # ปรับสัดส่วนตรง weights=[80, 20] ได้ตามความต้องการครับ
-            reward_type = random.choices(["gold", "item"], weights=[80, 20], k=1)[0]
-
-            if reward_type == "gold":
-                gold = random.randint(50, 150)
-                player_model.update_player_field(self.user_id, "cash", player["cash"] + gold)
-                
-                # print(f"DEBUG: [Treasure] User {self.user_id} เปิดได้เงิน {gold} ทอง")
-                
-                await interaction.response.edit_message(
-                    content=f"🎉 โชคดีมาก! ด้านในเป็นหีบสมบัติแท้ คุณได้รับเงินสกุลกลาง `{gold}` ทอง!\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?", 
-                    view=AdventureView(author_id=self.user_id)
-                )
-            else:
-                # 📦 กรณีโชคดีได้ไอเทมฟรี (ใช้ตรรกะออกยากตามราคาแบบเดียวกับ Shop)
-                item_ids = list(ITEM_CONFIG.keys())
-                weights = [1.0 / max(ITEM_CONFIG[i]["buy"], 1) for i in item_ids] 
-
-                chosen_item_id = random.choices(item_ids, weights=weights, k=1)[0]
-                chosen_item = ITEM_CONFIG[chosen_item_id]
-
-                # 🛠️ ทำความสะอาดข้อมูลกระเป๋า (ทำให้เป็น List ที่มั่นคง)
-                raw_inv = player.get("inventory", [])
-                if isinstance(raw_inv, str):
-                    # กรณีเป็น String (เช่น "15,12") หรือค่าว่าง
-                    inv_array = raw_inv.split(",") if raw_inv and raw_inv not in ["None", "null"] else []
-                else:
-                    # กรณีเป็น List อยู่แล้ว
-                    inv_array = raw_inv
-
-                # กรองค่าว่างทิ้ง
-                inv_array = [str(i).strip() for i in inv_array if str(i).strip()]
-
-                # 🛡️ เช็กกระเป๋าเต็มก่อนรับของ
-                capacity = player.get("capacity", 10)
-                if capacity == 0 or len(inv_array) < capacity:
-                    # กระเป๋ายังว่าง (หรือใส่ไม่จำกัด)
-                    inv_array.append(str(chosen_item_id))
-                    player_model.update_player_field(self.user_id, "inventory", ",".join(inv_array))
-                    # inv_array.append(chosen_item_id)
-                    # player_model.update_player_field(self.user_id, "inventory", ",".join(inv_array))
-                    success_msg = (
-                        f"🎉 แจ็คพอต!! หีบมี **{chosen_item['name']}** ซ่อนอยู่!\n"
-                        f"✅ คุณเก็บไอเทมล้ำค่าชิ้นนี้เข้ากระเป๋าไปได้ฟรีๆ!"
-                    )
-                else:
-                    # กระเป๋าเต็ม
-                    success_msg = (
-                        f"🎉 แจ็คพอต!! คุณเปิดหีบได้ **{chosen_item['name']}**!\n"
-                        f"⚠️ **แต่กระเป๋าของคุณเต็ม ({len(inv_array)}/{capacity}) เลยเก็บไม่ได้!**\n"
-                        f"👉 ลองพิมพ์ `!drop` เพื่อทิ้งของเก่า หรือขายของที่ร้านค้าในเมืองดูนะ!"
-                    )
-
-                await interaction.response.edit_message(
-                    content=f"{success_msg}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?", 
-                    view=AdventureView(author_id=self.user_id)
-                )
+        r = adventure_core.resolve_treasure(self.user_id, "open", is_rogue)
+        await interaction.response.edit_message(
+            content=f"{r['text']}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
+            view=AdventureView(author_id=self.user_id))
 
     @discord.ui.button(label="❌ เมินเฉยและเดินผ่าน", style=discord.ButtonStyle.secondary)
     async def ignore(self, interaction: discord.Interaction, button: discord.ui.Button):
-        player_model.update_player_field(self.user_id, "current_state", "idle")
-        player_model.update_player_field(self.user_id, "last_event", "treasure")
+        r = adventure_core.resolve_treasure(self.user_id, "ignore")
         await interaction.response.edit_message(
-            content="👀 คุณเลือกที่จะละสายตาจากกล่องและเดินผ่านไปเนิบๆ\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?", 
-            view=AdventureView(author_id=self.user_id)
-        )
+            content=f"{r['text']}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
+            view=AdventureView(author_id=self.user_id))
+
 
 class QuestConfirmView(ActionView):
     def __init__(self, user_id, requested_items, reward_item_id, reward_cash):
@@ -1865,46 +1760,20 @@ class DungeonEventView(ActionView):
 
     @discord.ui.button(label="🚪 บุกเข้าดันเจี้ยน", style=discord.ButtonStyle.danger)
     async def enter(self, interaction: discord.Interaction, button: discord.ui.Button):
-        player_model.update_player_field(self.user_id, "current_state", "idle")
-        player_model.update_player_field(self.user_id, "last_event", "dungeon_inside") 
-        player_model.update_player_field(self.user_id, "dungeon_steps", 10) 
+        r = adventure_core.resolve_dungeon(self.user_id, "enter")
         await interaction.response.edit_message(
-            content="💀 คุณก้าวเท้าเข้าสู่ประตูดันเจี้ยนสุดมืดมิด! มีไอชั่วร้ายแผ่ออกมา... ต่อจากนี้คุณต้องสู้กับมอนสเตอร์ต่อเนื่อง 10 ตา!\n----------------------------------------\nคุณต้องการเริ่มสำรวจ (ไปต่อ) หรือไม่?", 
-            view=AdventureView(author_id=self.user_id)
-        )
+            content=f"{r['text']}\n----------------------------------------\nคุณต้องการเริ่มสำรวจ (ไปต่อ) หรือไม่?",
+            view=AdventureView(author_id=self.user_id))
 
     @discord.ui.button(label="🏃 ไม่เข้าดีกว่า", style=discord.ButtonStyle.secondary)
     async def leave(self, interaction: discord.Interaction, button: discord.ui.Button):
-        player_model.update_player_field(self.user_id, "current_state", "idle")
-        player_model.update_player_field(self.user_id, "last_event", "dungeon")
+        r = adventure_core.resolve_dungeon(self.user_id, "leave")
         await interaction.response.edit_message(
-            content="🏃 ปลอดภัยไว้ก่อน คุณตัดสินใจเดินหันหลังกลับช้าๆ\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?", 
-            view=AdventureView(author_id=self.user_id)
-        )
+            content=f"{r['text']}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
+            view=AdventureView(author_id=self.user_id))
 
 
 # 6. เหตุการณ์ กับดัก (Trap)
-def apply_item_theft(user_id, player=None):
-    """🎒 โจรฉกของแพง (spec 2026-08-06): ทอยครั้งเดียวต่อเหตุการณ์ปล้น — คืนข้อความแจ้ง ('' = รอด)
-
-    หยิบ 1-2 ชิ้นจาก top 5 ของแพงสุดในกระเป๋า (มูลค่า = ราคาซื้อ) โอกาสตามขั้นความรวย
-    """
-    player = player or player_model.get_player(user_id) or {}
-    inv = player_model.load_inventory(player.get("inventory", ""))
-    total = int(player.get("cash", 0) or 0) + int(player.get("bank", 0) or 0)
-    catalog = config_loader.get_all_items()
-    taken = robbery.roll_item_theft(inv, total, catalog)
-    if not taken:
-        return ""
-    names = []
-    for i in sorted(taken, reverse=True):
-        iid = inv.pop(i)
-        names.append(catalog.get(str(iid), {}).get("name", f"ไอเทม {iid}"))
-    player_model.update_player_field(user_id, "inventory", json.dumps(inv))
-    print(f"[LOG] [ROBBERY] 🎒 ผู้เล่น {user_id} โดนฉกของแพง: {', '.join(names)}")
-    return f"\n🎒💨 **โจรฉกของแพงในกระเป๋าไปด้วย:** {', '.join(names)}!"
-
-
 class MuggingEventView(ActionView):
     """🥷 โดนดักปล้น (spec 2026-08-06) — สู้ทอยรอบเดียว หรือหนีเสียเงินติดตัวครึ่ง | หมดเวลา = นับเป็นหนี"""
 
@@ -1921,13 +1790,8 @@ class MuggingEventView(ActionView):
 
     def _flee(self):
         """เสียเงินติดตัว 50% + ทอยโดนฉกของ — ใช้ร่วมกันทั้งปุ่มหนีและตอนหมดเวลา คืน (เสียไป, เหลือ, โน้ตของหาย)"""
-        player = player_model.get_player(self.user_id) or {}
-        cash = int(player.get("cash", 0) or 0)
-        lost = cash // 2
-        player_model.update_player_field(self.user_id, "cash", cash - lost)
-        player_model.update_player_field(self.user_id, "current_state", "idle")
-        print(f"[LOG] [MUGGING] 🏃 ผู้เล่น {self.user_id} หนีโจร -{lost:,} ทอง (เหลือ {cash - lost:,})")
-        return lost, cash - lost, apply_item_theft(self.user_id)
+        r = robbery.resolve_mugging(self.user_id, "flee")
+        return r["lost"], r["cash"], r["theft"]
 
     async def on_timeout(self):
         if self.resolved:
@@ -1946,20 +1810,13 @@ class MuggingEventView(ActionView):
         await interaction.response.defer()
         self.resolved = True
         self.stop()
-        player = player_model.get_player(self.user_id) or {}
-        cash = int(player.get("cash", 0) or 0)
-        win_pct = robbery.mug_win_chance(cash + int(player.get("bank", 0) or 0))
-        player_model.update_player_field(self.user_id, "current_state", "idle")
-        roll = random.randint(1, 100)
-        if roll <= win_pct:
-            gain = cash // 10
-            player_model.update_player_field(self.user_id, "cash", cash + gain)
-            msg = f"⚔️🏆 **คุณสู้จนโจรเผ่นหนี!** ริบของกลางจากโจรได้ `{gain:,}` ทอง (ติดตัวตอนนี้ `{cash + gain:,}`)"
+        r = robbery.resolve_mugging(self.user_id, "fight")
+        if r["won"]:
+            msg = (f"⚔️🏆 **คุณสู้จนโจรเผ่นหนี!** ริบของกลางจากโจรได้ `{r['gain']:,}` ทอง "
+                   f"(ติดตัวตอนนี้ `{r['cash']:,}`)")
         else:
-            player_model.update_player_field(self.user_id, "cash", 0)
-            msg = f"⚔️💀 **เงินถ่วงแข้งขาจนสู้ไม่ไหว...** โจรกวาดเงินติดตัวไปหมด `{cash:,}` ทอง!"
-        msg += apply_item_theft(self.user_id)
-        print(f"[LOG] [MUGGING] ⚔️ {interaction.user.display_name} สู้โจร (ชนะ {win_pct}% ทอยได้ {roll}) → {'ชนะ' if roll <= win_pct else 'แพ้'}")
+            msg = f"⚔️💀 **เงินถ่วงแข้งขาจนสู้ไม่ไหว...** โจรกวาดเงินติดตัวไปหมด `{r['lost']:,}` ทอง!"
+        msg += r["theft"]
         await interaction.edit_original_response(
             content=f"{msg}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
             view=AdventureView(author_id=self.user_id))
@@ -1993,64 +1850,15 @@ class TrapEventView(ActionView):
         # 1. แจ้ง Discord ว่าบอทได้รับคำสั่งแล้วทันที (กัน Interaction ล้มเหลว)
         await interaction.response.defer()
 
-        player = player_model.get_player(self.user_id)
-        # ป้องกันกรณี player ไม่มีข้อมูล (เช่น พิมพ์ !play แล้วไม่อยู่ใน DB)
-        if not player:
+        if not player_model.get_player(self.user_id):
             await interaction.followup.send("❌ ไม่พบข้อมูลตัวละครของคุณ!", ephemeral=True)
             return
 
         is_rogue = any(role.name == "Rogue" for role in self.member_roles)
-        # อัปเดตสถานะพื้นฐาน
-        player_model.update_player_field(self.user_id, "current_state", "idle")
-        player_model.update_player_field(self.user_id, "last_event", "trap")
-        if is_rogue:
-            await interaction.edit_original_response(
-                content="💨 **พรสวรรค์คลาส Rogue ทำงาน!** คุณกระโดดม้วนตัวหลบกลไกกับดักพ้นได้อย่างงดงาม 100%!\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?", 
-                view=AdventureView(author_id=self.user_id)
-            )
-            return
-
-        # แก้บรรทัดเดิมของคุณอาเธอร์เป็นชุดนี้ครับ:
-        armor_key = player.get("armor", "None")
-        armor_data = config_loader.get_armor_stats(armor_key)
-
-        # ถ้าหาเกราะไม่เจอ ให้ใช้ "None" เป็นค่าเริ่มต้น
-        if not armor_data:
-            armor_data = config_loader.get_armor_stats("None")
-
-        armor_evasion = armor_data.get("eva", 0) 
-        
-        roll_chance = random.randint(1, 100)
-        
-        if roll_chance <= armor_evasion:
-            await interaction.edit_original_response(
-                content=f"🎉 รอดหวุดหวิด! (เต๋าสุ่ม {roll_chance} vs อัตราเกราะ {armor_evasion}%) คุณก้าวขาหลบใบมีดกับดักพ้นสำเร็จ!\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?", 
-                view=AdventureView(author_id=self.user_id)
-            )
-        else:
-            damage = random.randint(15, 35)
-            new_hp = max(0, player["hp"] - damage)
-            
-            # คำนวณความเสื่อมสภาพเกราะ
-            current_armor_dur = player.get("armor_dur", 0)
-            if current_armor_dur > 0:
-                damage_to_armor = max(1, int(damage / 10))
-                new_armor_dur = max(0, current_armor_dur - damage_to_armor)
-            else:
-                damage_to_armor = 0
-                new_armor_dur = 0
-            
-            # 💾 อัปเดตข้อมูลแยกบรรทัด เพื่อความปลอดภัย (ใช้ update_player_field แบบเดิม)
-            player_model.update_player_field(self.user_id, "hp", new_hp)
-            player_model.update_player_field(self.user_id, "armor_dur", new_armor_dur)
-            
-            # 🚨 เช็กว่าเกราะพังหรือไม่
-            # armor_alert = "\n🚨 **ชุดเกราะของคุณพังยับเยินจากกับดัก!**" if (new_armor_dur == 0 and current_armor_dur > 0) else ""
-
-            await interaction.edit_original_response(
-                content=f"💥 พลาดท่ากระแทกกับดัก! โดนหนามแทงเสีย HP `- {damage}` หน่วย! (เลือดคงเหลือ: {new_hp})\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?", 
-                view=AdventureView(author_id=self.user_id)
-        )
+        r = adventure_core.resolve_trap(self.user_id, is_rogue)
+        await interaction.edit_original_response(
+            content=f"{r['text']}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
+            view=AdventureView(author_id=self.user_id))
 
 
 # 🏥 VIEW พิเศษ: ฟื้นคืนชีพเมื่อผู้เล่นหมดสติ (Respawn System)
@@ -2510,45 +2318,31 @@ class TravelEventView(ActionView):
                 pass
 
     async def board(self, interaction: discord.Interaction):
-        player = player_model.get_player(self.user_id)
-        fare = self.encounter["fare"]
-
-        # กันเงินสดเปลี่ยนไประหว่างรอกด (ค่าโดยสารสุ่มจากเงินสด ณ ตอนเจอ)
-        if player.get("cash", 0) < fare:
-            player_model.update_player_field(self.user_id, "current_state", "idle")
-            self.stop()
+        r = adventure_core.resolve_travel(self.user_id, self.encounter, "board")
+        self.stop()
+        if not r.get("continent"):          # เงินไม่พอ — ยานออกไปเฉย ๆ
             return await interaction.response.edit_message(
-                content=f"💸 เงินสดของคุณไม่พอค่าโดยสาร (`{fare:,}` ทอง) — {self.encounter['label']} จากไปต่อหน้าต่อตา...\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
+                content=f"{r['text']}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
                 view=AdventureView(author_id=self.user_id))
 
-        current = player.get("continent") or "main"
-        dest = game_modifiers.roll_destination(self.encounter["vehicle"], current)
-        dest_info = game_modifiers.CONTINENTS[dest]
-
-        player_model.update_player_fields(self.user_id, {
-            "cash": player.get("cash", 0) - fare,
-            "continent": dest,
-            "current_state": "idle",
-            "last_event": "none",
-        })
-        self.stop()
-
-        embed = discord.Embed(
-            title=f"{self.encounter['label']} ➜ {dest_info['label']}",
-            description=f"{dest_info['arrival_text']}\n\n💰 จ่ายค่าโดยสาร `{fare:,}` ทอง\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
-            color=0x9f7aea,
-        )
+        dest = r["continent"]
+        embed = discord.Embed(title=f"{self.encounter['label']} ➜ {game_modifiers.CONTINENTS[dest]['label']}",
+                              description=f"{game_modifiers.CONTINENTS[dest]['arrival_text']}\n\n"
+                                          f"💰 จ่ายค่าโดยสาร `{r['fare']:,}` ทอง\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
+                              color=0x9f7aea)
         # ภาพทวีปปลายทางแทนภาพยานพาหนะเดิมบนข้อความ
         arr_f = event_image(f"arrival_{dest}")
         if arr_f:
             embed.set_image(url=f"attachment://arrival_{dest}.png")
-        await interaction.response.edit_message(content=None, embed=embed, view=AdventureView(author_id=self.user_id), **({"attachments": [arr_f]} if arr_f else {}))
+        await interaction.response.edit_message(content=None, embed=embed,
+                                                view=AdventureView(author_id=self.user_id),
+                                                **({"attachments": [arr_f]} if arr_f else {}))
 
     async def decline(self, interaction: discord.Interaction):
-        player_model.update_player_field(self.user_id, "current_state", "idle")
+        r = adventure_core.resolve_travel(self.user_id, self.encounter, "decline")
         self.stop()
         await interaction.response.edit_message(
-            content=f"🙅 คุณโบกมือปฏิเสธ {self.encounter['label']} แล้วออกเดินทางต่อ...\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
+            content=f"{r['text']}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
             view=AdventureView(author_id=self.user_id))
 
 
@@ -2619,77 +2413,24 @@ class AdventureView(ActionView):
         if not interaction.response.is_done():
             await interaction.response.edit_message(content="✨ คุณเริ่มก้าวเท้าออกเดินทางตรวจตราเส้นทาง...", view=None)
 
-        # 📅 C1: นับเควสรายวัน (ออกเดินทาง) — นับทุกก้าวจริงรวมโหมดเดินรวด
-        try:
-            from bot import daily as _daily
-            _daily.track(user_id, "walk", 1)
-        except Exception as e:
-            print(f"⚠️ [daily] นับเควสเดินทางพัง: {e}")
-
-        current_cooldown = player.get("village_cooldown", 0)
-        if current_cooldown > 0:
-            current_cooldown -= 1
-            player_model.update_player_field(user_id, "village_cooldown", current_cooldown)
-
-        # 1. ดึงข้อมูล
-        dg_steps = player.get("dungeon_steps", 0)
-        last_evt = player.get("last_event", "none")
-        # ชุดตัวคูณ/ธีมจากทวีป+อีเวนต์สัปดาห์ — ใช้ทั้งตอนสุ่มน้ำหนักและตอนแต่งข้อความอีเวนต์
-        mods = game_modifiers.get_active_modifiers(player)
-
-        # 🧬 สถานะติดตัว: ผลต่อก้าวเดิน (เลือดไหล) + tick แบบ step
-        statuses = game_modifiers.parse_statuses(player)
-
-        # 🌨️ สถานะแวดล้อมของธีม (เช่น frostbite ช่วง Absolute Zero): ยังไม่ติด = ติดทันที
-        ambient = mods.get("ambient_status")
-        ambient_note = None
-        if ambient and ambient in game_modifiers.STATUS_EFFECTS and ambient not in statuses:
-            statuses = game_modifiers.apply_status(statuses, ambient)
-            if ambient in statuses:  # ติดจริงเท่านั้น (สถานะภูมิคุ้มกันเช่น "อบอุ่น" อาจกันไว้)
-                ambient_note = (
-                    f"🌨️ {game_modifiers.STATUS_EFFECTS[ambient]['label']} แทรกซึมเข้าร่างคุณ! "
-                    f"(หาความอบอุ่นจากหมู่บ้าน/NPC/ดันเจี้ยนเพื่อคลายหนาว)"
-                )
-
-        if statuses:
-            step_dmg, dmg_details = game_modifiers.roll_step_damage(statuses, max_hp=player.get("max_hp", 100))
-            statuses, expired = game_modifiers.tick_statuses(statuses, "step")
-            player_model.update_player_field(user_id, "status_effects", statuses)
-
-            status_notes = [ambient_note] if ambient_note else []
-            if step_dmg:
-                new_hp = max(0, player.get("hp", 100) - step_dmg)
-                player_model.update_player_field(user_id, "hp", new_hp)
-                player["hp"] = new_hp
-                detail_txt = " ".join(f"{label} `-{dmg}`" for label, dmg in dmg_details)
-                status_notes.append(f"🩸 สถานะกัดกินร่างกาย: {detail_txt} (HP เหลือ `{new_hp}`)")
-
-                if new_hp <= 0:
-                    # ตายกลางทางจากพิษ/สถานะ — เข้า flow ตายปกติ
-                    player_model.update_player_fields(user_id, {"current_state": "dead", "hp": 0})
-                    embed = discord.Embed(
-                        title="💀 คุณล้มลงกลางทาง... พิษกัดกินร่างกายจนหมดสติ",
-                        description="\n".join(status_notes) + "\n\n📌 กดปุ่มด้านล่างเพื่อฟื้นตัวและยอมรับบทลงโทษกลับหมู่บ้าน",
-                        color=0xe53e3e,
-                    )
-                    await interaction.followup.send(embed=embed, view=RespawnView(user_id), **file_kwargs(event_image("death")))
-                    return
-
-            for key in expired:
-                status_notes.append(f"⏳ {game_modifiers.STATUS_EFFECTS[key]['label']} หมดฤทธิ์แล้ว")
-            if status_notes:
-                await interaction.followup.send("\n".join(status_notes))
-
-        # 🌿 Passive ธาตุไม้ (สังเคราะห์แสง): ฟื้น % MaxHP ทุกก้าว — เงียบ ๆ ไม่สแปมข้อความ เห็นผลที่ตัวเลข HP
+        # 1. งานต้นก้าว (คูลดาวน์/สถานะ/เลือดไหล/ฟื้น HP) — ตรรกะอยู่ใน adventure_core ใช้ร่วมกับเว็บ
         walker_elements = game_modifiers.resolve_player_elements(
             [getattr(r, "name", str(r)) for r in getattr(interaction.user, "roles", [])])
-        regen_pct = game_modifiers.player_passive_sum(walker_elements, "step_regen")
-        if regen_pct:
-            max_hp = player.get("max_hp", 100)
-            if 0 < player.get("hp", 100) < max_hp:
-                new_hp = min(max_hp, player.get("hp", 100) + max(1, round(max_hp * regen_pct)))
-                player["hp"] = new_hp
-                player_model.update_player_field(user_id, "hp", new_hp)
+        pre = adventure_core.step_prelude(user_id, player, walker_elements)
+        player, statuses, mods = pre["player"], pre["statuses"], pre["mods"]
+        dg_steps, last_evt, current_cooldown = pre["dg_steps"], pre["last_evt"], pre["cooldown"]
+
+        if pre["dead"]:
+            # ตายกลางทางจากพิษ/สถานะ — เข้า flow ตายปกติ
+            embed = discord.Embed(
+                title="💀 คุณล้มลงกลางทาง... พิษกัดกินร่างกายจนหมดสติ",
+                description="\n".join(pre["notes"]) + "\n\n📌 กดปุ่มด้านล่างเพื่อฟื้นตัวและยอมรับบทลงโทษกลับหมู่บ้าน",
+                color=0xe53e3e,
+            )
+            await interaction.followup.send(embed=embed, view=RespawnView(user_id), **file_kwargs(event_image("death")))
+            return
+        if pre["notes"]:
+            await interaction.followup.send("\n".join(pre["notes"]))
 
         # 2. เลือกเหตุการณ์ของก้าวนี้ — ตรรกะอยู่ใน adventure_core (ใช้ร่วมกับเว็บ)
         chosen_event, special_event, dg_steps = adventure_core.decide_event(
@@ -2780,13 +2521,8 @@ class AdventureView(ActionView):
 
         elif chosen_event == "bank_robbery":
             # 🏦💥 ปล้นธนาคาร — เหตุการณ์ทันที ไม่มีปุ่มให้เลือก (spec 2026-08-06)
-            bank = int(player.get("bank", 0) or 0)
-            left = robbery.bank_rob_left(bank)
-            lost = bank - left
-            player_model.update_player_field(user_id, "bank", left)
-            # ทอยฉกของด้วยความรวยก่อนโดนปล้น (player ยังเป็นค่าก่อนหักธนาคาร)
-            theft_note = apply_item_theft(user_id, player)
-            print(f"[LOG] [ROBBERY] 🏦 {interaction.user.display_name} โดนปล้นธนาคาร -{lost:,} ทอง (เหลือ {left:,})")
+            _rob = robbery.resolve_bank_robbery(user_id, player)
+            lost, left, theft_note = _rob["lost"], _rob["left"], _rob["theft"]
             next_view = AdventureView(author_id=user_id)
             sent_msg = await interaction.followup.send(
                 content=(f"🏦💥 **โจรปล้นธนาคาร!** แก๊งโจรมือโปรเจาะตู้นิรภัยสาขาที่คุณฝากเงินไว้!\n"
