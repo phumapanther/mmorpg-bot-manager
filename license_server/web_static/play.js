@@ -4,6 +4,20 @@
 // กติกา: ไม่มีกฎเกมในไฟล์นี้ — เซิร์ฟเวอร์คำนวณทุกอย่าง ที่นี่แค่วาดกับถามยืนยัน
 renderChrome("/play");
 
+// 🔊 ปุ่มเปิด/ปิดเสียง — จำค่าที่เลือกไว้ข้ามครั้ง
+const sfxBtn = document.getElementById('playSfx');
+if (sfxBtn) {
+  const paint = () => { sfxBtn.textContent = SFX.enabled ? '🔊' : '🔇';
+                        sfxBtn.title = SFX.enabled ? 'ปิดเสียง' : 'เปิดเสียง'; };
+  paint();
+  sfxBtn.addEventListener('click', () => { SFX.toggle(); paint(); });
+}
+
+// เสียงคลิกทุกปุ่มในหน้าเกม (ครั้งแรกที่คลิกคือจังหวะที่เบราว์เซอร์ยอมให้เปิดเสียง)
+document.getElementById('shell')?.addEventListener('click', e => {
+  if (e.target.closest('button')) SFX.play('click');
+}, true);
+
 // 🚪 ออกจากระบบ — เว็บนี้เก็บ session ไว้ 30 วัน เครื่องสาธารณะต้องมีทางออก
 document.getElementById('playLogout')?.addEventListener('click', async () => {
   if (!await confirmAction({ title: '🚪 ออกจากระบบ',
@@ -243,6 +257,7 @@ async function rollBoard() {
 
   dice.classList.remove('landed');
   dice.classList.add('rolling');
+  SFX.play('dice');
   const tumble = setInterval(() => {
     dice.textContent = ['⚀','⚁','⚂','⚃','⚄','⚅'][Math.floor(Math.random() * 6)];
   }, 90);
@@ -503,6 +518,7 @@ async function confirmAction({ title, message, lines, okText, danger }) {
 }
 
 function toast(msg, bad) {
+  if (bad) SFX.play('error');
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.classList.toggle('bad', !!bad);
@@ -758,14 +774,20 @@ function chipRow(box, items, onPick, initial) {
 // ที่นี่แค่ส่ง action แล้วเอาข้อความ+ฉากที่ได้กลับมาวาด
 
 // เหตุการณ์ -> ปุ่มที่ต้องขึ้น [action, ป้าย, สไตล์, ข้อความยืนยัน(ถ้ามี)]
+/** จอแคบกว่า 480px — ใช้ชื่อปุ่มแบบสั้นไม่ให้ตัดเป็นสามบรรทัด */
+const NARROW = () => window.matchMedia('(max-width: 480px)').matches;
+
 const ADV_ACTIONS = {
-  village: g => [['rest', '🛏️ พักแรม (ฟื้น HP เต็ม)', 'hot', 'จ่ายค่าห้องนอนเพื่อฟื้น HP จนเต็ม'],
-                 ['leave', '🚶 ออกเดินทางต่อ', '']],
-  treasure: () => [['open', '📦 เปิดกล่องสมบัติ', 'hot', 'หีบอาจเป็นมิมิกกับดักได้ (Rogue กันได้ 100%)'],
-                   ['ignore', '❌ เมินเฉยและเดินผ่าน', '']],
-  dungeon: () => [['enter', '🚪 บุกเข้าดันเจี้ยน', 'hot', 'เข้าไปแล้วต้องสู้มอนต่อเนื่อง 10 ตา'],
+  village: g => [['rest', NARROW() ? '🛏️ พักแรม' : '🛏️ พักแรม (ฟื้น HP เต็ม)', 'hot',
+                  'จ่ายค่าห้องนอนเพื่อฟื้น HP จนเต็ม'],
+                 ['leave', NARROW() ? '🚶 ไปต่อ' : '🚶 ออกเดินทางต่อ', '']],
+  treasure: () => [['open', NARROW() ? '📦 เปิดหีบ' : '📦 เปิดกล่องสมบัติ', 'hot',
+                    'หีบอาจเป็นมิมิกกับดักได้ (Rogue กันได้ 100%)'],
+                   ['ignore', NARROW() ? '❌ เดินผ่าน' : '❌ เมินเฉยและเดินผ่าน', '']],
+  dungeon: () => [['enter', NARROW() ? '🚪 บุกเข้า' : '🚪 บุกเข้าดันเจี้ยน', 'hot',
+                   'เข้าไปแล้วต้องสู้มอนต่อเนื่อง 10 ตา'],
                   ['leave', '🏃 ไม่เข้าดีกว่า', '']],
-  trap: () => [['dodge', '🎲 ทอยเต๋าหลบกับดัก', 'hot']],
+  trap: () => [['dodge', NARROW() ? '🎲 หลบ' : '🎲 ทอยเต๋าหลบกับดัก', 'hot']],
   travel: g => [['board', `🧳 ขึ้นยาน (จ่าย ${fmt(g.encounter.fare)} ทอง)`, 'hot',
                  `จ่ายค่าโดยสาร ${fmt(g.encounter.fare)} ทอง — ปลายทางรู้ตอนไปถึงเท่านั้น`],
                 ['decline', '🙅 ไม่ไป เดินทางต่อ', '']],
@@ -777,11 +799,11 @@ const ADV_ACTIONS = {
   npc_quest: () => [['accept', '✅ แลกเปลี่ยน', 'hot', 'ของในกระเป๋าตามข้อเสนอจะถูกนำไปแลกทันที'],
                     ['decline', '❌ ปฏิเสธ', '']],
   // ไฟต์: โจมตีปกติ + สกิลของคลาสตัวเอง + หนี (ยกมาจากปุ่มในดิสทั้งชุด)
-  monster: () => [['attack', '⚔️ สู้ต่อ (ทอยเต๋าปกติ)', 'hot'],
+  monster: () => [['attack', NARROW() ? '⚔️ สู้ต่อ' : '⚔️ สู้ต่อ (ทอยเต๋าปกติ)', 'hot'],
                   ...(CLASS_SKILL_FX[(LAST && LAST.identity.class_name)] || [])
                       .filter(([fx]) => SKILL_ID[fx])
                       .map(([fx, label]) => [SKILL_ID[fx], label, '']),
-                  ['flee', '🏃 วิ่งหนี!', '', 'หนีไม่สำเร็จจะโดนสวนกลับเสียเลือด']],
+                  ['flee', '🏃 หนี', '', 'หนีไม่สำเร็จจะโดนสวนกลับเสียเลือด']],
   // อีเวนต์พิเศษ: แบบทอยเต๋าได้ปุ่มเดียว แบบเลือกทางได้ปุ่มตามจำนวนตัวเลือกของอีเวนต์นั้น
   special: g => (g.choices && g.choices.length)
     ? g.choices.map((label, i) => [String(i), esc(label), i === 0 ? 'hot' : ''])
@@ -897,6 +919,7 @@ async function advWalk() {
   if (ADV_BUSY) return;
   ADV_BUSY = true;
   const tag = document.getElementById('sceneTag');
+  SFX.play('walk');
   SCENE.clearFoe(); SCENE.clearRoll(); SCENE.walk();
   document.getElementById('foeBar').hidden = true;
   tag.textContent = 'กำลังเดินทาง...';
@@ -938,6 +961,7 @@ async function advAct(action, label, confirmMsg) {
     if (action === 'attack' || action.startsWith('skill_')) {
       SCENE.attack();
       SCENE.petAttack();                     // 🐾 สัตว์เลี้ยงพุ่งเข้าช่วยด้วย
+      SFX.play(action.startsWith('skill_') ? 'skill' : 'hit');
     }
     if (action.startsWith('skill_')) SCENE.playSkill(action.slice(6));
 
@@ -952,13 +976,17 @@ async function advAct(action, label, confirmMsg) {
       await new Promise(res => setTimeout(res, 750));      // ให้เห็นเต๋าเฉลยก่อนตัวเลขเด้ง
     }
     if (r.damage_to_monster) { SCENE.hitFoe(); SCENE.float('-' + fmt(r.damage_to_monster), '', 72); }
+    if (r.damage_to_player) SFX.play('hurt');
     if (r.outcome === 'win') {
+      SFX.play('win');
       SCENE.killFoe();                                  // 💥 แตกเป็นเศษ ไม่ใช่หายวับ
       await new Promise(res => setTimeout(res, 620));   // ให้ดูฉากตายก่อนขึ้นสรุปรางวัล
     } else if (r.outcome === 'monster_fled') {
+      SFX.play('flee');
       SCENE.fleeFoe();                                  // 💨 วาบแสงแล้วพุ่งออกจอ
       await new Promise(res => setTimeout(res, 520));
     } else if (r.outcome === 'lose') {
+      SFX.play('lose');
       SCENE.killHero();                                 // 💀 ทรุดลง จอมืด ขึ้น K.O.
       await new Promise(res => setTimeout(res, 900));
       advPaint({ text: r.text });
@@ -969,10 +997,11 @@ async function advAct(action, label, confirmMsg) {
     if (r.damage_to_player) SCENE.float('-' + fmt(r.damage_to_player), 'miss', 30);
     if (r.healed) SCENE.float('+' + fmt(r.healed) + ' HP', 'heal', 30);
     if (r.mana) { MANA_LEFT = r.mana.mana; if (r.mana_spent) SCENE.float('💎 -1', 'miss', 46); }
-    if (r.reward) SCENE.float('+' + fmt(r.reward.gold) + ' ทอง', 'gold', 50);
+    if (r.reward) { SCENE.float('+' + fmt(r.reward.gold) + ' ทอง', 'gold', 50);
+                    SFX.play(r.reward.level_up ? 'levelup' : 'coin'); }
     if (r.monster !== undefined) paintFoe(r.pending === 'monster' ? r.monster : null);
     if (r.damage) { SCENE.hitFoe(); SCENE.float('-' + r.damage, '', 40); }
-    if (r.gold) SCENE.float('+' + r.gold, 'gold', 50);
+    if (r.gold) { SCENE.float('+' + r.gold, 'gold', 50); SFX.play('coin'); }
     if (r.continent) { SCENE.setMap(r.continent); SCENE.showEvent('village'); }
     advPaint({ text: r.text, pending: r.pending });   // ยังมีขั้นต่อ (เช่นข้อเสนอเควส) ก็โชว์ปุ่มต่อ
     boot();                                           // เลือด/เงิน/กระเป๋าเปลี่ยน โหลดใหม่

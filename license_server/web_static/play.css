@@ -597,3 +597,23 @@
   .bk-kills { width: 62px; font-size: 11px; }
   .bk-mon { display: none; }
 }
+
+
+/* ── มือถือจอเล็ก: ปุ่มแอคชั่นต้องอ่านจบในบรรทัดเดียว (2026-08-14) ── */
+@media (max-width: 480px) {
+  #advActions { gap: 8px; }
+  #advActions .g-tile { flex: 1 1 46%; min-height: auto; padding: 12px 6px;
+    font-size: 12.5px; line-height: 1.25; word-break: keep-all; }
+  #advActions .g-tile .ic { font-size: 15px; margin-bottom: 2px; }
+  .stage-wrap { border-width: 1px; }
+  .adv-hud { border-width: 1px; padding: 8px 9px; gap: 8px; }
+  .adv-hud .hud-bar .k { width: 22px; font-size: 9px; }
+  .adv-hud .hud-gear { gap: 8px; font-size: 10px; }
+  .adv-hud .hud-buffs span { font-size: 9px; padding: 1px 5px; }
+  .g-head h2 { font-size: 17px; }
+  .g-head p { font-size: 12px; }
+  .g-panelview { padding-top: 4px; }
+  .g-logout { padding: 4px 7px; font-size: 13px; }
+  .role-card .rn { font-size: 13px; }
+  .gacha-card .gc-label { font-size: 17px; }
+}

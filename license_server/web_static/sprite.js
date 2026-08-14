@@ -229,16 +229,78 @@ function drawCharacter(ctx, x, y, s, cfg) {
   if (C.hat) blitGrid(ctx, HATS[C.hat], x, y, s, pal);
 
   if (!W) return;
-  // อาวุธ: ด้าม → การ์ด → ใบมีด 3 โทน (ขอบเข้ม ตัวใบ ไฮไลต์เส้นเดียว) → ปลายวาว
-  const hx = x + 14 * s, hy = y + 16 * s, lean = cfg.pose === 'atk' ? -2 * s : 0;
-  if (W.glow) {
-    ctx.save(); ctx.globalAlpha = .3; ctx.fillStyle = W.hi;
-    ctx.fillRect(hx - s + lean, hy - (W.len + 2) * s, 4 * s, (W.len + 4) * s);
+  drawWeapon(ctx, x, y, s, W, cls, cfg.pose);
+}
+
+
+// ── ทรงอาวุธรายคลาส (2026-08-14) ──
+// ระดับอาวุธ (ไม้/เหล็ก/ตำนาน) คุมสีกับความยาว · คลาสคุม "ทรง"
+// ไม่มีคลาส/คลาสแปลกปลอม = ดาบมาตรฐาน
+const CLASS_WEAPON = {
+  Warrior: 'sword',   // ดาบใบกว้าง มีการ์ดขวาง
+  Mage:    'staff',   // คทาหัวคริสตัลเรืองแสง
+  Rogue:   'dagger',  // กริชสั้นคู่
+  Cleric:  'mace',    // ไม้เท้าหัวกลมมีรัศมี
+};
+
+function drawWeapon(ctx, x, y, s, W, cls, pose) {
+  const shape = CLASS_WEAPON[cls] || 'sword';
+  const hx = x + 14 * s, hy = y + 16 * s, lean = pose === 'atk' ? -2 * s : 0;
+  const L = W.len;
+  const F = (dx, dy, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(hx + dx * s + lean, hy + dy * s, w * s, h * s); };
+
+  if (W.glow) {                                   // อาวุธตำนานเรืองแสงรอบตัว
+    ctx.save(); ctx.globalAlpha = .28; ctx.fillStyle = W.hi;
+    ctx.fillRect(hx - 2 * s + lean, hy - (L + 2) * s, 6 * s, (L + 5) * s);
     ctx.restore();
   }
-  ctx.fillStyle = '#3a2a1c'; ctx.fillRect(hx + lean, hy - 2 * s, 2 * s, 4 * s);      // ด้าม
-  ctx.fillStyle = W.shade;  ctx.fillRect(hx - s + lean, hy - 3 * s, 4 * s, s);       // การ์ด
-  ctx.fillStyle = W.shade;  ctx.fillRect(hx + lean, hy - W.len * s, 2 * s, (W.len - 3) * s);
-  ctx.fillStyle = W.base;   ctx.fillRect(hx + lean, hy - W.len * s, s, (W.len - 3) * s);
-  ctx.fillStyle = W.hi;     ctx.fillRect(hx + lean, hy - W.len * s, s, 2 * s);       // ปลายวาว
+
+  switch (shape) {
+    case 'staff':                                 // 🔮 คทา: ด้ามยาว หัวคริสตัลลอย
+      F(0, -2, 2, 5, '#3a2a1c');                  // ด้าม
+      F(0, -L + 2, 2, L - 3, '#4a3520');
+      F(0, -L + 2, 1, L - 3, '#6b4d2e');
+      F(-1, -L - 1, 4, 3, W.shade);               // หัวคทา
+      F(0, -L, 2, 2, W.base);
+      F(0, -L, 1, 1, W.hi);
+      ctx.save(); ctx.globalAlpha = .45; ctx.fillStyle = W.hi;
+      ctx.fillRect(hx - 2 * s + lean, hy - (L + 2) * s, 6 * s, 5 * s);
+      ctx.restore();
+      break;
+
+    case 'dagger': {                              // 🗡️ กริช: สั้น คู่ (อีกเล่มอยู่มืออีกข้าง)
+      const dl = Math.max(5, Math.round(L * .55));
+      F(0, -2, 2, 4, '#3a2a1c');
+      F(-1, -3, 4, 1, W.shade);
+      F(0, -dl, 2, dl - 3, W.shade);
+      F(0, -dl, 1, dl - 3, W.base);
+      F(0, -dl, 1, 1, W.hi);
+      ctx.globalAlpha = .85;                      // เล่มหลัง เยื้องไปข้างหลัง
+      F(-13, -1, 2, 3, '#3a2a1c');
+      F(-13, -dl + 2, 2, dl - 4, W.shade);
+      F(-13, -dl + 2, 1, dl - 4, W.base);
+      ctx.globalAlpha = 1;
+      break;
+    }
+
+    case 'mace':                                  // ✨ ไม้เท้าหัวกลม มีรัศมี
+      F(0, -2, 2, 5, '#3a2a1c');
+      F(0, -L + 4, 2, L - 5, '#4a3520');
+      F(-1, -L + 1, 4, 4, W.shade);               // หัวกลม
+      F(0, -L + 2, 2, 2, W.base);
+      F(0, -L + 2, 1, 1, W.hi);
+      ctx.strokeStyle = W.hi; ctx.lineWidth = Math.max(1, s * .5);
+      ctx.globalAlpha = .5;
+      ctx.beginPath();
+      ctx.arc(hx + s + lean, hy - (L - 3) * s, 4 * s, 0, 7);
+      ctx.stroke(); ctx.globalAlpha = 1;
+      break;
+
+    default:                                      // ⚔️ ดาบมาตรฐาน (ของเดิม)
+      F(0, -2, 2, 4, '#3a2a1c');
+      F(-1, -3, 4, 1, W.shade);
+      F(0, -L, 2, L - 3, W.shade);
+      F(0, -L, 1, L - 3, W.base);
+      F(0, -L, 1, 2, W.hi);
+  }
 }

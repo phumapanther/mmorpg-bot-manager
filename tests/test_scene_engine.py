@@ -256,3 +256,66 @@ def test_the_pet_shown_is_the_one_the_server_says():
     api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
     assert '"pet": p.get("pet") or ""' in api
     assert "SCENE.setPet(v.pet" in PLAY or "SCENE.setPet((LAST" in PLAY
+
+
+# ── ⚔️ อาวุธรายคลาส + 🔊 เสียง + 📱 จอเล็ก (2026-08-14) ─────────────────────
+
+SPRITE = pathlib.Path("license_server/web_static/sprite.js").read_text(encoding="utf-8")
+SFX = pathlib.Path("license_server/web_static/sfx.js").read_text(encoding="utf-8")
+
+
+def test_every_class_holds_a_different_weapon():
+    """คลาสต่างกันต้องถือทรงอาวุธคนละแบบ ไม่ใช่ดาบเหมือนกันหมด"""
+    from bot.views.profile_embed import GAME_CLASSES
+    block = re.search(r"const CLASS_WEAPON = \{(.*?)\};", SPRITE, re.S).group(1)
+    mapping = dict(re.findall(r"(\w+):\s*'(\w+)'", block))
+    missing = set(GAME_CLASSES) - set(mapping)
+    assert not missing, f"คลาสที่ยังไม่มีทรงอาวุธ: {sorted(missing)}"
+    assert len(set(mapping.values())) == len(mapping), \
+        f"มีคลาสถือทรงซ้ำกัน: {mapping}"
+
+
+def test_every_weapon_shape_is_actually_drawn():
+    block = SPRITE[SPRITE.index("function drawWeapon("):]
+    shapes = set(re.findall(r"case '(\w+)':", block))
+    declared = set(re.findall(r":\s*'(\w+)'",
+                              re.search(r"const CLASS_WEAPON = \{(.*?)\};", SPRITE, re.S).group(1)))
+    assert declared - shapes <= {"sword"}, f"ทรงที่ประกาศแต่ไม่มีภาพ: {declared - shapes}"
+    assert "default:" in block, "คลาสที่ไม่รู้จักต้องมีดาบมาตรฐานรองรับ"
+
+
+def test_the_sound_engine_needs_no_external_files():
+    """สังเคราะห์เสียงเอง — โหลดไฟล์เสียงจากภายนอกไม่ได้"""
+    assert "createOscillator" in SFX and "createBuffer" in SFX
+    assert ".mp3" not in SFX and ".wav" not in SFX and "http" not in SFX
+
+
+def test_sound_can_be_muted_and_remembers_the_choice():
+    assert "localStorage" in SFX and "toggle()" in SFX
+    assert 'id="playSfx"' in pathlib.Path("license_server/web_static/play.html").read_text(encoding="utf-8")
+
+
+def test_a_broken_sound_never_breaks_the_game():
+    """เสียงพังห้ามทำให้เกมพัง — ต้องมี try/catch ครอบ"""
+    play = SFX[SFX.index("play(name)"):]
+    assert "try {" in play[:200] and "catch" in play[:200]
+
+
+def test_key_moments_all_have_a_sound():
+    """เสียงที่ทำไว้ต้องถูกใช้จริง ไม่ใช่ประกาศทิ้งไว้เฉย ๆ"""
+    # เก็บชื่อเสียงจากทุกบรรทัดที่เรียก SFX.play (รวมที่ซ่อนในเงื่อนไข ternary)
+    called = {n for line in PLAY.splitlines() if "SFX.play(" in line
+              for n in re.findall(r"'(\w+)'", line)}
+    for name in ("hit", "hurt", "win", "lose", "coin", "dice", "levelup", "skill"):
+        assert f"{name}:" in SFX, f"ยังไม่มีเสียง {name}"
+        assert name in called, f"เสียง {name} ประกาศไว้แต่ไม่มีใครเรียก"
+
+
+def test_action_buttons_shrink_on_narrow_screens():
+    """จอ 480px ปุ่ม 'สู้ต่อ (ทอยเต๋าปกติ)' เคยตัดเป็นสามบรรทัด"""
+    assert "const NARROW = () =>" in PLAY
+    assert "NARROW() ? '⚔️ สู้ต่อ'" in PLAY
+    css = pathlib.Path("license_server/web_static/play.css").read_text(encoding="utf-8")
+    assert "#advActions .g-tile" in css, "จอแคบยังไม่ได้จัดปุ่มแอคชั่น"
+    i = css.index("#advActions .g-tile")
+    assert "@media (max-width: 480px)" in css[:i], "กฎปุ่มแคบต้องอยู่ใน media query"
