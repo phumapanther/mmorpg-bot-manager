@@ -70,10 +70,22 @@ async function renderChrome(active) {
   const nav = document.getElementById("navbar");
   const links = NAV_ITEMS.map(([href, label]) =>
     `<a class="nav-link${active === href ? " active" : ""}" href="${href}">${label}</a>`).join("");
-  nav.innerHTML = `<div class="nav">
-    <a class="logo" href="/">${esc(SITE.name)}</a>
+  // 📱 มือถือ: เมนูพับเก็บได้ ไม่ให้กินครึ่งจอ — ใช้ <details> ของเบราว์เซอร์ตรง ๆ
+  // เปิด/ปิดเอง กดคีย์บอร์ดได้ ไม่ต้องเขียน JS สักบรรทัด · จอกว้าง CSS สั่งกางค้างไว้
+  nav.innerHTML = `<details class="nav">
+    <summary class="navbar-toggle">
+      <a class="logo" href="/">${esc(SITE.name)}</a>
+      <span class="burger" aria-hidden="true"><i></i><i></i><i></i></span>
+    </summary>
     <div class="links">${links}<a class="nav-link" id="navProfile" href="/login">🔑 ล็อกอิน</a></div>
-  </div>`;
+  </details>`;
+
+  // จอกว้าง = กางค้างไว้เสมอ (ไม่มีปุ่มพับให้เห็นด้วยซ้ำ) · จอแคบ = เริ่มแบบพับเก็บ
+  // ไม่บังคับปิดตอน resize เพราะบนมือถือคีย์บอร์ดเด้งก็นับเป็น resize เมนูจะหุบเองกลางคัน
+  const bar = nav.querySelector(".nav");
+  const wide = () => !window.matchMedia("(max-width: 640px)").matches;
+  bar.open = wide();
+  window.addEventListener("resize", () => { if (wide()) bar.open = true; });
 
   const foot = document.getElementById("footer");
   if (foot) {

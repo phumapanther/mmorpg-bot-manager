@@ -32,6 +32,12 @@ a { color: var(--accent); text-decoration: none; }
   border-radius: 10px; font-size: 1.05rem; white-space: nowrap;
 }
 .nav .links { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+
+/* แถบบน = <details> · จอกว้างกางค้างไว้ ซ่อนปุ่มแฮมเบอร์เกอร์ (พับได้เฉพาะจอแคบ) */
+.nav > summary { display: contents; }          /* โลโก้ยังนั่งแถวเดียวกับเมนูเหมือนเดิม */
+.nav .burger { display: none; }
+.nav > summary::-webkit-details-marker,
+.nav > summary::marker { display: none; content: ''; }
 .nav a.nav-link {
   color: var(--ink); padding: 8px 14px; border-radius: 10px; font-weight: 500; white-space: nowrap;
 }
@@ -128,6 +134,31 @@ footer .tiny { text-align: center; color: #b6b1a5; margin-top: 30px; font-size: 
 .notice { background: #fff7e6; border: 1px solid #f2dfb6; border-radius: 12px; padding: 12px 16px; margin: 14px 0; }
 .hidden { display: none !important; }
 @media (max-width: 640px) {
-  .nav { flex-wrap: wrap; }
   .article { padding: 22px; }
+
+  /* 📱 เมนูพับเก็บ — ปิดอยู่เห็นแค่แถบโลโก้ + ปุ่มขีดสามขีด กดแล้วค่อยกาง */
+  .nav { flex-wrap: wrap; padding: 8px 12px; }
+  .nav > summary {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; gap: 10px; cursor: pointer; list-style: none;
+    padding: 2px 0; -webkit-tap-highlight-color: transparent;
+  }
+  .nav .burger {
+    display: grid; gap: 4px; padding: 10px 8px; flex: none;   /* พื้นที่กดกว้างพอสำหรับนิ้ว */
+  }
+  .nav .burger i {
+    display: block; width: 22px; height: 2px; border-radius: 2px; background: var(--ink);
+    transition: transform .18s ease, opacity .18s ease;
+  }
+  /* กางแล้วขีดสามขีดกลายเป็นกากบาท — บอกว่ากดอีกทีเพื่อปิด */
+  .nav[open] .burger i:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+  .nav[open] .burger i:nth-child(2) { opacity: 0; }
+  .nav[open] .burger i:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+  .nav .links {
+    width: 100%; margin-left: 0; flex-direction: column; gap: 2px;
+    padding-top: 8px; margin-top: 6px; border-top: 1px solid #eee7da;
+  }
+  .nav a.nav-link { padding: 11px 12px; }        /* แตะง่ายขึ้นบนจอสัมผัส */
+  .nav .logo { font-size: 1rem; padding: 7px 13px; }
 }
