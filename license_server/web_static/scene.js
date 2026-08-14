@@ -95,6 +95,9 @@ class Scene {
     this.roll = null;
     this.death = null;
     this.heroShake = 0;
+    this.heroFall = 0;
+    this.flee = null;
+    this.ko = null;
     for (let i = 0; i < 26; i++) {
       this.parts.push({ x: Math.random() * this.W, y: Math.random() * GROUND_Y,
                         s: .1 + Math.random() * .35, r: Math.random() * 1.6 + .6 });
@@ -200,6 +203,98 @@ class Scene {
     this.fx.push({ k: 'trap', kind: TRAP_FX[kind] ? kind : 'main', hit: hit !== false,
                    t: 0, dur: 54 });
     if (hit !== false) { this.heroLunge = -8; this.heroShake = 12; }
+  }
+
+  /** 💨 มอนเผ่นหนี — วาบแสงขาวแล้วพุ่งออกขวาจอ ทิ้งประกายไว้เป็นทาง
+   *  ต่างจากตาย: ไม่มีเศษร่างตกพื้น เพราะมันไม่ได้ล้ม */
+  fleeFoe() {
+    if (!this.foe || this.flee) return;
+    const col = ELEMENT_COLOR[this.foe.element] || ELEMENT_COLOR.fire;
+    this.flee = { t: 0, dur: 46, col, trail: [] };
+    this.foeFlash = 6;
+  }
+
+  _drawFlee() {
+    const f = this.flee;
+    if (!f) return;
+    f.t++;
+    if (f.t > f.dur) { this.flee = null; this.foe = null; return; }
+    const ctx = this.ctx;
+    const k = f.t / f.dur;
+    const x = 258 + k * k * 140;                       // เร่งความเร็วออกขวาจอ
+
+    if (f.t < 7) {                                     // วาบแสงก่อนพุ่ง
+      ctx.fillStyle = `rgba(255,255,255,${.5 - f.t * .07})`;
+      ctx.fillRect(248, GROUND_Y - 52, 60, 52);
+      return;
+    }
+    this.foe = null;                                   // ร่างจริงหายแล้ว เหลือแต่แสง
+
+    f.trail.push({ x, y: GROUND_Y - 26 + Math.sin(f.t * .6) * 5 });
+    if (f.trail.length > 12) f.trail.shift();
+    f.trail.forEach((t, i) => {
+      const a = (i / f.trail.length) * (1 - k);
+      ctx.fillStyle = `rgba(255,255,255,${a})`;
+      ctx.fillRect(Math.round(t.x), Math.round(t.y), 6 - i * .3, 4);
+      ctx.fillStyle = `rgba(${hexRgb(f.col.hi)},${a * .8})`;
+      ctx.fillRect(Math.round(t.x), Math.round(t.y + 4), 4, 2);
+    });
+    for (let i = 0; i < 3; i++) {                      // ประกายที่หลุดร่วง
+      ctx.fillStyle = `rgba(255,240,190,${(1 - k) * .8})`;
+      ctx.fillRect(Math.round(x - 14 - i * 9), GROUND_Y - 34 + i * 7 + (f.t % 5), 2, 2);
+    }
+  }
+
+  /** 💀 ผู้เล่นหมดสติ — จอมืดลง ตัวละครทรุดลงกับพื้น วิญญาณลอยขึ้น */
+  killHero() {
+    if (this.ko) return;
+    this.ko = { t: 0, dur: 110, souls: [] };
+    for (let i = 0; i < 4; i++) {
+      this.ko.souls.push({ x: this.heroX + 12 + Math.random() * 20, y: GROUND_Y - 20,
+                           sw: Math.random() * 6.28, sp: .35 + Math.random() * .45 });
+    }
+    this.heroShake = 14;
+  }
+
+  _drawKo() {
+    const d = this.ko;
+    if (!d) return;
+    d.t++;
+    if (d.t > d.dur) { this.ko = null; this.heroFall = 0; this.heroAlpha = 1; return; }
+    const ctx = this.ctx;
+    const k = d.t / d.dur;
+
+    this.heroFall = Math.min(22, d.t * 1.1);           // ทรุดลงกับพื้น
+    this.heroAlpha = Math.max(.25, 1 - k * .8);
+
+    if (d.t < 8) {                                     // วาบแดงตอนโดนหมัดสุดท้าย
+      ctx.fillStyle = `rgba(200,40,30,${.45 - d.t * .05})`;
+      ctx.fillRect(0, 0, this.W, this.H);
+    }
+
+    // ขอบจอมืดเข้ม (vignette) ค่อย ๆ บีบเข้ามา
+    const dark = Math.min(.62, k * 1.3);
+    const g = ctx.createRadialGradient(this.heroX + 20, GROUND_Y - 24, 10,
+                                       this.heroX + 20, GROUND_Y - 24, this.W * .8);
+    g.addColorStop(0, `rgba(20,0,0,${dark * .25})`);
+    g.addColorStop(1, `rgba(8,0,0,${dark})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, this.W, this.H);
+
+    for (const sl of d.souls) {                        // วิญญาณลอยขึ้น
+      sl.y -= sl.sp; sl.sw += .16;
+      ctx.fillStyle = `rgba(230,220,255,${Math.max(0, .8 - k)})`;
+      ctx.fillRect(Math.round(sl.x + Math.sin(sl.sw) * 5), Math.round(sl.y), 2, 3);
+    }
+
+    if (k > .3) {                                      // ป้าย K.O.
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 22px system-ui';
+      ctx.strokeStyle = 'rgba(0,0,0,.85)'; ctx.lineWidth = 4;
+      ctx.fillStyle = `rgba(232,119,106,${Math.min(1, (k - .3) * 4)})`;
+      ctx.strokeText('K.O.', this.W / 2, this.H / 2 + 4);
+      ctx.fillText('K.O.', this.W / 2, this.H / 2 + 4);
+    }
   }
 
   attack() { this.state = 'fight'; this.char.pose = 'atk'; this.heroLunge = 14;
@@ -520,12 +615,14 @@ class Scene {
     const bob = running && Math.floor(this.frame / 6) % 2 ? -2 : 0;
     if (typeof drawCharacter === 'function') {
       const shake = this.heroShake ? (this.heroShake--, Math.random() * 5 - 2.5) : 0;
-      drawCharacter(ctx, Math.round(this.heroX + this.heroLunge + shake), GROUND_Y - 68 + bob, 3,
+      drawCharacter(ctx, Math.round(this.heroX + this.heroLunge + shake),
+                    GROUND_Y - 68 + bob + this.heroFall, 3,
                     { ...this.char, pose }, this.heroAlpha);
     }
 
     this._drawFoe();
     this._drawDeath();
+    this._drawFlee();
 
     for (let i = this.fx.length - 1; i >= 0; i--) {
       const f = this.fx[i]; f.t++;
@@ -534,6 +631,7 @@ class Scene {
       this._drawFx(f, p);
     }
 
+    this._drawKo();
     this._drawRoll();
 
     // เลขลอย

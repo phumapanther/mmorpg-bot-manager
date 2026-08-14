@@ -176,3 +176,23 @@ def test_trap_kind_comes_from_the_server():
     api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
     assert 'r["fx"] = {"kind": player.get("continent")' in api
     assert "SCENE.playTrap(r.fx.kind, r.fx.hit)" in PLAY
+
+
+def test_monster_flee_and_player_death_both_have_effects():
+    """สองเหตุการณ์จบไฟต์ที่เหลือ ต้องมีภาพ ไม่ใช่หายวับ/จอเงียบ"""
+    for fn in ("fleeFoe()", "_drawFlee()", "killHero()", "_drawKo()"):
+        assert fn in SCENE, f"ยังไม่มี {fn}"
+    assert "this._drawFlee();" in SCENE and "this._drawKo();" in SCENE, "ยังไม่ได้เรียกในลูป"
+    assert "SCENE.fleeFoe()" in PLAY and "SCENE.killHero()" in PLAY
+
+
+def test_death_screen_restores_the_character_afterwards():
+    """จอมืด/ตัวทรุดต้องคืนค่าเมื่อจบ ไม่งั้นตัวละครจมพื้นจางค้างทั้งเกม"""
+    block = SCENE[SCENE.index("_drawKo() {"):]
+    end = block[:block.index("\n  ")]
+    assert "this.heroFall = 0" in block[:900] and "this.heroAlpha = 1" in block[:900]
+
+
+def test_dying_on_the_road_also_shows_the_death_screen():
+    """ตายจากพิษระหว่างเดิน ไม่ใช่แค่ในไฟต์ ก็ต้องเห็นฉากตาย"""
+    assert "if (g.event === 'death') SCENE.killHero();" in PLAY

@@ -647,6 +647,7 @@ async function advWalk() {
     const art = g.event === 'travel' ? 'vehicle_' + g.encounter.vehicle : ADV_ART[g.event];
     if (art) SCENE.showEvent(art); else SCENE.idle();
     tag.textContent = ADV_LABEL[g.event] || g.event;
+    if (g.event === 'death') SCENE.killHero();     // ล้มกลางทางจากพิษ/สถานะ
     paintFoe(g.monster);
     if (g.money != null) boot();      // เงิน/เลือดเปลี่ยน วาดหัวการ์ดใหม่
     advPaint(g);
@@ -682,6 +683,12 @@ async function advAct(action, label, confirmMsg) {
     if (r.outcome === 'win') {
       SCENE.killFoe();                                  // 💥 แตกเป็นเศษ ไม่ใช่หายวับ
       await new Promise(res => setTimeout(res, 620));   // ให้ดูฉากตายก่อนขึ้นสรุปรางวัล
+    } else if (r.outcome === 'monster_fled') {
+      SCENE.fleeFoe();                                  // 💨 วาบแสงแล้วพุ่งออกจอ
+      await new Promise(res => setTimeout(res, 520));
+    } else if (r.outcome === 'lose') {
+      SCENE.killHero();                                 // 💀 ทรุดลง จอมืด ขึ้น K.O.
+      await new Promise(res => setTimeout(res, 900));
     }
     if (r.damage_to_player) SCENE.float('-' + fmt(r.damage_to_player), 'miss', 30);
     if (r.healed) SCENE.float('+' + fmt(r.healed) + ' HP', 'heal', 30);
