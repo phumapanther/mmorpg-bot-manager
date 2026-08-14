@@ -194,6 +194,81 @@ def me_profile(request: Request):
             "topups": [dict(t) | {"has_slip": _slip_path(t["id"]).is_file()} for t in tops]}
 
 
+@router.get("/me/game")
+def me_game(request: Request):
+    """ข้อมูลตัวละครเต็มสำหรับหน้าเล่นเกม (เว็บเกม เฟส 1.1)
+
+    คืนข้อมูล "พร้อมแสดงผล" ทั้งหมด — ชื่อไอเทม ชื่อเกราะ ป้ายบัฟ แปลงมาจากคอนฟิกฝั่งนี้แล้ว
+    เบราว์เซอร์จึงไม่ต้องรู้กฎเกมอะไรเลย (หลักการข้อ 1 ของแผน)
+    อ่านอย่างเดียว ไม่เขียน DB
+    """
+    uid = require_player(request)["uid"]
+    conn = _game_conn()
+    try:
+        row = conn.execute("SELECT * FROM players WHERE user_id=?", (int(uid),)).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return {"new_player": True}
+
+    from bot import config_loader, game_modifiers
+    from bot.game_data import CONTINENTS
+    from bot.models.player_model import load_inventory
+
+    p = dict(row)
+    items = config_loader.get_all_items()
+    cont = p.get("continent") or "main"
+    armor_key, weapon_key = p.get("armor") or "None", p.get("weapon") or ""
+    armor = config_loader.get_armor_stats(armor_key) or config_loader.get_armor_stats("None")
+    weapon = config_loader.get_weapon_stats(weapon_key)
+
+    # กระเป๋า: รวมของชนิดเดียวกันเป็นชิ้นเดียวพร้อมจำนวน (เหมือนที่เมนูในดิสแสดง)
+    inv = load_inventory(p.get("inventory", ""))
+    counts = {}
+    for iid in inv:
+        counts[str(iid)] = counts.get(str(iid), 0) + 1
+    bag = []
+    for iid, n in counts.items():
+        it = items.get(iid, {})
+        bag.append({"id": iid, "name": it.get("name", f"ไอเทม {iid}"), "count": n,
+                    "type": it.get("type", ""), "sell": it.get("sell", 0),
+                    "usable": bool(it.get("effect")) and it.get("type") == "use"})
+    bag.sort(key=lambda b: (not b["usable"], b["name"]))
+
+    # บัฟ/สถานะติดตัว — เอาป้ายกับหน่วยนับมาจากตารางกลาง ไม่ให้เว็บเดาเอง
+    buffs = []
+    for key, turns in game_modifiers.parse_statuses(p).items():
+        cfg = game_modifiers.STATUS_EFFECTS.get(key, {})
+        buffs.append({"key": key, "label": cfg.get("label", key), "turns": turns,
+                      "unit": "ก้าว" if cfg.get("tick") == "step" else "ไฟต์",
+                      "no_tick": bool(cfg.get("no_tick"))})
+
+    return {
+        "identity": {
+            "discord_id": str(uid),
+            "level": p.get("level"), "exp": p.get("exp"), "rank": p.get("rank"),
+            "race": p.get("race"), "class_name": p.get("class_name"),
+            "title": p.get("title"), "pet": p.get("pet"),
+            "continent": cont,
+            "continent_label": CONTINENTS.get(cont, {}).get("label", cont),
+        },
+        # current_state บอกว่าตอนนี้ค้างอะไรอยู่ในดิส — ใช้ตัดสินกติกาเล่นสองแพลตฟอร์ม
+        "vitals": {"hp": p.get("hp"), "max_hp": p.get("max_hp"),
+                   "sanity": p.get("sanity"), "state": p.get("current_state") or "idle"},
+        "money": {"cash": p.get("cash", 0), "bank": p.get("bank", 0)},
+        "gear": {
+            "armor": {"key": armor_key, "name": armor.get("name", armor_key),
+                      "hp": armor.get("hp", 0), "eva": armor.get("eva", 0),
+                      "dur": p.get("armor_dur")},
+            "weapon": {"key": weapon_key, "name": weapon.get("name", weapon_key or "— มือเปล่า —"),
+                       "dur": p.get("weapon_dur")},
+            "artifact_slots": p.get("artifact_slots", 1),
+        },
+        "bag": {"capacity": p.get("capacity", 0), "used": len(inv), "items": bag},
+        "buffs": buffs,
+    }
+
+
 # ── เติมเงินผ่านเว็บ (เงินทุกบาทต้องผ่านมือแอดมิน — ไม่มีอนุมัติอัตโนมัติ) ──
 
 class TopupBody(BaseModel):

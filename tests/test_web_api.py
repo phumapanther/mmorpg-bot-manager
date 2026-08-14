@@ -378,3 +378,72 @@ def test_every_html_page_has_a_route(client):
     pages = {p.stem for p in pathlib.Path("license_server/web_static").glob("*.html")}
     for page in pages - {"index"}:
         assert client.get("/" + page).status_code == 200, f"/{page} ไม่มี route (เติมใน api.py)"
+
+
+# ── ข้อมูลตัวละครสำหรับหน้าเล่นเกม (เว็บเกม เฟส 1.1) ──
+
+def _real_game_db(tmp_path, monkeypatch, uid=555000111, **fields):
+    """สร้าง DB ด้วย schema จริงจาก init_db() — เพิ่มคอลัมน์ในเกมแล้วเทสตามอัตโนมัติ"""
+    import bot.models.player_model as pm
+    from license_server import web_api
+    p = tmp_path / "game_data.db"
+    monkeypatch.setattr(pm, "DB_NAME", str(p))
+    pm.init_db()
+    pm.get_player(uid)                      # ผู้เล่นใหม่ตามค่าเริ่มต้นจริงของเกม
+    if fields:
+        pm.update_player_fields(uid, fields)
+    monkeypatch.setattr(web_api, "GAME_DB_PATH", p)
+    return p
+
+
+def test_me_game_requires_login(client):
+    assert client.get("/api/web/me/game").status_code == 401
+
+
+def test_me_game_returns_display_ready_character(client, tmp_path, monkeypatch):
+    import json as _json
+    _real_game_db(tmp_path, monkeypatch, race="🐉 Dragon", class_name="Mage",
+                  armor="Steel_H", weapon="Legen_Weapon", continent="frozen",
+                  inventory=_json.dumps(["1", "1", "9"]),
+                  status_effects=_json.dumps({"poison": 7}),
+                  current_state="fighting")
+    _login(client)
+    g = client.get("/api/web/me/game").json()
+
+    assert g["identity"]["race"] == "🐉 Dragon" and g["identity"]["class_name"] == "Mage"
+    assert "น้ำแข็ง" in g["identity"]["continent_label"]
+    # ชื่อเกราะ/อาวุธต้องแปลงมาให้แล้ว เบราว์เซอร์ไม่ต้องรู้จักคีย์
+    assert "เหล็กหนัก" in g["gear"]["armor"]["name"]
+    assert "ตำนาน" in g["gear"]["weapon"]["name"]
+    assert g["gear"]["armor"]["hp"] == 100
+    # กระเป๋า: ของซ้ำต้องรวมเป็นชิ้นเดียวพร้อมจำนวน
+    heal = next(b for b in g["bag"]["items"] if b["id"] == "1")
+    assert heal["count"] == 2 and heal["usable"] is True and "ยาฮีล" in heal["name"]
+    assert g["bag"]["used"] == 3
+    # บัฟต้องมีป้ายไทยมาจากตารางกลาง
+    assert g["buffs"][0]["label"].endswith("พิษป่า") and g["buffs"][0]["turns"] == 7
+    assert g["buffs"][0]["unit"] == "ก้าว"
+    # สถานะค้างจากดิส — เว็บต้องเห็นว่ากำลังสู้อยู่ ไม่งั้นจะเปิดไฟต์ซ้อนได้ (กติกาสองแพลตฟอร์ม)
+    assert g["vitals"]["state"] == "fighting"
+
+
+def test_me_game_never_leaks_another_player(client, tmp_path, monkeypatch):
+    import bot.models.player_model as pm
+    _real_game_db(tmp_path, monkeypatch, cash=111)
+    pm.get_player(999888777)                       # ผู้เล่นคนอื่นในตาราง
+    pm.update_player_fields(999888777, {"cash": 999999})
+    _login(client)                                 # ล็อกอินเป็น 555000111
+    g = client.get("/api/web/me/game").json()
+    assert g["money"]["cash"] == 111
+    assert g["identity"]["discord_id"] == "555000111"
+
+
+def test_me_game_new_player(client, tmp_path, monkeypatch):
+    import bot.models.player_model as pm
+    from license_server import web_api
+    p = tmp_path / "game_data.db"
+    monkeypatch.setattr(pm, "DB_NAME", str(p))
+    pm.init_db()
+    monkeypatch.setattr(web_api, "GAME_DB_PATH", p)
+    _login(client)
+    assert client.get("/api/web/me/game").json() == {"new_player": True}

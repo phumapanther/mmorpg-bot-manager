@@ -60,16 +60,51 @@ document.getElementById('rollBtn').addEventListener('click', () =>
 document.getElementById('gachaBtn').addEventListener('click', () =>
   alert('ยังหมุนไม่ได้ครับ — ระบบนี้อยู่ในเฟส 7 ของแผน\nตอนนี้เป็นการวางโครงหน้าเท่านั้น'));
 
-// ── ต้องล็อกอินก่อนถึงเห็นเมนู ──
+// ── โหลดตัวละครจริง (เฟส 1.1) ──
+// ทุกค่าที่ใช้แสดงผลถูกแปลงมาจากฝั่งเซิร์ฟเวอร์แล้ว — ตรงนี้แค่วางลงหน้าจอ
+const fmt = n => Number(n || 0).toLocaleString();
+
+// ถ้าค้างอะไรอยู่ในดิส ต้องบอกให้รู้ (กติกาสองแพลตฟอร์ม)
+const STATE_NOTE = {
+  fighting: '⚔️ กำลังสู้มอนอยู่ในดิส',
+  village: '🏡 อยู่ในหมู่บ้าน',
+  trap_defense: '⚠️ ติดกับดักอยู่',
+  treasure_choice: '📦 ยืนอยู่หน้าหีบสมบัติ',
+  npc_choice: '🧓 กำลังคุยกับ NPC',
+  dungeon_choice: '🚪 ยืนอยู่ปากดันเจี้ยน',
+  arrested: '🚓 ติดคุกอยู่',
+};
+
+function paint(g) {
+  const id = g.identity, v = g.vitals, m = g.money;
+  document.getElementById('pName').textContent = id.title || 'นักผจญภัย';
+  document.getElementById('pLv').textContent = 'Lv ' + (id.level ?? '—');
+  const bits = [id.race, id.class_name, id.continent_label].filter(Boolean);
+  const note = STATE_NOTE[v.state];
+  document.getElementById('pSub').innerHTML =
+    esc(bits.join(' · ')) + (note ? ' <span style="color:var(--g-gold)">· ' + esc(note) + '</span>' : '');
+  document.getElementById('pCash').textContent = fmt(m.cash);
+  document.getElementById('pBank').textContent = fmt(m.bank);
+
+  // สีชุดบนสไปรต์เปลี่ยนตามเกราะที่สวมจริง (ตัวเต็มมาเฟส 1.2)
+  const tint = { Steel_H: ['#d5dce4', '#8b949e'], Steel_L: ['#b9c2cc', '#79838d'],
+                 Leather_H: ['#8a5c30', '#573a1e'], Leather_L: ['#a4703c', '#6d4823'] };
+  const t = tint[g.gear.armor.key];
+  if (t) { SPAL.A = t[0]; SPAL.a = t[1]; }
+  drawSprite(document.getElementById('pfp'));
+}
+
 api("GET", "/api/web/me/session")
-  .then(() => {
+  .then(() => api("GET", "/api/web/me/game"))
+  .then(g => {
     document.getElementById('shell').classList.remove('hidden');
-    drawSprite(document.getElementById('pfp'));
-    // ⚠️ ชั่วคราว: ของจริงเรียก /api/web/me/game (เฟส 1.1)
-    document.getElementById('pName').textContent = 'ตัวละครของคุณ';
-    document.getElementById('pLv').textContent = 'Lv —';
-    document.getElementById('pSub').textContent = 'ยังไม่ได้เชื่อมข้อมูลตัวละคร — มาในเฟส 1';
-    document.getElementById('pCash').textContent = '—';
-    document.getElementById('pBank').textContent = '—';
+    if (g.new_player) {
+      document.getElementById('pName').textContent = 'ยังไม่มีตัวละคร';
+      document.getElementById('pSub').innerHTML =
+        'พิมพ์ <b>!play</b> ในเซิร์ฟ Discord เพื่อสร้างตัวละครก่อน';
+      drawSprite(document.getElementById('pfp'));
+      return;
+    }
+    paint(g);
   })
   .catch(() => document.getElementById('needLogin').classList.remove('hidden'));
