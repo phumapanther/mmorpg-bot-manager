@@ -213,3 +213,11 @@ def test_the_web_page_draws_the_board_from_the_server():
 def test_the_roll_button_locks_when_the_quota_is_gone():
     js = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
     assert "btn.disabled = st.rolls_left <= 0" in js
+
+
+def test_the_web_server_prepares_its_own_schema():
+    """เว็บเขียน game_data.db ด้วย จึงต้องงอกคอลัมน์ใหม่เองได้
+    เดิมมีแต่บอทที่ทำ — เพิ่มฟีเจอร์แล้วรีสตาร์ทแต่เว็บ ผู้เล่นเจอ 500 (เจอจริงตอนกระดาน)"""
+    api = pathlib.Path("license_server/api.py").read_text(encoding="utf-8")
+    block = api[api.index("def create_app():"):api.index("app = FastAPI(")]
+    assert "player_model" in block and "init_db()" in block

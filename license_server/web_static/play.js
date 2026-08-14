@@ -304,6 +304,7 @@ function paint(g) {
   CHAR = { race: id.race, cls: id.class_name,
            armor: g.gear.armor.key, weapon: g.gear.weapon.key, pose: 'idle' };
   drawSprite(document.getElementById('pfp'));
+  if (SCENE) SCENE.setPet(v.pet || '');     // 🐾 พาไปด้วยไหม เซิร์ฟเวอร์เป็นคนบอก
   paintProfile(g);
   paintAdvHud(g);
   paintBag(g.bag);
@@ -920,7 +921,10 @@ async function advAct(action, label, confirmMsg) {
 
   ADV_BUSY = true;
   try {
-    if (action === 'attack' || action.startsWith('skill_')) { SCENE.attack(); }
+    if (action === 'attack' || action.startsWith('skill_')) {
+      SCENE.attack();
+      SCENE.petAttack();                     // 🐾 สัตว์เลี้ยงพุ่งเข้าช่วยด้วย
+    }
     if (action.startsWith('skill_')) SCENE.playSkill(action.slice(6));
 
     const r = await api('POST', '/api/web/adventure/act', { action: action });
@@ -972,6 +976,7 @@ async function initScene() {
   if (!SCENE) {
     SCENE = new Scene(document.getElementById('scene'));
     SCENE.setCharacter(CHAR);
+    SCENE.setPet((LAST && LAST.vitals.pet) || '');
     SCENE.setMap((LAST && LAST.identity.continent) || 'main');
   }
   document.getElementById('sceneTag').textContent =

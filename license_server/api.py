@@ -28,6 +28,16 @@ class RedeemRequest(BaseModel):
 
 def create_app():
     db.init_db()
+
+    # 🧱 เว็บเกมเขียน game_data.db ด้วย จึงต้องรับผิดชอบสคีมาของตัวเองด้วย
+    # เดิมมีแต่บอทที่งอกคอลัมน์ใหม่ตอนสตาร์ท — เพิ่มฟีเจอร์แล้วรีสตาร์ทแต่เว็บ
+    # ผู้เล่นจะเจอ "Internal Server Error" จนกว่าจะรีสตาร์ทบอท (เจอจริงตอนกระดานทอยเต๋า)
+    try:
+        import bot.models.player_model as _pm
+        _pm.init_db()
+    except Exception as e:
+        print(f"⚠️ [WEB] เตรียมสคีมา game_data.db ไม่สำเร็จ: {e}")
+
     app = FastAPI(title="License Server")
 
     @app.post("/redeem")

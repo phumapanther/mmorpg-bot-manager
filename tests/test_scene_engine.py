@@ -232,3 +232,27 @@ def test_no_raw_markup_leaks_into_visible_text():
     visible = re.sub(r"<[^>]+>", "", html)
     for junk in ('class="', "</span", "<span", "data-go="):
         assert junk not in visible, f"มีเศษโค้ดโผล่ให้ผู้เล่นเห็น: {junk}"
+
+
+def test_every_pet_in_the_game_can_be_drawn():
+    """เพิ่มสัตว์เลี้ยงในคอนฟิกแล้วลืมทำภาพ = พาไปด้วยแล้วไม่มีอะไรโผล่บนจอ"""
+    from bot import pets
+    look = set(re.findall(r"^  (\w+):\s*\{", re.search(r"const PET_LOOK = \{(.*?)\n\};",
+                                                       SCENE, re.S).group(1), re.M))
+    missing = {p["key"] for p in pets.all_pets()} - look
+    assert not missing, f"สัตว์เลี้ยงที่ยังไม่มีภาพ: {sorted(missing)}"
+
+
+def test_the_pet_walks_along_and_joins_the_attack():
+    for fn in ("Scene.prototype.setPet", "_drawPet", "petAttack"):
+        assert fn in SCENE, f"ยังไม่มี {fn}"
+    assert "this._drawPet();" in SCENE, "ยังไม่ได้เรียกวาดในลูป"
+    assert "SCENE.petAttack();" in PLAY, "กดโจมตีแล้วสัตว์เลี้ยงต้องออกท่าด้วย"
+    assert "SCENE.setPet(" in PLAY
+
+
+def test_the_pet_shown_is_the_one_the_server_says():
+    """เบราว์เซอร์ต้องไม่เดาเองว่าพาตัวไหนไป"""
+    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    assert '"pet": p.get("pet") or ""' in api
+    assert "SCENE.setPet(v.pet" in PLAY or "SCENE.setPet((LAST" in PLAY

@@ -96,6 +96,7 @@ class Scene {
     this.death = null;
     this.heroShake = 0;
     this.heroFall = 0;
+    this.pet = null;
     this.flee = null;
     this.ko = null;
     for (let i = 0; i < 26; i++) {
@@ -620,6 +621,7 @@ class Scene {
                     { ...this.char, pose }, this.heroAlpha);
     }
 
+    this._drawPet();
     this._drawFoe();
     this._drawDeath();
     this._drawFlee();
@@ -660,3 +662,75 @@ class Scene {
     requestAnimationFrame(this._tick);
   }
 }
+
+
+// ── 🐾 สัตว์เลี้ยงที่พาไปด้วย (2026-08-14) ──
+// วาดด้วยโค้ดเหมือนมอน — ไม่ต้องมีไฟล์ภาพ เพิ่มสัตว์เลี้ยงใหม่แล้ววาดได้ทันที
+// คีย์ตรงกับ pets.list ในคอนฟิก (มีเทสคุมว่าครบทุกตัว)
+const PET_LOOK = {
+  slime:      { body: '#5fa85c', hi: '#9fe08a', eye: '#ffffff', shape: 'blob' },
+  batling:    { body: '#6a4a7a', hi: '#a88fc0', eye: '#ffd08a', shape: 'wing' },
+  wolfpup:    { body: '#7a6a58', hi: '#b0a08a', eye: '#ffd08a', shape: 'beast' },
+  imp:        { body: '#a8452f', hi: '#e8776a', eye: '#ffe6a8', shape: 'horn' },
+  griffin:    { body: '#b08a3a', hi: '#ffe6a8', eye: '#ffffff', shape: 'wing' },
+  golemite:   { body: '#6b6b6b', hi: '#a0a0a0', eye: '#8fd0e0', shape: 'block' },
+  phantom:    { body: '#4a3a5c', hi: '#9f8fc0', eye: '#e85fb0', shape: 'ghost' },
+  dragonling: { body: '#8f2317', hi: '#e8563b', eye: '#ffd08a', shape: 'horn' },
+};
+
+Scene.prototype.setPet = function (key) {
+  this.pet = PET_LOOK[key] ? { key, bob: 0, lunge: 0 } : null;
+};
+
+/** 🐾 สัตว์เลี้ยงออกท่าตามเจ้าของ */
+Scene.prototype.petAttack = function () {
+  if (this.pet) this.pet.lunge = 12;
+};
+
+Scene.prototype._drawPet = function () {
+  if (!this.pet) return;
+  const look = PET_LOOK[this.pet.key];
+  const ctx = this.ctx;
+  const running = this.state === 'walk';
+
+  // เดินตามหลังเจ้าของ ห่างประมาณหนึ่งตัว — ตอนวิ่งจะกระโดดตามจังหวะ
+  this.pet.bob = running && Math.floor(this.frame / 5) % 2 ? -3 : 0;
+  if (this.pet.lunge > 0) this.pet.lunge -= 1.6;
+  const x = Math.round(this.heroX - 22 + this.pet.lunge * 2.2);
+  const y = GROUND_Y - 16 + this.pet.bob;
+  const s = 2;
+  const R = (dx, dy, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x + dx * s, y + dy * s, w * s, h * s); };
+
+  ctx.globalAlpha = look.shape === 'ghost' ? .72 : 1;      // เงาลึกลับโปร่งแสง
+  switch (look.shape) {
+    case 'wing':
+      R(0, 1, 2, 3, look.hi); R(6, 1, 2, 3, look.hi);       // ปีกสองข้าง
+      R(2, 2, 4, 4, look.body); R(3, 3, 1, 1, look.eye); R(5, 3, 1, 1, look.eye); break;
+    case 'beast':
+      R(1, 2, 6, 4, look.body); R(6, 1, 2, 2, look.body);   // หัวยื่นหน้า
+      R(7, 2, 1, 1, look.eye); R(1, 0, 1, 2, look.hi); R(0, 5, 1, 2, look.body);
+      R(2, 6, 1, 1, look.body); R(6, 6, 1, 1, look.body); break;
+    case 'horn':
+      R(2, 0, 1, 2, look.hi); R(5, 0, 1, 2, look.hi);       // เขาสองข้าง
+      R(1, 2, 6, 5, look.body); R(2, 3, 1, 1, look.eye); R(5, 3, 1, 1, look.eye);
+      R(0, 3, 1, 2, look.hi); R(7, 3, 1, 2, look.hi); break;
+    case 'block':
+      R(1, 1, 6, 6, look.body); R(2, 2, 2, 2, look.eye);
+      R(0, 3, 1, 3, look.hi); R(7, 3, 1, 3, look.hi); break;
+    case 'ghost':
+      R(2, 0, 4, 6, look.body); R(1, 2, 6, 4, look.body);
+      R(2, 6, 1, 1, look.body); R(4, 6, 1, 1, look.body);   // ชายผ้าหยัก
+      R(2, 2, 1, 1, look.eye); R(5, 2, 1, 1, look.eye); break;
+    default:                                                // blob
+      R(1, 3, 6, 4, look.body); R(2, 2, 4, 2, look.body);
+      R(2, 4, 1, 1, look.eye); R(5, 4, 1, 1, look.eye);
+      R(2, 2, 2, 1, look.hi);
+  }
+  ctx.globalAlpha = 1;
+
+  if (this.pet.lunge > 6) {                                 // ประกายตอนออกท่า
+    ctx.fillStyle = `rgba(255,230,168,${this.pet.lunge / 14})`;
+    ctx.fillRect(x + 18, y + 4, 5, 2);
+    ctx.fillRect(x + 24, y + 2, 3, 2);
+  }
+};

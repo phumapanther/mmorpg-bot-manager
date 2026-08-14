@@ -271,6 +271,7 @@ def me_game(request: Request):
         # current_state บอกว่าตอนนี้ค้างอะไรอยู่ในดิส — ใช้ตัดสินกติกาเล่นสองแพลตฟอร์ม
         "vitals": {"hp": p.get("hp"), "max_hp": p.get("max_hp"),
                    "sanity": p.get("sanity"), "state": p.get("current_state") or "idle",
+                   "pet": p.get("pet") or "",
                    # 💎 เม็ดคริสตัลที่เหลือวันนี้ — คิดที่เซิร์ฟเวอร์รวมการเติมข้ามวันแล้ว
                    **{k: v for k, v in _mana_view(p).items()}},
         "money": {"cash": p.get("cash", 0), "bank": p.get("bank", 0)},
