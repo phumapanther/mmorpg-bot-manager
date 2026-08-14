@@ -658,6 +658,10 @@ async function advAct(action, label, confirmMsg) {
 
     const r = await api('POST', '/api/web/adventure/act', { action: action });
 
+    if (r.fx) {                                        // กับดักลั่นก่อน แล้วค่อยเฉลยเต๋า
+      SCENE.playTrap(r.fx.kind, r.fx.hit);
+      await new Promise(res => setTimeout(res, 420));
+    }
     if (r.roll) {
       SCENE.showRoll(r.roll);
       await new Promise(res => setTimeout(res, 750));      // ให้เห็นเต๋าเฉลยก่อนตัวเลขเด้ง

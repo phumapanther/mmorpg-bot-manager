@@ -148,3 +148,31 @@ def test_death_animation_cleans_itself_up():
     block = SCENE[SCENE.index("_drawDeath()"):]
     assert "this.death = null;" in block[:1200]
     assert "this.foe = null;" in block[:1200], "ร่างมอนต้องหายหลังแฟลชจบ"
+
+
+def _trap_kinds():
+    block = re.search(r"const TRAP_FX = \{(.*?)\};", SCENE, re.S).group(1)
+    return set(re.findall(r"(\w+): 1", block))
+
+
+def test_every_continent_has_its_own_trap_effect():
+    """กับดักหน้าตาต่างกันตามทวีป — ทวีปที่ขาดจะตกไปใช้หนามแหลมกลางแบบเงียบ ๆ"""
+    from bot.game_data import CONTINENTS
+    missing = set(CONTINENTS) - _trap_kinds()
+    assert not missing, f"ทวีปที่ยังไม่มีเอฟเฟกต์กับดัก: {sorted(missing)}"
+
+
+def test_every_trap_effect_is_actually_drawn():
+    """ทุกชนิดที่ประกาศไว้ต้องมีสาขาวาดจริงใน _drawTrap ไม่งั้นลั่นแล้วจอเงียบ"""
+    block = SCENE[SCENE.index("_drawTrap(f, p) {"):SCENE.index("  _tick() {")]
+    drawn = set(re.findall(r"case '(\w+)':", block))
+    missing = _trap_kinds() - drawn - {"main"}          # main ใช้สาขา default
+    assert not missing, f"ชนิดที่ประกาศแต่ไม่มีภาพ: {sorted(missing)}"
+    assert "default:" in block, "ทวีปที่ไม่มีภาพเฉพาะต้องมีหนามแหลมกลางรองรับ"
+
+
+def test_trap_kind_comes_from_the_server():
+    """เบราว์เซอร์ต้องไม่เดาเองว่าอยู่ทวีปไหน (กติกาข้อ 1)"""
+    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    assert 'r["fx"] = {"kind": player.get("continent")' in api
+    assert "SCENE.playTrap(r.fx.kind, r.fx.hit)" in PLAY

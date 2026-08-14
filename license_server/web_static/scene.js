@@ -7,7 +7,10 @@
 //      ชื่อไฟล์: {ทวีป}_{เหตุการณ์}.png -> ไม่มีก็ลอง {เหตุการณ์}.png -> ไม่มีอีกก็ใช้ฉากวาดเอง
 
 const GROUND_Y = 108;
-const FLASH_FRAMES = 9;               // จำนวนเฟรมที่มอนแฟลชขาวก่อนแตกเป็นเศษ
+const FLASH_FRAMES = 9;
+// ชนิดกับดักที่วาดได้ — คีย์ตรงกับทวีปในเกม (ทวีปที่ไม่มีในนี้ใช้หนามแหลมกลาง)
+const TRAP_FX = { main: 1, demon: 1, frozen: 1, nether: 1, volcanic: 1,
+                  sylvan: 1, mechanized: 1, skyward: 1, ocean: 1 };               // จำนวนเฟรมที่มอนแฟลชขาวก่อนแตกเป็นเศษ
 
 /** '#e8563b' -> '232,86,59' (ไว้ทำสีโปร่งใสของวงแหวน) */
 function hexRgb(hex) {
@@ -91,6 +94,7 @@ class Scene {
     this.floats = [];
     this.roll = null;
     this.death = null;
+    this.heroShake = 0;
     for (let i = 0; i < 26; i++) {
       this.parts.push({ x: Math.random() * this.W, y: Math.random() * GROUND_Y,
                         s: .1 + Math.random() * .35, r: Math.random() * 1.6 + .6 });
@@ -188,6 +192,14 @@ class Scene {
       ctx.fillRect(Math.round(sl.x + Math.sin(sl.sw) * 4), Math.round(sl.y), 2, 2);
     }
     ctx.globalAlpha = 1;
+  }
+
+  /** ⚠️ กับดักทำงาน — หน้าตาต่างกันตามทวีป (เซิร์ฟเวอร์เป็นคนบอกว่าทวีปไหน)
+   *  hit=false คือหลบพ้น จะวาดเงาตัวละครหลบแทนการโดนเต็ม ๆ */
+  playTrap(kind, hit) {
+    this.fx.push({ k: 'trap', kind: TRAP_FX[kind] ? kind : 'main', hit: hit !== false,
+                   t: 0, dur: 54 });
+    if (hit !== false) { this.heroLunge = -8; this.heroShake = 12; }
   }
 
   attack() { this.state = 'fight'; this.char.pose = 'atk'; this.heroLunge = 14;
@@ -373,10 +385,111 @@ class Scene {
         ctx.fillStyle = `rgba(111,168,96,${1 - p})`;
         ctx.fillRect(this.heroX + 4 + (i * 5) % 26, Math.round(yy), 3, 3);
       }
+    } else if (f.k === 'trap') {
+      this._drawTrap(f, p);
     } else if (f.k === 'aura') {
       ctx.strokeStyle = `rgba(232,176,75,${1 - p})`; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.ellipse(this.heroX + 20, GROUND_Y - 8, 8 + p * 34, 4 + p * 13, 0, 0, 7); ctx.stroke();
       ctx.beginPath(); ctx.ellipse(this.heroX + 20, GROUND_Y - 26, 6 + p * 26, 3 + p * 10, 0, 0, 7); ctx.stroke();
+    }
+  }
+
+  /** กับดัก 9 แบบ — พิกัดอ้างอิงตัวละคร (hx, GROUND_Y) ทุกอัน */
+  _drawTrap(f, p) {
+    const ctx = this.ctx;
+    const cx = this.heroX + 22, g = GROUND_Y;
+    const fade = 1 - p;
+    const jag = (x, y0, y1, w, col, n) => {          // เส้นหยัก ๆ ใช้ทำสายฟ้า/รอยแยก
+      ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(x, y0);
+      for (let i = 1; i <= n; i++) {
+        ctx.lineTo(x + (Math.random() - .5) * 14, y0 + (y1 - y0) * (i / n));
+      }
+      ctx.stroke();
+    };
+
+    switch (f.kind) {
+      case 'demon':                                  // 🌋 รอยแยกปีศาจ — เปลวไฟพุ่งจากพื้น
+        ctx.fillStyle = `rgba(20,4,8,${fade})`;
+        ctx.fillRect(cx - 20, g - 3, 40, 5);
+        for (let i = 0; i < 9; i++) {
+          const h = (1 - Math.abs(i - 4) / 5) * 34 * Math.sin(p * Math.PI);
+          ctx.fillStyle = i % 2 ? `rgba(255,120,40,${fade})` : `rgba(200,30,40,${fade})`;
+          ctx.fillRect(cx - 18 + i * 4, g - h, 3, h);
+        }
+        break;
+      case 'frozen':                                 // 🕳️ น้ำแข็งแตก — เศษน้ำแข็งกระเด็น
+        ctx.strokeStyle = `rgba(200,235,255,${fade})`; ctx.lineWidth = 1;
+        for (let i = 0; i < 5; i++) {
+          ctx.beginPath(); ctx.moveTo(cx, g);
+          ctx.lineTo(cx - 22 + i * 11, g - 12 - (i % 2) * 6); ctx.stroke();
+        }
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * 6.28;
+          ctx.fillStyle = `rgba(230,248,255,${fade})`;
+          ctx.fillRect(cx + Math.cos(a) * p * 34, g - 8 - Math.sin(a) * p * 26, 3, 3);
+        }
+        break;
+      case 'nether':                                 // 🕸️ วิญญาณอาฆาต — ดวงม่วงวนรอบตัว
+        for (let i = 0; i < 6; i++) {
+          const a = p * 7 + i * 1.05;
+          ctx.fillStyle = `rgba(180,110,220,${fade})`;
+          ctx.fillRect(cx + Math.cos(a) * 22, g - 30 + Math.sin(a) * 14, 4, 4);
+        }
+        ctx.strokeStyle = `rgba(140,80,190,${fade * .7})`; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.ellipse(cx, g - 28, 24, 15, 0, 0, 7); ctx.stroke();
+        break;
+      case 'volcanic':                               // 🌋 ไอพิษพุ่งขึ้น
+        for (let i = 0; i < 7; i++) {
+          const yy = g - ((p * 60 + i * 9) % 62);
+          ctx.fillStyle = `rgba(190,160,90,${fade * .8})`;
+          ctx.fillRect(cx - 16 + i * 5, Math.round(yy), 4, 5);
+        }
+        break;
+      case 'sylvan':                                 // 🌿 รากไม้รัดขา
+        ctx.strokeStyle = `rgba(90,160,70,${fade})`; ctx.lineWidth = 3;
+        for (let i = 0; i < 4; i++) {
+          ctx.beginPath(); ctx.moveTo(cx - 18 + i * 12, g);
+          ctx.quadraticCurveTo(cx - 8 + i * 8, g - 22 * p, cx + (i % 2 ? 10 : -10), g - 34 * p);
+          ctx.stroke();
+        }
+        break;
+      case 'mechanized':                             // ⚡ สายฟ้าฟาดลงมา
+        if (p < .55) {
+          jag(cx, 0, g - 4, 3, `rgba(255,240,150,${fade})`, 7);
+          jag(cx, 0, g - 4, 1, `rgba(255,255,255,${fade})`, 7);
+          ctx.fillStyle = `rgba(255,255,200,${(1 - p / .55) * .28})`;
+          ctx.fillRect(0, 0, this.W, this.H);
+        }
+        break;
+      case 'skyward':                                // 🌪️ ลมหมุนดูดร่าง
+        ctx.strokeStyle = `rgba(220,230,255,${fade})`; ctx.lineWidth = 2;
+        for (let i = 0; i < 4; i++) {
+          const r = 6 + i * 8, yy = g - 6 - i * 12;
+          ctx.beginPath();
+          ctx.ellipse(cx, yy, r, r * .34, p * 4 + i, 0, 5); ctx.stroke();
+        }
+        break;
+      case 'ocean':                                  // 🌀 พายุฝนสาดเฉียง
+        ctx.strokeStyle = `rgba(160,210,240,${fade})`; ctx.lineWidth = 1;
+        for (let i = 0; i < 16; i++) {
+          const x = ((i * 23 + p * 160) % (this.W + 40)) - 20;
+          const y = ((i * 17 + p * 220) % this.H);
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 5, y + 9); ctx.stroke();
+        }
+        break;
+      default:                                       // ⚠️ หนามแหลมดีดขึ้นจากพื้น
+        for (let i = 0; i < 6; i++) {
+          const h = 20 * Math.sin(Math.min(1, p * 2.2) * Math.PI) + 4;
+          const x = cx - 20 + i * 8;
+          ctx.fillStyle = `rgba(190,190,200,${fade})`;
+          ctx.beginPath(); ctx.moveTo(x, g); ctx.lineTo(x + 4, g - h);
+          ctx.lineTo(x + 8, g); ctx.closePath(); ctx.fill();
+        }
+    }
+
+    if (!f.hit && p > .25) {                         // หลบพ้น — เงาซ้อนแบบหลบตัว
+      ctx.fillStyle = `rgba(180,220,200,${fade * .45})`;
+      ctx.fillRect(this.heroX - 14, GROUND_Y - 52, 12, 50);
     }
   }
 
@@ -406,7 +519,8 @@ class Scene {
                : running ? (Math.floor(this.frame / 6) % 2 ? 'run1' : 'run2') : 'idle';
     const bob = running && Math.floor(this.frame / 6) % 2 ? -2 : 0;
     if (typeof drawCharacter === 'function') {
-      drawCharacter(ctx, Math.round(this.heroX + this.heroLunge), GROUND_Y - 68 + bob, 3,
+      const shake = this.heroShake ? (this.heroShake--, Math.random() * 5 - 2.5) : 0;
+      drawCharacter(ctx, Math.round(this.heroX + this.heroLunge + shake), GROUND_Y - 68 + bob, 3,
                     { ...this.char, pose }, this.heroAlpha);
     }
 

@@ -1044,6 +1044,8 @@ def adventure_act(body: ActBody, request: Request):
             r = adventure_core.resolve_dungeon(uid, body.action)
         elif event == "trap":
             r = adventure_core.resolve_trap(uid, rogue)
+            # หน้าตากับดักต่างกันตามทวีป — ฝั่งเซิร์ฟเวอร์เป็นคนบอก เบราว์เซอร์แค่วาดตาม
+            r["fx"] = {"kind": player.get("continent") or "main", "hit": not r.get("dodged")}
             if "roll" in r:      # ทอยต่ำกว่าค่าหลบของเกราะ = รอด (กติกาสวนทางกับเต๋าไฟต์)
                 r["roll"] = {"player_roll": r["roll"], "monster_roll": r["eva"],
                              "labels": ["🎲 ทอยหลบ", "🛡️ ค่าเกราะ"], "win": r["dodged"],
