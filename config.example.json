@@ -597,10 +597,10 @@
       },
       "29": {
         "name": "🔮 มานาคริสตัลบริสุทธิ์",
-        "buy": 50000,
+        "buy": 20000,
         "sell": 5000,
         "type": "use",
-        "purchasable": false,
+        "purchasable": true,
         "effect": "mana",
         "effect_amount": 1
       },

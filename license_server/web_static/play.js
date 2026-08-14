@@ -467,7 +467,7 @@ function paintBag(bag) {
   // (เดิมแปะปุ่มไว้ทุกใบตลอดเวลา ทำให้ล้นการ์ดและกดผิดง่าย)
   box.innerHTML = bag.items.map((it, i) => `
     <button class="item${it.usable ? ' use' : ''}" data-item="${i}">
-      ${it.usable ? '<span class="badge">ใช้ได้</span>' : ''}
+      ${it.usable ? `<span class="badge">${it.kind === 'equip' ? 'สวมได้' : 'ใช้ได้'}</span>` : ''}
       <span class="nm">${esc(it.name)}</span><span class="qty">×${it.count}</span>
     </button>`).join('');
   box.querySelectorAll('[data-item]').forEach(b => b.onclick = () =>
@@ -670,12 +670,15 @@ async function fillBars() {
 }
 
 // ── ใช้ไอเทมจากกระเป๋า ──
-async function useItem(id, name) {
+async function useItem(id, name, kind) {
+  const eq = kind === 'equip';
   const ok = await confirmAction({
-    title: '🧪 ยืนยันใช้ไอเทม',
-    message: 'ไอเทมจะถูกใช้ทันทีและหายจากกระเป๋า 1 ชิ้น',
-    lines: [['ไอเทม', name], ['ใช้ไป', '1 ชิ้น', 'warn']],
-    okText: 'ยืนยันใช้',
+    // สวมใส่ = ของชิ้นเก่าหายไปเลย ไม่ได้คืนกระเป๋า ต้องเตือนให้ชัดกว่ากดใช้ยา
+    title: eq ? '⚔️ ยืนยันสวมใส่' : '🧪 ยืนยันใช้ไอเทม',
+    message: eq ? 'ของที่ใส่อยู่เดิมจะหายไปเลย เอากลับไม่ได้ — และชิ้นนี้จะหายจากกระเป๋า'
+                : 'ไอเทมจะถูกใช้ทันทีและหายจากกระเป๋า 1 ชิ้น',
+    lines: [['ไอเทม', name], [eq ? 'สวมใส่' : 'ใช้ไป', '1 ชิ้น', 'warn']],
+    okText: eq ? 'ยืนยันสวมใส่' : 'ยืนยันใช้',
   });
   if (!ok) return;
   try {
@@ -1183,7 +1186,7 @@ async function fillShop() {
     const cash = LAST ? LAST.money.cash : 0;
     box.innerHTML = d.items.map((it, i) =>
       '<button class="item' + (it.buy > cash ? ' poor' : '') + '" data-shop-buy="' + i + '">' +
-        (it.usable ? '<span class="badge">ใช้ได้</span>' : '') +
+        (it.usable ? '<span class="badge">' + (it.kind === 'equip' ? 'สวมได้' : 'ใช้ได้') + '</span>' : '') +
         '<span class="nm">' + esc(it.name) + '</span>' +
         '<span class="qty">' + fmt(it.buy) + '</span>' +
       '</button>').join('');
@@ -1321,16 +1324,18 @@ async function dropItem(id, name, count, sell) {
 
 /** เมนูของชิ้นเดียว — กดที่ของแล้วเลือกว่าจะใช้หรือทิ้ง */
 async function openItemMenu(it) {
+  const kind = it.kind || (it.usable ? 'use' : '');   // เซิร์ฟเวอร์เก่ายังไม่ส่ง kind มา
   const lines = [['มีอยู่', it.count + ' ชิ้น']];
   if (it.sell > 0) lines.push(['ขายได้', fmt(it.sell) + ' ทอง/ชิ้น']);
-  lines.push(['ประเภท', it.usable ? 'ของใช้ได้' : 'เก็บ/ขายอย่างเดียว']);
+  lines.push(['ประเภท', kind === 'equip' ? 'อุปกรณ์สวมใส่'
+                      : kind ? 'ของใช้ได้' : 'เก็บ/ขายอย่างเดียว']);
 
   const buttons = [{ label: 'ปิด', value: null }];
-  if (it.usable) buttons.push({ label: '🧪 ใช้', value: 'use', cls: 'yes' });
+  if (kind) buttons.push({ label: kind === 'equip' ? '⚔️ สวมใส่' : '🧪 ใช้', value: 'use', cls: 'yes' });
   buttons.push({ label: '🗑️ ทิ้ง', value: 'drop', cls: 'danger' });
 
   const choice = await openDialog({ title: it.name, message: 'เลือกสิ่งที่ต้องการทำ', lines, buttons });
-  if (choice === 'use') await useItem(it.id, it.name);
+  if (choice === 'use') await useItem(it.id, it.name, kind);
   if (choice === 'drop') await dropItem(it.id, it.name, it.count, it.sell);
 }
 

@@ -284,6 +284,7 @@ def me_game(request: Request):
     from bot import config_loader, game_modifiers
     from bot.game_data import CONTINENTS
     from bot.models.player_model import MAX_LEVEL, exp_required, load_inventory
+    from bot.cogs.player_commands import usable_kind
 
     p = dict(row)
     items = config_loader.get_all_items()
@@ -300,9 +301,10 @@ def me_game(request: Request):
     bag = []
     for iid, n in counts.items():
         it = items.get(iid, {})
+        kind = usable_kind(it)
         bag.append({"id": iid, "name": it.get("name", f"ไอเทม {iid}"), "count": n,
                     "type": it.get("type", ""), "sell": it.get("sell", 0),
-                    "usable": bool(it.get("effect")) and it.get("type") == "use"})
+                    "kind": kind, "usable": bool(kind)})
     bag.sort(key=lambda b: (not b["usable"], b["name"]))
 
     # บัฟ/สถานะติดตัว — เอาป้ายกับหน่วยนับมาจากตารางกลาง ไม่ให้เว็บเดาเอง
@@ -546,9 +548,10 @@ def shop_items(request: Request):
     """ของที่ร้านขาย — กรอง purchasable เหมือนหน้าร้านในดิสเป๊ะ"""
     require_player(request)
     from bot import config_loader
+    from bot.cogs.player_commands import usable_kind
     out = [{"id": iid, "name": d.get("name", iid), "buy": int(d.get("buy", 0)),
             "sell": int(d.get("sell", 0)), "type": d.get("type", ""),
-            "usable": bool(d.get("effect")) and d.get("type") == "use"}
+            "kind": usable_kind(d), "usable": bool(usable_kind(d))}
            for iid, d in config_loader.get_all_items().items()
            if d.get("purchasable", True)]
     out.sort(key=lambda x: x["buy"])

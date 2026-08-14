@@ -175,6 +175,22 @@ def item_use_file(ok, item_id, user_id):
     return item_use_image(info, cont)
 
 
+EQUIP_TYPES = ("armor", "weapon", "bag")
+
+
+def usable_kind(item_cfg):
+    """ของชิ้นนี้กดใช้ได้ไหม — "equip" (สวมใส่) / "use" (กดใช้) / "" (เก็บ-ขายอย่างเดียว)
+
+    ยึดตามสาขาที่ apply_item_effect() ด้านล่างรับจริง ๆ ห้ามให้ที่อื่นเดาเอง
+    (หน้าเว็บเคยเดาว่า "ต้องมี effect + type=use" เลยซ่อนปุ่มสวมอาวุธ/เกราะทิ้งทั้งหมด)
+    """
+    if not item_cfg:
+        return ""
+    if item_cfg.get("type") in EQUIP_TYPES:
+        return "equip"
+    return "use" if item_cfg.get("effect") else ""
+
+
 def apply_item_effect(user_id, item_id):
     """ใช้ไอเทมตาม effect ที่ตั้งค่าไว้ใน config — คืนค่า (success: bool, message: str)
     ดึงออกมาเป็นฟังก์ชันระดับโมดูล เพื่อให้ทั้งคำสั่ง !use และปุ่มเมนู (game_views) เรียกใช้ตรรกะเดียวกันได้
