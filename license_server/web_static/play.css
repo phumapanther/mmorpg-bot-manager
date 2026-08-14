@@ -150,6 +150,22 @@
 @keyframes d6Roll { 0%{transform:rotate(0) scale(1)} 30%{transform:rotate(190deg) scale(1.18)}
                     65%{transform:rotate(340deg) scale(.92)} 100%{transform:rotate(360deg) scale(1)} }
 
+/* โต๊ะแบล็กแจ็ค */
+.bj-table { display:grid; gap:16px; padding:14px 0 6px; }
+.bj-side { display:grid; gap:8px; justify-items:center; }
+.bj-label { font-size:13px; color:var(--g-muted); font-weight:600; }
+.bj-label span { font-family:var(--g-num); color:var(--g-gold); font-size:16px; }
+.cards { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; min-height:76px; }
+.card-f { width:52px; height:72px; border-radius:9px; display:grid; place-items:center;
+          background:linear-gradient(160deg,#f6efe2,#cfc0a6); color:#241812;
+          font-family:var(--g-num); font-size:22px; font-weight:700;
+          border:2px solid #8a7355; box-shadow:0 4px 0 #6b573d;
+          animation:cardIn 300ms var(--g-ease); }
+.card-f.back { background:linear-gradient(160deg,#5c3a2e,#3a2118); color:#e8b04b;
+               border-color:#7a4b38; }
+@keyframes cardIn { from{transform:translateY(-14px) rotate(-6deg);opacity:0}
+                    to{transform:none;opacity:1} }
+
 .casino-result { min-height:30px; text-align:center; font-size:15px; font-weight:600;
                  color:var(--g-muted); }
 .casino-result.win { color:var(--g-gold); animation:pop 420ms var(--g-ease); }

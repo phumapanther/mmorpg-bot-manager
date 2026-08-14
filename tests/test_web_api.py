@@ -693,3 +693,36 @@ def test_casino_guards(client, tmp_path, monkeypatch):
     r = client.post("/api/web/casino", json={"game": "slots", "bet": 999999})
     assert r.status_code == 200 and r.json()["ok"] is False
     assert r.json()["money"]["cash"] == 100
+
+
+def test_blackjack_full_hand_via_web(client, tmp_path, monkeypatch):
+    pm = _bind_pm(tmp_path, monkeypatch, cash=100000)
+    _login(client)
+    r = client.post("/api/web/blackjack", json={"action": "start", "bet": 1000}).json()
+    assert r["ok"] is True
+    g = r["game"]
+    assert len(g["player"]) == 2 and g["bot"][1] == ["?", 0]      # ไพ่บอทใบสองต้องปิดไว้
+    assert r["money"]["cash"] == 99000
+
+    # โต๊ะค้างอยู่ต้องดึงกลับมาได้ (เปิดในดิสแล้วมาเล่นต่อบนเว็บ)
+    cur = client.get("/api/web/blackjack").json()
+    assert cur["playing"] is True and cur["game"]["bet"] == 1000
+
+    r = client.post("/api/web/blackjack", json={"action": "stand"}).json()
+    assert r["ok"] is True and r["game"]["over"] is True
+    assert r["game"]["bot_score"] is not None                     # เปิดไพ่หมดแล้ว
+    assert r["money"]["cash"] == pm.get_player(555000111)["cash"]
+    assert client.get("/api/web/blackjack").json()["playing"] is False
+
+
+def test_blackjack_guards(client, tmp_path, monkeypatch):
+    _bind_pm(tmp_path, monkeypatch, cash=500)
+    assert client.post("/api/web/blackjack", json={"action": "start", "bet": 10}).status_code == 401
+    _login(client)
+    assert client.post("/api/web/blackjack", json={"action": "fold"}).status_code == 400
+    assert client.post("/api/web/blackjack", json={"action": "start", "bet": 0}).status_code == 400
+    # ยังไม่เปิดโต๊ะ จั่วไม่ได้
+    assert client.post("/api/web/blackjack", json={"action": "hit"}).json()["ok"] is False
+    # เดิมพันเกินเงิน
+    r = client.post("/api/web/blackjack", json={"action": "start", "bet": 99999})
+    assert r.json()["ok"] is False and r.json()["money"]["cash"] == 500

@@ -98,7 +98,7 @@
           <span class="ic">🎰</span>สล็อต<span class="sub">หมุนลุ้นสามช่องตรง</span></button>
         <button class="g-tile" data-go="hilo">
           <span class="ic">🎲</span>ไฮโล<span class="sub">สูง-ต่ำ-สิบเอ็ด</span></button>
-        <button class="g-tile soon"><span class="tag">เฟส 3</span>
+        <button class="g-tile" data-go="bj">
           <span class="ic">🃏</span>แบล็คแจ็ค 24<span class="sub">ดวลกับ AI เจ้ามือ</span></button>
       </div></div>
 
@@ -210,6 +210,36 @@
           <button class="g-tile casino-go" data-hilo="low"><span class="ic">⬇️</span>ต่ำ 3-10 <span class="sub">×2</span></button>
           <button class="g-tile hot casino-go" data-hilo="11hilo"><span class="ic">🎯</span>11 พอดี <span class="sub">×7</span></button>
           <button class="g-tile casino-go" data-hilo="high"><span class="ic">⬆️</span>สูง 12-18 <span class="sub">×2</span></button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ══ แบล็กแจ็ค 24 ══ -->
+    <div class="g-panelview" id="v-bj">
+      <button class="g-back" data-back>← กลับเมนูหลัก</button>
+      <div class="g-head"><h2>🃏 แบล็กแจ็ค 24</h2>
+        <p>ทำแต้มให้ใกล้ 24 ที่สุดโดยไม่เกิน — ดวลกับ AI ที่เรียนรู้จากทุกตาที่เล่น ·
+        โต๊ะเดียวกับในดิส เปิดค้างไว้แล้วมาเล่นต่อที่นี่ได้</p></div>
+      <div class="g-card">
+        <div class="bj-table">
+          <div class="bj-side">
+            <div class="bj-label">🤖 บอท <span id="bjBotScore"></span></div>
+            <div class="cards" id="bjBot"></div>
+          </div>
+          <div class="bj-side">
+            <div class="bj-label">👤 คุณ <span id="bjMyScore"></span></div>
+            <div class="cards" id="bjMe"></div>
+          </div>
+        </div>
+        <div class="casino-result" id="bjMsg">เลือกเดิมพันแล้วกดเปิดโต๊ะ</div>
+        <div class="bet-row" id="bjBetRow">
+          <div class="chips" data-chips="bj"></div>
+          <button class="g-tile hot casino-go" id="bjStart"><span class="ic">🃏</span>เปิดโต๊ะ</button>
+        </div>
+        <div class="bet-row hidden" id="bjPlayRow">
+          <button class="g-tile casino-go" id="bjHit"><span class="ic">👇</span>จั่วไพ่</button>
+          <button class="g-tile hot casino-go" id="bjStand"><span class="ic">✋</span>พอแค่นี้</button>
         </div>
       </div>
     </div>

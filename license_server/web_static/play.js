@@ -23,7 +23,8 @@ function showPanel(id) {
   if (id === 'goldbar') fillBars().catch(e => toast(e.message, true));
   if (id === 'craft') fillCraft();
   if (id === 'shop') fillShop();
-  if (id === 'slots' || id === 'hilo') buildChips();
+  if (id === 'slots' || id === 'hilo' || id === 'bj') buildChips();
+  if (id === 'bj') bjRestore();
   window.scrollTo({ top: document.getElementById('shell').offsetTop - 80, behavior: 'smooth' });
 }
 document.querySelectorAll('[data-go]').forEach(b => {
@@ -457,6 +458,71 @@ const spinBtn = document.getElementById('spinBtn');
 if (spinBtn) spinBtn.onclick = () => casinoPlay('slots');
 document.querySelectorAll('[data-hilo]').forEach(b =>
   b.onclick = () => casinoPlay('hilo', b.dataset.hilo));
+
+// ══════ แบล็กแจ็ค 24 (เฟส 3.4) ══════
+CASINO_BET.bj = 10000;
+
+function bjCards(box, cards) {
+  box.innerHTML = cards.map(c => c[0] === '?'
+    ? '<div class="card-f back">?</div>'
+    : '<div class="card-f">' + esc(c[0]) + '</div>').join('');
+}
+
+function bjPaint(g) {
+  bjCards(document.getElementById('bjMe'), g.player);
+  bjCards(document.getElementById('bjBot'), g.bot);
+  document.getElementById('bjMyScore').textContent = g.player_score + ' แต้ม';
+  document.getElementById('bjBotScore').textContent =
+    g.bot_score == null ? '' : g.bot_score + ' แต้ม';
+
+  const playing = !g.over;
+  document.getElementById('bjBetRow').classList.toggle('hidden', playing);
+  document.getElementById('bjPlayRow').classList.toggle('hidden', !playing);
+
+  const msg = document.getElementById('bjMsg');
+  if (g.over) {
+    msg.className = 'casino-result ' + (g.net > 0 ? 'win' : g.net < 0 ? 'lose' : '');
+    msg.textContent = (g.message || '').replace(/`/g, '') +
+                      (g.bot_log && g.bot_log.length ? ' · ' + g.bot_log.join(' ') : '');
+  } else {
+    msg.className = 'casino-result';
+    msg.textContent = 'เดิมพัน ' + fmt(g.bet) + ' ทอง — จั่วเพิ่มหรือพอแค่นี้?';
+  }
+}
+
+async function bjAct(action) {
+  const btns = document.querySelectorAll('#bjBetRow .casino-go, #bjPlayRow .casino-go');
+  btns.forEach(b => b.disabled = true);
+  try {
+    const body = { action: action };
+    if (action === 'start') body.bet = CASINO_BET.bj;
+    const r = await api("POST", "/api/web/blackjack", body);
+    if (!r.ok) { toast(r.game.message, true); return; }
+    bjPaint(r.game);
+    if (LAST) LAST.money = r.money;
+    document.getElementById('pCash').textContent = fmt(r.money.cash);
+    document.getElementById('pBank').textContent = fmt(r.money.bank);
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    btns.forEach(b => b.disabled = false);
+  }
+}
+
+/** เปิดหน้ามา ถ้ามีโต๊ะค้างอยู่ (เช่นเปิดไว้ในดิส) ให้เล่นต่อได้เลย */
+async function bjRestore() {
+  try {
+    const d = await api("GET", "/api/web/blackjack");
+    if (d.playing) {
+      bjPaint(d.game);
+      toast('เจอโต๊ะที่ค้างอยู่ — เล่นต่อได้เลย');
+    }
+  } catch (e) { /* ยังไม่เคยเล่น = ไม่มีอะไรต้องทำ */ }
+}
+
+document.getElementById('bjStart').onclick = () => bjAct('start');
+document.getElementById('bjHit').onclick = () => bjAct('hit');
+document.getElementById('bjStand').onclick = () => bjAct('stand');
 
 // ── ร้านค้าไอเทม ──
 let SHOP_MODE = 'buy';
