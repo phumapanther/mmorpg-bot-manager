@@ -166,10 +166,23 @@ function paintBag(bag) {
   });
 }
 
-api("GET", "/api/web/me/session")
-  .then(() => api("GET", "/api/web/me/game"))
-  .then(g => {
-    document.getElementById('shell').classList.remove('hidden');
+async function boot() {
+  // 1) ล็อกอินผ่านไหม — อันนี้อย่างเดียวที่ตัดสินว่าจะโชว์หน้า "ต้องล็อกอิน"
+  try {
+    await api("GET", "/api/web/me/session");
+  } catch (e) {
+    document.getElementById('needLogin').classList.remove('hidden');
+    return;
+  }
+
+  // 2) ล็อกอินผ่านแล้ว = เปิดเมนูทันที ไม่ต้องรอข้อมูลตัวละคร
+  //    (เดิมรวมไว้ก้อนเดียว พอวาดพลาดตรงไหนก็เด้งไปขึ้น "ต้องล็อกอินก่อน" ทั้งที่ล็อกอินแล้ว
+  //     เมนูเลยไม่เปิดและหาสาเหตุไม่เจอ)
+  document.getElementById('shell').classList.remove('hidden');
+
+  // 3) โหลดข้อมูลตัวละคร — พังก็บอกสาเหตุจริง เมนูยังใช้ได้
+  try {
+    const g = await api("GET", "/api/web/me/game");
     if (g.new_player) {
       document.getElementById('pName').textContent = 'ยังไม่มีตัวละคร';
       document.getElementById('pSub').innerHTML =
@@ -179,8 +192,13 @@ api("GET", "/api/web/me/session")
     }
     LAST = g;
     paint(g);
-  })
-  .catch(() => document.getElementById('needLogin').classList.remove('hidden'));
+  } catch (e) {
+    document.getElementById('pName').textContent = 'โหลดข้อมูลไม่สำเร็จ';
+    document.getElementById('pSub').textContent = e.message || String(e);
+    console.error('[play] โหลด/วาดข้อมูลตัวละครล้มเหลว:', e);
+  }
+}
+boot();
 
 
 // ══════ เฟส 2: ธุรกรรมจริง — ทุกรายการต้องยืนยันก่อนเสมอ (กันกดผิด) ══════

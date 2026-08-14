@@ -615,3 +615,21 @@ def test_craft_rejects_unknown_recipe(client, tmp_path, monkeypatch):
     r = client.post("/api/web/craft", json={"item_id": "ไม่มีสูตรนี้"})
     assert r.status_code == 200 and r.json()["ok"] is False
     assert client.get("/api/web/craft/list").json()["recipes"] == []   # ไม่มีวัตถุดิบ = ไม่มีสูตร
+
+
+def test_pages_and_scripts_are_not_cached_stale(client):
+    """หน้าเว็บ/สคริปต์ต้องสั่งเบราว์เซอร์ถามใหม่ทุกครั้ง — เคยแก้โค้ดแล้วผู้ใช้เห็นของเก่า"""
+    for path in ("/play", "/play.js", "/play.css", "/sprite.js", "/web.js"):
+        r = client.get(path)
+        assert r.status_code == 200, path
+        assert "no-cache" in r.headers.get("cache-control", ""), f"{path} ไม่ได้สั่งห้ามแคช"
+
+
+def test_login_failure_is_the_only_thing_that_hides_the_menu():
+    """เมนูต้องเปิดทันทีที่ล็อกอินผ่าน — ห้ามให้ error ตอนโหลดตัวละครไปซ่อนเมนู"""
+    import pathlib
+    js = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+    boot = js[js.index("async function boot()"):]
+    # ต้องเปิด shell ก่อนเรียก /me/game ไม่งั้น error ตอนโหลดข้อมูลจะทำให้เมนูไม่เปิด
+    assert boot.index("classList.remove('hidden')") < boot.index('"/api/web/me/game"')
+    assert boot.count("needLogin") == 1, "needLogin ต้องโผล่เฉพาะตอน session ล้มเท่านั้น"

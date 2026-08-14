@@ -66,6 +66,17 @@ def create_app():
             def _serve(page=_page):
                 return FileResponse(os.path.join(web_static, f"{page}.html"))
             app.get(f"/{_page}", include_in_schema=False)(_serve)
+    # 🔄 หน้าเว็บ/สคริปต์/สไตล์ ต้องให้เบราว์เซอร์ถามเซิร์ฟเวอร์ทุกครั้งว่ามีของใหม่ไหม
+    # (ไฟล์ไม่เปลี่ยน = ตอบ 304 ไม่โหลดซ้ำ จึงไม่เปลืองเน็ต แต่แก้โค้ดแล้วเห็นทันทีไม่ต้อง Ctrl+F5)
+    # เคสจริง: แก้ play.js แล้วผู้ใช้ยังเห็นของเก่าจนเมนูไม่เปิด หาสาเหตุกันอยู่นาน
+    @app.middleware("http")
+    async def _no_stale_pages(request, call_next):
+        resp = await call_next(request)
+        path = request.url.path
+        if path.endswith((".html", ".js", ".css")) or "." not in path.rsplit("/", 1)[-1]:
+            resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return resp
+
     if os.path.isdir(assets_dir):
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
     if os.path.isdir(web_static):
