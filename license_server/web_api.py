@@ -1366,7 +1366,7 @@ def _fight_action(uid, fight, action):
     if t["outcome"] == "lose":
         player_model.update_player_fields(uid, dict(t.get("db_updates") or {}, current_state="dead"))
         adventure_core.clear_pending(uid)
-        out["text"] = "💀 **คุณหมดสติลงกลางสนามรบ...** ไปกดฟื้นคืนชีพในดิสคอร์ดด้วย `!play`"
+        out["text"] = "💀 **คุณหมดสติลงกลางสนามรบ...** กดฟื้นคืนชีพเพื่อกลับหมู่บ้าน"
         return out | {"money": _money_now(uid)}
 
     player_model.update_player_fields(uid, t.get("db_updates") or {})
