@@ -398,22 +398,33 @@ function paintProfile(g) {
   document.getElementById('prArt').textContent = (gear.artifact_slots ?? 1) + ' ช่อง';
 
   // 🎲 สรุปเต๋า — ตอบคำถามที่ถามบ่อยว่าทอยได้สูงสุดเท่าไหร่ เพราะอะไร
+  // ค่าทุกตัวมีค่าสำรอง: เซิร์ฟเวอร์เวอร์ชันเก่ายังไม่ส่ง dice มา ต้องไม่ขึ้น undefined ให้ผู้เล่นเห็น
   const dc = g.dice || {};
+  const num = (v, dflt) => (Number.isFinite(+v) ? +v : dflt);
+  const own = num(dc.own_dice, 1), petN = num(dc.pet_dice, 0);
+  const lo = num(dc.normal_min, 8), hi = num(dc.normal_max, 18);
+  const skMax = num(dc.skill_max, 20), petMax = num(dc.pet_die_max, 6);
+  const flat = num(dc.bonus_total, 0), per = num(dc.level_per_die, 25);
+  const total = num(dc.dice_count, own + petN);
+  const capN = num(dc.normal_cap, own * hi + petN * petMax + flat);
+  const capS = num(dc.skill_cap, own * skMax + petN * petMax + flat);
+
   document.getElementById('prDice').textContent =
-    `${dc.dice_count ?? 1} ลูก` +
-    (dc.pet_dice ? `  (ของตัวเอง ${dc.own_dice} + สัตว์เลี้ยง ${dc.pet_dice})` : '');
+    `${total} ลูก` + (petN ? `  (ตัวเอง ${own} + สัตว์เลี้ยง ${petN})` : '');
+
   const line = [];
-  line.push(`⚔️ ตีปกติ — เต๋าตัวเอง <b>${dc.own_dice}</b> ลูก (ลูกละ ${dc.normal_min}-${dc.normal_max})` +
-            (dc.pet_dice ? ` + สัตว์เลี้ยง <b>${dc.pet_dice}</b> ลูก (ลูกละ 1-${dc.pet_die_max})` : '') +
-            (dc.bonus_total ? ` + โบนัส <b>${dc.bonus_total}</b>` : '') +
-            ` → สูงสุด <b class="cap">${dc.normal_cap}</b>`);
-  line.push(`✨ ใช้สกิล — ลูกละ 1-${dc.skill_max} → สูงสุด <b class="cap">${dc.skill_cap}</b>`);
-  line.push(`📈 ได้เต๋าเพิ่ม 1 ลูกทุก <b>${dc.level_per_die}</b> เลเวล` +
-            (dc.next_die_at ? ` · ลูกถัดไปที่ <b>Lv ${dc.next_die_at}</b>` : ''));
+  line.push(`🧍 <b>ของตัวเอง ${own}</b> ลูก  <small>(ฐาน 1 + จากเลเวล ${num(dc.level_dice, 0)})</small>`);
+  line.push(petN
+    ? `🐾 <b>สัตว์เลี้ยง +${petN}</b> ลูก — ${esc(dc.pet_name || 'ที่พาไปด้วย')} <small>(ลูกละ 1-${petMax})</small>`
+    : `🐾 <span style="color:#a99274">ยังไม่ได้พาสัตว์เลี้ยงไปด้วย — พาไปจะได้เต๋าเพิ่มอีก</span>`);
+  line.push(`⚔️ ตีปกติ ลูกละ <b>${lo}-${hi}</b>` + (flat ? ` + โบนัส <b>${flat}</b>` : '') +
+            ` → สูงสุด <b class="cap">${capN}</b>`);
+  line.push(`✨ ใช้สกิล ลูกละ <b>1-${skMax}</b>` + (flat ? ` + โบนัส <b>${flat}</b>` : '') +
+            ` → สูงสุด <b class="cap">${capS}</b>`);
+  line.push(`📈 ได้เต๋าเพิ่ม 1 ลูกทุก <b>${per}</b> เลเวล` +
+            (Number.isFinite(+dc.next_die_at) ? ` · ลูกถัดไปที่ <b>Lv ${dc.next_die_at}</b>` : ''));
   if ((dc.bonus || []).length)
     line.push(dc.bonus.map(b => `${esc(b.from)} <b>+${b.value}</b>`).join(' · '));
-  if (!dc.pet_dice)
-    line.push('<span style="color:#a99274">พาสัตว์เลี้ยงไปด้วยจะได้เต๋าเพิ่มอีก</span>');
   document.getElementById('prDiceDetail').innerHTML = line.join('<br>');
 
   const durBar = o => {

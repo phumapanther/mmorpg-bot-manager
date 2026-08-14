@@ -218,6 +218,7 @@ def _dice_view(p, role_names):
     เต๋าสัตว์เลี้ยงเป็นลูกเล็ก 1-6 กันแต้มเฟ้อ
     """
     from bot import adventure_core, config_loader, game_modifiers, pets
+    from bot.models.player_model import MAX_LEVEL
     lo = int(config_loader.get_balance("dice.normal_min", 8))
     hi = int(config_loader.get_balance("dice.normal_max", 18))
     skill_max = int(config_loader.get_balance("dice.skill_max", 20))
@@ -242,7 +243,11 @@ def _dice_view(p, role_names):
     return {
         "dice_count": total, "own_dice": own, "level_dice": lvl_dice, "pet_dice": pet_dice,
         "pet_name": pet_name, "level_per_die": per,
-        "next_die_at": ((lvl // per) + 1) * per if per > 0 else None,
+        # ลูกถัดไปจะได้ตอนเลเวลเท่าไหร่ — ไม่มีแล้วถ้าเลเวลเต็มหรือชนเพดานจำนวนลูก
+        "next_die_at": (((lvl // per) + 1) * per
+                        if per > 0 and lvl < MAX_LEVEL and own < int(
+                            config_loader.get_balance("dice.max_dice", 8))
+                        else None),
         "normal_min": lo, "normal_max": hi, "skill_max": skill_max, "pet_die_max": pet_max,
         "bonus": bonus, "bonus_total": flat,
         "normal_cap": own * hi + pet_dice * pet_max + flat,

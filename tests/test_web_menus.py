@@ -170,3 +170,21 @@ def test_the_dice_cap_trims_pet_dice_not_your_own():
     total, lvl, pet = adventure_core.player_dice_count({"level": 100, "pet": "dragonling"})
     assert total == 8 and total - pet == 1 + lvl, \
         f"Lv100 ควรได้เต๋าตัวเอง {1+lvl} ลูกครบ แต่ได้ {total-pet}"
+
+
+def test_the_dice_panel_never_prints_undefined():
+    """เซิร์ฟเวอร์เวอร์ชันเก่ายังไม่ส่ง dice มา หน้าเว็บต้องไม่โชว์ undefined ให้ผู้เล่นเห็น
+    (เกิดจริงตอนรีสตาร์ทแต่ไฟล์หน้าเว็บ แต่โค้ดฝั่ง Python ยังเป็นของเก่า)"""
+    block = JS[JS.index("// 🎲 สรุปเต๋า"):JS.index("const durBar")]
+    assert "const num = (v, dflt) =>" in block, "ไม่มีตัวแปลงค่าที่มีค่าสำรอง"
+    for field in ("own_dice", "normal_min", "normal_max", "skill_max",
+                  "pet_die_max", "level_per_die", "bonus_total"):
+        assert f"dc.{field}," in block, f"{field} ยังไม่ได้ผ่านตัวแปลงที่มีค่าสำรอง"
+
+
+def test_the_dice_panel_names_the_pet_and_its_dice():
+    """ผู้เล่นขอให้บอกว่าใส่สัตว์เลี้ยงอะไร ให้เต๋ากี่ลูก"""
+    assert '"pet_name"' in API, "API ต้องส่งชื่อสัตว์เลี้ยงที่พาไปด้วย"
+    block = JS[JS.index("// 🎲 สรุปเต๋า"):JS.index("const durBar")]
+    assert "dc.pet_name" in block and "สัตว์เลี้ยง +${petN}" in block
+    assert "ฐาน 1 + จากเลเวล" in block, "ต้องแยกให้เห็นว่าฐาน 1 บวกจากเลเวลเท่าไหร่"
