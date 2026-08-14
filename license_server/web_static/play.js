@@ -352,9 +352,13 @@ function paintAdvHud(g) {
     id.max_level ? 'เลเวลเต็ม' : (id.exp_pct ?? 0) + '%';
 
   // 🛡️ ความทนทานอุปกรณ์ — เดิมต้องออกไปดูหน้าโปรไฟล์ ไม่รู้ว่าเกราะกำลังจะพัง
-  const dur = (o, icon) => o.dur == null ? '' :
-    `<span title="${esc(o.name || '')}">${icon} <b class="${o.dur <= 0 ? 'low' : o.dur < 30 ? 'low' : ''}">${o.dur}%</b>` +
-    (o.dur <= 0 ? ' <b class="low">พัง</b>' : '') + '</span>';
+  const dur = (o, icon) => {
+    if (!o || o.dur == null) return '';
+    const pct = o.dur_pct ?? 0;
+    return `<span title="${esc(o.name || '')} ${fmt(o.dur)}/${fmt(o.dur_max)}">` +
+      `${icon} <b class="${pct < 30 ? 'low' : ''}">${pct}%</b>` +
+      (pct <= 0 ? ' <b class="low">พัง</b>' : '') + '</span>';
+  };
   document.getElementById('advGear').innerHTML =
     dur(g.gear.weapon, '⚔️') + dur(g.gear.armor, '🛡️');
 
@@ -408,15 +412,20 @@ function paintProfile(g) {
       ? '<br>' + dc.bonus.map(b => `${esc(b.from)} <b>+${b.value}</b>`).join(' · ')
       : '<br><span style="color:#a99274">ยังไม่มีโบนัสเต๋า — พาสัตว์เลี้ยงไปด้วยจะได้เพิ่ม</span>');
 
-  const durBar = d => d == null ? '' :
-    `<div class="dur${d < 30 ? ' low' : ''}"><i style="width:${Math.max(0, Math.min(100, d))}%"></i></div>` +
-    `<span class="dur-pct${d < 30 ? ' low' : ''}">ความทนทาน ${d}%` +
-    (d <= 0 ? ' — พังแล้ว! ไม่ได้โบนัส' : d < 30 ? ' — ใกล้พัง' : '') + '</span>';
+  // % คิดจากของเต็มของชิ้นนั้น (เซิร์ฟเวอร์ส่งมาให้แล้ว) ไม่ใช่เอาเลขดิบมาติด %
+  const durBar = o => {
+    if (!o || o.dur == null) return '';
+    const pct = o.dur_pct ?? 0;
+    return `<div class="dur${pct < 30 ? ' low' : ''}"><i style="width:${pct}%"></i></div>` +
+      `<span class="dur-pct${pct < 30 ? ' low' : ''}">ความทนทาน ${pct}% ` +
+      `<small>(${fmt(o.dur)}/${fmt(o.dur_max)})</small>` +
+      (pct <= 0 ? ' — พังแล้ว! ไม่ได้โบนัส' : pct < 30 ? ' — ใกล้พัง' : '') + '</span>';
+  };
   document.getElementById('prGear').innerHTML = `
     <div class="slot-card"><div class="ic">🛡️</div><div style="min-width:0">
-      <div class="t">เกราะ</div><div class="v">${esc(gear.armor.name)}</div>${durBar(gear.armor.dur)}</div></div>
+      <div class="t">เกราะ</div><div class="v">${esc(gear.armor.name)}</div>${durBar(gear.armor)}</div></div>
     <div class="slot-card"><div class="ic">⚔️</div><div style="min-width:0">
-      <div class="t">อาวุธ</div><div class="v">${esc(gear.weapon.name)}</div>${durBar(gear.weapon.dur)}</div></div>`;
+      <div class="t">อาวุธ</div><div class="v">${esc(gear.weapon.name)}</div>${durBar(gear.weapon)}</div></div>`;
 
   const bf = document.getElementById('prBuffs');
   document.getElementById('prBuffCard').style.display = g.buffs.length ? '' : 'none';

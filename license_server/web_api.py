@@ -194,6 +194,16 @@ def me_profile(request: Request):
             "topups": [dict(t) | {"has_slip": _slip_path(t["id"]).is_file()} for t in tops]}
 
 
+def _dur_pct(cur, full):
+    """ความทนทานเป็น % จากของเต็มของชิ้นนั้น — None ถ้าไม่มีข้อมูล"""
+    if cur is None:
+        return None
+    full = int(full or 0)
+    if full <= 0:
+        return 100 if int(cur or 0) > 0 else 0
+    return max(0, min(100, round(int(cur or 0) / full * 100)))
+
+
 def _role_names_of(p):
     """ชื่อยศที่มีผลจริงของผู้เล่น — เว็บไม่มี Discord roles จึงอ่านจาก DB"""
     from bot import identity
@@ -318,11 +328,17 @@ def me_game(request: Request):
                    **{k: v for k, v in _mana_view(p).items()}},
         "money": {"cash": p.get("cash", 0), "bank": p.get("bank", 0)},
         "gear": {
+            # ⚠️ dur ใน DB เป็น "หน่วยความทนทานดิบ" ไม่ใช่เปอร์เซ็นต์
+            # ของเต็มต่างกันตามชิ้น (อาวุธไม้ 50 · เหล็ก 150 · ตำนาน 1000
+            #  เกราะผ้า 100 ... เหล็กหนัก 500) ต้องส่งของเต็มไปด้วยถึงจะคิด % ถูก
+            # เคยโชว์ "เกราะ 367%" เพราะเอาเลขดิบไปติด % ตรง ๆ
             "armor": {"key": armor_key, "name": armor.get("name", armor_key),
                       "hp": armor.get("hp", 0), "eva": armor.get("eva", 0),
-                      "dur": p.get("armor_dur")},
+                      "dur": p.get("armor_dur"), "dur_max": armor.get("dur", 100),
+                      "dur_pct": _dur_pct(p.get("armor_dur"), armor.get("dur", 100))},
             "weapon": {"key": weapon_key, "name": weapon.get("name", weapon_key or "— มือเปล่า —"),
-                       "dur": p.get("weapon_dur")},
+                       "dur": p.get("weapon_dur"), "dur_max": weapon.get("dur", 100),
+                       "dur_pct": _dur_pct(p.get("weapon_dur"), weapon.get("dur", 100))},
             "artifact_slots": p.get("artifact_slots", 1),
         },
         "bag": {"capacity": p.get("capacity", 0), "used": len(inv), "items": bag},

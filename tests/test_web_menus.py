@@ -110,6 +110,24 @@ def test_max_hp_shown_includes_the_armor_bonus():
 
 def test_durability_is_shown_as_a_percent_in_both_places():
     """ผู้เล่นขอ % ความพังของเกราะ/อาวุธทั้งหน้าโปรไฟล์และหน้าผจญภัย"""
-    assert "ความทนทาน ${d}%" in JS, "หน้าโปรไฟล์ยังไม่โชว์ %"
-    assert "${o.dur}%" in JS, "หน้าผจญภัยยังไม่โชว์ %"
+    assert "ความทนทาน ${pct}%" in JS, "หน้าโปรไฟล์ยังไม่โชว์ %"
+    assert "${pct}%</b>" in JS, "หน้าผจญภัยยังไม่โชว์ %"
     assert "พังแล้ว! ไม่ได้โบนัส" in JS, "เกราะพังต้องบอกว่าเสียโบนัสไปแล้ว"
+
+
+def test_durability_percent_is_relative_to_each_items_own_maximum():
+    """เคยโชว์ 'เกราะ 367%' เพราะเอาเลขความทนทานดิบไปติด % ตรง ๆ
+    ของเต็มต่างกันตามชิ้น (อาวุธไม้ 50 · เหล็ก 150 · ตำนาน 1000 · เกราะเหล็กหนัก 500)"""
+    from license_server.web_api import _dur_pct
+    assert _dur_pct(367, 500) == 73
+    assert _dur_pct(106, 150) == 71
+    assert _dur_pct(45, 50) == 90
+    assert _dur_pct(0, 500) == 0
+    assert _dur_pct(999, 100) == 100, "ค่าเกินของเต็มต้องตัดที่ 100 ไม่ใช่ปล่อยทะลุ"
+    assert _dur_pct(None, 100) is None
+
+
+def test_the_api_sends_the_maximum_so_the_page_can_do_the_maths():
+    assert '"dur_max"' in API and '"dur_pct"' in API
+    assert "o.dur_pct" in JS, "หน้าเว็บต้องใช้ % ที่เซิร์ฟเวอร์คิดให้ ไม่คิดเอง"
+    assert "${o.dur}%" not in JS, "ยังมีที่เอาเลขดิบไปติด % ตรง ๆ อยู่"
