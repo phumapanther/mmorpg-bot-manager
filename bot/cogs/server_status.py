@@ -1,5 +1,6 @@
 # 📡 แจ้งเตือนเปิด-ปิดเซิร์ฟ — ตั้งห้องได้ในแท็บ Channels ของ panel (key: server_status)
 # เปิด: ประกาศตอนบอทออนไลน์ | ปิด: panel วางไฟล์ธง shutdown_request.flag → บอทประกาศแล้วปิดตัวเองอย่างสุภาพ
+import asyncio
 import os
 import time
 
@@ -62,7 +63,14 @@ class ServerStatus(commands.Cog):
                 await channel.send("🔴 **เซิร์ฟเวอร์ปิดปรับปรุงชั่วคราว** — ข้อมูลทุกอย่างถูกบันทึกแล้ว แล้วพบกันใหม่เร็ว ๆ นี้!")
             except Exception:
                 pass
-        await self.bot.close()
+        # ปิดให้ครบทุกบอทในโปรเซส (เกม + บอทแจก) ไม่งั้นโปรเซสไม่จบ
+        # แล้ว Panel ต้องรอหมดเวลาก่อนบังคับฆ่า — ปุ่ม Stop เลยดูเหมือนค้าง 8 วินาที
+        # ปิดในงานแยก ห้าม await ตรงนี้!
+        # bot.close() จะ unload cog ทุกตัว ซึ่งรวมถึง cog นี้ → cog_unload สั่ง cancel
+        # ลูป watch_shutdown ที่กำลังรันคำสั่งนี้อยู่ = งานตัวเองถูกยกเลิกกลางคัน
+        # close() จึงทำไม่จบ บอทไม่ปิด โปรเซสค้าง พาแนลต้องรอหมดเวลาแล้วบังคับฆ่า
+        from bot import bot_registry
+        asyncio.create_task(bot_registry.close_all())
 
     @watch_shutdown.before_loop
     async def _wait_ready(self):

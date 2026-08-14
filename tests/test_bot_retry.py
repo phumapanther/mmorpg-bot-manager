@@ -78,3 +78,25 @@ def test_creates_fresh_bot_each_attempt(monkeypatch):
     monkeypatch.setattr(bot_main, "create_bot", create_bot)
     _run(lambda: bot_main.run_with_retry("guest", "tok", "Guest Bot"), monkeypatch)
     assert made == ["guest", "guest", "guest"]
+
+
+def test_no_retry_after_panel_requested_shutdown(monkeypatch):
+    """สั่งปิดจาก Panel แล้ว error สายเน็ตตอนปิดต้องไม่ทำให้ลองเปิดใหม่
+
+    เคสจริง (2026-08-14): ปิดคอนเนกชันแล้ว discord.py โยน error สายเน็ต ลูป retry จับไว้
+    แล้วนั่งรอ 15 วิเพื่อเปิดใหม่ โปรเซสไม่จบ พาแนลต้องรอหมดเวลาแล้วบังคับฆ่า (8 วิ)
+    """
+    from bot import bot_registry
+    monkeypatch.setattr(bot_registry, "_shutting_down", True)
+    calls = _factory(monkeypatch, [OSError("ปิดคอนเนกชัน")] * 5)
+    slept = _run(lambda: bot_main.run_with_retry("game", "tok", "GAME"), monkeypatch)
+    assert len(calls) == 1 and slept == [], "สั่งปิดแล้วต้องไม่ลองใหม่และไม่รอ"
+
+
+def test_still_retries_when_not_shutting_down(monkeypatch):
+    """ยังไม่ได้สั่งปิด = เน็ตหลุดต้องลองใหม่เหมือนเดิม (ไม่ให้ธงปิดไปกลบพฤติกรรมเดิม)"""
+    from bot import bot_registry
+    monkeypatch.setattr(bot_registry, "_shutting_down", False)
+    calls = _factory(monkeypatch, [OSError("เน็ตหลุด")])
+    slept = _run(lambda: bot_main.run_with_retry("game", "tok", "GAME"), monkeypatch)
+    assert len(calls) == 2 and slept == [15]

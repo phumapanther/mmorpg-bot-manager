@@ -1,6 +1,8 @@
 import aiohttp
 import discord
 from discord.ext import commands
+
+from bot import bot_registry
 import asyncio
 import sys
 
@@ -28,6 +30,7 @@ def create_bot(bot_type: str):
     bot = commands.Bot(command_prefix="!", intents=intents)
     bot.CURRENT_EVENT_MULTIPLIER = 1.0  # เก็บไว้ที่ตัวบอทเลย
     bot.bot_type = bot_type
+    bot_registry.register(bot)   # ให้ปุ่ม Stop ปิดได้ครบทุกตัว
     @bot.event
     async def on_command_error(ctx, error):
         # ตรวจสอบว่า Error ที่เกิดขึ้นคือ CheckFailure ที่มาจากไฟล์ utils.py หรือไม่
@@ -214,6 +217,12 @@ async def run_with_retry(bot_type, token, label):
                   "     เปิด MESSAGE CONTENT / SERVER MEMBERS / PRESENCE ทั้ง 3 อัน แล้วรีสตาร์ท")
             return
         except (aiohttp.ClientError, OSError) as e:
+            # สั่งปิดจาก Panel แล้ว = อย่าลองใหม่ ไม่งั้นโปรเซสไม่มีวันจบ
+            # (ตอนปิดคอนเนกชัน discord.py โยน error สายเน็ตออกมาได้ ถ้าจับไว้แล้วรอเปิดใหม่
+            #  พาแนลจะต้องรอหมดเวลา 6 วิแล้วบังคับฆ่า ปุ่ม Stop เลยดูเหมือนค้าง)
+            if bot_registry.is_shutting_down():
+                print(f"🛑 [{label}] ปิดตามคำสั่งจาก Panel")
+                return
             # เน็ตหลุด/DNS ล่ม/เราเตอร์รีบูต — รอแล้วลองใหม่ ไม่ต้องให้คนมากดเอง
             print(f"⚠️ [{label}] ต่อ Discord ไม่ได้ ({type(e).__name__}: {e}) — ลองใหม่ในอีก {delay} วินาที")
             await asyncio.sleep(delay)
