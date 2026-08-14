@@ -45,9 +45,9 @@ def test_light_monsters_cannot_escape_a_trap():
 
 
 def test_trap_is_consumed_only_on_a_win():
-    assert 'if "monster_trap" in self.statuses:' in SRC
-    assert 'self.statuses.pop("monster_trap", None)' in SRC
-    win_block = SRC[SRC.index("db_updates[\"cash\"] = player.get") - 3000:SRC.index("db_updates[\"cash\"] = player.get")]
+    assert 'if "monster_trap" in statuses:' in CORE
+    assert 'statuses.pop("monster_trap", None)' in CORE
+    win_block = CORE[CORE.index("db_updates[\"cash\"] = player.get") - 3000:CORE.index("db_updates[\"cash\"] = player.get")]
     assert "monster_trap" in win_block, "ต้องปลดกับดักในเส้นทางชนะเท่านั้น"
 
 

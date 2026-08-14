@@ -111,7 +111,7 @@ def test_config_and_wiring():
     assert "title" in pm.NEW_PLAYER_DEFAULTS
 
     import pathlib
-    src = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
+    src = pathlib.Path("bot/adventure_core.py").read_text(encoding="utf-8")
     assert "check_and_unlock" in src, "ต้องเช็คความสำเร็จตอนล้มมอน ไม่ใช่แค่ตอนเปิดหน้า"
 
     from bot.views.menu_view import GameMenuView

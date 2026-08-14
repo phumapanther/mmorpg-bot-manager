@@ -67,7 +67,9 @@ def test_hooks_wired():
     import pathlib
     gv = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
     pc = pathlib.Path("bot/cogs/player_commands.py").read_text(encoding="utf-8")
-    assert '_daily.track(self.user_id, "kill"' in gv and '"boss"' in gv
+    # นับล้มมอนย้ายไป adventure_core แล้ว (เว็บเกม เฟส 5.6c)
+    core = pathlib.Path("bot/adventure_core.py").read_text(encoding="utf-8")
+    assert '_daily.track(user_id, "kill"' in core and '"boss"' in core
     # นับก้าวเดินย้ายไป adventure_core แล้ว (เว็บเกม เฟส 5.4) — เดินบนเว็บก็ต้องนับเควสด้วย
     core = pathlib.Path("bot/adventure_core.py").read_text(encoding="utf-8")
     assert '_daily.track(user_id, "walk"' in core

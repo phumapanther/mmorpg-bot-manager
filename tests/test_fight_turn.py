@@ -197,3 +197,56 @@ def test_bosses_hit_harder_the_longer_you_take(hero):
 def test_missing_player_does_not_crash_the_turn(tmp_path, monkeypatch):
     monkeypatch.setattr(pm, "get_player", lambda uid: None)
     assert adventure_core.fight_turn(1, _fight())["outcome"] == "no_player"
+
+
+# ── 🏆 รางวัลตอนชนะ (เฟส 5.6c) ────────────────────────────────────────────────
+
+def test_victory_pays_gold_and_exp(hero):
+    v = adventure_core.fight_victory(1, _fight(hp=0), rng=random.Random(3))
+    assert v["reward"] > 0 and v["exp"] > 0
+    assert v["current_exp"] >= 0 and v["level"] >= 1
+
+
+def test_bigger_monsters_pay_more(hero):
+    common = adventure_core.fight_victory(1, _fight(hp=0, rank="Common"), rng=random.Random(1))
+    boss = adventure_core.fight_victory(1, _fight(hp=0, rank="Unbeatable"), rng=random.Random(1))
+    assert boss["reward"] > common["reward"], "ไร้พ่ายต้องจ่ายหนักกว่ามอนธรรมดา"
+    assert boss["exp"] > common["exp"]
+
+
+def test_enough_exp_levels_you_up(hero):
+    from bot.models.player_model import exp_required
+    hero["level"] = 1
+    hero["exp"] = exp_required(1) - 1          # ขาดอีกแต้มเดียว
+    v = adventure_core.fight_victory(1, _fight(hp=0), rng=random.Random(5))
+    assert v["level_up"] and v["level"] == 2
+    assert hero["hp"] == hero["max_hp"], "เลเวลอัปต้องฟื้นเลือดเต็ม"
+
+
+def test_rank_promotion_is_reported_not_granted(hero):
+    """เว็บให้ยศ discord เองไม่ได้ — core ต้องคืนแรงค์ใหม่ออกมาให้ผู้เรียกจัดการ"""
+    hero["level"] = 4
+    hero["exp"] = 10 ** 9                       # ดันให้ข้ามหลายเลเวลรวด
+    hero["rank"] = "F"
+    v = adventure_core.fight_victory(1, _fight(hp=0), rng=random.Random(2))
+    if v["promoted_rank"]:
+        assert "เลื่อนขั้น" in v["rank_msg"]
+    assert "discord" not in str(type(v.get("promoted_rank")))
+
+
+def test_victory_result_is_serialisable(hero):
+    import json
+    json.dumps(adventure_core.fight_victory(1, _fight(hp=0), rng=random.Random(9)))
+
+
+def test_dungeon_kills_say_there_is_more_ahead(hero):
+    hero["dungeon_steps"] = 5
+    v = adventure_core.fight_victory(1, _fight(hp=0), rng=random.Random(4))
+    assert v["in_dungeon"] and "ดันเจี้ยน" in v["battle_end_log"]
+
+
+def test_a_broken_bestiary_never_eats_your_reward(hero, monkeypatch):
+    """สมุดล่าพังต้องไม่ทำให้รางวัลหาย — เดิมอยู่ใน try/except ต้องคงไว้"""
+    monkeypatch.setattr(pm, "record_element_kill", lambda *a: 1 / 0)
+    v = adventure_core.fight_victory(1, _fight(hp=0), rng=random.Random(6))
+    assert v["reward"] > 0 and v["exp"] > 0

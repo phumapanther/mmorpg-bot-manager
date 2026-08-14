@@ -114,8 +114,8 @@ def test_embed_nudges_toward_the_partner(db, monkeypatch):
 
 def test_wired_into_fight_rewards():
     import pathlib
-    src = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
-    assert "_partner.bonus_for(self.user_id)" in src
+    src = pathlib.Path("bot/adventure_core.py").read_text(encoding="utf-8")
+    assert "_partner.bonus_for(user_id)" in src
     assert "reward = int(reward * p_mult)" in src and "gained_exp = int(gained_exp * p_mult)" in src
 
 

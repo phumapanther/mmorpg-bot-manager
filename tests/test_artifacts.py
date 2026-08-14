@@ -263,10 +263,10 @@ def test_remove_returns_the_artifact_to_the_bag(game_db, monkeypatch):
 
 def test_punch_drops_only_from_unbeatable():
     import pathlib
-    src = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
+    src = pathlib.Path("bot/adventure_core.py").read_text(encoding="utf-8")
     block = src[src.index("# 💠 สว่านเจาะรูอาร์ติแฟกต์"):]
     guard = block[:block.index("try:")]
-    assert 'self.monster_rank == "Unbeatable"' in guard, "ต้องดรอปจากไร้พ่ายเท่านั้น"
+    assert 'monster_rank == "Unbeatable"' in guard, "ต้องดรอปจากไร้พ่ายเท่านั้น"
     assert "artifact.punch_drop_chance" in block
 
 

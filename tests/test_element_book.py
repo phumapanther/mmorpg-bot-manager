@@ -78,13 +78,20 @@ def test_every_continent_can_actually_spawn_every_element():
 
 # ── รางวัล ──
 
+class _Book:
+    """ตัวเรียก record_element_book ที่ย้ายไป adventure_core แล้ว (เว็บเกม เฟส 5.6c)"""
+
+    def __init__(self, rank, element):
+        self.rank, self.element = rank, element
+
+    def _record_element_book(self, cont, upd):
+        from bot import adventure_core
+        return adventure_core.record_element_book(1, cont, self.rank, self.element, upd)
+
+
 def _view(db, monkeypatch, cont="main", rank="Common", element="fire"):
-    """MonsterEventView ปลอมเท่าที่ _record_element_book ใช้"""
-    import bot.views.game_views as gv
-    v = gv.MonsterEventView.__new__(gv.MonsterEventView)
-    v.user_id, v.monster_rank, v.element = 1, rank, element
     monkeypatch.setattr(pm, "get_player", lambda uid: {"inventory": "[]"})
-    return v
+    return _Book(rank, element)
 
 
 def test_rank_completion_pays_gold_once(db, monkeypatch):
@@ -150,12 +157,12 @@ def test_broken_element_book_never_kills_the_fight(db, monkeypatch):
     v = _view(db, monkeypatch)
     monkeypatch.setattr(pm, "record_element_kill", lambda *a: 1 / 0)
     import pathlib
-    src = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
+    src = pathlib.Path("bot/adventure_core.py").read_text(encoding="utf-8")
     block = src[src.index("# 📕 สมุดสะสมมอน (Bestiary)"):]
     assert "try:" in block[:120], "ต้องอยู่ใน try/except เดิมของสมุดล่า"
 
 
 def test_wired_into_the_win_path():
     import pathlib
-    src = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
-    assert "self._record_element_book(cont_key, db_updates)" in src
+    src = pathlib.Path("bot/adventure_core.py").read_text(encoding="utf-8")
+    assert "record_element_book(user_id, cont_key, monster_rank, element, db_updates)" in src
