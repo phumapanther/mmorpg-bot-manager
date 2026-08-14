@@ -464,3 +464,87 @@ def test_exp_bar_at_max_level(client, tmp_path, monkeypatch):
     _login(client)
     id_ = client.get("/api/web/me/game").json()["identity"]
     assert id_["max_level"] is True and id_["exp_pct"] == 100.0
+
+
+# ── การกระทำในเกมจากเว็บ (เฟส 2) ──
+
+def _bind_pm(tmp_path, monkeypatch, **fields):
+    """DB จริง + ชี้ทั้ง player_model และ web_api ไปไฟล์เดียวกัน (เว็บเขียนจริง)"""
+    import bot.models.player_model as pm
+    from license_server import web_api
+    p = tmp_path / "game_data.db"
+    monkeypatch.setattr(pm, "DB_NAME", str(p))
+    monkeypatch.setattr(web_api, "GAME_DB_PATH", p)
+    pm.init_db()
+    pm.get_player(555000111)
+    if fields:
+        pm.update_player_fields(555000111, fields)
+    return pm
+
+
+def test_bank_requires_login(client):
+    assert client.post("/api/web/bank", json={"action": "deposit", "amount": 10}).status_code == 401
+
+
+def test_bank_deposit_uses_same_logic_as_discord(client, tmp_path, monkeypatch):
+    pm = _bind_pm(tmp_path, monkeypatch, cash=100000, bank=0)
+    _login(client)
+    r = client.post("/api/web/bank", json={"action": "deposit", "amount": 100000})
+    d = r.json()
+    assert d["ok"] is True
+    # ค่าธรรมเนียมขั้น 1แสน = 10% → เข้าแบงก์ 90,000 (สูตรเดียวกับ bank_action ในดิส)
+    assert d["money"] == {"cash": 0, "bank": 90000}
+    assert pm.get_player(555000111)["bank"] == 90000
+    assert "ค่าธรรมเนียม" in d["message"]
+
+
+def test_bank_rejects_bad_input(client, tmp_path, monkeypatch):
+    _bind_pm(tmp_path, monkeypatch, cash=5000)
+    _login(client)
+    assert client.post("/api/web/bank", json={"action": "explode", "amount": 5}).status_code == 400
+    assert client.post("/api/web/bank", json={"action": "deposit", "amount": 0}).status_code == 400
+    assert client.post("/api/web/bank", json={"action": "deposit", "amount": -5}).status_code == 400
+    # โอนต้องมีไอดีปลายทางเป็นตัวเลข
+    assert client.post("/api/web/bank",
+                       json={"action": "transfer", "amount": 5, "target_id": "ไม่ใช่เลข"}).status_code == 400
+    # เงินไม่พอ = ตอบ ok:false ไม่ใช่ error
+    r = client.post("/api/web/bank", json={"action": "deposit", "amount": 999999})
+    assert r.status_code == 200 and r.json()["ok"] is False
+
+
+def test_bank_double_click_cannot_double_spend(client, tmp_path, monkeypatch):
+    """กดรัวปุ่มฝากพร้อมกัน 8 ครั้ง — ยอดรวมต้องไม่เกินเงินที่มีจริง"""
+    import concurrent.futures as cf
+    pm = _bind_pm(tmp_path, monkeypatch, cash=10000, bank=0)
+    _login(client)
+    with cf.ThreadPoolExecutor(max_workers=8) as ex:
+        results = [f.result() for f in
+                   [ex.submit(client.post, "/api/web/bank",
+                              json={"action": "deposit", "amount": 10000}) for _ in range(8)]]
+    ok_count = sum(1 for r in results if r.json().get("ok"))
+    p = pm.get_player(555000111)
+    assert ok_count == 1, "ฝากสำเร็จได้ครั้งเดียวเท่านั้น"
+    assert p["cash"] == 0 and p["bank"] == 9500        # 10,000 อยู่ขั้นค่าธรรมเนียม 5%
+
+
+def test_goldbar_buy_and_sell(client, tmp_path, monkeypatch):
+    pm = _bind_pm(tmp_path, monkeypatch, cash=0, bank=2000000, capacity=50)
+    _login(client)
+    prices = client.get("/api/web/goldbar/prices").json()
+    bar = next(b for b in prices["bars"] if b["face"] == 1000000)
+    r = client.post("/api/web/goldbar", json={"action": "buy", "item_id": bar["id"]}).json()
+    assert r["ok"] is True and r["money"]["bank"] == 2000000 - bar["buy"]
+    r = client.post("/api/web/goldbar", json={"action": "sell", "item_id": bar["id"]}).json()
+    assert r["ok"] is True and r["money"]["bank"] == 2000000 - bar["buy"] + bar["sell"]
+    assert client.post("/api/web/goldbar", json={"action": "melt", "item_id": "72"}).status_code == 400
+
+
+def test_item_use_calls_game_logic(client, tmp_path, monkeypatch):
+    import json as _json
+    pm = _bind_pm(tmp_path, monkeypatch, hp=10, max_hp=100,
+                  inventory=_json.dumps(["1"]))          # ยาฮีล
+    _login(client)
+    r = client.post("/api/web/item/use", json={"item_id": "1"}).json()
+    assert r["ok"] is True
+    p = pm.get_player(555000111)
+    assert p["hp"] > 10 and "1" not in p["inventory"]    # ฟื้นเลือดจริง + ของหายจากกระเป๋า

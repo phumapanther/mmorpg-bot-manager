@@ -276,6 +276,106 @@ def me_game(request: Request):
     }
 
 
+# ══ การกระทำในเกมจากเว็บ (เว็บเกม เฟส 2) ══
+# ทุก endpoint ในโซนนี้เรียก "ฟังก์ชันชุดเดียวกับที่บอท Discord ใช้" ไม่มีกฎเกมเขียนซ้ำที่นี่
+
+import threading
+
+_user_locks = {}
+_locks_guard = threading.Lock()
+
+
+def _user_lock(uid):
+    """ล็อกต่อผู้เล่นหนึ่งคน — กันกดรัวปุ่มแล้วสองคำขอชนกันจนเงินเด้ง
+
+    ponytail: dict โตตามจำนวนผู้เล่นที่เคยยิง API (ล็อกละไม่กี่ไบต์) ไม่ต้องเคลียร์
+    """
+    with _locks_guard:
+        return _user_locks.setdefault(str(uid), threading.Lock())
+
+
+def _money_now(uid):
+    conn = _game_conn()
+    try:
+        row = conn.execute("SELECT cash, bank FROM players WHERE user_id=?", (int(uid),)).fetchone()
+    finally:
+        conn.close()
+    return {"cash": row["cash"] if row else 0, "bank": row["bank"] if row else 0}
+
+
+class BankBody(BaseModel):
+    action: str
+    amount: int
+    target_id: str = ""
+
+
+@router.post("/bank")
+def bank(body: BankBody, request: Request):
+    """ฝาก/ถอน/โอน — เรียก bank_action() ตัวเดียวกับปุ่มธนาคารในดิส (ค่าธรรมเนียมคิดในนั้น)"""
+    uid = require_player(request)["uid"]
+    if body.action not in ("deposit", "withdraw", "transfer"):
+        raise HTTPException(400, "ไม่รู้จักธุรกรรมนี้")
+    if body.amount <= 0:
+        raise HTTPException(400, "จำนวนเงินต้องมากกว่า 0")
+
+    target = None
+    if body.action == "transfer":
+        if not str(body.target_id).isdigit():
+            raise HTTPException(400, "ใส่ไอดี Discord ของผู้รับเป็นตัวเลข")
+        target = int(body.target_id)
+
+    from bot.cogs.player_commands import bank_action
+    with _user_lock(uid):
+        ok, msg = bank_action(int(uid), body.action, body.amount, target_id=target)
+    return {"ok": ok, "message": msg, "money": _money_now(uid)}
+
+
+class BarBody(BaseModel):
+    action: str
+    item_id: str
+
+
+@router.post("/goldbar")
+def goldbar(body: BarBody, request: Request):
+    """แลกซื้อ/ขายคืนทองคำแท่ง — เรียก gold_bars ตัวเดียวกับปุ่ม 🧈 ในดิส"""
+    uid = require_player(request)["uid"]
+    if body.action not in ("buy", "sell"):
+        raise HTTPException(400, "ไม่รู้จักคำสั่งนี้")
+
+    from bot import gold_bars
+    with _user_lock(uid):
+        fn = gold_bars.buy_bar if body.action == "buy" else gold_bars.sell_bar
+        ok, msg = fn(int(uid), body.item_id)
+    return {"ok": ok, "message": msg, "money": _money_now(uid)}
+
+
+@router.get("/goldbar/prices")
+def goldbar_prices():
+    """ราคาซื้อ/ขายคืนของแท่งทองแต่ละขนาด — คิดค่าธรรมเนียมมาให้แล้ว"""
+    from bot import config_loader, gold_bars
+    pct = gold_bars.fee_pct()
+    out = []
+    for iid, face in gold_bars.bar_items().items():
+        fee = face * pct // 100
+        out.append({"id": iid, "name": config_loader.get_item_config(iid).get("name", iid),
+                    "face": face, "buy": face + fee, "sell": face - fee})
+    return {"fee_pct": pct, "bars": out}
+
+
+class UseBody(BaseModel):
+    item_id: str
+
+
+@router.post("/item/use")
+def item_use(body: UseBody, request: Request):
+    """ใช้ไอเทมจากกระเป๋า — เรียก apply_item_effect() ตัวเดียวกับปุ่ม 🧪 ในดิส"""
+    uid = require_player(request)["uid"]
+    from bot.cogs.player_commands import apply_item_effect
+    with _user_lock(uid):
+        ok, msg = apply_item_effect(int(uid), str(body.item_id))
+    return {"ok": ok, "message": msg}
+
+
 # ── เติมเงินผ่านเว็บ (เงินทุกบาทต้องผ่านมือแอดมิน — ไม่มีอนุมัติอัตโนมัติ) ──
 
 class TopupBody(BaseModel):
