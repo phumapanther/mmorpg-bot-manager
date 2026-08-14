@@ -82,3 +82,34 @@ def test_the_price_is_visible_before_you_click():
 def test_a_closed_season_disables_the_button():
     block = JS[JS.index("async function fillSeason("):]
     assert "!d.enabled" in block[:1800], "ซีซั่นปิดอยู่ต้องกดซื้อไม่ได้"
+
+
+# ── 🎲 สรุปเต๋า + ความทนทาน (คำถามจากผู้เล่นจริง 2026-08-14) ──────────────────
+
+def test_the_dice_summary_is_computed_on_the_server():
+    """ผู้เล่นถามว่าทำไมไม่เคยทอยเกิน 20 — คำตอบต้องมาจากเซิร์ฟเวอร์ ไม่ให้เบราว์เซอร์คิดเอง"""
+    assert "def _dice_view(" in API
+    for field in ("dice_count", "normal_cap", "skill_cap", "bonus_total"):
+        assert f'"{field}"' in API, f"สรุปเต๋าไม่มี {field}"
+    assert "prDice" in JS and "normal_cap" in JS
+
+
+def test_the_player_always_rolls_exactly_one_die():
+    """ผู้เล่นทอยลูกเดียวเสมอ ที่ทอยหลายลูกคือฝั่งมอน"""
+    core = pathlib.Path("bot/adventure_core.py").read_text(encoding="utf-8")
+    assert "player_roll = roll_player_die(rng, skill_used)" in core
+    assert '"dice_count": 1' in API
+
+
+def test_max_hp_shown_includes_the_armor_bonus():
+    """เคยโชว์ '380 / 280' เพราะ HP รวมโบนัสเกราะแต่ตัวหารไม่รวม อ่านแล้วงง"""
+    block = API[API.index('"vitals": {'):API.index('"money": {')]
+    assert 'armor.get("hp", 0)' in block, "HP เต็มต้องรวมโบนัสเกราะ"
+    assert 'p.get("armor_dur", 0) > 0' in block, "เกราะพังแล้วต้องไม่นับโบนัส"
+
+
+def test_durability_is_shown_as_a_percent_in_both_places():
+    """ผู้เล่นขอ % ความพังของเกราะ/อาวุธทั้งหน้าโปรไฟล์และหน้าผจญภัย"""
+    assert "ความทนทาน ${d}%" in JS, "หน้าโปรไฟล์ยังไม่โชว์ %"
+    assert "${o.dur}%" in JS, "หน้าผจญภัยยังไม่โชว์ %"
+    assert "พังแล้ว! ไม่ได้โบนัส" in JS, "เกราะพังต้องบอกว่าเสียโบนัสไปแล้ว"

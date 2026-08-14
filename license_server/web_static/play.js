@@ -353,7 +353,8 @@ function paintAdvHud(g) {
 
   // 🛡️ ความทนทานอุปกรณ์ — เดิมต้องออกไปดูหน้าโปรไฟล์ ไม่รู้ว่าเกราะกำลังจะพัง
   const dur = (o, icon) => o.dur == null ? '' :
-    `<span>${icon} <b class="${o.dur < 30 ? 'low' : ''}">${o.dur}</b></span>`;
+    `<span title="${esc(o.name || '')}">${icon} <b class="${o.dur <= 0 ? 'low' : o.dur < 30 ? 'low' : ''}">${o.dur}%</b>` +
+    (o.dur <= 0 ? ' <b class="low">พัง</b>' : '') + '</span>';
   document.getElementById('advGear').innerHTML =
     dur(g.gear.weapon, '⚔️') + dur(g.gear.armor, '🛡️');
 
@@ -392,8 +393,25 @@ function paintProfile(g) {
   document.getElementById('prCont').textContent = id.continent_label || '—';
   document.getElementById('prArt').textContent = (gear.artifact_slots ?? 1) + ' ช่อง';
 
+  // 🎲 สรุปเต๋า — ตอบคำถามที่ถามบ่อยว่าทำไมไม่เคยทอยเกิน 20
+  const dc = g.dice || {};
+  document.getElementById('prDice').textContent =
+    `${dc.dice_count ?? 1} ลูก` + (dc.bonus_total ? `  (+${dc.bonus_total})` : '');
+  document.getElementById('prDiceDetail').innerHTML =
+    `⚔️ ตีปกติ ทอย <b>${dc.normal_min}-${dc.normal_max}</b>` +
+    (dc.bonus_total ? ` + โบนัส <b>${dc.bonus_total}</b>` : '') +
+    ` → สูงสุด <b class="cap">${dc.normal_cap}</b><br>` +
+    `✨ ใช้สกิล ทอย <b>1-${dc.skill_max}</b>` +
+    (dc.bonus_total ? ` + โบนัส <b>${dc.bonus_total}</b>` : '') +
+    ` → สูงสุด <b class="cap">${dc.skill_cap}</b>` +
+    ((dc.bonus || []).length
+      ? '<br>' + dc.bonus.map(b => `${esc(b.from)} <b>+${b.value}</b>`).join(' · ')
+      : '<br><span style="color:#a99274">ยังไม่มีโบนัสเต๋า — พาสัตว์เลี้ยงไปด้วยจะได้เพิ่ม</span>');
+
   const durBar = d => d == null ? '' :
-    `<div class="dur${d < 30 ? ' low' : ''}"><i style="width:${Math.max(0, Math.min(100, d))}%"></i></div>`;
+    `<div class="dur${d < 30 ? ' low' : ''}"><i style="width:${Math.max(0, Math.min(100, d))}%"></i></div>` +
+    `<span class="dur-pct${d < 30 ? ' low' : ''}">ความทนทาน ${d}%` +
+    (d <= 0 ? ' — พังแล้ว! ไม่ได้โบนัส' : d < 30 ? ' — ใกล้พัง' : '') + '</span>';
   document.getElementById('prGear').innerHTML = `
     <div class="slot-card"><div class="ic">🛡️</div><div style="min-width:0">
       <div class="t">เกราะ</div><div class="v">${esc(gear.armor.name)}</div>${durBar(gear.armor.dur)}</div></div>

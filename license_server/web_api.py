@@ -194,6 +194,42 @@ def me_profile(request: Request):
             "topups": [dict(t) | {"has_slip": _slip_path(t["id"]).is_file()} for t in tops]}
 
 
+def _role_names_of(p):
+    """ชื่อยศที่มีผลจริงของผู้เล่น — เว็บไม่มี Discord roles จึงอ่านจาก DB"""
+    from bot import identity
+    return identity.effective_role_names([], p)
+
+
+def _dice_view(p, role_names):
+    """🎲 สรุปเต๋าของผู้เล่น ณ ตอนนี้ — ผู้เล่นทอยลูกเดียวเสมอ แต่มีโบนัสบวกทับ
+
+    ผู้เล่นถามบ่อยว่า "ทำไมไม่เคยทอยเกิน 20" — คำตอบคือเพดาน = ฐานสูงสุด + โบนัส
+    ถ้าโบนัสรวมได้ 2 เพดานตีปกติจะเท่ากับ 20 พอดี ไม่มีทางเกิน
+    """
+    from bot import config_loader, game_modifiers, pets
+    lo = int(config_loader.get_balance("dice.normal_min", 12))
+    hi = int(config_loader.get_balance("dice.normal_max", 19))
+    skill_max = int(config_loader.get_balance("dice.skill_max", 20))
+
+    els = game_modifiers.resolve_player_elements(role_names)
+    bonus = []
+    pet_b = pets.roll_bonus(p)
+    if pet_b:
+        pet_name = next((x["name"] for x in pets.all_pets() if x["key"] == p.get("pet")), "สัตว์เลี้ยง")
+        bonus.append({"from": f"🐾 {pet_name}", "value": pet_b})
+    wind = game_modifiers.player_passive_sum(els, "roll_bonus")
+    if wind:
+        bonus.append({"from": "💨 ธาตุลมประจำตัว", "value": wind})
+    st_b = game_modifiers.status_roll_bonus(game_modifiers.parse_statuses(p))
+    if st_b:
+        bonus.append({"from": "👝 สถานะติดตัว", "value": st_b})
+
+    total = sum(b["value"] for b in bonus)
+    return {"dice_count": 1, "normal_min": lo, "normal_max": hi, "skill_max": skill_max,
+            "bonus": bonus, "bonus_total": total,
+            "normal_cap": hi + total, "skill_cap": skill_max + total}
+
+
 def _mana_view(p):
     """สรุปมานาแบบพร้อมแสดงผล — อ่านอย่างเดียว ไม่เขียน DB (endpoint นี้ต้อง read-only)"""
     from bot import mana as _mana
@@ -269,7 +305,13 @@ def me_game(request: Request):
             "continent_label": CONTINENTS.get(cont, {}).get("label", cont),
         },
         # current_state บอกว่าตอนนี้ค้างอะไรอยู่ในดิส — ใช้ตัดสินกติกาเล่นสองแพลตฟอร์ม
-        "vitals": {"hp": p.get("hp"), "max_hp": p.get("max_hp"),
+        "dice": _dice_view(p, _role_names_of(p)),
+        "vitals": {"hp": p.get("hp"),
+                   # HP เต็มจริงต้องรวมโบนัสจากเกราะ (เกราะพัง = ไม่ได้โบนัส)
+                   # ไม่งั้นหน้าโปรไฟล์โชว์ "380 / 280" ซึ่งอ่านแล้วงง
+                   "max_hp": int(p.get("max_hp", 0) or 0)
+                             + (armor.get("hp", 0) if p.get("armor_dur", 0) > 0 else 0),
+                   "base_max_hp": p.get("max_hp"),
                    "sanity": p.get("sanity"), "state": p.get("current_state") or "idle",
                    "pet": p.get("pet") or "",
                    # 💎 เม็ดคริสตัลที่เหลือวันนี้ — คิดที่เซิร์ฟเวอร์รวมการเติมข้ามวันแล้ว

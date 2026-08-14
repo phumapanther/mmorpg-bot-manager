@@ -617,3 +617,11 @@
   .role-card .rn { font-size: 13px; }
   .gacha-card .gc-label { font-size: 17px; }
 }
+
+
+/* ── สรุปลูกเต๋าในหน้าโปรไฟล์ ── */
+.dice-detail { font-size: 12px; color: var(--g-dim); line-height: 1.8; padding: 6px 0 2px; }
+.dice-detail b { color: #ffe6a8; }
+.dice-detail .cap { color: #8fd07a; }
+.dur-pct { font-size: 11px; color: var(--g-dim); margin-left: 6px; }
+.dur-pct.low { color: #ff8a6a; font-weight: 700; }
