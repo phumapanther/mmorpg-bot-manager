@@ -159,7 +159,7 @@ def test_the_new_sounds_the_player_asked_for_are_there(report):
     """รายการที่ผู้เล่นสั่งไว้ — ครบทุกช่องไหม"""
     want = {"item", "trap", "caught", "use", "equip", "craft", "reward",
             "slot", "reel", "card", "bust", "bank", "gold", "buy", "pet", "chest",
-            "foehit", "foecrit"}
+            "foehit", "foecrit", "sellall", "gacha"}
     assert want <= set(report["names"]), f"ยังขาดเสียง: {sorted(want - set(report['names']))}"
     assert want <= _played_names(), \
         f"มีเสียงแต่ไม่มีใครเรียกใช้: {sorted(want - _played_names())}"
@@ -186,6 +186,31 @@ def test_every_vehicle_sounds_different(report):
     missing = {v for v in _vehicles() if "veh_" + v not in report["names"]}
     assert not missing, f"พาหนะที่ยังไม่มีเสียง: {sorted(missing)}"
     assert "'veh_' + g.encounter.vehicle" in PLAY, "หน้าเว็บไม่ได้เลือกเสียงตามพาหนะ"
+
+
+# ทุกปุ่มที่ขยับเงิน/ของ ต้องมีเสียงตอบรับ
+# เจอบ่อยว่าเพิ่มปุ่มใหม่แล้วลืมใส่เสียง ผู้เล่นกดแล้วไม่รู้ว่าติดไหม
+GOLD_ENDPOINTS = [
+    "/api/web/bank",              # ฝาก/ถอน/โอน
+    "/api/web/goldbar",           # ซื้อ/ขายทองคำแท่ง
+    "/api/web/shop",              # ซื้อ/ขายกับร้าน
+    "/api/web/craft",             # คราฟของ
+    "/api/web/bag/sell-junk",     # เทขายวัสดุทั้งกระเป๋า
+    "/api/web/item/use",          # ใช้/สวมไอเทม
+    "/api/web/roleshop",          # ซื้อยศ + กดกาชา
+    "/api/web/board/roll",        # ทอยเต๋ารับของรายวัน
+    "/api/web/me/daily/claim",    # รับรางวัลภารกิจ
+    "/api/web/me/season/claim",   # รับรางวัลซีซั่นพาส
+    "/api/web/me/season/premium",  # ซื้อสายพรีเมียม
+]
+
+
+def test_every_action_that_moves_gold_makes_a_sound():
+    for path in GOLD_ENDPOINTS:
+        # ต้องปิดท้ายด้วยเครื่องหมายคำพูด — ไม่งั้น /bank ไปชนกับ /bank/fee ที่แค่ดูค่าธรรมเนียม
+        for i in [m.start() for m in re.finditer(re.escape(path) + r"[\"']", PLAY)]:
+            window = PLAY[max(0, i - 400):i + 700]
+            assert "SFX." in window, f"กด {path} แล้วเงียบ — ไม่รู้ว่าติดหรือไม่ติด"
 
 
 def test_an_unknown_sound_name_stays_quiet_instead_of_crashing(report):

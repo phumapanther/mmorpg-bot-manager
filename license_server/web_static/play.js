@@ -149,12 +149,14 @@ async function buyRole(r) {
   try {
     const res = await api('POST', '/api/web/roleshop',
                           { faction: ROLE_FACTION, action: 'buy', value: r.value });
+    SFX.play('buy');                      // จ่ายเงินแล้ว — ที่เหลือรอบอทในดิสมอบยศ
     toast('กำลังมอบยศ ' + r.label + '...');
     boot();
     const t = await waitTicket(res.ticket);
     const msg = { done: '🎉 ได้รับยศ ' + r.label + ' แล้ว!',
                   refunded: '↩️ มอบยศไม่สำเร็จ — ' + (t.note || 'คืนเงินแล้ว'),
                   duplicate: '❌ คุณมียศนี้อยู่แล้ว' }[t.status] || t.note || 'รอบอทมอบยศ';
+    SFX.play(t.status === 'done' ? 'reward' : 'error');   // รอนานแล้วต้องรู้ผลโดยไม่ต้องจ้องจอ
     toast(msg, t.status !== 'done');
     boot();
   } catch (e) {
@@ -193,6 +195,7 @@ async function spinGacha(price) {
   card.hidden = true;
   card.className = 'gacha-card';
   machine.classList.add('spin');
+  SFX.play('gacha');                        // ลูกแก้วกลิ้งคลอไปตลอดจังหวะหมุน
   try {
     const res = await api('POST', '/api/web/roleshop',
                           { faction: GACHA_FACTION, action: 'gacha' });
@@ -212,9 +215,11 @@ async function spinGacha(price) {
       state.textContent = '🎉 แจ็คพอตแตก! ยศถูกมอบให้ในดิสคอร์ดแล้ว';
     } else if (t.status === 'duplicate') {
       card.className = 'gacha-card dup';
+      SFX.play('error');                    // เกลือ — เสียงต้องไม่เหมือนตอนแจ็คพอตแตก
       state.textContent = '💀 เกลือ! คุณมียศนี้อยู่แล้ว';
     } else if (t.status === 'refunded') {
       card.className = 'gacha-card fail';
+      SFX.play('error');
       state.textContent = '↩️ ' + (t.note || 'มอบยศไม่สำเร็จ — คืนเงินแล้ว');
     } else {
       state.textContent = '⏳ ' + (t.note || 'รอบอทมอบยศ');
@@ -1368,7 +1373,7 @@ if (junkTile) junkTile.addEventListener('click', async () => {
   try {
     const r = await api("POST", "/api/web/bag/sell-junk");
     toast(r.message, !r.ok);
-    if (r.ok) await reload();
+    if (r.ok) { SFX.play('sellall'); await reload(); }
   } catch (e) { toast(e.message, true); }
 });
 

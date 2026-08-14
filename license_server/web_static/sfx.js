@@ -201,6 +201,19 @@ const SFX = (() => {
                      tone({ freq: 1568, dur: .5, type: 'sine', vol: .25, delay: .06 }); },
     buy:     () => { tone({ freq: 880, dur: .08, type: 'square', vol: .4 });
                      tone({ freq: 1319, dur: .14, type: 'square', vol: .38, delay: .07 }); },
+    // เทขายทั้งกระเป๋าทีเดียว — เหรียญไหลรัวเป็นกอง ไม่ใช่กริ๊งเดียวเหมือนขายชิ้นเดียว
+    sellall: () => { for (let i = 0; i < 6; i++) {
+                       tone({ freq: 880 + i * 90, dur: .09, type: 'square', vol: .32, delay: i * .06 });
+                       tone({ freq: 1319 + i * 90, dur: .12, type: 'square', vol: .24, delay: i * .06 + .04 });
+                     }
+                     noise({ dur: .35, vol: .16, delay: .12, hp: 3000 }); },
+    // ลูกแก้วกาชากลิ้งในตู้ ช้าลงเรื่อย ๆ จนหยุด — ยาวราว 1.5 วิ พอดีกับอนิเมชันหมุน
+    gacha:   () => { let t = 0;
+                     for (let i = 0; i < 14; i++) {
+                       noise({ dur: .05, vol: .28, delay: t, hp: 1800 });
+                       tone({ freq: 500 + (i % 3) * 130, dur: .05, type: 'square', vol: .24, delay: t });
+                       t += .06 + i * .008;
+                     } },
 
     // ── สัตว์เลี้ยง ──
     pet:     () => { tone({ freq: 900, dur: .09, type: 'sine', vol: .4, slide: 500 });
