@@ -6,7 +6,14 @@
 //   2. ภาพเหตุการณ์ — พิกเซลอาร์ตจริง 175 ใบใน /assets/events/ ค่อยๆ จางเข้ามาตอนเจอเหตุการณ์
 //      ชื่อไฟล์: {ทวีป}_{เหตุการณ์}.png -> ไม่มีก็ลอง {เหตุการณ์}.png -> ไม่มีอีกก็ใช้ฉากวาดเอง
 
-const GROUND_Y = 108;                 // เส้นพื้นในพิกัดภายในของ canvas (320x132)
+const GROUND_Y = 108;
+const FLASH_FRAMES = 9;               // จำนวนเฟรมที่มอนแฟลชขาวก่อนแตกเป็นเศษ
+
+/** '#e8563b' -> '232,86,59' (ไว้ทำสีโปร่งใสของวงแหวน) */
+function hexRgb(hex) {
+  const h = String(hex).replace('#', '');
+  return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16) || 0).join(',');
+}                 // เส้นพื้นในพิกัดภายในของ canvas (320x132)
 
 // สีประจำทวีป — คีย์ตรงกับ CONTINENTS ในเกม (มีเทสคุมว่าครบทุกทวีป)
 const MAPS = {
@@ -83,6 +90,7 @@ class Scene {
     this.fx = [];
     this.floats = [];
     this.roll = null;
+    this.death = null;
     for (let i = 0; i < 26; i++) {
       this.parts.push({ x: Math.random() * this.W, y: Math.random() * GROUND_Y,
                         s: .1 + Math.random() * .35, r: Math.random() * 1.6 + .6 });
@@ -117,6 +125,69 @@ class Scene {
     if (key === 'evade') { this.heroAlpha = .35; setTimeout(() => this.heroAlpha = 1, 500); }
     if (key === 'stab') { this.heroAlpha = 0; setTimeout(() => this.heroAlpha = 1, 260); }
     this.fx.push({ k: key, t: 0, dur });
+  }
+
+  /** 💥 มอนตาย — แฟลชขาว แล้วแตกเป็นเศษพิกเซลกระเด็นตกพื้น พร้อมวงแหวนพลังกับดวงวิญญาณลอยขึ้น
+   *  (ผลแพ้ชนะตัดสินที่เซิร์ฟเวอร์ไปแล้ว ตรงนี้แค่เล่นภาพให้เห็นว่ามันล้ม ไม่ใช่หายไปเฉย ๆ) */
+  killFoe() {
+    if (!this.foe || this.death) return;
+    const col = ELEMENT_COLOR[this.foe.element] || ELEMENT_COLOR.fire;
+    const bx = 258, by = GROUND_Y - 44, cell = 3, span = 14 * cell;
+    const bits = [];
+    for (let i = 0; i < 56; i++) {
+      const a = Math.random() * Math.PI * 2, sp = .5 + Math.random() * 2.6;
+      bits.push({ x: bx + Math.random() * span, y: by + Math.random() * span,
+                  vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.5,
+                  sz: 2 + Math.floor(Math.random() * 3),
+                  c: [col.c, col.c, col.hi, col.eye, '#ffffff'][Math.floor(Math.random() * 5)] });
+    }
+    const souls = [];
+    for (let i = 0; i < 5; i++) {
+      souls.push({ x: bx + 6 + Math.random() * (span - 12), y: by + span * .6,
+                   sw: Math.random() * 6.28, sp: .5 + Math.random() * .5 });
+    }
+    this.death = { t: 0, dur: 86, col, x: bx + span / 2, y: by + span / 2, bits, souls };
+    this.foeShake = FLASH_FRAMES;
+    this.foeFlash = FLASH_FRAMES;
+  }
+
+  _drawDeath() {
+    const d = this.death;
+    if (!d) return;
+    d.t++;
+    if (d.t === FLASH_FRAMES) this.foe = null;        // แฟลชจบ ร่างหายไป เหลือแต่เศษ
+    if (d.t > d.dur) { this.death = null; return; }
+    if (d.t < FLASH_FRAMES) return;
+
+    const ctx = this.ctx;
+    const k = (d.t - FLASH_FRAMES) / (d.dur - FLASH_FRAMES);
+
+    // วงแหวนพลังกระจายออกตอนแตก
+    if (k < .5) {
+      const kk = k / .5;
+      ctx.strokeStyle = `rgba(255,230,168,${(1 - kk) * .85})`;
+      ctx.lineWidth = Math.max(1, 3 - kk * 2);
+      ctx.beginPath(); ctx.arc(d.x, d.y, 5 + kk * 58, 0, 7); ctx.stroke();
+      ctx.strokeStyle = `rgba(${hexRgb(d.col.hi)},${(1 - kk) * .6})`;
+      ctx.beginPath(); ctx.arc(d.x, d.y, 3 + kk * 34, 0, 7); ctx.stroke();
+    }
+
+    // เศษร่างกระเด็น ตกพื้นแล้วเด้งเบา ๆ
+    ctx.globalAlpha = Math.max(0, 1 - k * 1.1);
+    for (const b of d.bits) {
+      b.x += b.vx; b.y += b.vy; b.vy += .17; b.vx *= .985;
+      if (b.y > GROUND_Y - b.sz) { b.y = GROUND_Y - b.sz; b.vy *= -.4; b.vx *= .72; }
+      ctx.fillStyle = b.c;
+      ctx.fillRect(Math.round(b.x), Math.round(b.y), b.sz, b.sz);
+    }
+
+    // ดวงวิญญาณลอยขึ้นช้า ๆ ส่ายไปมา
+    for (const sl of d.souls) {
+      sl.y -= sl.sp; sl.sw += .18;
+      ctx.fillStyle = `rgba(255,255,255,${Math.max(0, .85 - k)})`;
+      ctx.fillRect(Math.round(sl.x + Math.sin(sl.sw) * 4), Math.round(sl.y), 2, 2);
+    }
+    ctx.globalAlpha = 1;
   }
 
   attack() { this.state = 'fight'; this.char.pose = 'atk'; this.heroLunge = 14;
@@ -233,7 +304,8 @@ class Scene {
     if (!this.foe) return;
     const ctx = this.ctx;
     const col = ELEMENT_COLOR[this.foe.element] || ELEMENT_COLOR.fire;
-    const c = this.foeFlash > 0 ? col.hi : col.c;
+    const dying = this.death && this.death.t < FLASH_FRAMES;
+    const c = dying ? '#ffffff' : (this.foeFlash > 0 ? col.hi : col.c);
     const x = 258 + (this.foeShake ? Math.random() * 6 - 3 : 0), y = GROUND_Y - 44, s = 3;
     const R = (dx, dy, w, h, cc) => { ctx.fillStyle = cc; ctx.fillRect(x + dx * s, y + dy * s, w * s, h * s); };
 
@@ -339,6 +411,7 @@ class Scene {
     }
 
     this._drawFoe();
+    this._drawDeath();
 
     for (let i = this.fx.length - 1; i >= 0; i--) {
       const f = this.fx[i]; f.t++;

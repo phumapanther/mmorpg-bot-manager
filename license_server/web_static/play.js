@@ -586,7 +586,11 @@ function advPaint(g) {
 
 function paintFoe(m) {
   const bar = document.getElementById('foeBar');
-  if (!m) { bar.hidden = true; SCENE.clearFoe(); return; }
+  if (!m) {
+    bar.hidden = true;
+    if (!SCENE.death) SCENE.clearFoe();     // กำลังเล่นฉากตายอยู่ อย่าเพิ่งลบร่างทิ้ง
+    return;
+  }
   bar.hidden = false;
   document.getElementById('foeName').textContent = m.name;
   document.getElementById('foeRank').textContent = m.rank || '';
@@ -659,6 +663,10 @@ async function advAct(action, label, confirmMsg) {
       await new Promise(res => setTimeout(res, 750));      // ให้เห็นเต๋าเฉลยก่อนตัวเลขเด้ง
     }
     if (r.damage_to_monster) { SCENE.hitFoe(); SCENE.float('-' + fmt(r.damage_to_monster), '', 72); }
+    if (r.outcome === 'win') {
+      SCENE.killFoe();                                  // 💥 แตกเป็นเศษ ไม่ใช่หายวับ
+      await new Promise(res => setTimeout(res, 620));   // ให้ดูฉากตายก่อนขึ้นสรุปรางวัล
+    }
     if (r.damage_to_player) SCENE.float('-' + fmt(r.damage_to_player), 'miss', 30);
     if (r.healed) SCENE.float('+' + fmt(r.healed) + ' HP', 'heal', 30);
     if (r.reward) SCENE.float('+' + fmt(r.reward.gold) + ' ทอง', 'gold', 50);

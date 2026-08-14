@@ -129,3 +129,22 @@ def test_trap_and_mugging_send_their_own_dice_labels():
     assert '"labels": ["🎲 ทอยหลบ", "🛡️ ค่าเกราะ"]' in api
     assert '"labels": ["🎲 ทอยสู้", "🥷 โอกาสชนะ"]' in api
     assert "r.verdict ||" in SCENE, "ฉากต้องยอมให้เซิร์ฟเวอร์กำหนดข้อสรุปเอง"
+
+
+def test_monster_death_has_an_animation():
+    """ล้มมอนแล้วต้องมีฉากตาย ไม่ใช่หายวับไปเฉย ๆ"""
+    assert "killFoe()" in SCENE and "_drawDeath()" in SCENE
+    assert "this._drawDeath();" in SCENE, "ยังไม่ได้เรียกวาดในลูปเรนเดอร์"
+    assert "SCENE.killFoe();" in PLAY, "หน้าเว็บยังไม่ได้เรียกตอนชนะ"
+
+
+def test_death_effect_uses_the_monster_element_colour():
+    block = SCENE[SCENE.index("killFoe()"):SCENE.index("_drawDeath()")]
+    assert "ELEMENT_COLOR[this.foe.element]" in block, "เศษร่างต้องเป็นสีตามธาตุของมอนตัวนั้น"
+
+
+def test_death_animation_cleans_itself_up():
+    """ฉากตายต้องจบเองเสมอ ไม่งั้นเศษค้างบนจอทั้งเกม"""
+    block = SCENE[SCENE.index("_drawDeath()"):]
+    assert "this.death = null;" in block[:1200]
+    assert "this.foe = null;" in block[:1200], "ร่างมอนต้องหายหลังแฟลชจบ"
