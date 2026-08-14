@@ -905,6 +905,7 @@ def delete_news(news_id: int, request: Request):
 _WEB_PLAYABLE = {                     # เหตุการณ์ -> สถานะที่ล็อกไว้ระหว่างรอผู้เล่นเลือก
     "village": "village", "treasure": "treasure_choice", "dungeon": "dungeon_choice",
     "trap": "trap_defense", "travel": "travel_choice", "mugging": "mugging",
+    "npc": "npc_choice", "special": "special_choice",
 }
 _WEB_INSTANT = ("calm", "bank_robbery")     # จบในตัว ไม่ต้องเลือกอะไร
 
@@ -921,6 +922,9 @@ def adventure_walk(request: Request):
     from bot.models import player_model
 
     with _user_lock(uid):
+        # หน้าต่างเหตุการณ์ในดิสมี timeout ของมันเอง เว็บไม่มี จึงต้องหมดอายุเองก่อนเดินก้าวใหม่
+        expired_note = adventure_core.expire_pending(uid)
+
         player = player_model.get_player(uid)
         if not player:
             raise HTTPException(400, "ยังไม่มีตัวละคร — ทักบอทในดิสคอร์ดก่อนหนึ่งครั้ง")
@@ -940,6 +944,9 @@ def adventure_walk(request: Request):
             uid, player, statuses, mods, pre["dg_steps"], pre["last_evt"], pre["cooldown"])
         adventure_core.commit_event(uid, event, pre["last_evt"])
 
+        if expired_note:
+            pre["notes"].insert(0, expired_note)
+
         out = {"event": event, "notes": pre["notes"], "continent": player.get("continent") or "main",
                "dungeon_steps": dg_steps, "cooldown": pre["cooldown"],
                "playable": True,      # เว็บจัดการเหตุการณ์นี้เองได้ไหม
@@ -952,9 +959,27 @@ def adventure_walk(request: Request):
             out["text"] = (f"🏦💥 **โจรปล้นธนาคาร!** แก๊งโจรมือโปรเจาะตู้นิรภัยสาขาที่คุณฝากเงินไว้!\n"
                            f"เงินฝากหายไป `{r['lost']:,}` ทอง — เหลือในบัญชี `{r['left']:,}` ทอง{r['theft']}\n"
                            f"*(กันได้ด้วย 🪪 บัตรประกัน — หาซื้อที่ร้านค้าประจำหมู่บ้าน)*")
+        elif event == "npc" and adventure_core.npc_disguise(player)[0]:
+            # 🎭 สัปดาห์ธีม Masquerade — NPC อาจฉีกคราบเป็นมอนแล้วลากเข้าไฟต์ ซึ่งเว็บยังสู้ไม่ได้
+            out["playable"] = False
+            out["text"] = ("🧓 นักเดินทางพเนจรนั่งอยู่ข้างกองไฟ... แต่บางอย่างดูผิดปกติ "
+                           "คุณเลือกเดินเลี่ยงไป *(สัปดาห์นี้มีธีมปลอมตัว — คุยกับ NPC ได้เฉพาะในดิสคอร์ด)*")
+        elif event == "special" and (special.get("template") == "instant"
+                                     or adventure_core.special_leads_to_fight(special)):
+            # instant จ่ายผลทันทีตั้งแต่ในดิส / อีเวนต์ที่ลากเข้าไฟต์ = เว็บยังไม่รองรับ
+            out["playable"] = False
+            out["text"] = ("✨ มีบางอย่างเกิดขึ้นตรงหน้าคุณ... แต่คุณเดินผ่านไป "
+                           "*(อีเวนต์พิเศษแบบนี้ยังเล่นได้เฉพาะในดิสคอร์ด)*")
         elif event in _WEB_PLAYABLE:
             data = {}
-            if event == "travel":
+            if event == "special":
+                data = special
+                out["text"] = special.get("intro", "✨ มีบางอย่างเกิดขึ้นตรงหน้าคุณ...")
+                out["choices"] = ([c["label"] for c in special.get("choices", [])]
+                                  if special.get("template") == "choice" else [])
+            elif event == "npc":
+                out["text"] = "🧓 คุณเจอนักเดินทางพเนจร (NPC) นั่งอยู่ข้างกองไฟ"
+            elif event == "travel":
                 data = game_modifiers.roll_travel_encounter(player.get("cash", 0))
                 out["encounter"] = data
                 out["text"] = (f"🧭 ระหว่างทาง... **{data['label']}** ปรากฏขึ้นตรงหน้าคุณ!\n"
@@ -1001,7 +1026,8 @@ def adventure_act(body: ActBody, request: Request):
         player = player_model.get_player(uid) or {}
         # กันกดซ้ำ: สถานะต้องยังตรงกับเหตุการณ์ที่ค้างอยู่จริง
         # (ถ้าไม่เช็ค แล้วมีอะไรปลดสถานะไปก่อน จะเปิดหีบ/พักแรมซ้ำได้ฟรี ๆ)
-        if player.get("current_state") != _WEB_PLAYABLE.get(event):
+        expected = _WEB_PLAYABLE.get("npc" if event == "npc_quest" else event)
+        if player.get("current_state") != expected:
             adventure_core.clear_pending(uid)
             raise HTTPException(409, "เหตุการณ์นี้จบไปแล้ว — กดออกเดินทางใหม่ได้เลย")
         rogue = _is_rogue(player)
@@ -1016,6 +1042,32 @@ def adventure_act(body: ActBody, request: Request):
             r = adventure_core.resolve_trap(uid, rogue)
         elif event == "travel":
             r = adventure_core.resolve_travel(uid, data, body.action)
+        elif event == "npc":
+            if body.action == "talk":
+                r = adventure_core.npc_talk(uid)
+            elif body.action == "quest":
+                offer = adventure_core.npc_quest_offer(uid)
+                if not offer:
+                    r = {"text": "🧓 NPC มองกระเป๋าที่ว่างเปล่าของคุณแล้วส่ายหัว "
+                                 "'เจ้าไม่มีสิ่งใดที่ข้าต้องการเลย...'"}
+                else:
+                    # ข้อเสนอเป็นขั้นที่สอง — เก็บไว้ฝั่งเซิร์ฟเวอร์ ห้ามให้เบราว์เซอร์ส่งกลับมาเอง
+                    adventure_core.set_pending(uid, "npc_quest", offer)
+                    return {"text": offer["text"], "pending": "npc_quest",
+                            "money": _money_now(uid)}
+            else:
+                adventure_core._done(uid, "npc")
+                r = {"text": "🤫 คุณแกล้งทำเป็นมองไม่เห็นและเดินผ่าน NPC ไปอย่างรวดเร็ว"}
+        elif event == "npc_quest":
+            r = adventure_core.npc_quest_settle(uid, data, body.action == "accept")
+        elif event == "special":
+            outcome, prefix = adventure_core.special_pick_outcome(data, body.action)
+            lines, died = adventure_core.execute_special_outcome(uid, outcome)
+            if prefix:
+                lines.insert(0, prefix)
+            player_model.update_player_fields(
+                uid, {"current_state": "dead" if died else "idle", "last_event": "none"})
+            r = {"text": "\n".join(lines) or "…ไม่มีอะไรเกิดขึ้น", "died": died}
         elif event == "mugging":
             m = robbery.resolve_mugging(uid, body.action)
             if body.action == "flee":
@@ -1048,6 +1100,7 @@ def adventure_state(request: Request):
     from bot import adventure_core
     from bot.models import player_model
 
+    adventure_core.expire_pending(uid)
     event, data = adventure_core.get_pending(uid)
     state = (player_model.get_player(uid) or {}).get("current_state", "idle")
     if not event:

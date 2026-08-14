@@ -396,3 +396,31 @@
 .adv-notes:empty { display: none; }
 #advActions { margin-top: 14px; }
 #advActions:empty { display: none; }
+
+
+/* ── หัวสถานะติดหน้าจอผจญภัย (เฟส 5.5) ── */
+.adv-hud { display: flex; gap: 12px; align-items: center; padding: 10px 12px;
+           background: var(--g-panel); border: 1px solid var(--g-line);
+           border-radius: 12px; margin-bottom: 10px; }
+.adv-hud #advFace { width: 52px; height: 52px; flex: none; border-radius: 10px;
+                    background: rgba(0,0,0,.3); image-rendering: pixelated; }
+.adv-hud .hud-col { flex: 1; min-width: 0; display: grid; gap: 5px; }
+.adv-hud .hud-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.adv-hud .hud-top b { font-size: 15px; color: var(--g-text); }
+.adv-hud .lvchip { font-size: 11px; font-weight: 700; color: #ffe6a8; padding: 2px 8px;
+                   border-radius: 999px; background: rgba(232,176,75,.16);
+                   border: 1px solid rgba(232,176,75,.4); }
+.adv-hud .hud-cash { margin-left: auto; font-size: 13px; color: var(--g-dim); }
+.adv-hud .hud-cash b { color: #ffe6a8; }
+.adv-hud .hud-bar { display: flex; align-items: center; gap: 8px; }
+.adv-hud .hud-bar .k { font-size: 10px; font-weight: 700; color: var(--g-dim);
+                       width: 26px; flex: none; letter-spacing: .5px; }
+.adv-hud .hud-bar .hpbar { flex: 1; height: 10px; }
+.adv-hud .hud-bar em { font-style: normal; font-size: 11px; color: var(--g-dim);
+                       min-width: 84px; text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 480px) {
+  .adv-hud .hud-bar em { min-width: 62px; font-size: 10px; }
+  .adv-hud #advFace { width: 44px; height: 44px; }
+}
+/* เลือดต่ำกว่า 30% — แถบเปลี่ยนเป็นแดงเตือนให้กินยา */
+.hpbar .fill.low { background: linear-gradient(#ff7a5c, #c8452f 55%, #8f2317); }

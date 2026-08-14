@@ -367,7 +367,7 @@ def resolve_treasure(user_id, action, is_rogue=False, rng=random):
         return {"text": f"🎉 แจ็คพอต!! คุณเปิดหีบได้ **{name}**!\n"
                         f"⚠️ **แต่กระเป๋าของคุณเต็ม ({len(inv)}/{cap}) เลยเก็บไม่ได้!**",
                 "item": name, "bag_full": True}
-    inv.append(int(chosen))
+    inv.append(str(chosen))
     player_model.update_player_field(user_id, "inventory", json.dumps(inv))
     return {"text": f"🎉 แจ็คพอต!! หีบมี **{name}** ซ่อนอยู่!\n✅ คุณเก็บไอเทมล้ำค่าชิ้นนี้เข้ากระเป๋าไปได้ฟรีๆ!",
             "item": name}
@@ -468,3 +468,328 @@ def clear_pending(user_id):
     with sqlite3.connect(player_model.DB_NAME, timeout=10) as conn:
         _pending_table(conn)
         conn.execute("DELETE FROM adventure_pending WHERE user_id=?", (int(user_id),))
+
+
+# หน้าต่างเหตุการณ์ในดิสมี timeout ของมันเอง เว็บไม่มี จึงต้องหมดอายุเองให้เหมือนกัน
+# (ค่าตรงกับ timeout ของ View แต่ละตัวใน game_views.py)
+PENDING_TIMEOUT = {"village": 600}
+PENDING_TIMEOUT_DEFAULT = 60
+
+
+def expire_pending(user_id):
+    """หมดเวลาเหตุการณ์ที่ค้างไว้นานเกิน — ทำเหมือน on_timeout ของ View ในดิสเป๊ะ
+
+    สำคัญกับสถานะ "mugging" เป็นพิเศษ เพราะ !play ไม่ได้ปลดสถานะนี้ให้
+    ถ้าไม่หมดอายุเอง ผู้เล่นที่ปิดเว็บกลางคันจะค้างถาวร
+
+    คืนข้อความบอกผลถ้าหมดอายุจริง ('' = ยังไม่หมด/ไม่มีอะไรค้าง)
+    """
+    import sqlite3
+    import time
+    event, data = get_pending(user_id)
+    if not event:
+        return ""
+    with sqlite3.connect(player_model.DB_NAME, timeout=10) as conn:
+        _pending_table(conn)
+        row = conn.execute("SELECT updated_at FROM adventure_pending WHERE user_id=?",
+                           (int(user_id),)).fetchone()
+    age = time.time() - float(row[0] if row else 0)
+    if age < PENDING_TIMEOUT.get(event, PENDING_TIMEOUT_DEFAULT):
+        return ""
+
+    clear_pending(user_id)
+    if event == "mugging":
+        # ยืนตัวแข็งตัดสินใจไม่ทัน = นับเป็นหนี (ตรงกับ MuggingEventView.on_timeout)
+        m = robbery.resolve_mugging(user_id, "flee")
+        return (f"⏳ คุณยืนตัวแข็งตัดสินใจไม่ทัน... โจรฉกถุงทองไป `{m['lost']:,}` ทอง! "
+                f"(เหลือ `{m['cash']:,}`){m['theft']}")
+    player_model.update_player_field(user_id, "current_state", "idle")
+    if event == "travel":
+        return f"⏳ {data.get('label', 'ยานพาหนะ')} ออกเดินทางไปแล้วโดยไม่มีคุณ..."
+    return "⏰ **หน้าต่างเหตุการณ์ก่อนหน้าหมดอายุแล้ว** — เดินทางต่อได้เลย"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 🧓 เควส NPC (เว็บเกม เฟส 5.5)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def npc_disguise(player, rng=random):
+    """🎭 สัปดาห์ธีม Masquerade: NPC ตัวนี้เป็นมอนปลอมตัวไหม — ตัดสินตอนเจอ ผู้เล่นไม่รู้
+
+    คืน (cfg ของธีม, ปลอมตัวจริงไหม) — cfg เป็น None แปลว่าสัปดาห์นี้ไม่มีธีมนี้
+    """
+    cfg = game_modifiers.get_active_modifiers(player).get("masquerade")
+    return cfg, bool(cfg and rng.randint(1, 100) <= cfg.get("chance", 0))
+
+
+def npc_talk(user_id, rng=random):
+    """💬 คุยกับ NPC — สุ่มได้ของขวัญ / โดนยัดขาย / ไม่มีอะไร (ยกมาจากปุ่มในดิสทั้งชุด)"""
+    player = player_model.get_player(user_id) or {}
+    items = config_loader.get_all_items()
+    outcome = rng.choice(["gift", "shop", "nothing"])
+    _done(user_id, "npc")
+
+    if outcome == "gift":
+        gold = rng.randint(30, 70)
+        player_model.update_player_field(user_id, "cash", player["cash"] + gold)
+        return {"text": f"🧓 NPC ถูกชะตาในตัวคุณ! เขาใจดีมอบเศษเงินทุนกลางจำนวน `{gold}` ทองให้ฟรี!",
+                "gold": gold}
+
+    if outcome == "nothing":
+        return {"text": "💤 NPC แค่บ่นพึมพำเรื่องฟ้าฝนชวนคุยแก้เหงาเฉยๆ ไม่มีอะไรเกิดขึ้น"}
+
+    ids = list(items.keys())
+    chosen = rng.choices(ids, weights=[1.0 / max(items[i]["buy"], 1) for i in ids], k=1)[0]
+    item = items[chosen]
+    price = rng.randint(0, item["buy"] * 2)
+    inv = player_model.load_inventory(player.get("inventory", "[]"))
+    cap = player.get("capacity", 10)
+
+    if player["cash"] < price:
+        return {"text": f"🧓 NPC พ่อค้าเร่เสนอขาย **{item['name']}** ให้คุณในราคา `{price:,}` ทอง!\n"
+                        f"❌ **แต่เงินในกระเป๋าของคุณไม่พอ!** NPC จึงเดินจากไป..."}
+    if cap and len(inv) >= cap:
+        return {"text": f"🧓 NPC พ่อค้าเร่เสนอขาย **{item['name']}** ในราคา `{price:,}` ทอง!\n"
+                        f"⚠️ **แต่กระเป๋าของคุณเต็ม!** NPC จึงเดินจากไป..."}
+
+    inv.append(str(chosen))
+    player_model.update_player_fields(user_id, {"cash": player["cash"] - price,
+                                                "inventory": json.dumps(inv)})
+    price_text = f"`{price:,}` ทอง" if price > 0 else "**ฟรี!!**"
+    return {"text": f"🧓 NPC พ่อค้าเร่เสนอขาย **{item['name']}** ในราคา {price_text}!\n"
+                    f"✅ **คุณมีเงินและที่ว่างพอ จึงจ่ายเงินและรับของมาโดยอัตโนมัติ**",
+            "spent": price, "item": item["name"]}
+
+
+def npc_quest_offer(user_id, rng=random):
+    """📜 สร้างข้อเสนอแลกของ — ไม่แตะกระเป๋า แค่คำนวณข้อเสนอ (ตกลงแล้วค่อยหัก)
+
+    คืน None ถ้ากระเป๋าว่าง (NPC ไม่มีอะไรให้ขอ)
+    """
+    player = player_model.get_player(user_id) or {}
+    inv = player_model.load_inventory(player.get("inventory", "[]"))
+    if not inv:
+        _done(user_id, "npc")
+        return None
+
+    items = config_loader.get_all_items()
+    requested = rng.sample(inv, rng.randint(1, len(inv)))
+    counts = {}
+    for i in requested:
+        counts[i] = counts.get(i, 0) + 1
+    req_text = ", ".join(f"**{items.get(str(i), {}).get('name', '???')}** x{c}" for i, c in counts.items())
+    req_value = sum(items.get(str(i), {}).get("buy", 0) for i in requested)
+
+    reward_val = rng.randint(int(req_value * 0.5), int(req_value * 2))
+    valid = [i for i, d in items.items() if 0 < d.get("buy", 0) <= reward_val]
+    reward_item = rng.choice(valid) if valid else None
+    reward_cash = reward_val - (items[reward_item]["buy"] if reward_item else 0)
+
+    reward_text = (f"**{items[reward_item]['name']}** และเงิน `{reward_cash:,}` ทอง"
+                   if reward_item else f"`{reward_cash:,}` ทอง")
+    return {"requested": requested, "reward_item": reward_item, "reward_cash": reward_cash,
+            "text": (f"🧓 **NPC พ่อค้าลึกลับยื่นข้อเสนอสุดเร้าใจ!**\n\n"
+                     f"👇 **เขาต้องการ:**\n{req_text} (ประเมินมูลค่า: `{req_value:,}` ทอง)\n\n"
+                     f"🎁 **สิ่งที่จะนำมาแลกเปลี่ยน:**\n{reward_text} (มูลค่ารวม: `{reward_val:,}` ทอง)\n\n"
+                     f"คุณจะรับข้อเสนอนี้หรือไม่?")}
+
+
+def npc_quest_settle(user_id, offer, accept):
+    """✅ ตกลง/ปฏิเสธข้อเสนอ — เช็คของครบอีกรอบก่อนแลก (กันแอบเอาของไปเก็บระหว่างคิด)"""
+    if not accept:
+        _done(user_id, "npc")
+        return {"text": "🙅‍♂️ คุณส่ายหัวปฏิเสธ NPC จึงเก็บของแล้วเดินจากไป"}
+
+    player = player_model.get_player(user_id) or {}
+    inv = player_model.load_inventory(player.get("inventory", "[]"))
+    left = list(inv)
+    for item in offer.get("requested", []):
+        if item in left:
+            left.remove(item)
+        else:
+            _done(user_id, "npc")
+            return {"text": "❌ ไอเทมในกระเป๋าของคุณไม่ครบตามที่ตกลงไว้! NPC โกรธและเดินหนีไป"}
+
+    if offer.get("reward_item"):
+        left.append(str(offer["reward_item"]))
+    player_model.update_player_fields(user_id, {
+        "inventory": json.dumps(left), "cash": player.get("cash", 0) + offer.get("reward_cash", 0),
+        "current_state": "idle", "last_event": "npc"})
+    return {"text": "🤝 **แลกเปลี่ยนสำเร็จ!** คุณได้รับของรางวัลและ NPC เดินจากไปอย่างมีความสุข",
+            "gold": offer.get("reward_cash", 0)}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ✨ อีเวนต์พิเศษ (เว็บเกม เฟส 5.5)
+# ตัวจ่ายผล (execute_special_outcome) อยู่ใน game_views อยู่แล้ว ตรงนี้แค่เลือก outcome
+# ─────────────────────────────────────────────────────────────────────────────
+
+def special_leads_to_fight(event):
+    """อีเวนต์นี้มีทางออกที่ลากเข้าไฟต์ไหม — เว็บยังสู้ไม่ได้จึงต้องรู้ล่วงหน้า (เฟส 5.6 จะเลิกใช้)"""
+    pools = [event.get("success"), event.get("fail")]
+    pools += [c.get("outcome") for c in event.get("choices") or []]
+    pools += list(event.get("outcomes") or [])
+    return any((o or {}).get("start_fight") for o in pools)
+
+
+def special_pick_outcome(event, action, rng=random):
+    """เลือก outcome ตามแบบของอีเวนต์ — คืน (outcome, ข้อความนำหน้า)
+
+    dice_check: ทอย d20 เทียบ pass_roll | choice: เลือกตามปุ่มที่กด
+    """
+    if event.get("template") == "dice_check":
+        roll = rng.randint(1, 20)
+        need = int(event.get("pass_roll", 10))
+        ok = roll >= need
+        return (event.get("success" if ok else "fail", {}),
+                f"🎲 คุณทอยได้ `{roll}` (ต้องการ `{need}`) — {'✅ สำเร็จ!' if ok else '❌ พลาด!'}")
+
+    choices = event.get("choices") or []
+    try:
+        pick = choices[int(action)]
+    except (ValueError, TypeError, IndexError):
+        pick = choices[0] if choices else {}
+    return pick.get("outcome", {}), None
+
+
+def _roll_amount(value, rng=None):
+    """ค่าคงที่ หรือช่วง [lo, hi] → เลขจริง"""
+    if isinstance(value, (list, tuple)):
+        return (rng or random).randint(int(value[0]), int(value[1]))
+    return int(value)
+
+
+# ── อีเวนต์พิเศษ: ตัวจ่ายผล (ย้ายมาจาก game_views เฟส 5.5 — ไม่มีอะไรผูกกับ discord) ──
+
+def execute_special_outcome(user_id, outcome, rng=None):
+    """จ่ายผลอีเวนต์พิเศษ (ดู outcome format ใน game_modifiers) — คืน (บรรทัดข้อความ, died)"""
+    rng = rng or random
+    player = player_model.get_player(user_id)
+    lines = []
+    updates = {}
+    died = False
+    statuses = game_modifiers.parse_statuses(player)
+    status_changed = False
+
+    if outcome.get("text"):
+        lines.append(outcome["text"])
+
+    if "gold" in outcome:
+        amount = _roll_amount(outcome["gold"], rng)
+        new_cash = max(0, player.get("cash", 0) + amount)
+        updates["cash"] = new_cash
+        word = "ได้รับ" if amount >= 0 else "เสีย"
+        lines.append(f"💰 {word}เงิน `{abs(amount):,}` ทอง (คงเหลือ `{new_cash:,}`)")
+
+    if "items" in outcome:
+        item_entries = outcome["items"] if isinstance(outcome["items"], list) else [outcome["items"]]
+        inv = player_model.load_inventory(player.get("inventory", "[]"))
+        cash_base = updates.get("cash", player.get("cash", 0))
+        catalog = config_loader.get_all_items()
+        capacity = player.get("capacity", 10)
+        for entry in item_entries:
+            # โอกาสดรอปรายชิ้น (ไม่ระบุ = ได้แน่นอน) — ใช้กับของแรร์เช่นอาร์ติแฟกต์
+            if "chance" in entry and rng.randint(1, 100) > entry["chance"]:
+                continue
+            # id เดี่ยว หรือสุ่มจาก id_pool (เช่น ดรอปวัสดุคราฟสุ่มชนิด)
+            item_id = str(rng.choice(entry["id_pool"])) if "id_pool" in entry else str(entry["id"])
+            qty = _roll_amount(entry.get("qty", 1), rng)
+            item_cfg = catalog.get(item_id, {})
+            name = item_cfg.get("name", f"ไอเทม #{item_id}")
+            added = 0
+            while added < qty and (capacity == 0 or len(inv) < capacity):
+                inv.append(item_id)
+                added += 1
+            overflow = qty - added
+            if added:
+                lines.append(f"🎁 ได้รับ `{name}` ×{added}")
+            if overflow:
+                # กระเป๋าเต็ม → แปลงส่วนเกินเป็นทองตามราคาขาย (ตามที่ตกลง)
+                gold = overflow * int(item_cfg.get("sell", 0))
+                cash_base += gold
+                lines.append(f"⚠️ กระเป๋าเต็ม! `{name}` ×{overflow} ถูกแปลงเป็นเงิน `{gold:,}` ทองแทน")
+        updates["inventory"] = inv
+        updates["cash"] = cash_base
+
+    if "heal" in outcome:
+        max_hp = player.get("max_hp", 100)
+        if outcome["heal"] == "full":
+            new_hp = max_hp
+        else:
+            new_hp = min(max_hp, player.get("hp", 100) + _roll_amount(outcome["heal"], rng))
+        updates["hp"] = new_hp
+        lines.append(f"💖 ฟื้นฟูพลังชีวิต → `{new_hp}/{max_hp}`")
+
+    if "damage" in outcome:
+        dmg = _roll_amount(outcome["damage"], rng)
+        # 🥾 รองเท้าวายุ: ดาเมจการร่วง/ถูกดีดข้ามทวีปลดตามตัวคูณถาวร
+        if "force_continent" in outcome:
+            fall_mult = game_modifiers.status_fall_damage_mult(statuses)
+            if fall_mult < 1.0:
+                dmg = max(1, round(dmg * fall_mult))
+                lines.append("🥾 **รองเท้าขนนกวายุพยุงร่าง** — แรงกระแทกเบาลงมาก!")
+        # 🪶 ขนนก: การร่วง/ถูกดีดข้ามทวีปเหลือดาเมจขั้นต่ำ รอดเสมอ (ใช้แล้วหมดไป)
+        if "force_continent" in outcome and game_modifiers.has_status_flag(statuses, "fall_guard"):
+            dmg = min(dmg, 5)
+            statuses = {k: v for k, v in statuses.items()
+                        if not game_modifiers.STATUS_EFFECTS[k].get("fall_guard")}
+            status_changed = True
+            lines.append("🪶 **ม้วนคาถาขนนกทำงาน!** ร่างคุณลอยละลิ่วลงพื้นอย่างแผ่วเบา (ขนนกสลายไป)")
+        base_hp = updates.get("hp", player.get("hp", 100))
+        new_hp = max(0, base_hp - dmg)
+        updates["hp"] = new_hp
+        lines.append(f"💥 บาดเจ็บ `-{dmg}` HP (เหลือ `{new_hp}`)")
+        if new_hp <= 0:
+            died = True
+            updates["current_state"] = "dead"
+            lines.append("💀 **คุณหมดสติจากเหตุการณ์นี้!**")
+
+    if "apply_status" in outcome:
+        entries = outcome["apply_status"] if isinstance(outcome["apply_status"], list) else [outcome["apply_status"]]
+        for entry in entries:
+            statuses = game_modifiers.apply_status(statuses, entry["key"], entry.get("turns"))
+            label = game_modifiers.STATUS_EFFECTS.get(entry["key"], {}).get("label", entry["key"])
+            lines.append(f"🧬 ติดสถานะ {label}!")
+        status_changed = True
+    cleansable = [k for k in statuses if not game_modifiers.STATUS_EFFECTS[k].get("artifact")]
+    if outcome.get("cleanse_all") and cleansable:
+        names = " ".join(game_modifiers.STATUS_EFFECTS[k]["label"] for k in cleansable)
+        lines.append(f"✨ สถานะทั้งหมดถูกชำระล้าง: {names}")
+        statuses = {k: v for k, v in statuses.items() if k not in cleansable}
+        status_changed = True
+    if outcome.get("cleanse_random") and cleansable:
+        removed = rng.choice(cleansable)
+        statuses = {k: v for k, v in statuses.items() if k != removed}
+        lines.append(f"✨ {game_modifiers.STATUS_EFFECTS[removed]['label']} ถูกชำระล้างออกไป")
+        status_changed = True
+    if status_changed:
+        updates["status_effects"] = statuses
+
+    if "force_continent" in outcome:
+        dest = outcome["force_continent"]
+        if dest in game_modifiers.CONTINENTS:
+            updates["continent"] = dest
+            updates["last_event"] = "none"
+            lines.append(f"🗺️ คุณถูกส่งตัวไปยัง {game_modifiers.CONTINENTS[dest]['label']}!")
+
+    if not died:
+        updates.setdefault("current_state", "idle")
+    if updates:
+        player_model.update_player_fields(user_id, updates)
+
+    if "exp" in outcome and not died:
+        exp_gain = _roll_amount(outcome["exp"], rng)
+        player_model.add_exp(user_id, exp_gain)
+        lines.append(f"✨ ได้รับ EXP `{exp_gain}`")
+
+    return lines, died
+
+
+def resolve_instant_special(event, rng=None):
+    """เลือก outcome จาก pool ถ่วงน้ำหนักของอีเวนต์แบบ instant"""
+    rng = rng or random
+    outcomes = event.get("outcomes", [])
+    if not outcomes:
+        return {}
+    weights = [o.get("weight", 1) for o in outcomes]
+    return rng.choices(outcomes, weights=weights, k=1)[0]

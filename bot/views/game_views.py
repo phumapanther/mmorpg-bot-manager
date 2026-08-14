@@ -9,6 +9,9 @@ from bot import config_loader
 from bot import game_modifiers
 from bot import robbery
 from bot import adventure_core
+from bot.adventure_core import (_roll_amount,  # noqa: F401 — ย้ายไป core แล้ว
+                                execute_special_outcome,
+                                resolve_instant_special)
 from bot.views.fight_ui import (ELEMENT_COLORS, RANK_BADGES, build_fight_embed,  # noqa: F401 (B6)
                                 build_respawn_embed, hp_bar)
 from bot.event_images import event_image, monster_image, item_use_image, file_kwargs  # noqa: F401
@@ -1487,54 +1490,24 @@ class QuestConfirmView(ActionView):
             return False
         return True
 
+    def _offer(self):
+        return {"requested": self.requested_items, "reward_item": self.reward_item_id,
+                "reward_cash": self.reward_cash}
+
     @discord.ui.button(label="✅ แลกเปลี่ยน", style=discord.ButtonStyle.success)
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
-        player = player_model.get_player(self.user_id)
-        inv_list = player_model.load_inventory(player.get("inventory", "[]"))
-
-        # 1. เช็กให้ชัวร์อีกครั้งว่าของยังอยู่ครบ (เผื่อแอบเอาของไปเก็บ)
-        has_all = True
-        temp_inv = inv_list.copy()
-        for item in self.requested_items:
-            if item in temp_inv:
-                temp_inv.remove(item)
-            else:
-                has_all = False
-                break
-
-        if not has_all:
-            player_model.update_player_fields(self.user_id, {"current_state": "idle", "last_event": "npc"})
-            return await interaction.response.edit_message(
-                content="❌ ไอเทมในกระเป๋าของคุณไม่ครบตามที่ตกลงไว้! NPC โกรธและเดินหนีไป\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
-                view=AdventureView(author_id=self.user_id)
-            )
-
-        # 2. ลบของเก่าออก และยัดของรางวัลเข้ากระเป๋า
-        inv_list = temp_inv
-        if self.reward_item_id:
-            inv_list.append(self.reward_item_id)
-
-        # 3. อัปเดตเงินและบันทึกลงฐานข้อมูล
-        new_cash = player.get("cash", 0) + self.reward_cash
-        player_model.update_player_fields(self.user_id, {
-            "inventory": ",".join(inv_list) if inv_list else "[]",
-            "cash": new_cash,
-            "current_state": "idle",
-            "last_event": "npc"
-        })
-
+        r = adventure_core.npc_quest_settle(self.user_id, self._offer(), True)
         await interaction.response.edit_message(
-            content=f"🤝 **แลกเปลี่ยนสำเร็จ!** คุณได้รับของรางวัลและ NPC เดินจากไปอย่างมีความสุข\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
-            view=AdventureView(author_id=self.user_id)
-        )
+            content=f"{r['text']}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
+            view=AdventureView(author_id=self.user_id))
 
     @discord.ui.button(label="❌ ปฏิเสธ", style=discord.ButtonStyle.danger)
     async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
-        player_model.update_player_fields(self.user_id, {"current_state": "idle", "last_event": "npc"})
+        r = adventure_core.npc_quest_settle(self.user_id, self._offer(), False)
         await interaction.response.edit_message(
-            content="🙅‍♂️ คุณส่ายหัวปฏิเสธ NPC จึงเก็บของแล้วเดินจากไป\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
-            view=AdventureView(author_id=self.user_id)
-        )
+            content=f"{r['text']}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
+            view=AdventureView(author_id=self.user_id))
+
 
 # 4. เหตุการณ์ เควส NPC
 class NpcEventView(ActionView):
@@ -1543,9 +1516,8 @@ class NpcEventView(ActionView):
         self.user_id = user_id
 
         # 🎭 Masquerade (ธีมสัปดาห์): NPC ตัวนี้อาจเป็นมอนสเตอร์ปลอมตัว — ตัดสินตอนเจอ ผู้เล่นไม่รู้
-        mods = game_modifiers.get_active_modifiers(player_model.get_player(user_id))
-        self.masq_cfg = mods.get("masquerade")
-        self.disguised = bool(self.masq_cfg and random.randint(1, 100) <= self.masq_cfg.get("chance", 0))
+        self.masq_cfg, self.disguised = adventure_core.npc_disguise(
+            player_model.get_player(user_id))
         if self.masq_cfg:
             fee = self.masq_cfg.get("inspect_fee", 1500)
             inspect_btn = discord.ui.Button(label=f"🔍 ตรวจสอบตัวตน (จ่าย {fee:,} ทอง)", style=discord.ButtonStyle.danger)
@@ -1620,54 +1592,10 @@ class NpcEventView(ActionView):
         if self.disguised:
             return await self._masquerade_ambush(interaction)
 
-        ITEM_CONFIG = config_loader.get_all_items()
-        player = player_model.get_player(self.user_id)
-        outcome = random.choice(["gift", "shop", "nothing"])
-        
-        player_model.update_player_field(self.user_id, "current_state", "idle")
-        player_model.update_player_field(self.user_id, "last_event", "npc")
-
-        if outcome == "gift":
-            gold_gift = random.randint(30, 70)
-            player_model.update_player_field(self.user_id, "cash", player["cash"] + gold_gift)
-            await interaction.response.edit_message(
-                content=f"🧓 NPC ถูกชะตาในตัวคุณ! เขาใจดีมอบเศษเงินทุนกลางจำนวน `{gold_gift}` ทองให้ฟรี!\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?", 
-                view=AdventureView(author_id=self.user_id)
-            )
-            
-        elif outcome == "shop":
-            item_ids = list(ITEM_CONFIG.keys())
-            weights = [1.0 / max(ITEM_CONFIG[i]["buy"], 1) for i in item_ids] 
-            
-            chosen_item_id = random.choices(item_ids, weights=weights, k=1)[0]
-            chosen_item = ITEM_CONFIG[chosen_item_id]
-            
-            original_price = chosen_item["buy"]
-            offered_price = random.randint(0, original_price * 2)
-            
-            inv_list = player_model.load_inventory(player.get("inventory", "[]"))
-            capacity = player.get("capacity", 10) 
-
-            if player["cash"] < offered_price:
-                msg = f"🧓 NPC พ่อค้าเร่เสนอขาย **{chosen_item['name']}** ให้คุณในราคา `{offered_price:,}` ทอง!\n❌ **แต่เงินในกระเป๋าของคุณไม่พอ!** NPC จึงเดินจากไป...\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?"
-            elif capacity != 0 and len(inv_list) >= capacity:
-                msg = f"🧓 NPC พ่อค้าเร่เสนอขาย **{chosen_item['name']}** ในราคา `{offered_price:,}` ทอง!\n⚠️ **แต่กระเป๋าของคุณเต็ม!** NPC จึงเดินจากไป...\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?"
-            else:
-                inv_list.append(chosen_item_id)
-                new_cash = player["cash"] - offered_price
-                player_model.update_player_field(self.user_id, "cash", new_cash)
-                player_model.update_player_field(self.user_id, "inventory", ",".join(inv_list))
-                
-                price_text = f"`{offered_price:,}` ทอง" if offered_price > 0 else "**ฟรี!!**"
-                msg = f"🧓 NPC พ่อค้าเร่เสนอขาย **{chosen_item['name']}** ในราคา {price_text}!\n✅ **คุณมีเงินและที่ว่างพอ จึงจ่ายเงินและรับของมาโดยอัตโนมัติ**\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?"
-
-            await interaction.response.edit_message(content=msg, view=AdventureView(author_id=self.user_id))
-            
-        else:
-            await interaction.response.edit_message(
-                content="💤 NPC แค่บ่นพึมพำเรื่องฟ้าฝนชวนคุยแก้เหงาเฉยๆ ไม่มีอะไรเกิดขึ้น\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?", 
-                view=AdventureView(author_id=self.user_id)
-            )
+        r = adventure_core.npc_talk(self.user_id)
+        await interaction.response.edit_message(
+            content=f"{r['text']}\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
+            view=AdventureView(author_id=self.user_id))
 
     # ==========================================
     # ปุ่ม 2: รับเควสแลกเปลี่ยน (Gacha Exchange)
@@ -1678,61 +1606,17 @@ class NpcEventView(ActionView):
         if self.disguised:
             return await self._masquerade_ambush(interaction)
 
-        ITEM_CONFIG = config_loader.get_all_items()
-        player = player_model.get_player(self.user_id)
-        inv_list = player_model.load_inventory(player.get("inventory", "[]"))
-
-        if not inv_list:
-            player_model.update_player_fields(self.user_id, {"current_state": "idle", "last_event": "npc"})
+        offer = adventure_core.npc_quest_offer(self.user_id)
+        if not offer:
             return await interaction.response.edit_message(
-                content="🧓 NPC มองกระเป๋าที่ว่างเปล่าของคุณแล้วส่ายหัว 'เจ้าไม่มีสิ่งใดที่ข้าต้องการเลย...' \n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
-                view=AdventureView(author_id=self.user_id)
-            )
+                content="🧓 NPC มองกระเป๋าที่ว่างเปล่าของคุณแล้วส่ายหัว \'เจ้าไม่มีสิ่งใดที่ข้าต้องการเลย...\' "
+                        + "\n----------------------------------------\nคุณต้องการไปต่อหรือไม่?",
+                view=AdventureView(author_id=self.user_id))
 
-        # 1. สุ่มหยิบของจากกระเป๋า (1 ชิ้น ถึง ทั้งหมด)
-        num_items = random.randint(1, len(inv_list))
-        requested_items = random.sample(inv_list, num_items)
-
-        # จัดกลุ่มชื่อไอเทมให้แสดงผลสวยๆ (เช่น ไม้ x2, หิน x1)
-        req_counts = {}
-        for i in requested_items:
-            req_counts[i] = req_counts.get(i, 0) + 1
-        req_text = ", ".join([f"**{ITEM_CONFIG.get(i, {}).get('name', '???')}** x{c}" for i, c in req_counts.items()])
-
-        # 2. คำนวณมูลค่าของที่ NPC ขอ
-        req_value = sum([ITEM_CONFIG.get(i, {}).get("buy", 0) for i in requested_items])
-
-        # 3. สุ่มมูลค่าตอบแทน 50% - 1000%
-        reward_val = random.randint(int(req_value * 0.5), int(req_value * 2))
-
-        # 4. หาไอเทมตอบแทน (ต้องมีมูลค่าไม่เกิน reward_val)
-        valid_items = [i for i, data in ITEM_CONFIG.items() if 0 < data.get("buy", 0) <= reward_val]
-        
-        reward_item_id = None
-        reward_item_val = 0
-        if valid_items:
-            reward_item_id = random.choice(valid_items)
-            reward_item_val = ITEM_CONFIG[reward_item_id]["buy"]
-
-        # 5. มูลค่าที่เหลือจ่ายเป็นเงิน
-        reward_cash = reward_val - reward_item_val
-
-        reward_text = f"`{reward_cash:,}` ทอง"
-        if reward_item_id:
-            reward_text = f"**{ITEM_CONFIG[reward_item_id]['name']}** และเงิน `{reward_cash:,}` ทอง"
-
-        msg = (
-            f"🧓 **NPC พ่อค้าลึกลับยื่นข้อเสนอสุดเร้าใจ!**\n\n"
-            f"👇 **เขาต้องการ:**\n{req_text} (ประเมินมูลค่า: `{req_value:,}` ทอง)\n\n"
-            f"🎁 **สิ่งที่จะนำมาแลกเปลี่ยน:**\n{reward_text} (มูลค่ารวม: `{reward_val:,}` ทอง)\n\n"
-            f"คุณจะรับข้อเสนอนี้หรือไม่?"
-        )
-
-        # เปลี่ยนหน้าต่างไปยัง View ยืนยัน
         await interaction.response.edit_message(
-            content=msg,
-            view=QuestConfirmView(self.user_id, requested_items, reward_item_id, reward_cash)
-        )
+            content=offer["text"],
+            view=QuestConfirmView(self.user_id, offer["requested"],
+                                  offer["reward_item"], offer["reward_cash"]))
 
     # ==========================================
     # ปุ่ม 3: เมินใส่
@@ -1884,147 +1768,6 @@ class RespawnView(ActionView):
 
 
 # 🧭 VIEW หลักในการเริ่มเดินทาง (!play)
-def _roll_amount(value, rng=None):
-    """ค่าคงที่ หรือช่วง [lo, hi] → เลขจริง"""
-    if isinstance(value, (list, tuple)):
-        return (rng or random).randint(int(value[0]), int(value[1]))
-    return int(value)
-
-
-def execute_special_outcome(user_id, outcome, rng=None):
-    """จ่ายผลอีเวนต์พิเศษ (ดู outcome format ใน game_modifiers) — คืน (บรรทัดข้อความ, died)"""
-    rng = rng or random
-    player = player_model.get_player(user_id)
-    lines = []
-    updates = {}
-    died = False
-    statuses = game_modifiers.parse_statuses(player)
-    status_changed = False
-
-    if outcome.get("text"):
-        lines.append(outcome["text"])
-
-    if "gold" in outcome:
-        amount = _roll_amount(outcome["gold"], rng)
-        new_cash = max(0, player.get("cash", 0) + amount)
-        updates["cash"] = new_cash
-        word = "ได้รับ" if amount >= 0 else "เสีย"
-        lines.append(f"💰 {word}เงิน `{abs(amount):,}` ทอง (คงเหลือ `{new_cash:,}`)")
-
-    if "items" in outcome:
-        item_entries = outcome["items"] if isinstance(outcome["items"], list) else [outcome["items"]]
-        inv = player_model.load_inventory(player.get("inventory", "[]"))
-        cash_base = updates.get("cash", player.get("cash", 0))
-        catalog = config_loader.get_all_items()
-        capacity = player.get("capacity", 10)
-        for entry in item_entries:
-            # โอกาสดรอปรายชิ้น (ไม่ระบุ = ได้แน่นอน) — ใช้กับของแรร์เช่นอาร์ติแฟกต์
-            if "chance" in entry and rng.randint(1, 100) > entry["chance"]:
-                continue
-            # id เดี่ยว หรือสุ่มจาก id_pool (เช่น ดรอปวัสดุคราฟสุ่มชนิด)
-            item_id = str(rng.choice(entry["id_pool"])) if "id_pool" in entry else str(entry["id"])
-            qty = _roll_amount(entry.get("qty", 1), rng)
-            item_cfg = catalog.get(item_id, {})
-            name = item_cfg.get("name", f"ไอเทม #{item_id}")
-            added = 0
-            while added < qty and (capacity == 0 or len(inv) < capacity):
-                inv.append(item_id)
-                added += 1
-            overflow = qty - added
-            if added:
-                lines.append(f"🎁 ได้รับ `{name}` ×{added}")
-            if overflow:
-                # กระเป๋าเต็ม → แปลงส่วนเกินเป็นทองตามราคาขาย (ตามที่ตกลง)
-                gold = overflow * int(item_cfg.get("sell", 0))
-                cash_base += gold
-                lines.append(f"⚠️ กระเป๋าเต็ม! `{name}` ×{overflow} ถูกแปลงเป็นเงิน `{gold:,}` ทองแทน")
-        updates["inventory"] = inv
-        updates["cash"] = cash_base
-
-    if "heal" in outcome:
-        max_hp = player.get("max_hp", 100)
-        if outcome["heal"] == "full":
-            new_hp = max_hp
-        else:
-            new_hp = min(max_hp, player.get("hp", 100) + _roll_amount(outcome["heal"], rng))
-        updates["hp"] = new_hp
-        lines.append(f"💖 ฟื้นฟูพลังชีวิต → `{new_hp}/{max_hp}`")
-
-    if "damage" in outcome:
-        dmg = _roll_amount(outcome["damage"], rng)
-        # 🥾 รองเท้าวายุ: ดาเมจการร่วง/ถูกดีดข้ามทวีปลดตามตัวคูณถาวร
-        if "force_continent" in outcome:
-            fall_mult = game_modifiers.status_fall_damage_mult(statuses)
-            if fall_mult < 1.0:
-                dmg = max(1, round(dmg * fall_mult))
-                lines.append("🥾 **รองเท้าขนนกวายุพยุงร่าง** — แรงกระแทกเบาลงมาก!")
-        # 🪶 ขนนก: การร่วง/ถูกดีดข้ามทวีปเหลือดาเมจขั้นต่ำ รอดเสมอ (ใช้แล้วหมดไป)
-        if "force_continent" in outcome and game_modifiers.has_status_flag(statuses, "fall_guard"):
-            dmg = min(dmg, 5)
-            statuses = {k: v for k, v in statuses.items()
-                        if not game_modifiers.STATUS_EFFECTS[k].get("fall_guard")}
-            status_changed = True
-            lines.append("🪶 **ม้วนคาถาขนนกทำงาน!** ร่างคุณลอยละลิ่วลงพื้นอย่างแผ่วเบา (ขนนกสลายไป)")
-        base_hp = updates.get("hp", player.get("hp", 100))
-        new_hp = max(0, base_hp - dmg)
-        updates["hp"] = new_hp
-        lines.append(f"💥 บาดเจ็บ `-{dmg}` HP (เหลือ `{new_hp}`)")
-        if new_hp <= 0:
-            died = True
-            updates["current_state"] = "dead"
-            lines.append("💀 **คุณหมดสติจากเหตุการณ์นี้!**")
-
-    if "apply_status" in outcome:
-        entries = outcome["apply_status"] if isinstance(outcome["apply_status"], list) else [outcome["apply_status"]]
-        for entry in entries:
-            statuses = game_modifiers.apply_status(statuses, entry["key"], entry.get("turns"))
-            label = game_modifiers.STATUS_EFFECTS.get(entry["key"], {}).get("label", entry["key"])
-            lines.append(f"🧬 ติดสถานะ {label}!")
-        status_changed = True
-    cleansable = [k for k in statuses if not game_modifiers.STATUS_EFFECTS[k].get("artifact")]
-    if outcome.get("cleanse_all") and cleansable:
-        names = " ".join(game_modifiers.STATUS_EFFECTS[k]["label"] for k in cleansable)
-        lines.append(f"✨ สถานะทั้งหมดถูกชำระล้าง: {names}")
-        statuses = {k: v for k, v in statuses.items() if k not in cleansable}
-        status_changed = True
-    if outcome.get("cleanse_random") and cleansable:
-        removed = rng.choice(cleansable)
-        statuses = {k: v for k, v in statuses.items() if k != removed}
-        lines.append(f"✨ {game_modifiers.STATUS_EFFECTS[removed]['label']} ถูกชำระล้างออกไป")
-        status_changed = True
-    if status_changed:
-        updates["status_effects"] = statuses
-
-    if "force_continent" in outcome:
-        dest = outcome["force_continent"]
-        if dest in game_modifiers.CONTINENTS:
-            updates["continent"] = dest
-            updates["last_event"] = "none"
-            lines.append(f"🗺️ คุณถูกส่งตัวไปยัง {game_modifiers.CONTINENTS[dest]['label']}!")
-
-    if not died:
-        updates.setdefault("current_state", "idle")
-    if updates:
-        player_model.update_player_fields(user_id, updates)
-
-    if "exp" in outcome and not died:
-        exp_gain = _roll_amount(outcome["exp"], rng)
-        player_model.add_exp(user_id, exp_gain)
-        lines.append(f"✨ ได้รับ EXP `{exp_gain}`")
-
-    return lines, died
-
-
-def resolve_instant_special(event, rng=None):
-    """เลือก outcome จาก pool ถ่วงน้ำหนักของอีเวนต์แบบ instant"""
-    rng = rng or random
-    outcomes = event.get("outcomes", [])
-    if not outcomes:
-        return {}
-    weights = [o.get("weight", 1) for o in outcomes]
-    return rng.choices(outcomes, weights=weights, k=1)[0]
-
-
 class SpecialEventView(ActionView):
     """View กลางของอีเวนต์พิเศษ — render ปุ่มจาก data (dice_check/choice; ส่วน instant จ่ายผลตรงไม่ผ่าน View)"""
 
@@ -2067,11 +1810,7 @@ class SpecialEventView(ActionView):
         return _callback
 
     async def roll_dice(self, interaction: discord.Interaction):
-        roll = random.randint(1, 20)
-        need = int(self.event.get("pass_roll", 10))
-        success = roll >= need
-        outcome = self.event.get("success" if success else "fail", {})
-        prefix = f"🎲 คุณทอยได้ `{roll}` (ต้องการ `{need}`) — {'✅ สำเร็จ!' if success else '❌ พลาด!'}"
+        outcome, prefix = adventure_core.special_pick_outcome(self.event, None)
         await self._finish(interaction, outcome, prefix)
 
     async def _finish(self, interaction: discord.Interaction, outcome, prefix):

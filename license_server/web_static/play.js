@@ -94,7 +94,33 @@ function paint(g) {
            armor: g.gear.armor.key, weapon: g.gear.weapon.key, pose: 'idle' };
   drawSprite(document.getElementById('pfp'));
   paintProfile(g);
+  paintAdvHud(g);
   paintBag(g.bag);
+}
+
+/** หัวสถานะบนหน้าผจญภัย — ต้องเห็นเลือด/EXP/เงินตลอดเวลาที่กำลังเล่น
+ *  ค่าทุกตัวมาจากชุดเดียวกับโปรไฟล์ ไม่คำนวณอะไรเองที่นี่ */
+function paintAdvHud(g) {
+  const id = g.identity, v = g.vitals;
+  document.getElementById('advName').textContent = id.title || 'นักผจญภัย';
+  document.getElementById('advLv').textContent = 'Lv ' + (id.level ?? '—');
+  document.getElementById('advCash').textContent = fmt(g.money.cash);
+
+  const hp = v.hp ?? 0, mx = v.max_hp || 1;
+  const pct = Math.max(0, Math.min(100, hp / mx * 100));
+  const hpBar = document.getElementById('advHp');
+  hpBar.style.width = pct + '%';
+  hpBar.classList.toggle('low', pct < 30);          // เลือดต่ำ = แถบเตือน
+  document.getElementById('advHpTxt').textContent = fmt(hp) + ' / ' + fmt(mx);
+
+  document.getElementById('advExp').style.width = (id.exp_pct ?? 0) + '%';
+  document.getElementById('advExpTxt').textContent =
+    id.max_level ? 'เลเวลเต็ม' : (id.exp_pct ?? 0) + '%';
+
+  const face = document.getElementById('advFace');
+  const ctx = face.getContext('2d');
+  ctx.clearRect(0, 0, face.width, face.height);
+  drawCharacter(ctx, (face.width - 16 * 3) / 2, -6, 3, CHAR);   // ครึ่งตัวบนพอดีกรอบ
 }
 
 // ── โปรไฟล์ (เฟส 1.3) ──
@@ -510,6 +536,15 @@ const ADV_ACTIONS = {
                 ['decline', '🙅 ไม่ไป เดินทางต่อ', '']],
   mugging: g => [['fight', '⚔️ สู้', 'hot', `โอกาสชนะ ${g.win_pct}% — แพ้โดนกวาดเงินติดตัวหมด`],
                  ['flee', '🏃 หนี (-50% เงินติดตัว)', '', 'โยนถุงทองครึ่งหนึ่งสกัดโจรแล้ววิ่ง']],
+  npc: () => [['talk', '💬 เข้าไปพูดคุย', 'hot'],
+              ['quest', '📜 ฟังข้อเสนอเควส', ''],
+              ['ignore', '🤫 เมินใส่', '']],
+  npc_quest: () => [['accept', '✅ แลกเปลี่ยน', 'hot', 'ของในกระเป๋าตามข้อเสนอจะถูกนำไปแลกทันที'],
+                    ['decline', '❌ ปฏิเสธ', '']],
+  // อีเวนต์พิเศษ: แบบทอยเต๋าได้ปุ่มเดียว แบบเลือกทางได้ปุ่มตามจำนวนตัวเลือกของอีเวนต์นั้น
+  special: g => (g.choices && g.choices.length)
+    ? g.choices.map((label, i) => [String(i), esc(label), i === 0 ? 'hot' : ''])
+    : [['roll', '🎲 ทอยเต๋าวัดดวง', 'hot']],
 };
 
 // เหตุการณ์ -> คีย์ภาพในโฟลเดอร์ assets/events (ชื่อเดียวกับที่ดิสใช้)
@@ -590,7 +625,7 @@ async function advAct(action, label, confirmMsg) {
     if (r.damage) { SCENE.hitFoe(); SCENE.float('-' + r.damage, '', 40); }
     if (r.gold) SCENE.float('+' + r.gold, 'gold', 50);
     if (r.continent) { SCENE.setMap(r.continent); SCENE.showEvent('village'); }
-    advPaint({ text: r.text });
+    advPaint({ text: r.text, pending: r.pending });   // ยังมีขั้นต่อ (เช่นข้อเสนอเควส) ก็โชว์ปุ่มต่อ
     boot();                                           // เลือด/เงิน/กระเป๋าเปลี่ยน โหลดใหม่
   } catch (e) {
     toast(e.message, true);
@@ -618,7 +653,8 @@ async function initScene() {
       SCENE.showEvent(ADV_ART[st.pending] || st.pending);
       document.getElementById('sceneTag').textContent = ADV_LABEL[st.pending] || st.pending;
       advPaint({ pending: st.pending, encounter: st.data, win_pct: st.data.win_pct,
-                 text: 'คุณค้างอยู่ที่เหตุการณ์นี้ — เลือกต่อได้เลย' });
+                 choices: (st.data.choices || []).map(c => c.label),
+                 text: st.data.text || st.data.intro || 'คุณค้างอยู่ที่เหตุการณ์นี้ — เลือกต่อได้เลย' });
       return;
     }
     if (st.state && st.state !== 'idle' && st.state !== 'village') {

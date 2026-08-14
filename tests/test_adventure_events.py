@@ -193,5 +193,149 @@ def test_walk_counts_the_daily_quest_on_both_platforms():
 
 def test_act_cannot_be_replayed_after_the_event_is_over():
     """กดปุ่มซ้ำหลังเหตุการณ์จบแล้ว = เปิดหีบ/พักแรมซ้ำได้ฟรี — ต้องกันด้วยการเช็คสถานะ"""
-    assert 'player.get("current_state") != _WEB_PLAYABLE.get(event)' in API
+    assert 'if player.get("current_state") != expected:' in API
     assert "adventure_core.clear_pending(uid)" in API
+
+
+# ── 🧓 NPC ────────────────────────────────────────────────────────────────────
+
+def test_npc_gift_adds_gold(world):
+    class Gift(random.Random):
+        def choice(self, seq): return "gift"
+        def randint(self, a, b): return 50
+
+    r = adventure_core.npc_talk(1, rng=Gift())
+    assert world["cash"] == 100_050 and r["gold"] == 50
+    assert world["current_state"] == "idle" and world["last_event"] == "npc"
+
+
+def test_npc_pedlar_does_not_sell_when_the_bag_is_full(world):
+    world["inventory"] = "[1,1,1,1,1,1,1,1,1,1]"
+
+    class Shop(random.Random):
+        def choice(self, seq): return "shop"
+        def choices(self, seq, weights=None, k=1): return [seq[0]]
+        def randint(self, a, b): return b
+
+    adventure_core.npc_talk(1, rng=Shop())
+    assert world["cash"] == 100_000, "กระเป๋าเต็มต้องไม่หักเงิน"
+    assert world["inventory"] == "[1,1,1,1,1,1,1,1,1,1]"
+
+
+def test_npc_pedlar_does_not_sell_what_you_cannot_afford(world):
+    world["cash"] = 5
+
+    class Shop(random.Random):
+        def choice(self, seq): return "shop"
+        def choices(self, seq, weights=None, k=1): return ["2"]     # ดาบเทพ ราคาแพง
+        def randint(self, a, b): return b
+
+    adventure_core.npc_talk(1, rng=Shop())
+    assert world["cash"] == 5 and world["inventory"] == "[]"
+
+
+def test_quest_offer_does_not_touch_the_bag_until_you_accept(world):
+    world["inventory"] = '["1","2"]'
+    offer = adventure_core.npc_quest_offer(1, rng=random.Random(3))
+    assert offer and offer["requested"]
+    assert world["inventory"] == '["1","2"]', "แค่ยื่นข้อเสนอต้องยังไม่หักของ"
+    assert world["current_state"] == "village", "ยังไม่ตกลง ต้องยังค้างอยู่ที่ NPC"
+
+
+def test_empty_bag_gets_no_quest_offer(world):
+    assert adventure_core.npc_quest_offer(1) is None
+    assert world["current_state"] == "idle"
+
+
+def test_accepting_a_quest_swaps_items_for_the_reward(world):
+    world["inventory"] = '["1","2"]'
+    r = adventure_core.npc_quest_settle(1, {"requested": ["1"], "reward_item": "2",
+                                            "reward_cash": 500}, True)
+    assert "สำเร็จ" in r["text"] and world["cash"] == 100_500
+    assert sorted(pm.load_inventory(world["inventory"])) == ["2", "2"]
+
+
+def test_quest_fails_if_the_items_are_gone(world):
+    """กันโกง: เอาของไปทิ้ง/ขายระหว่างกำลังคิด แล้วค่อยกดตกลง"""
+    world["inventory"] = "[]"
+    r = adventure_core.npc_quest_settle(1, {"requested": ["1"], "reward_item": None,
+                                            "reward_cash": 9999}, True)
+    assert "ไม่ครบ" in r["text"] and world["cash"] == 100_000
+
+
+def test_declining_a_quest_keeps_everything(world):
+    world["inventory"] = '["1"]'
+    adventure_core.npc_quest_settle(1, {"requested": ["1"], "reward_cash": 500}, False)
+    assert world["inventory"] == '["1"]' and world["cash"] == 100_000
+
+
+# ── ✨ อีเวนต์พิเศษ ────────────────────────────────────────────────────────────
+
+def test_events_that_start_a_fight_are_detected():
+    """เว็บยังสู้ไม่ได้ ต้องคัดอีเวนต์ที่ลากเข้าไฟต์ออกก่อนตั้งแต่ตอนเจอ"""
+    assert adventure_core.special_leads_to_fight({"success": {"start_fight": True}})
+    assert adventure_core.special_leads_to_fight({"choices": [{"outcome": {"start_fight": 1}}]})
+    assert adventure_core.special_leads_to_fight({"outcomes": [{"gold": 5}, {"start_fight": 1}]})
+    assert not adventure_core.special_leads_to_fight({"choices": [{"outcome": {"gold": 100}}]})
+
+
+def test_dice_check_uses_the_pass_roll():
+    ev = {"template": "dice_check", "pass_roll": 15,
+          "success": {"gold": 1}, "fail": {"gold": 0}}
+
+    class Roll(random.Random):
+        def randint(self, a, b): return 15
+
+    out, prefix = adventure_core.special_pick_outcome(ev, None, rng=Roll())
+    assert out == {"gold": 1} and "สำเร็จ" in prefix
+
+
+def test_choice_event_picks_the_button_you_pressed():
+    ev = {"template": "choice", "choices": [{"outcome": {"a": 1}}, {"outcome": {"b": 2}}]}
+    assert adventure_core.special_pick_outcome(ev, "1")[0] == {"b": 2}
+    assert adventure_core.special_pick_outcome(ev, "ค่าเพี้ยน")[0] == {"a": 1}, "ค่าพังต้องไม่ทำ 500"
+
+
+# ── ⏳ หมดอายุเหตุการณ์ค้าง ───────────────────────────────────────────────────
+
+def test_stale_mugging_auto_flees_like_the_discord_timeout(tmp_path, monkeypatch):
+    """!play ไม่ได้ปลดสถานะ mugging ให้ — ถ้าไม่หมดอายุเอง ผู้เล่นที่ปิดเว็บจะค้างถาวร"""
+    import sqlite3
+    monkeypatch.setattr(pm, "DB_NAME", str(tmp_path / "t.db"))
+    state = {"cash": 1000, "bank": 0, "inventory": "[]", "current_state": "mugging"}
+    monkeypatch.setattr(pm, "get_player", lambda uid: dict(state))
+    monkeypatch.setattr(pm, "update_player_field", lambda uid, f, v: state.__setitem__(f, v))
+    monkeypatch.setattr(config_loader, "get_all_items", lambda: ITEMS)
+
+    adventure_core.set_pending(5, "mugging", {})
+    assert adventure_core.expire_pending(5) == "", "เพิ่งเจอ ยังไม่ควรหมดอายุ"
+
+    with sqlite3.connect(pm.DB_NAME) as conn:                 # ย้อนเวลาให้เกิน timeout
+        conn.execute("UPDATE adventure_pending SET updated_at=0 WHERE user_id=5")
+    note = adventure_core.expire_pending(5)
+    assert "โจรฉกถุงทอง" in note
+    assert state["cash"] == 500 and state["current_state"] == "idle"
+    assert adventure_core.get_pending(5) == (None, {})
+
+
+def test_stale_village_just_unlocks(tmp_path, monkeypatch):
+    import sqlite3
+    monkeypatch.setattr(pm, "DB_NAME", str(tmp_path / "t.db"))
+    state = {"current_state": "village"}
+    monkeypatch.setattr(pm, "update_player_field", lambda uid, f, v: state.__setitem__(f, v))
+    adventure_core.set_pending(6, "village", {})
+    with sqlite3.connect(pm.DB_NAME) as conn:
+        conn.execute("UPDATE adventure_pending SET updated_at=0 WHERE user_id=6")
+    assert "หมดอายุ" in adventure_core.expire_pending(6)
+    assert state["current_state"] == "idle"
+
+
+def test_walk_and_state_both_expire_stale_events():
+    assert API.count("adventure_core.expire_pending(uid)") >= 2, \
+        "ทั้ง /walk และ /state ต้องหมดอายุให้ ไม่งั้นรีเฟรชแล้วยังค้าง"
+
+
+def test_npc_quest_offer_is_kept_server_side():
+    """ข้อเสนอต้องเก็บฝั่งเซิร์ฟเวอร์ ไม่งั้นเบราว์เซอร์แต่งของรางวัลเองได้"""
+    assert 'set_pending(uid, "npc_quest", offer)' in API
+    assert "npc_quest_settle(uid, data," in API
