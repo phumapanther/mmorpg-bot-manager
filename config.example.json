@@ -1755,6 +1755,16 @@
     },
     "reward": {
       "gold_mult": 1.0
+    },
+    "dice": {
+      "normal_min": 12,
+      "normal_max": 19,
+      "normal_miss_max": 11,
+      "normal_hit_pct": 90,
+      "skill_max": 20
+    },
+    "skill": {
+      "damage_bonus_mult": 1.3
     }
   },
   "monster_ranks": {

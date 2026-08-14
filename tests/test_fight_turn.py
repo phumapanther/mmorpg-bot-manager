@@ -39,20 +39,29 @@ def _fight(hp=200, element="earth", rank="Common", **over):
 
 
 class Rigged(random.Random):
-    """ทอยเต๋าตามที่สั่ง — ใช้บังคับให้ผู้เล่นชนะ/แพ้เต๋าเพื่อทดสอบทีละเส้นทาง
+    """คุมเต๋าสองฝั่งแยกกัน — ตั้งแต่ 2026-08-14 เต๋าผู้เล่นทอยคนละช่วงกับของมอน
+    (ตีปกติ 12-19 / ออกท่า 1-20) จึงดักที่ "การทอยครั้งแรก = ของผู้เล่น" แทนช่วงตัวเลข
 
-    roll_combat ทอยของผู้เล่นก่อนเสมอ แล้วค่อยทอยของมอนทีละลูก
-    ส่ง rolls=[ของผู้เล่น, ของมอน...] เพื่อคุมผลแพ้ชนะได้แม่น ๆ
+    roll=N        ผู้เล่นได้ N มอนได้ 1 (ผู้เล่นชนะ)
+    rolls=[a, b]  ผู้เล่นได้ a มอนได้ b
+    pct / pcts    ค่าที่จะคืนให้การทอย 1-100 (ครั้งแรกคือเช็คมอนหนี)
     """
 
     def __init__(self, roll=None, rolls=None, pct=100, pcts=None):
         super().__init__(0)
-        self.queue = list(rolls) if rolls else None
-        self.roll = roll if roll is not None else 20
-        # ทุกธาตุมีเรทมอนหนี 10% เป็นค่าตั้งต้น การทอย 1-100 ครั้งแรกของเทิร์นคือเช็คมอนหนีเสมอ
-        # เทสที่อยากทดสอบสกิลจึงต้องให้ครั้งแรกสูง (ไม่หนี) แล้วครั้งถัดไปค่อยต่ำ (สกิลติด)
+        if rolls:
+            self.player_val = rolls[0]
+            self.monster_val = rolls[1] if len(rolls) > 1 else rolls[0]
+        else:
+            self.player_val = 20 if roll is None else roll
+            self.monster_val = 1
         self.pcts = list(pcts) if pcts else None
         self.pct = pct
+        self._player_done = False
+
+    def random(self):
+        # เต๋าตีปกติ: <90 = ตกช่วงบน, >=90 = ช่วงพลาด — เลือกให้ตรงกับแต้มที่สั่งไว้
+        return 0.0 if self.player_val >= 12 else 0.99
 
     def _next(self, queue, fallback):
         if not queue:
@@ -60,11 +69,12 @@ class Rigged(random.Random):
         return queue.pop(0) if len(queue) > 1 else queue[0]
 
     def randint(self, a, b):
-        if (a, b) == (1, 20):
-            return self._next(self.queue, self.roll)
         if (a, b) == (1, 100):
             return self._next(self.pcts, self.pct)
-        return b
+        if not self._player_done:                 # การทอยเต๋าครั้งแรกของเทิร์น = ของผู้เล่น
+            self._player_done = True
+            return max(a, min(b, self.player_val))
+        return max(a, min(b, self.monster_val))   # ที่เหลือคือเต๋ามอน
 
 
 # ── กติกาพื้นฐานของเทิร์น ─────────────────────────────────────────────────────
@@ -297,22 +307,15 @@ def test_web_shows_the_last_turn_log_when_you_win():
 
 # ── 🎯 สกิลครบทั้ง 8 ตัวของ 4 คลาส (ล็อกไว้หลังผู้เล่นทัก 2026-08-14) ─────────
 
-class Lose(random.Random):
-    """บังคับให้แพ้เต๋าแน่นอน (ผู้เล่นทอย 1 มอนทอย 20) และให้เรท % ติดทุกครั้ง
-    ยกเว้นการทอยครั้งแรกซึ่งเป็นการเช็คมอนหนี — ให้ 100 ไว้ก่อนไม่ให้มอนเผ่น"""
+class Lose(Rigged):
+    """บังคับให้แพ้เต๋าแน่นอน — ผู้เล่นได้ 1 มอนได้ 20
+
+    การทอย 1-100 ครั้งแรกคือเช็คมอนหนี (ให้ 100 = ไม่หนี) ที่เหลือให้ติดหมด
+    เพื่อให้เอฟเฟกต์กันตัวอย่าง Holy Aura ทำงานแน่นอน
+    """
 
     def __init__(self, seed=0):
-        super().__init__(seed)
-        self.n20 = self.n100 = 0
-
-    def randint(self, a, b):
-        if (a, b) == (1, 20):
-            self.n20 += 1
-            return 1 if self.n20 == 1 else 20
-        if (a, b) == (1, 100):
-            self.n100 += 1
-            return 100 if self.n100 == 1 else 1
-        return super().randint(a, b)
+        super().__init__(rolls=[1, 20], pcts=[100, 1])
 
 
 def _taken(hero, skill, seeds=range(12)):
@@ -386,3 +389,59 @@ def test_heal_reports_zero_when_already_full(hero):
     t = adventure_core.fight_turn(1, _fight(hp=10 ** 6), skill_used="skill_heal",
                                   rng=Rigged(roll=20, pcts=[100, 1]))
     assert t["healed"] == 0, "เลือดเต็มอยู่แล้วต้องไม่เด้งเลขฮีลหลอกตา"
+
+
+# ── 🎲 กติกาเต๋าใหม่ (2026-08-14) ─────────────────────────────────────────────
+
+def test_a_plain_attack_can_never_roll_the_maximum():
+    """แต้มสูงสุดเป็นของสกิลเท่านั้น — ตีปกติต้องไม่มีทางแตะ 20 เอง"""
+    rolls = [adventure_core.roll_player_die(random.Random(s)) for s in range(4000)]
+    assert max(rolls) < 20, f"ตีปกติทอยได้ {max(rolls)} ทั้งที่ห้ามแตะ 20"
+    assert min(rolls) <= 11, "ต้องมีจังหวะพลาดร่วงลงมาบ้าง ไม่ใช่การันตีช่วงบนตลอด"
+
+
+def test_a_skill_can_reach_the_maximum():
+    rolls = [adventure_core.roll_player_die(random.Random(s), "skill_heavy_strike")
+             for s in range(4000)]
+    assert max(rolls) == 20, "ออกท่าต้องมีลุ้นแตะ 20"
+
+
+def test_a_plain_attack_rolls_higher_on_average_than_a_skill():
+    """ตีปกติ = มือที่ชำนาญ แต้มนิ่งกว่า · สกิล = เสี่ยงกว่าแต่ดาเมจแรงกว่า"""
+    plain = [adventure_core.roll_player_die(random.Random(s)) for s in range(6000)]
+    skill = [adventure_core.roll_player_die(random.Random(s), "skill_fireball")
+             for s in range(6000)]
+    assert sum(plain) / len(plain) > sum(skill) / len(skill) + 2
+
+
+def test_about_ninety_percent_of_plain_attacks_land_in_the_top_band():
+    hits = sum(1 for s in range(6000) if adventure_core.roll_player_die(random.Random(s)) >= 12)
+    assert 85 <= hits / 6000 * 100 <= 95, f"ตกช่วงบน {hits / 60:.0f}% — ตั้งใจไว้ราว 90%"
+
+
+def test_panel_can_retune_the_dice(monkeypatch):
+    monkeypatch.setattr(config_loader, "get_balance",
+                        lambda k, d=None: {"dice.normal_min": 5, "dice.normal_max": 6,
+                                           "dice.normal_hit_pct": 100}.get(k, d))
+    rolls = {adventure_core.roll_player_die(random.Random(s)) for s in range(300)}
+    assert rolls <= {5, 6}
+
+
+def test_broken_dice_config_never_breaks_the_fight(monkeypatch):
+    monkeypatch.setattr(config_loader, "get_balance",
+                        lambda k, d=None: {"dice.normal_min": "พัง", "dice.normal_max": None}.get(k, d))
+    assert 1 <= adventure_core.roll_player_die(random.Random(0)) <= 20
+
+
+@pytest.mark.parametrize("skill", ["skill_heavy_strike", "skill_shield_bash", "skill_fireball",
+                                   "skill_frostbolt", "skill_backstab", "skill_heal",
+                                   "skill_holy_aura"])
+def test_any_skill_out_damages_a_plain_attack_at_the_same_roll(hero, skill):
+    """กติกาที่ผู้เล่นขอ: ออกท่าแล้วทอยชนะ ต้องแรงกว่าตีปกติที่แต้มเท่ากันเสมอ
+    รวมสกิลสายกันตัว/บัฟ เพราะกดแล้วทอยชนะก็ยังฟาดโดนมอนอยู่ดี"""
+    plain = adventure_core.fight_turn(1, _fight(hp=10 ** 7), rng=Rigged(roll=15, pcts=[100, 1]))
+    withs = adventure_core.fight_turn(1, _fight(hp=10 ** 7), skill_used=skill,
+                                      rng=Rigged(roll=15, pcts=[100, 1]))
+    assert plain["damage_to_monster"] > 0, "ตั้งเทสผิด — ตีปกติไม่โดน"
+    assert withs["damage_to_monster"] > plain["damage_to_monster"], \
+        f"{skill} ตีได้ {withs['damage_to_monster']} ไม่มากกว่าตีปกติ {plain['damage_to_monster']}"

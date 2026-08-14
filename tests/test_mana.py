@@ -38,23 +38,25 @@ def _fight(**over):
 
 
 class Roll(random.Random):
-    """คุมผลแพ้ชนะเต๋า — win=True ให้ผู้เล่นทอยสูงกว่ามอน"""
+    """คุมผลแพ้ชนะเต๋า — เต๋าผู้เล่นกับของมอนทอยคนละช่วงแล้ว (ปรับ 2026-08-14)"""
 
     def __init__(self, win, seed=0):
         super().__init__(seed)
-        self.win = win
-        self.n20 = self.n100 = 0
+        self.player_val, self.monster_val = (20, 1) if win else (1, 20)
+        self._player_done = False
+        self.n100 = 0
+
+    def random(self):
+        return 0.0 if self.player_val >= 12 else 0.99
 
     def randint(self, a, b):
-        if (a, b) == (1, 20):
-            self.n20 += 1
-            if self.win:
-                return 20 if self.n20 == 1 else 1
-            return 1 if self.n20 == 1 else 20
         if (a, b) == (1, 100):
             self.n100 += 1
             return 100 if self.n100 == 1 else 1      # ครั้งแรกคือเช็คมอนหนี อย่าให้หนี
-        return super().randint(a, b)
+        if not self._player_done:
+            self._player_done = True
+            return max(a, min(b, self.player_val))
+        return max(a, min(b, self.monster_val))
 
 
 # ── ขั้นบันไดตามเลเวล ────────────────────────────────────────────────────────

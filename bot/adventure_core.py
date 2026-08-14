@@ -109,7 +109,34 @@ def decide_event(user_id, player, statuses, mods, dg_steps, last_evt, cooldown, 
     return rng.choices(EVENT_LIST, weights=weights, k=1)[0], None, dg_steps
 
 
-def roll_combat(user_id, player, statuses, element_data, m_stats, player_elements, rng=random):
+def roll_player_die(rng=random, skill_used=None):
+    """เต๋าฝั่งผู้เล่น (ปรับ 2026-08-14) — ตีปกติกับออกท่าใช้กติกาคนละแบบ
+
+    โจมตีปกติ = มือที่ชำนาญแล้ว: 90% ตกช่วงบน 12-19 อีก 10% พลาดร่วงลงมา 1-11
+                แต่ "ไม่มีทางทอยได้ 20 เอง" — แต้มสูงสุดเป็นของสกิลเท่านั้น
+    ใช้สกิล    = เสี่ยงกว่า: ทอยเต็มช่วง 1-20 เฉลี่ยต่ำกว่าตีปกติ แต่แตะ 20 ได้
+                (แลกกับดาเมจที่แรงกว่าเสมอ ดูตัวคูณใน fight_turn)
+
+    ทุกตัวเลขตั้งได้ที่ Panel — ตั้งเพี้ยนก็ตกกลับค่าในโค้ด ไม่พังเกม
+    """
+    if skill_used:
+        return rng.randint(1, int(config_loader.get_balance("dice.skill_max", 20)))
+    try:
+        lo = int(config_loader.get_balance("dice.normal_min", 12))
+        hi = int(config_loader.get_balance("dice.normal_max", 19))
+        miss_hi = int(config_loader.get_balance("dice.normal_miss_max", 11))
+        hit_pct = float(config_loader.get_balance("dice.normal_hit_pct", 90))
+    except (TypeError, ValueError):
+        lo, hi, miss_hi, hit_pct = 12, 19, 11, 90.0
+    if lo > hi:
+        lo, hi = hi, lo
+    if rng.random() * 100 < hit_pct:
+        return rng.randint(lo, hi)
+    return rng.randint(1, max(1, min(miss_hi, lo - 1)))
+
+
+def roll_combat(user_id, player, statuses, element_data, m_stats, player_elements,
+                rng=random, skill_used=None):
     """ทอยเต๋าหนึ่งเทิร์น — คืนแต้มผู้เล่น/มอน พร้อม "ที่มาของแต้ม" ไว้โชว์บนจอ
 
     ลำดับยกมาจาก process_turn เดิมทั้งหมด (ลำดับมีผลกับผลลัพธ์ ห้ามสลับ):
@@ -121,9 +148,9 @@ def roll_combat(user_id, player, statuses, element_data, m_stats, player_element
     (statuses อาจเปลี่ยนเมื่อโคลเวอร์ถูกใช้กันราก)
     """
     dice_n = m_stats.get("dice_count", 1)
-    player_roll = rng.randint(1, 20)
+    player_roll = roll_player_die(rng, skill_used)
     monster_roll = sum(rng.randint(1, 20) for _ in range(dice_n))
-    parts = [f"`{player_roll}` พื้นฐาน"]
+    parts = [f"`{player_roll}` พื้นฐาน" + ("" if skill_used else " (ตีปกติ)")]
     mon_parts = [f"`{monster_roll}` พื้นฐาน" + (f" ({dice_n} เต๋า)" if dice_n > 1 else "")]
     log = ""
 
@@ -1106,7 +1133,7 @@ def fight_turn(user_id, fight, member_roles=(), skill_used=None, rng=random):
     # 🎲 ทอยเต๋าทั้งเทิร์น — ตรรกะอยู่ใน adventure_core (ใช้ร่วมกับหน้าไฟต์บนเว็บ)
     _roll = roll_combat(
         user_id, player, statuses, element_data,
-        m_stats, player_elements, rng)
+        m_stats, player_elements, rng, skill_used)
     player_roll = _roll["player_roll"]
     monster_roll = _roll["monster_roll"]
     roll_parts = _roll["player_parts"]      # 🎲 B3: ที่มาของแต้ม ไว้โชว์ในหน้าจอไฟต์
@@ -1217,7 +1244,13 @@ def fight_turn(user_id, fight, member_roles=(), skill_used=None, rng=random):
         passive_dmg_mult = game_modifiers.player_passive_mult(player_elements, "dmg_mult")
         if passive_dmg_mult > 1.0:
             combat_log += f"🩸 **พลังธาตุประจำตัวเสริมคมอาวุธ** ดาเมจ ×{passive_dmg_mult:g}\n"
-        damage_to_monster = int((player_roll + curr_atk) * 5 * damage_multiplier * status_dmg_mult * goddess_mult * elem_adv_mult * passive_dmg_mult)
+        # ⚔️ ออกท่าแล้วทอยชนะ ต้องแรงกว่าตีปกติที่แต้มเท่ากันเสมอ (ปรับ 2026-08-14)
+        # ใช้กับทุกสกิลรวมสายกันตัว/บัฟ — เพราะกดแล้วทอยชนะก็ยังฟาดโดนมอนอยู่ดี
+        # สกิลสายโจมตี (เช่น Heavy Strike) มีตัวคูณของตัวเองซ้อนทับอีกชั้น
+        skill_bonus = float(config_loader.get_balance("skill.damage_bonus_mult", 1.3)) if skill_used else 1.0
+        if skill_bonus > 1.0:
+            combat_log += f"⚔️💫 **พลังจากการออกท่า** ดาเมจ ×{skill_bonus:g}\n"
+        damage_to_monster = int((player_roll + curr_atk) * 5 * damage_multiplier * status_dmg_mult * goddess_mult * elem_adv_mult * passive_dmg_mult * skill_bonus)
         # 💥 B3: สรุปสูตรดาเมจให้ผู้เล่นเห็นว่าคูณอะไรมาบ้าง
         _mults = []
         for _label, _v in (("สกิล", damage_multiplier), ("สถานะ", status_dmg_mult), ("เทพี", goddess_mult),
