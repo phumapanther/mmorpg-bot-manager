@@ -310,12 +310,12 @@ def test_web_shows_the_last_turn_log_when_you_win():
 class Lose(Rigged):
     """บังคับให้แพ้เต๋าแน่นอน — ผู้เล่นได้ 1 มอนได้ 20
 
-    การทอย 1-100 ครั้งแรกคือเช็คมอนหนี (ให้ 100 = ไม่หนี) ที่เหลือให้ติดหมด
-    เพื่อให้เอฟเฟกต์กันตัวอย่าง Holy Aura ทำงานแน่นอน
+    ให้การทอย 1-100 ติดหมด เพื่อให้เอฟเฟกต์กันตัวอย่าง Holy Aura ทำงานแน่นอน
+    (ธาตุดินเรทหนี 0% แล้ว จึงไม่มีการทอยเช็คหนีมาคั่นลำดับ)
     """
 
     def __init__(self, seed=0):
-        super().__init__(rolls=[1, 20], pcts=[100, 1])
+        super().__init__(rolls=[1, 20], pct=1)
 
 
 def _taken(hero, skill, seeds=range(12)):
@@ -447,3 +447,23 @@ def test_any_skill_out_damages_a_plain_attack_at_the_same_roll(hero, skill):
     assert plain["damage_to_monster"] > 0, "ตั้งเทสผิด — ตีปกติไม่โดน"
     assert withs["damage_to_monster"] > plain["damage_to_monster"], \
         f"{skill} ตีได้ {withs['damage_to_monster']} ไม่มากกว่าตีปกติ {plain['damage_to_monster']}"
+
+
+def test_only_light_monsters_run_away_by_default():
+    """เรทหนีเป็น 'ต่อเทิร์น' จึงทบต้นเร็วมาก — ตั้ง 10% ทุกธาตุแปลว่าไฟต์ยาว 8 เทิร์น
+    มอนหนีไปแล้ว 57% (บอสหนี 100% = ฆ่าไม่ได้เลย) การหนีต้องเป็นจุดขายของธาตุแสงเท่านั้น"""
+    import json
+    cfg = json.load(open("config.example.json", encoding="utf-8"))
+    flee = cfg["game_balance"]["element_flee_chance"]
+    assert flee["light"] > 0, "ธาตุแสงต้องหนีได้ — เป็นจุดขายที่ทำให้มันหายาก"
+    for el in ("fire", "water", "earth", "wind", "wood", "dark"):
+        assert flee[el] == 0, f"ธาตุ {el} ตั้งเรทหนี {flee[el]}% — ทบต้นทุกเทิร์นจนไฟต์จบไม่ได้"
+
+
+def test_the_flee_roll_happens_once_per_turn_not_once_per_fight():
+    """เอกสารกันเข้าใจผิด: เลขที่ตั้งคือ 'ต่อเทิร์น' ไม่ใช่ 'ต่อไฟต์'
+    10% ต่อเทิร์น = 65% ที่จะหนีสำเร็จภายใน 10 เทิร์น"""
+    import pathlib
+    core = pathlib.Path("bot/adventure_core.py").read_text(encoding="utf-8")
+    block = core[core.index("def fight_turn("):core.index("_roll = roll_combat")]
+    assert "monster_flee" in block, "การเช็คหนีต้องอยู่ต้นเทิร์น (ทอยใหม่ทุกเทิร์น)"
