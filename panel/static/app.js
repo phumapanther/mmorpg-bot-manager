@@ -727,6 +727,7 @@ const ITEM_TYPES = [
 const ITEM_EFFECTS = [
   { value: "", label: "-- ไม่มี --" },
   { value: "heal", label: "ฟื้น HP (heal)" },
+  { value: "mana", label: "คืนเม็ดคริสตัล (mana)" },
   { value: "repair", label: "ซ่อมอุปกรณ์ (repair)" },
   { value: "revive", label: "ชุบชีวิต (revive)" },
   { value: "set_state", label: "ตั้งค่าเหตุการณ์ (set_state)" },

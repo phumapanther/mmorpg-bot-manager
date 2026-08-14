@@ -28,6 +28,8 @@ def _item_effect_desc(it):
     eff, val = it.get("effect"), it.get("effect_value")
     if eff == "heal":
         return f"ฟื้น HP +{it.get('effect_amount', 0)}"
+    if eff == "mana":
+        return f"คืนเม็ดคริสตัล 💎 +{it.get('effect_amount', 1)} (ใช้ออกท่าได้อีกครั้ง)"
     if eff == "repair":
         return "ซ่อมความทนทานอาวุธ/เกราะ"
     if eff == "revive":
@@ -195,8 +197,20 @@ def apply_item_effect(user_id, item_id):
 
     msg = ""
 
+    # 💎 กรณี: ยามานา — คืนเม็ดคริสตัลที่ใช้ออกท่า (เต็มอยู่แล้วใช้ไม่ได้ กันกินทิ้ง)
+    if item_info.get("effect") == "mana":
+        from bot import mana as _mana
+        amount = int(item_info.get("effect_amount", 1))
+        full = _mana.max_mana(player.get("level", 1))
+        cur = _mana.get(user_id, player)
+        if cur >= full:
+            return False, f"❌ เม็ดคริสตัลของคุณเต็มอยู่แล้ว! (`{cur}/{full}`) เก็บ {item_name} ไว้ก่อน"
+        left = _mana.restore(user_id, amount, player)
+        msg = (f"💠 คุณบดขยี้ **{item_name}** พลังมานาไหลกลับเข้าร่าง! "
+               f"(💎 `{cur}` ➔ `{left}/{full}`)")
+
     # 🧪 กรณี: ใช้ยาฮีล (ตั้งค่าได้ผ่าน effect: "heal" + effect_amount)
-    if item_info.get("effect") == "heal":
+    elif item_info.get("effect") == "heal":
         heal_amount = item_info.get("effect_amount", 50)
         armor_key = player.get("armor", "None")
         current_dur = player.get("armor_dur", 0)

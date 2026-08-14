@@ -196,3 +196,13 @@ def test_death_screen_restores_the_character_afterwards():
 def test_dying_on_the_road_also_shows_the_death_screen():
     """ตายจากพิษระหว่างเดิน ไม่ใช่แค่ในไฟต์ ก็ต้องเห็นฉากตาย"""
     assert "if (g.event === 'death') SCENE.killHero();" in PLAY
+
+
+def test_action_buttons_sit_above_the_log():
+    """ข้อความยาวต้องไม่ดันปุ่มหนีมือ — ปุ่มอยู่บน ข้อความอยู่ล่างในกล่องที่เลื่อนเองได้"""
+    html = pathlib.Path("license_server/web_static/play.html").read_text(encoding="utf-8")
+    card = html[html.index('<div class="bet-row" id="advActions">'):html.index('</div>\n      </div>')]
+    assert html.index('id="advActions"') < html.index('id="advLog"'), "ปุ่มต้องอยู่เหนือข้อความ"
+    css = pathlib.Path("license_server/web_static/play.css").read_text(encoding="utf-8")
+    assert ".adv-log" in css and "max-height" in css[css.index(".adv-log"):css.index(".adv-log") + 200]
+    assert "advLog').scrollTop = 0" in PLAY, "ข้อความใหม่ต้องเริ่มอ่านจากบนสุด"

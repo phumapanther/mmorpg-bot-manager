@@ -71,6 +71,17 @@ def restore(user_id, amount=1, player=None):
     return left
 
 
+def refill(user_id, player=None):
+    """เติมเม็ดเต็มตามเลเวลปัจจุบัน — ใช้ตอนนอนพักที่เมือง / เลเวลอัพ / เกิดใหม่
+
+    ทั้งสามจังหวะคือ "ตั้งหลักใหม่" ของผู้เล่น จึงคืนเม็ดให้เต็มเหมือนขึ้นวันใหม่
+    """
+    player = player if player is not None else (player_model.get_player(user_id) or {})
+    full = max_mana(player.get("level", 1))
+    player_model.update_player_fields(user_id, {"mana": full, "mana_date": _today()})
+    return full
+
+
 def bar(cur, full):
     """💎💎💎🖤🖤 — เม็ดที่เหลือกับที่หมดไป (ยาวเกิน 10 เม็ดสลับเป็นตัวเลขล้วน)"""
     cur, full = max(0, int(cur)), max(0, int(full))

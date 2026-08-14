@@ -599,8 +599,10 @@
         "name": "🔮 มานาคริสตัลบริสุทธิ์",
         "buy": 50000,
         "sell": 5000,
-        "type": "junk",
-        "purchasable": false
+        "type": "use",
+        "purchasable": false,
+        "effect": "mana",
+        "effect_amount": 1
       },
       "30": {
         "name": "🌿 ยาถอนพิษพงไพร",
@@ -1046,6 +1048,15 @@
         "type": "gold_bar",
         "bar_value": 1000000000,
         "purchasable": false
+      },
+      "76": {
+        "name": "💠 ปริซึมมานา",
+        "buy": 100000,
+        "sell": 5000,
+        "type": "use",
+        "purchasable": false,
+        "effect": "equip_artifact",
+        "effect_value": "art_mana_prism"
       }
     },
     "armor_stats": {
@@ -1757,9 +1768,9 @@
       "gold_mult": 1.0
     },
     "dice": {
-      "normal_min": 12,
-      "normal_max": 19,
-      "normal_miss_max": 11,
+      "normal_min": 8,
+      "normal_max": 18,
+      "normal_miss_max": 7,
       "normal_hit_pct": 90,
       "skill_max": 20
     },

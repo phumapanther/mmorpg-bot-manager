@@ -246,7 +246,13 @@ def add_exp(user_id, exp_to_add):
     update_player_field(user_id, "level", current_level)
     if level_up_occurred:
         update_player_field(user_id, "max_hp", max_hp)
-        update_player_field(user_id, "hp", max_hp) 
+        update_player_field(user_id, "hp", max_hp)
+        # 💎 เลเวลอัพ = เม็ดคริสตัลเต็มใหม่ (เพดานเพิ่งขยับด้วย)
+        try:
+            from bot import mana as _mana
+            _mana.refill(user_id)
+        except Exception as e:
+            print(f"⚠️ [mana] เติมเม็ดตอนเลเวลอัพไม่สำเร็จ: {e}")
     return level_up_occurred, current_level, current_exp
 
 def calculate_rank(level):

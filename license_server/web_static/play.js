@@ -692,6 +692,7 @@ function advPaint(g) {
   document.getElementById('advText').innerHTML = mdLite(g.text || '');
   document.getElementById('advNotes').innerHTML =
     (g.notes || []).map(n => '<span>' + esc(n) + '</span>').join('');
+  document.getElementById('advLog').scrollTop = 0;   // ข้อความใหม่เริ่มอ่านจากบรรทัดบนสุดเสมอ
 
   const box = document.getElementById('advActions');
   const build = ADV_ACTIONS[g.pending];

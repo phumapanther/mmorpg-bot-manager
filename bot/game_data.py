@@ -530,6 +530,12 @@ STATUS_EFFECTS = {
         "hp_drain_heal": 0.03,                                   # แปลง Life Drain เป็นฮีล +3% MaxHP/เทิร์น (ตามสเปก)
         "blocks": ["odd_curse"], "cleanse_on_apply": ["odd_curse"],
     },
+    "art_mana_prism": {
+        "label": "🔮 ปริซึมมานา", "tick": "step", "default_turns": 1,
+        "desc": "คืนเม็ดคริสตัล 1 เม็ดทุกก้าวที่เดิน (ไม่เกินเพดานของเลเวล)",
+        "artifact": True, "no_tick": True,
+        "mana_regen_per_step": 1,                                # 💎 คืนมานา 1 เม็ด/ก้าว
+    },
     "art_twin_blade": {
         "label": "⚔️ ดาบคู่แฝด", "tick": "step", "default_turns": 1,
         "desc": "ดาเมจ +15% ถาวร",

@@ -9,6 +9,7 @@ from bot import config_loader
 from bot import game_modifiers
 from bot import robbery
 from bot import adventure_core
+from bot import mana as _mana
 from bot.adventure_core import (_roll_amount,  # noqa: F401 — ย้ายไป core แล้ว
                                 _holy_aura_chance, _rank_stats, _random_enemy_champion,
                                 execute_special_outcome, resolve_instant_special,
@@ -41,6 +42,7 @@ def respawn_player(user_id):
     player_model.update_player_fields(user_id, {
         "hp": respawn_hp, "cash": new_cash,
         "current_state": "village", "last_event": "village", "dungeon_steps": 0})
+    _mana.refill(user_id)          # 💎 เกิดใหม่ = เม็ดคริสตัลเต็ม
     embed = build_respawn_embed(player, respawn_hp, max_hp, fee, new_cash, lost_steps, hp_pct)
     return embed, {"fee": fee, "hp": respawn_hp, "cash": new_cash}
 
@@ -174,7 +176,6 @@ class MonsterEventView(ActionView):
         }
 
         # 💎 เม็ดคริสตัลหมด = ปุ่มสกิลดับทั้งแถว (ยังตีปกติ/หนีได้)
-        from bot import mana as _mana
         crystals = _mana.get(self.user_id)
 
         if self.player_class in skills_map:

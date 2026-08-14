@@ -308,6 +308,17 @@ def step_prelude(user_id, player, player_elements=()):
         for key in expired:
             notes.append(f"⏳ {game_modifiers.STATUS_EFFECTS[key]['label']} หมดฤทธิ์แล้ว")
 
+    # 🔮 ปริซึมมานา (อาร์ติแฟกต์): คืนเม็ดคริสตัลทุกก้าวที่เดิน
+    regen = max((game_modifiers.STATUS_EFFECTS[k].get("mana_regen_per_step", 0)
+                 for k in statuses if k in game_modifiers.STATUS_EFFECTS), default=0)
+    if regen:
+        from bot import mana as _mana
+        before = _mana.get(user_id, player)
+        after = _mana.restore(user_id, regen, player)
+        if after > before:
+            notes.append(f"🔮 ปริซึมมานาเรืองแสง — คืนเม็ดคริสตัล `+{after - before}` "
+                         f"({_mana.bar(after, _mana.max_mana(player.get('level', 1)))})")
+
     # 🌿 Passive ธาตุไม้ (สังเคราะห์แสง): ฟื้น % MaxHP ทุกก้าว — เงียบ ๆ เห็นผลที่ตัวเลข HP
     regen_pct = game_modifiers.player_passive_sum(player_elements, "step_regen")
     if regen_pct:
@@ -357,8 +368,11 @@ def resolve_village(user_id, action):
 
     player_model.update_player_fields(user_id, {"cash": player["cash"] - cost, "hp": full_hp,
                                                 "current_state": "idle", "last_event": "village"})
-    return {"text": f"💤 คุณนอนพักผ่อนอย่างเต็มอิ่ม ฟื้นฟู HP จนเต็ม! *(จ่าย {cost:,} ทอง)*",
-            "hp": full_hp, "cost": cost}
+    from bot import mana as _mana
+    crystals = _mana.refill(user_id)      # 💎 นอนพักที่เมือง = เม็ดคริสตัลเต็ม
+    return {"text": f"💤 คุณนอนพักผ่อนอย่างเต็มอิ่ม ฟื้นฟู HP จนเต็ม! *(จ่าย {cost:,} ทอง)*\n"
+                    f"💎 เม็ดคริสตัลเต็มอีกครั้ง — {_mana.bar(crystals, crystals)}",
+            "hp": full_hp, "cost": cost, "mana": crystals}
 
 
 def resolve_treasure(user_id, action, is_rogue=False, rng=random):

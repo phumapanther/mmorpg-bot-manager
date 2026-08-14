@@ -487,3 +487,11 @@
 .gacha-card.fail .gc-inner { border-color: #c8452f; box-shadow: 0 0 20px rgba(200,69,47,.35); }
 
 .role-card.owned button { opacity: .5; cursor: not-allowed; }
+
+
+/* ── กล่องข้อความผจญภัย: อยู่ใต้ปุ่ม สูงคงที่ ไม่ดันปุ่มหนีมือ (ปรับ 2026-08-14) ── */
+.adv-log { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--g-line);
+           max-height: 230px; overflow-y: auto; overscroll-behavior: contain; }
+.adv-log::-webkit-scrollbar { width: 8px; }
+.adv-log::-webkit-scrollbar-thumb { background: #4a3b2a; border-radius: 4px; }
+#advActions { margin-top: 0; }

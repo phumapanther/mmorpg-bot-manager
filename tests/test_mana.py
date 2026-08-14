@@ -181,3 +181,66 @@ def test_reading_game_state_never_writes_to_the_database():
 def test_new_players_start_with_crystals():
     assert pm.NEW_PLAYER_DEFAULTS.get("mana") == 3
     assert "mana_date" in pm.NEW_PLAYER_DEFAULTS, "ต้องมีคอลัมน์วันที่ ไม่งั้นเติมข้ามวันไม่ได้"
+
+
+# ── 🔄 จุดที่คืนเม็ดคริสตัล (2026-08-14) ──────────────────────────────────────
+
+def test_resting_at_the_village_refills_you(hero, monkeypatch):
+    monkeypatch.setattr(config_loader, "get_balance",
+                        lambda k, d=None: {"village.rest_cost": 0}.get(k, d))
+    monkeypatch.setattr(config_loader, "get_armor_stats", lambda k: {"hp": 0, "eva": 0})
+    hero.update(level=40, mana=0, cash=99999, current_state="village")
+    r = adventure_core.resolve_village(1, "rest")
+    assert hero["mana"] == 5 and "เม็ดคริสตัลเต็ม" in r["text"]
+
+
+def test_levelling_up_refills_you(hero):
+    hero.update(level=1, exp=0, mana=0)
+    pm.add_exp(1, 10 ** 9)
+    assert hero["mana"] == mana.max_mana(hero["level"]), "เลเวลอัพต้องได้เม็ดเต็มตามเพดานใหม่"
+
+
+def test_respawning_refills_you():
+    """ตายแล้วเกิดใหม่ = ตั้งหลักใหม่ ต้องได้เม็ดเต็ม"""
+    src = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
+    block = src[src.index("def respawn_player("):src.index("TAIL_CONTINUE")]
+    assert "_mana.refill(user_id)" in block
+
+
+def test_the_mana_potion_gives_a_crystal_back(hero, monkeypatch):
+    """ยามานาต้องคืนเม็ด และห้ามกินทิ้งตอนเต็มอยู่แล้ว"""
+    from bot.cogs.player_commands import apply_item_effect
+    monkeypatch.setattr(config_loader, "get_item_config",
+                        lambda i: {"name": "💠 ยามานา", "type": "use",
+                                   "effect": "mana", "effect_amount": 1})
+    hero.update(mana=1, inventory='["29"]')
+    ok, msg = apply_item_effect(1, "29")
+    assert ok and hero["mana"] == 2 and "มานา" in msg
+
+    hero.update(mana=3, inventory='["29"]')
+    ok, msg = apply_item_effect(1, "29")
+    assert not ok and "เต็ม" in msg and hero["mana"] == 3
+
+
+def test_the_mana_prism_gives_a_crystal_every_step(hero, monkeypatch):
+    from bot import game_modifiers
+    assert game_modifiers.STATUS_EFFECTS["art_mana_prism"]["mana_regen_per_step"] == 1
+    hero.update(mana=0, status_effects='{"art_mana_prism": 1}', hp=500, max_hp=500)
+    pre = adventure_core.step_prelude(1, dict(hero))
+    assert hero["mana"] == 1, "เดินหนึ่งก้าวต้องได้เม็ดคืนหนึ่งเม็ด"
+    assert any("ปริซึมมานา" in n for n in pre["notes"]), "ต้องบอกผู้เล่นด้วยว่าได้คืน"
+
+
+def test_the_prism_never_overflows_the_cap(hero):
+    hero.update(level=1, mana=3, status_effects='{"art_mana_prism": 1}', hp=500, max_hp=500)
+    adventure_core.step_prelude(1, dict(hero))
+    assert hero["mana"] == 3, "เต็มอยู่แล้วต้องไม่ล้นเพดาน"
+
+
+def test_panel_and_codex_both_know_the_mana_effect():
+    """ไอเทม effect ใหม่ต้องบอกผลได้ในคู่มือ และแท็บ Panel ต้องรู้จัก
+    ไม่งั้นกดบันทึกที่ Panel ทีเดียว effect โดนล้างเงียบ ๆ"""
+    pc = pathlib.Path("bot/cogs/player_commands.py").read_text(encoding="utf-8")
+    app = pathlib.Path("panel/static/app.js").read_text(encoding="utf-8")
+    assert 'if eff == "mana":' in pc
+    assert '{ value: "mana"' in app
