@@ -4,20 +4,14 @@
 renderChrome("/play");
 fillDiscordInvite();
 
-// ── สไปรต์ตัวละครแบบย่อ (ตัวเต็มมาเฟส 1.2) ──
-const SPRITE = [
-  '....111111....','...1ssssss1...','...1ssssss1...','...1sessse1...','...1ssssss1...',
-  '....1ssss1....','...1AAAAAA1...','..1AAAAAAAA1..','..1AAAAAAAA1..','..1aAAAAAAa1..',
-  '..1AAAAAAAA1..','...1AAAAAA1...','...1PP11PP1...','...1PP..PP1...','..1PPP..PPP1..'];
-const SPAL = { '1':'#241812','s':'#f2c9a0','e':'#241812','A':'#d93b2b','a':'#8f2317','P':'#3d2b1c' };
+// ── สไปรต์ตัวละคร (เฟส 1.2 — เอนจินอยู่ใน sprite.js) ──
+let CHAR = { race: null, cls: null, armor: 'None', weapon: null, pose: 'idle' };
 
-function drawSprite(cv) {
-  const ctx = cv.getContext('2d'), s = 3;
+function drawSprite(cv, scale) {
+  const ctx = cv.getContext('2d');
   ctx.clearRect(0, 0, cv.width, cv.height);
-  SPRITE.forEach((row, r) => [...row].forEach((ch, c) => {
-    const col = SPAL[ch];
-    if (col) { ctx.fillStyle = col; ctx.fillRect(c * s, 8 + r * s, s, s); }
-  }));
+  const s = scale || Math.max(1, Math.floor(cv.width / 18));
+  drawCharacter(ctx, (cv.width - 16 * s) / 2, 2, s, CHAR);
 }
 
 // ── สลับแผง ──
@@ -86,11 +80,9 @@ function paint(g) {
   document.getElementById('pCash').textContent = fmt(m.cash);
   document.getElementById('pBank').textContent = fmt(m.bank);
 
-  // สีชุดบนสไปรต์เปลี่ยนตามเกราะที่สวมจริง (ตัวเต็มมาเฟส 1.2)
-  const tint = { Steel_H: ['#d5dce4', '#8b949e'], Steel_L: ['#b9c2cc', '#79838d'],
-                 Leather_H: ['#8a5c30', '#573a1e'], Leather_L: ['#a4703c', '#6d4823'] };
-  const t = tint[g.gear.armor.key];
-  if (t) { SPAL.A = t[0]; SPAL.a = t[1]; }
+  // ตัวละครประกอบจากของที่สวมจริง — เผ่า/คลาส/เกราะ/อาวุธ มาจาก DB ทั้งหมด
+  CHAR = { race: id.race, cls: id.class_name,
+           armor: g.gear.armor.key, weapon: g.gear.weapon.key, pose: 'idle' };
   drawSprite(document.getElementById('pfp'));
 }
 
