@@ -4,6 +4,31 @@
 // กติกา: ไม่มีกฎเกมในไฟล์นี้ — เซิร์ฟเวอร์คำนวณทุกอย่าง ที่นี่แค่วาดกับถามยืนยัน
 renderChrome("/play");
 
+// ⛶ ขยายเต็มจอ — คลาส .fullscreen คือตัวจริงที่ทำให้เต็มจอ (ซ่อนแถบเมนู/ท้ายหน้า)
+// ส่วน Fullscreen API ของเบราว์เซอร์เป็นของแถม: เดสก์ท็อป/แอนดรอยด์ได้เต็มจอจริงถึงขอบ
+// iPhone ไม่รองรับ requestFullscreen กับ element ทั่วไป — จึงต้องมีคลาสนี้เป็นหลัก
+const fullBtn = document.getElementById('playFull');
+if (fullBtn) {
+  const on = () => document.body.classList.contains('fullscreen');
+  const paint = () => { fullBtn.textContent = on() ? '⤢' : '⛶';
+                        fullBtn.title = on() ? 'ออกจากเต็มจอ' : 'ขยายเต็มจอ'; };
+  const setFull = want => {
+    document.body.classList.toggle('fullscreen', want);
+    try {
+      if (want && !document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      if (!want && document.fullscreenElement) document.exitFullscreen?.();
+    } catch (e) { /* เบราว์เซอร์ไม่ให้ก็ยังเต็มจอด้วย CSS ได้ */ }
+    paint();   // ฉากเป็น canvas 320x132 ที่ CSS ยืดให้เอง ไม่ต้องสั่งวาดใหม่
+  };
+  fullBtn.addEventListener('click', () => setFull(!on()));
+  // กด Esc หรือปัดออกจากเต็มจอของเบราว์เซอร์ — ต้องถอดคลาสตามให้ตรงกัน
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && on()) setFull(false);
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && on()) setFull(false); });
+  paint();
+}
+
 // 🔊 ปุ่มเปิด/ปิดเสียง — แยกเอฟเฟกต์กับเพลงพื้นหลัง จำค่าที่เลือกไว้ข้ามครั้ง
 const sfxBtn = document.getElementById('playSfx');
 if (sfxBtn) {
