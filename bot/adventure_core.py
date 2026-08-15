@@ -464,7 +464,7 @@ def resolve_treasure(user_id, action, is_rogue=False, rng=random):
                 "gold": gold}
 
     items = config_loader.get_all_items()
-    ids = list(items.keys())
+    ids = [i for i, d in items.items() if is_random_rewardable(d)]
     chosen = rng.choices(ids, weights=[1.0 / max(items[i]["buy"], 1) for i in ids], k=1)[0]
     name = items[chosen]["name"]
 
@@ -711,7 +711,7 @@ def npc_talk(user_id, rng=random):
     if outcome == "nothing":
         return {"text": "💤 NPC แค่บ่นพึมพำเรื่องฟ้าฝนชวนคุยแก้เหงาเฉยๆ ไม่มีอะไรเกิดขึ้น"}
 
-    ids = list(items.keys())
+    ids = [i for i, d in items.items() if is_random_rewardable(d)]
     chosen = rng.choices(ids, weights=[1.0 / max(items[i]["buy"], 1) for i in ids], k=1)[0]
     item = items[chosen]
     price = rng.randint(0, item["buy"] * 2)
@@ -734,6 +734,24 @@ def npc_talk(user_id, rng=random):
             "spent": price, "item": item["name"]}
 
 
+# 🚫 ของที่ห้ามหลุดออกมาเป็น "ของแถม/ของรางวัลสุ่ม" — ต้องหามาด้วยวิธีของมันเองเท่านั้น
+#    สว่านเจาะช่อง = ล้มบอสไร้พ่าย · อาร์ติแฟกต์ = เก็บสมุดธาตุครบทวีป
+#    ชุดถอด/แหวนแต่งงาน = ซื้อที่ร้าน · ทองคำแท่ง = แลกที่ธนาคาร
+NO_RANDOM_REWARD = ("artifact_slot_up", "equip_artifact", "artifact_remove", "wedding_ring")
+
+
+def is_random_rewardable(item):
+    """ของชิ้นนี้เอาไปเป็นของรางวัลสุ่ม (หีบสมบัติ / ของแลก NPC) ได้ไหม
+
+    เคยพลาด: NPC เลือกของรางวัลด้วยการสุ่มเท่า ๆ กันทุกชิ้น และใช้ "ราคาขาย" เป็นค่าประเมิน
+    สว่านเจาะช่องขายได้ 1 ทอง เลยติดโผของทุกดีล — ได้จากแลก NPC ราว 1.4% ต่อครั้ง
+    ทั้งที่ควรได้จากบอสไร้พ่ายเท่านั้น (ทองคำแท่งก็รั่วทางเดียวกัน = ฟอกเงินได้)
+    """
+    if not item:
+        return False
+    return not (item.get("effect") in NO_RANDOM_REWARD or item.get("bar_value"))
+
+
 def _item_value(items, item_id):
     """มูลค่าที่แท้จริงของไอเทม = **ราคาขาย** ไม่ใช่ราคาซื้อ (แก้ 2026-08-14)
 
@@ -742,10 +760,15 @@ def _item_value(items, item_id):
     ทั้งที่ขายที่ร้านได้แค่ 4,000 — คุ้มกว่าขายร้าน 9 เท่า = ยังพิมพ์เงินได้อยู่
 
     ของที่ไม่ได้ตั้งราคาขายไว้ ประเมินคร่าว ๆ ที่ 1/3 ของราคาซื้อ (เรทร้านค้าปกติ)
+
+    ⚠️ พื้นราคาขั้นต่ำ 1/10 ของราคาซื้อ — ของหายากบางชิ้นตั้งราคาขายไว้ 1 ทอง
+    (กันคนขายทิ้ง) ถ้าเชื่อราคาขายตรง ๆ มันจะกลายเป็น "ของถูก" ที่ NPC แถมได้ทุกดีล
+    เคสจริง: 🗡️ อาวุธในตำนาน ซื้อ 10 ล้าน ขาย 1 — เคยแลกดีลหลักร้อยก็ได้ไป
     """
     d = items.get(str(item_id), {}) or {}
     sell = int(d.get("sell", 0) or 0)
-    return sell if sell > 0 else int(d.get("buy", 0) or 0) // 3
+    buy = int(d.get("buy", 0) or 0)
+    return max(sell, buy // 10) if sell > 0 else buy // 3
 
 
 def npc_quest_offer(user_id, rng=random):
@@ -783,7 +806,8 @@ def npc_quest_offer(user_id, rng=random):
     lo = float(config_loader.get_balance("npc.trade_min_mult", 0.5))
     hi = float(config_loader.get_balance("npc.trade_max_mult", 1.3))
     reward_val = rng.randint(int(req_value * min(lo, hi)), max(1, int(req_value * max(lo, hi))))
-    valid = [i for i, d in items.items() if 0 < _item_value(items, i) <= reward_val]
+    valid = [i for i, d in items.items()
+             if is_random_rewardable(d) and 0 < _item_value(items, i) <= reward_val]
     reward_item = rng.choice(valid) if valid else None
     reward_cash = reward_val - (_item_value(items, reward_item) if reward_item else 0)
     cash_cap = int(config_loader.get_balance("npc.trade_cash_cap", 100_000))
