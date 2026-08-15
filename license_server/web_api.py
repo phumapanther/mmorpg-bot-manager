@@ -547,9 +547,12 @@ class UseBody(BaseModel):
 def item_use(body: UseBody, request: Request):
     """ใช้ไอเทมจากกระเป๋า — เรียก apply_item_effect() ตัวเดียวกับปุ่ม 🧪 ในดิส"""
     uid = require_player(request)["uid"]
+    from bot import adventure_core
     from bot.cogs.player_commands import apply_item_effect
     with _user_lock(uid):
         ok, msg = apply_item_effect(int(uid), str(body.item_id))
+        # แวะกินยาระหว่างสู้ = ยังอยู่กับไฟต์นั้น ต่ออายุให้ ไม่งั้นกลับมาแล้วมอนหายไป
+        adventure_core.touch_pending(int(uid))
     return {"ok": ok, "message": msg}
 
 
@@ -650,12 +653,14 @@ def shop(body: ShopBody, request: Request):
     if body.action not in ("buy", "sell"):
         raise HTTPException(400, "ไม่รู้จักคำสั่งนี้")
 
+    from bot import adventure_core
     from bot.cogs.player_commands import buy_item_for, sell_item_for
     with _user_lock(uid):
         if body.action == "buy":
             ok, msg = buy_item_for(int(uid), body.item_id, body.count)
         else:
             ok, msg = sell_item_for(int(uid), body.item_id)
+        adventure_core.touch_pending(int(uid))    # แวะซื้อของระหว่างสู้ = ยังอยู่กับไฟต์นั้น
     return {"ok": ok, "message": msg, "money": _money_now(uid)}
 
 
@@ -744,9 +749,11 @@ class CraftBody(BaseModel):
 def craft(body: CraftBody, request: Request):
     """คราฟของ — craft_for() ตัวเดียวกับในดิส (มีโอกาสล้มเหลวตามสูตร)"""
     uid = require_player(request)["uid"]
+    from bot import adventure_core
     from bot.cogs.player_commands import craft_for
     with _user_lock(uid):
         ok, msg = craft_for(int(uid), str(body.item_id))
+        adventure_core.touch_pending(int(uid))    # แวะคราฟระหว่างสู้ = ยังอยู่กับไฟต์นั้น
     return {"ok": ok, "message": msg}
 
 

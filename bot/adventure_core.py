@@ -579,8 +579,23 @@ def clear_pending(user_id):
 
 # หน้าต่างเหตุการณ์ในดิสมี timeout ของมันเอง เว็บไม่มี จึงต้องหมดอายุเองให้เหมือนกัน
 # (ค่าตรงกับ timeout ของ View แต่ละตัวใน game_views.py)
-PENDING_TIMEOUT = {"village": 600}
+PENDING_TIMEOUT = {"village": 600, "monster": 600}
 PENDING_TIMEOUT_DEFAULT = 60
+
+
+def touch_pending(user_id):
+    """ต่ออายุเหตุการณ์ที่ค้างอยู่ — ผู้เล่นยังนั่งเล่นอยู่ แค่แวะทำอย่างอื่นในเกม
+
+    กินยา/ซื้อของ/คราฟระหว่างสู้ = ยังอยู่กับไฟต์นั้น ไม่ใช่ปิดหน้าหนีไป
+    (เคยพลาด: เปิดกระเป๋าไปหายากินเกิน 60 วิ กลับมามอนหายไปทั้งตัว)
+    แตะแค่เวลา ห้ามเขียนทับข้อมูลไฟต์ — เลือดมอนกับเทิร์นต้องคงเดิม
+    """
+    import sqlite3
+    import time
+    with sqlite3.connect(player_model.DB_NAME, timeout=10) as conn:
+        _pending_table(conn)
+        conn.execute("UPDATE adventure_pending SET updated_at=? WHERE user_id=?",
+                     (time.time(), int(user_id)))
 
 
 def expire_pending(user_id):
