@@ -4,6 +4,24 @@
 // กติกา: ไม่มีกฎเกมในไฟล์นี้ — เซิร์ฟเวอร์คำนวณทุกอย่าง ที่นี่แค่วาดกับถามยืนยัน
 renderChrome("/play");
 
+// ▴ ย่อแถบข้อมูลนักผจญภัยด้านบน — บนมือถือมันตัดเป็น 3 แถวจนบังจอเกม
+// ย่อแล้วเหลือแค่แถวปุ่ม (เลือด/เงินยังดูได้ที่การ์ดใต้ฉากอยู่แล้ว ไม่ได้หายไปไหน)
+const minBtn = document.getElementById('playMin');
+if (minBtn) {
+  const paint = () => {
+    const min = document.body.classList.contains('bar-min');
+    minBtn.textContent = min ? '▾' : '▴';
+    minBtn.title = min ? 'กางแถบข้อมูล' : 'ย่อแถบข้อมูล';
+  };
+  minBtn.addEventListener('click', () => {
+    document.body.classList.toggle('bar-min');
+    localStorage.setItem('barMin', document.body.classList.contains('bar-min') ? '1' : '0');
+    paint();
+  });
+  if (localStorage.getItem('barMin') === '1') document.body.classList.add('bar-min');
+  paint();
+}
+
 // ⛶ ขยายเต็มจอ — คลาส .fullscreen คือตัวจริงที่ทำให้เต็มจอ (ซ่อนแถบเมนู/ท้ายหน้า)
 // ส่วน Fullscreen API ของเบราว์เซอร์เป็นของแถม: เดสก์ท็อป/แอนดรอยด์ได้เต็มจอจริงถึงขอบ
 // iPhone ไม่รองรับ requestFullscreen กับ element ทั่วไป — จึงต้องมีคลาสนี้เป็นหลัก
