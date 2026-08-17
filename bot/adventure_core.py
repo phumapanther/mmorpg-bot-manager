@@ -2003,12 +2003,33 @@ def fight_victory(user_id, fight, member_roles=(), rng=random, carry=None):
             "in_dungeon": in_dungeon, "combat_log": combat_log, "statuses": statuses}
 
 
+# 🏃 ยิ่งพยายามหนีจากมอนตัวเดิม ยิ่งมีโอกาสรอดขึ้น
+# ไม่งั้นมอนเรทหนีต่ำ (บอสไร้พ่าย 5%) กดหนีรัวก็เสียเลือดฟรีไปเรื่อย ๆ ไม่มีทางออก
+# ตัวนับอยู่ในก้อนไฟต์ เกิดมอนใหม่ = เริ่มนับใหม่เอง
+FLEE_BONUS_PER_TRY = 15      # ทุกครั้งที่หนีพลาด ครั้งต่อไปบวกโอกาสให้เท่านี้
+FLEE_MAX_CHANCE = 95         # เพดาน — ต่อให้กดเป็นร้อยครั้งก็ยังมีโอกาสพลาด
+
+
+def flee_chance_now(fight):
+    """โอกาสหนีรอดตอนนี้ = เรทของแรงค์ + โบนัสจากครั้งที่พยายามมาแล้ว (ชนเพดานได้)"""
+    base = int((fight.get("stats") or {}).get("flee_chance", 0))
+    tries = int(fight.get("flee_tries", 0) or 0)
+    try:
+        step = int(config_loader.get_balance("fight.flee_bonus_per_try", FLEE_BONUS_PER_TRY))
+        cap = int(config_loader.get_balance("fight.flee_max_chance", FLEE_MAX_CHANCE))
+    except (TypeError, ValueError):
+        step, cap = FLEE_BONUS_PER_TRY, FLEE_MAX_CHANCE
+    return min(cap, base + step * tries)
+
+
 def fight_flee(user_id, fight, rng=random):
     """🏃 กดหนีจากไฟต์ (เว็บเกม เฟส 5.6d) — ยกมาจากปุ่มหนีในดิสทั้งชุด
 
     รากพันธนาการล็อกไว้ = หนีไม่ได้ (เช็คกับสถานะสด ใช้มีดตัดเถากลางไฟต์แล้วหนีได้ทันที)
     ทอยไม่ผ่านเรทหนีของแรงค์ = โดนสวนกลับ เสีย HP + เกราะสึก
+    หนีพลาดแล้วครั้งต่อไปโอกาสสูงขึ้น (ดู flee_chance_now)
 
+    คืน roll/need ด้วยเสมอเมื่อได้ทอยจริง — หน้าเว็บเอาไปโชว์กล่องเต๋าให้เห็นว่าเฉียดแค่ไหน
     outcome: blocked | fled | hit | lose
     """
     player = player_model.get_player(user_id) or {}
@@ -2021,10 +2042,15 @@ def fight_flee(user_id, fight, rng=random):
                 "text": (f"🌱 **รากไม้รัดขาแน่น!** (สถานะพันธนาการเหลือ `{turns}` ก้าว) "
                          f"คุณดิ้นเท่าไหร่ก็หนีไม่หลุด — ใช้ 🗡️ มีดตัดเถาวัลย์/🌿 ยาถอนพิษก่อน")}
 
-    if rng.randint(1, 100) <= fight["stats"]["flee_chance"]:
+    tries = int(fight.get("flee_tries", 0) or 0)
+    need = flee_chance_now(fight)
+    roll = rng.randint(1, 100)
+    tried_note = f" *(พยายามหนีมาแล้ว {tries} ครั้ง +{need - int(fight['stats']['flee_chance'])}%)*" if tries else ""
+
+    if roll <= need:
         player_model.update_player_field(user_id, "current_state", "idle")
-        return {"outcome": "fled", "fight": fight,
-                "text": "💨 **หนีสำเร็จ!** สลัดหลุดจากมอนสเตอร์สำเร็จ!"}
+        return {"outcome": "fled", "fight": fight, "roll": roll, "need": need,
+                "text": f"💨 **หนีสำเร็จ!** สลัดหลุดจากมอนสเตอร์สำเร็จ!{tried_note}"}
 
     damage = rng.randint(15, 30)
     new_hp = max(0, player.get("hp", 0) - damage)
@@ -2035,15 +2061,21 @@ def fight_flee(user_id, fight, rng=random):
     player_model.update_player_fields(user_id, updates)
 
     if new_hp <= 0:
-        return {"outcome": "lose", "fight": fight, "player_hp": 0,
+        return {"outcome": "lose", "fight": fight, "player_hp": 0, "roll": roll, "need": need,
                 "text": "💥 หนีไม่พ้นและโดนตบตายคาที่!"}
 
+    nxt = min(int(config_loader.get_balance("fight.flee_max_chance", FLEE_MAX_CHANCE)),
+              need + int(config_loader.get_balance("fight.flee_bonus_per_try", FLEE_BONUS_PER_TRY)))
     msg = (f"💥 หนีไม่พ้น! โดนสวนหลังฟาดกระอักเลือด `- {damage}`! "
            f"(เกราะเสียหาย `- {armor_loss}`)")
     if updates["armor_dur"] == 0 and dur > 0:
         msg += "\n🚨 **ชุดเกราะของคุณพังยับเยิน!**"
+    if nxt > need:
+        msg += f"\n🏃 **ครั้งหน้าหนีง่ายขึ้น** — โอกาสรอดขยับเป็น `{nxt}%`"
     return {"outcome": "hit", "text": msg, "player_hp": new_hp, "damage": damage,
-            "fight": dict(fight, turn=fight.get("turn", 1) + 1, statuses=statuses)}
+            "roll": roll, "need": need,
+            "fight": dict(fight, turn=fight.get("turn", 1) + 1, statuses=statuses,
+                          flee_tries=tries + 1)}
 
 
 def respawn(user_id):

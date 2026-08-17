@@ -1507,12 +1507,23 @@ def _fight_action(uid, fight, action):
         r = adventure_core.fight_flee(uid, fight)
         if r["outcome"] == "blocked":
             raise HTTPException(400, r["text"])
+
+        # 🎲 โชว์เต๋าที่ทอยจริงเสมอ — เดิมหนีแล้วไม่เห็นอะไรเลย ไม่รู้ว่าเฉียดหรือห่าง
+        # (กติกาสวนทางกับเต๋าไฟต์: ทอย "ไม่เกิน" ค่าโอกาสหนี = รอด แบบเดียวกับกับดัก)
+        out = {"text": r["text"], "money": _money_now(uid)}
+        if "roll" in r:
+            fled = r["outcome"] == "fled"
+            out["roll"] = {"player_roll": r["roll"], "monster_roll": r["need"],
+                           "labels": ["🎲 ทอยหนี", "🏃 โอกาสรอด"], "win": fled,
+                           "verdict": "หนีรอด!" if fled else "หนีไม่พ้น!",
+                           "player_parts": ["ทอยได้"], "monster_parts": ["ต้องทอยไม่เกินนี้"]}
+
         if r["outcome"] == "hit":                       # หนีไม่พ้น สู้ต่อ
             adventure_core.set_pending(uid, "monster", r["fight"])
-            return {"text": r["text"], "pending": "monster", "outcome": "continue",
-                    "monster": _monster_card(r["fight"]), "money": _money_now(uid)}
+            return out | {"pending": "monster", "outcome": "continue",
+                          "monster": _monster_card(r["fight"])}
         adventure_core.clear_pending(uid)
-        return {"text": r["text"], "outcome": r["outcome"], "money": _money_now(uid)}
+        return out | {"outcome": r["outcome"]}
 
     skill = action if action.startswith("skill_") else None
     if action != "attack" and not skill:

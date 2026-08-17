@@ -81,8 +81,9 @@ class ActionView(View):
 
 
 class MonsterEventView(ActionView):
-    def __init__(self, user_id, member_roles, monster_rank=None, monster_hp=None, active_buffs=None, turn_count=1, monster_name=None, element=None, fight_statuses=None, infused=False, faction_war_side=None, fight_grace=None, monster_hp_max=None):
+    def __init__(self, user_id, member_roles, monster_rank=None, monster_hp=None, active_buffs=None, turn_count=1, monster_name=None, element=None, fight_statuses=None, infused=False, faction_war_side=None, fight_grace=None, monster_hp_max=None, flee_tries=0):
         super().__init__(timeout=60)
+        self.flee_tries = int(flee_tries or 0)   # 🏃 หนีพลาดกี่ครั้งกับมอนตัวนี้
         self.user_id = user_id
         self.member_roles = member_roles
         self.active_buffs = active_buffs if active_buffs else {}
@@ -375,7 +376,7 @@ class MonsterEventView(ActionView):
               "hp_max": self.monster_hp_max, "element": self.element, "statuses": self.statuses,
               "fight_grace": list(self.fight_grace), "infused": self.infused,
               "faction_side": self.faction_war_side, "turn": self.turn_count,
-              "buffs": self.active_buffs}
+              "buffs": self.active_buffs, "flee_tries": self.flee_tries}
         r = adventure_core.fight_flee(self.user_id, _f)
 
         if r["outcome"] == "blocked":
@@ -398,7 +399,8 @@ class MonsterEventView(ActionView):
                                   fight_statuses=self.statuses, infused=self.infused,
                                   faction_war_side=self.faction_war_side,
                                   fight_grace=self.fight_grace,
-                                  monster_hp_max=self.monster_hp_max))
+                                  monster_hp_max=self.monster_hp_max,
+                                  flee_tries=r["fight"].get("flee_tries", 0)))
 
     async def skill_callback(self, interaction: discord.Interaction):
         if not await self.interaction_check(interaction): return
