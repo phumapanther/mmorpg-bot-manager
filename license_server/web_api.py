@@ -1789,6 +1789,27 @@ def me_friends_edit(body: FriendBody, request: Request):
     return {"ok": True, "message": msg} | friends.list_of(uid)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 🪱 สนามรบผลัดเทิร์น — แผนที่ (หมวด PVP เฟส A)
+# แผนที่สร้างที่เซิร์ฟเวอร์เสมอ เบราว์เซอร์แค่วาดตาม
+# ไม่งั้นเปิด devtools แล้วแก้ให้ตัวเองยืนกลางอากาศได้ทันที
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/pvp/worms/map")
+def worms_map(request: Request, seed: int = 0, continent: str = "", players: int = 2):
+    """แผนที่หนึ่งใบ — เมล็ดเดียวกันได้แผนที่เดียวกันเป๊ะ (แชร์รหัสแผนที่กับเพื่อนได้)"""
+    require_player(request)
+    import random as _r
+
+    from bot.game_data import CONTINENTS
+    from bot.pvp import terrain
+
+    if continent not in CONTINENTS:
+        continent = _r.choice(list(CONTINENTS))
+    seed = int(seed) or _r.randrange(1, 10 ** 14)
+    return terrain.view(seed, continent, max(2, min(8, int(players))))
+
+
 @router.get("/friends/{target_id}/profile")
 def friend_profile(target_id: str, request: Request):
     """โปรไฟล์สาธารณะของเพื่อน — ไม่มีทอง/ธนาคาร/ของในกระเป๋าเด็ดขาด"""

@@ -105,8 +105,8 @@
       </div></div>
 
       <div class="g-sec"><h3>PVP</h3><div class="g-grid">
-        <button class="g-tile soon" disabled title="สนามรบผลัดเทิร์น แผนที่พังได้ ซ้อมกับบอทก่อนลงสนามจริง"><span class="tag">เร็ว ๆ นี้</span>
-          <span class="ic">🤖</span>ซ้อมกับบอท<span class="sub">ฝึกมือคนเดียว</span></button>
+        <button class="g-tile hot" data-go="worms" title="สนามรบผลัดเทิร์น แผนที่พังได้ ซ้อมกับบอทก่อนลงสนามจริง">
+          <span class="ic">🤖</span>ซ้อมกับบอท<span class="sub">สนามรบผลัดเทิร์น</span></button>
         <button class="g-tile soon" disabled title="ดวลกับผู้เล่นคนอื่น ผลัดกันเดินและยิง แผนที่พังได้ ใกล้หมดเวลามีภัยพิบัติ"><span class="tag">เร็ว ๆ นี้</span>
           <span class="ic">⚔️</span>ดวล 1v1<span class="sub">สนามรบผลัดเทิร์น</span></button>
         <button class="g-tile soon" disabled title="กิลด์ปะทะกิลด์ในสนามรบผลัดเทิร์น"><span class="tag">เร็ว ๆ นี้</span>
@@ -367,6 +367,26 @@
       </div>
     </div>
 
+    <!-- ══ สนามรบผลัดเทิร์น ══ -->
+    <div class="g-panelview" id="v-worms">
+      <button class="g-back" data-back>← กลับเมนูหลัก</button>
+      <div class="g-head"><h2>🪱 สนามรบผลัดเทิร์น</h2>
+        <p>เกาะลอยที่ยิงจนพังได้ — ตัวละครของคุณลงสนามเอง ใช้สกิลอาชีพแทนอาวุธ</p></div>
+      <div class="wm-stage"><canvas id="wmCanvas" width="400" height="180"></canvas></div>
+      <div class="wm-bar">
+        <span class="wm-seed">รหัสแผนที่ <b id="wmSeed">—</b></span>
+        <span id="wmWhere"></span>
+      </div>
+      <div class="g-grid wm-buttons">
+        <button class="g-tile hot" id="wmNew"><span class="ic">🎲</span>สุ่มแผนที่ใหม่
+          <span class="sub">ได้ทวีปกับรูปเกาะใหม่ทุกครั้ง</span></button>
+        <button class="g-tile" id="wmSame"><span class="ic">📋</span>เปิดจากรหัสแผนที่
+          <span class="sub">รหัสเดียวกันได้แผนที่เดียวกันเป๊ะ</span></button>
+      </div>
+      <p class="g-note"><b>ตอนนี้ทำถึงขั้นสร้างแผนที่กับวางตัวละคร</b> —
+      ขั้นต่อไปคือเดิน/ตก แล้วค่อยเป็นสกิล ไอเทมดรอป และแผนที่พังจากการยิง</p>
+    </div>
+
     <!-- ══ เพื่อน ══ -->
     <div class="g-panelview" id="v-friends">
       <button class="g-back" data-back>← กลับเมนูหลัก</button>
@@ -608,7 +628,8 @@
 
 <script src="/web.js"></script>
 <script src="/sfx.js"></script>
-<script src="/sprite.js"></script>
+<script src="/worms.js"></script>
+  <script src="/sprite.js"></script>
 <script src="/scene.js"></script>
 <script src="/play.js"></script>
 </body>

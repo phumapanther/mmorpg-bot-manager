@@ -92,6 +92,11 @@ document.getElementById('playLogout')?.addEventListener('click', async () => {
 });
 fillDiscordInvite();
 document.getElementById('frAdd')?.addEventListener('click', addFriend);
+document.getElementById('wmNew')?.addEventListener('click', () => wormsReroll(0));
+document.getElementById('wmSame')?.addEventListener('click', async () => {
+  const seed = prompt('วางรหัสแผนที่ที่อยากเปิด', document.getElementById('wmSeed').textContent);
+  if (seed && /^\d+$/.test(seed.trim())) wormsReroll(seed.trim());
+});
 document.getElementById('frInput')?.addEventListener('keydown',
   e => { if (e.key === 'Enter') addFriend(); });
 
@@ -146,6 +151,7 @@ function showPanel(id) {
   if (id === 'fashion') fillFashion().catch(e => toast(e.message, true));
   if (id === 'fgacha') fillFashionGacha().catch(e => toast(e.message, true));
   if (id === 'friends') fillFriends().catch(e => toast(e.message, true));
+  if (id === 'worms') fillWorms().catch(e => toast(e.message, true));
   if (id === 'market') fillMarket().catch(e => toast(e.message, true));
   if (id === 'season') fillSeason().catch(e => toast(e.message, true));
   if (id === 'partner') fillPartner().catch(e => toast(e.message, true));
@@ -1934,6 +1940,61 @@ async function fashOff(slot) {
     FASH.items.forEach(i => i.worn = r.worn[i.slot] === i.key);
     paintFashion(); fashPreview();
     await reload();
+  } catch (e) { toast(e.message, true); }
+}
+
+// ── 🪱 สนามรบผลัดเทิร์น ──
+// แผนที่มาจากเซิร์ฟเวอร์ทั้งใบ ที่นี่แค่วาดกับวางตัวละครตามจุดเกิดที่ได้มา
+let WM = null;          // WormsMap ที่กำลังเล่นอยู่
+let WM_FIGHTERS = [];   // [{x, y, char, name, bot}]
+let wmLoop = 0;
+
+async function fillWorms() {
+  const cv = document.getElementById('wmCanvas');
+  document.getElementById('wmWhere').textContent = 'กำลังสร้างแผนที่...';
+  let d;
+  try { d = await api('GET', '/api/web/pvp/worms/map?players=2'); }
+  catch (e) { document.getElementById('wmWhere').textContent = e.message; return; }
+  loadWormsMap(d, cv);
+}
+
+function loadWormsMap(d, cv) {
+  WM = new WormsMap(d);
+  document.getElementById('wmSeed').textContent = d.seed;
+  document.getElementById('wmWhere').textContent =
+    '🗺️ ' + (d.continent_label || d.continent);
+
+  // ตัวเราลงสนามเอง (ไม่ใช่หนอน) — บอทใช้หน้าตาเดียวกันแต่คนละคลาส ให้ดูออกว่าใครเป็นใคร
+  const bot = { ...CHAR, cls: CHAR.cls === 'Mage' ? 'Warrior' : 'Mage', fashion: {} };
+  WM_FIGHTERS = (d.spawns || []).slice(0, 2).map((s, i) => ({
+    x: s.x, y: s.y, name: i ? '🤖 บอท' : 'คุณ', bot: i === 1,
+    char: i ? bot : CHAR,
+  }));
+
+  const ctx = cv.getContext('2d');
+  cancelAnimationFrame(wmLoop);
+  let t = 0;
+  const tick = () => {
+    if (!document.getElementById('v-worms').classList.contains('on')) { wmLoop = 0; return; }
+    WM.draw(ctx, t++);
+    WM_FIGHTERS.forEach(f => {
+      drawCharacter(ctx, f.x - 8, f.y - 21, 1, { ...f.char, pose: 'idle' });
+      ctx.fillStyle = f.bot ? '#ff9d84' : '#8fd0a0';
+      ctx.fillRect(f.x - 5, f.y - 26, 10, 2);              // แถบเลือดเล็ก ๆ เหนือหัว
+      ctx.fillStyle = '#00000066';
+      ctx.fillRect(f.x - 6, f.y - 27, 12, 1);
+    });
+    wmLoop = requestAnimationFrame(tick);
+  };
+  tick();
+}
+
+async function wormsReroll(seed) {
+  const q = seed ? '&seed=' + encodeURIComponent(seed) : '';
+  try {
+    const d = await api('GET', '/api/web/pvp/worms/map?players=2' + q);
+    SFX.play('click');
+    loadWormsMap(d, document.getElementById('wmCanvas'));
   } catch (e) { toast(e.message, true); }
 }
 

@@ -873,3 +873,12 @@ body.bar-min .pbar .money { margin-left: auto; }
   border-bottom: 1px solid var(--g-line); font-size: 13px; }
 .fr-line:last-child { border-bottom: 0; }
 .fr-line span { color: var(--g-muted); }
+
+/* ── 🪱 สนามรบผลัดเทิร์น ── */
+.wm-stage { background: #0d0906; border: 1px solid var(--g-line); border-radius: var(--g-r);
+  overflow: hidden; line-height: 0; }
+.wm-stage canvas { width: 100%; height: auto; image-rendering: pixelated; display: block; }
+.wm-bar { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  font-size: 12px; color: var(--g-muted); padding: 10px 4px 0; }
+.wm-seed b { font-family: var(--g-num); color: var(--g-gold); user-select: all; cursor: text; }
+.wm-buttons { margin-top: 12px; }
