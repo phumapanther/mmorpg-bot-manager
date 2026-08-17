@@ -112,3 +112,68 @@ def test_overlay_ui_does_not_depend_on_scoped_tokens():
         assert block, f"หา {sel} ไม่เจอ"
         bg = re.search(r"background:\s*([^;]+);", block.group(1))
         assert bg and "var(" not in bg.group(1), f"{sel} ใช้ตัวแปรกับพื้นหลัง เสี่ยงกลายเป็นใส"
+
+
+# ── 🗡️ ตารางพิกเซลอาวุธ (2026-08-15) ──
+# เดิมอาวุธวาดด้วยสี่เหลี่ยมทีละชิ้น ทำรายละเอียดไม่ได้ ตอนนี้เป็นตารางเหมือนตัวละคร
+WEAPON_WIDTH = 11
+
+
+def test_every_weapon_grid_is_rectangular():
+    """นับพลาดช่องเดียว = อาวุธบิดทั้งอัน และไม่มีอะไรฟ้อง"""
+    grids = _grids("const WEAPON_ART")
+    assert grids, "ไม่เจอตารางอาวุธ"
+    for name, rows in grids.items():
+        assert len(rows) == ROWS, f"อาวุธ {name} มี {len(rows)} แถว (ต้อง {ROWS})"
+        for i, row in enumerate(rows):
+            assert len(row) == WEAPON_WIDTH, \
+                f"อาวุธ {name} แถว {i} ยาว {len(row)} (ต้อง {WEAPON_WIDTH})"
+
+
+def test_every_class_has_a_weapon_shape():
+    """คลาสไหนไม่มีทรง = ถืออาวุธผิดแบบ"""
+    shapes = set(_grids("const WEAPON_ART"))
+    used = set(re.findall(r"^\s+\w+:\s*'(\w+)',", SRC[SRC.index("const CLASS_WEAPON"):], re.M))
+    assert used, "อ่านตาราง CLASS_WEAPON ไม่ออก"
+    assert used <= shapes, f"คลาสชี้ไปทรงที่ไม่มี: {sorted(used - shapes)}"
+    assert "sword" in shapes, "ต้องมีดาบเป็นทรงสำรองเสมอ"
+
+
+def test_the_blade_stays_in_its_lane():
+    """ใบมีดต้องอยู่ช่อง 3-7 ทุกทรง — ไม่งั้นด้ามไม่ตรงมือตอนวาดทับตัวละคร"""
+    for name, rows in _grids("const WEAPON_ART").items():
+        for i, row in enumerate(rows):
+            for c, ch in enumerate(row):
+                if ch in "123":
+                    assert 3 <= c <= 7, f"อาวุธ {name} แถว {i}: ใบมีดหลุดไปช่อง {c}"
+
+
+def test_weapon_grids_only_use_known_symbols():
+    ok = set(".o123xGhH")
+    for name, rows in _grids("const WEAPON_ART").items():
+        bad = {ch for row in rows for ch in row} - ok
+        assert not bad, f"อาวุธ {name} ใช้สัญลักษณ์ที่ไม่มีในตารางสี: {sorted(bad)}"
+
+
+def test_the_weapon_palette_covers_every_symbol():
+    """สัญลักษณ์ที่ใช้ในตารางต้องมีสีรองรับครบ ไม่งั้นพิกเซลนั้นหายไปเงียบ ๆ"""
+    pal = SRC[SRC.index("function weaponPalette"):]
+    pal = pal[:pal.index("\n}")]
+    used = {ch for rows in _grids("const WEAPON_ART").values()
+            for row in rows for ch in row} - {"."}
+    for ch in used:
+        assert re.search(rf"[\s{{]{ch}:", pal), f"ตารางสีอาวุธไม่มีสีของ '{ch}'"
+
+
+def test_weapons_are_drawn_at_the_same_pixel_size_as_the_character():
+    """ย่อ/ขยายอาวุธคนละสเกลกับตัวละคร แล้วพิกเซลจะเบลอไม่เข้าพวก"""
+    fn = SRC[SRC.index("function drawWeapon("):]
+    fn = fn[:fn.index("\n}")]
+    assert "const gs = s;" in fn, "อาวุธถูกย่อ/ขยายคนละสเกลกับตัวละคร"
+
+
+def test_fashion_weapons_reuse_the_same_shapes():
+    """แฟชั่นเปลี่ยนแค่สี ทรงยังมาจากอาชีพเหมือนเดิม (ผู้เล่นสั่งไว้)"""
+    fn = SRC[SRC.index("function drawWeapon("):]
+    fn = fn[:fn.index("\n}")]
+    assert "CLASS_WEAPON[cls]" in fn, "ทรงอาวุธไม่ได้มาจากอาชีพแล้ว"

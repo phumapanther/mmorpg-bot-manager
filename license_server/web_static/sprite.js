@@ -182,48 +182,82 @@ const FASHION_WEAPON = {
   dark_scythe:  { base:'#4a3560', shade:'#1e1329', hi:'#c07ff0', len:19, glow:1 },
 };
 
-// ออร่า — วงแหวน/หมอกรอบตัว วาดก่อนร่างกาย (อยู่ข้างหลัง)
+// ── ✨ ออร่า (2026-08-15) ──
+// เปลวไฟพิกเซล: แอ่งแสงที่พื้น + ลิ้นไฟแตกแฉกลอยขึ้น + วงโคจรรอบตัว
+// วาดทุกพิกัดแบบ "ปัดเข้าช่องพิกเซล" (snap) — ไม่งั้นได้เส้นโค้งเนียนที่หลุดสไตล์เกม
 const FASHION_AURA = {
-  light_halo: { color:'#ffe9a8', ring:'#fff6d8', style:'ring' },
-  dark_mist:  { color:'#b06be0', ring:'#7b3fb0', style:'mist' },
+  light_halo: { style: 'ring',
+                c1: '#b8862a', c2: '#f0c95a', c3: '#fff6d8',  // เข้ม · ตัว · แกนสว่าง
+                tongues: 5, height: 15, sway: 2.2 },
+  dark_mist:  { style: 'swirl',
+                c1: '#4a2170', c2: '#8d47c4', c3: '#dfa8ff',
+                tongues: 6, height: 13, sway: 2.8 },
 };
 
-/** วาดออร่ารอบตัว — t = เลขเฟรม (ใส่มาเพื่อให้ขยับ ไม่ใส่ก็ได้ = นิ่ง) */
+/** วาดออร่ารอบตัว — t = เลขเฟรม (ไม่ใส่ = นิ่ง) */
 function drawAura(ctx, x, y, s, key, t = 0) {
   const A = FASHION_AURA[key];
   if (!A) return;
-  const cx = x + 8 * s, cy = y + 12 * s;
+  const cx = x + 8 * s, base = y + 21 * s;
+  const snap = v => Math.round(v / s) * s;              // บังคับให้ลงช่องพิกเซล
+  const px = (gx, gy, w, h, c) => {                     // วาดทีละก้อนพิกเซล
+    ctx.fillStyle = c;
+    ctx.fillRect(snap(gx), snap(gy), Math.max(s, snap(w)), Math.max(s, snap(h)));
+  };
+
   ctx.save();
-  if (A.style === 'ring') {
-    // 💫 วงแหวนแสงหมุนรอบตัว + ประกายลอยขึ้น
-    ctx.globalAlpha = .22; ctx.fillStyle = A.color;
-    ctx.beginPath(); ctx.ellipse(cx, cy, 11 * s, 13 * s, 0, 0, 7); ctx.fill();
-    ctx.globalAlpha = .55; ctx.strokeStyle = A.ring; ctx.lineWidth = Math.max(1, s * .6);
-    for (let i = 0; i < 2; i++) {
-      const w = (9 + i * 2) * s, h = (2.5 + Math.sin(t / 14 + i) * 1.6) * s;
-      ctx.beginPath(); ctx.ellipse(cx, y + (19 - i * 7) * s, w, Math.abs(h) + s * .6, 0, 0, 7);
-      ctx.stroke();
-    }
-    ctx.globalAlpha = .8; ctx.fillStyle = A.ring;
-    for (let i = 0; i < 5; i++) {
-      const p = ((t * 1.3 + i * 40) % 100) / 100;
-      ctx.fillRect(cx + Math.sin(i * 2 + t / 20) * 7 * s, y + (21 - p * 20) * s, s, s);
-    }
-  } else {
-    // 🌫️ หมอกดำคลุ้งขึ้นจากพื้น
-    ctx.globalAlpha = .2; ctx.fillStyle = A.color;
-    ctx.beginPath(); ctx.ellipse(cx, cy + 2 * s, 12 * s, 12 * s, 0, 0, 7); ctx.fill();
-    ctx.fillStyle = A.ring;
-    for (let i = 0; i < 7; i++) {
-      const p = ((t * .9 + i * 28) % 100) / 100;
-      ctx.globalAlpha = .45 * (1 - p);
-      const w = (2 + p * 3) * s;
-      ctx.fillRect(cx + Math.sin(i * 1.7 + t / 16) * 8 * s - w / 2, y + (22 - p * 22) * s, w, w);
+
+  // ① แอ่งแสงที่พื้น — บอกว่าออร่าพุ่งออกมาจากตัว ไม่ใช่ลอยเฉย ๆ
+  const pulse = 1 + Math.sin(t / 18) * .12;
+  for (let i = 0; i < 3; i++) {
+    const w = (11 - i * 3) * s * pulse;
+    ctx.globalAlpha = [.32, .5, .7][i];
+    px(cx - w / 2, base - i * s, w, s, [A.c1, A.c2, A.c3][i]);
+  }
+
+  // ② ลิ้นไฟแตกแฉก — แต่ละแฉกสูงไม่เท่ากันและแกว่งคนละจังหวะ
+  for (let i = 0; i < A.tongues; i++) {
+    const seed = i * 2.4;
+    const spread = (i - (A.tongues - 1) / 2) * 2.6 * s;
+    const life = (Math.sin(t / 13 + seed) + 1) / 2;               // 0..1 สูง-ต่ำสลับกัน
+    const h = Math.round((A.height * (.55 + life * .45)) );
+    for (let r = 0; r < h; r++) {
+      const p = r / h;                                            // 0 = โคน, 1 = ปลาย
+      const w = Math.max(1, Math.round((1 - p) * 3.2));           // เรียวขึ้นไปหาปลาย
+      const sway = Math.sin(t / 11 + seed + p * 2.4) * A.sway * p * s;
+      const gy = base - r * s - s;
+      ctx.globalAlpha = .28 + (1 - p) * .5;
+      px(cx + spread + sway - w * s / 2, gy, w * s, s, A.c1);     // ขอบนอกเข้ม
+      if (w > 1) {
+        ctx.globalAlpha = .45 + (1 - p) * .45;
+        px(cx + spread + sway - (w - 1) * s / 2, gy, (w - 1) * s, s, A.c2);
+      }
+      if (p < .55) {                                              // แกนสว่างเฉพาะช่วงโคน
+        ctx.globalAlpha = .8;
+        px(cx + spread + sway - s / 2, gy, s, s, A.c3);
+      }
     }
   }
-  ctx.restore();
-}
 
+  // ③ วงโคจรรอบตัว — ring = วงแหวนเอียง · swirl = เกลียวหมุน
+  const orbit = A.style === 'ring' ? 2 : 3;
+  for (let o = 0; o < orbit; o++) {
+    const ry = A.style === 'ring' ? 3.2 * s : 5 * s;
+    const rx = (9 - o * 1.5) * s;
+    const cy = y + (A.style === 'ring' ? 15 - o * 6 : 11) * s;
+    const spin = t / (A.style === 'ring' ? 16 : 11) + o * 2.1;
+    for (let k = 0; k < 14; k++) {
+      const a = spin + (k / 14) * Math.PI * 2;
+      const back = Math.sin(a) < 0;                               // ครึ่งหลังจาง = ดูมีมิติ
+      ctx.globalAlpha = (back ? .3 : .85) * (1 - k / 26);
+      px(cx + Math.cos(a) * rx - s / 2, cy + Math.sin(a) * ry - s / 2,
+         s, s, k % 4 === 0 ? A.c3 : A.c2);
+    }
+  }
+
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
 
 function spritePalette(race, cls, armor, outfit) {
   const R = RACE_LOOK[race] || RACE_FALLBACK;
@@ -322,64 +356,136 @@ const CLASS_WEAPON = {
   Cleric:  'mace',    // ไม้เท้าหัวกลมมีรัศมี
 };
 
+// ── 🗡️ ตารางพิกเซลอาวุธ (2026-08-15) ──
+// เดิมวาดด้วยสี่เหลี่ยมทีละชิ้น ทำรายละเอียดไม่ได้ ตอนนี้เป็นตารางพิกเซลจริงเหมือนตัวละคร
+// ทรงมาจากอาชีพ · สีมาจากระดับอาวุธหรือแฟชั่น
+//   o=เส้นขอบ  1=เงาใบมีด 2=ตัวใบมีด 3=สันไฮไลต์  x=ปีกกระบัง  G=อัญมณี
+//   h=ด้ามเข้ม H=ด้ามอ่อน
+// ทุกแถวยาว 11 เท่ากันหมด · ใบมีดอยู่ช่อง 3-7
+const WEAPON_W = 11;
+const WEAPON_ART = {
+  sword: [
+    '.....o.....',
+    '....o3o....',
+    '....o3o....',
+    '...o123o...',
+    '...o123o...',
+    '...o123o...',
+    '...o123o...',
+    '...o123o...',
+    '...o123o...',
+    '...o123o...',
+    '...o123o...',
+    '...o123o...',
+    '...o123o...',
+    'oxxo123oxxo',
+    'oxGo123oGxo',
+    '.oxo123oxo.',
+    '..oo1H3oo..',
+    '....ohHo...',
+    '....ohHo...',
+    '....ohHo...',
+    '...oGGGo...',
+    '....ooo....',
+  ],
+  staff: [
+    '....ooo....',
+    '...oxGxo...',
+    '..oxG3Gxo..',
+    '.oxG333Gxo.',
+    '..oxG3Gxo..',
+    '...oxGxo...',
+    '....oxo....',
+    '....o3o....',
+    '....o2o....',
+    '....o2o....',
+    '....o2o....',
+    '....o2o....',
+    '...oxGxo...',
+    '....o2o....',
+    '....o2o....',
+    '....o2o....',
+    '....o2o....',
+    '....o2o....',
+    '....oho....',
+    '....ohHo...',
+    '...oGGGo...',
+    '....ooo....',
+  ],
+  dagger: [
+    '...........',
+    '...........',
+    '...........',
+    '...........',
+    '.....o.....',
+    '....o3o....',
+    '...o123o...',
+    '...o123o...',
+    '...o123o...',
+    '...o123o...',
+    '...o123o...',
+    '...o123o...',
+    '.oxo123oxo.',
+    'oxGo123oGxo',
+    '.oxo123oxo.',
+    '..oo1H3oo..',
+    '....ohHo...',
+    '....ohHo...',
+    '...oGGGo...',
+    '....ooo....',
+    '...........',
+    '...........',
+  ],
+  mace: [
+    '...oooo....',
+    '..oxG3Gxo..',
+    '.oxG333Gxo.',
+    '.oxG313Gxo.',
+    '.oxG333Gxo.',
+    '..oxG3Gxo..',
+    '...oxxxo...',
+    '....o3o....',
+    '....o2o....',
+    '....o2o....',
+    '....o2o....',
+    '....o2o....',
+    '....o2o....',
+    '....o2o....',
+    '....o2o....',
+    '....o2o....',
+    '....o2o....',
+    '....oho....',
+    '....ohHo...',
+    '....ohHo...',
+    '...oGGGo...',
+    '....ooo....',
+  ],
+};
+
+/** ตารางสีอาวุธ — ของที่ไม่ได้ตั้งสีอัญมณี/ปีกไว้ ให้อนุมานจากสีหลัก */
+function weaponPalette(W) {
+  return {
+    o: '#1c1418',
+    1: W.shade, 2: W.base, 3: W.hi,
+    x: W.trim || W.shade,
+    G: W.gem || W.hi,
+    h: '#3a2a1c', H: '#5c4227',
+  };
+}
+
 function drawWeapon(ctx, x, y, s, W, cls, pose) {
   const shape = CLASS_WEAPON[cls] || 'sword';
-  const hx = x + 14 * s, hy = y + 16 * s, lean = pose === 'atk' ? -2 * s : 0;
-  const L = W.len;
-  const F = (dx, dy, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(hx + dx * s + lean, hy + dy * s, w * s, h * s); };
+  const grid = WEAPON_ART[shape] || WEAPON_ART.sword;
+  const lean = pose === 'atk' ? -2 * s : 0;
+  // ⚠️ ขนาดพิกเซลต้องเท่าตัวละครเสมอ (gs = s) — ย่อ/ขยายอาวุธคนละสเกลแล้วพิกเซลจะเบลอ
+  //    ระดับอาวุธต่างกันที่ "สี + เรืองแสง + อัญมณี" ไม่ใช่ที่ขนาด
+  const gs = s;
+  const gx = x + 8 * s + lean, gy = y - s;        // ด้ามพอดีมือขวา ปลายพ้นหัวขึ้นไป
 
-  if (W.glow) {                                   // อาวุธตำนานเรืองแสงรอบตัว
-    ctx.save(); ctx.globalAlpha = .28; ctx.fillStyle = W.hi;
-    ctx.fillRect(hx - 2 * s + lean, hy - (L + 2) * s, 6 * s, (L + 5) * s);
+  if (W.glow) {                                   // อาวุธเรืองแสง — เรืองรอบใบมีด
+    ctx.save(); ctx.globalAlpha = .22; ctx.fillStyle = W.hi;
+    ctx.fillRect(gx + 2 * gs, gy, 7 * gs, 17 * gs);
     ctx.restore();
   }
-
-  switch (shape) {
-    case 'staff':                                 // 🔮 คทา: ด้ามยาว หัวคริสตัลลอย
-      F(0, -2, 2, 5, '#3a2a1c');                  // ด้าม
-      F(0, -L + 2, 2, L - 3, '#4a3520');
-      F(0, -L + 2, 1, L - 3, '#6b4d2e');
-      F(-1, -L - 1, 4, 3, W.shade);               // หัวคทา
-      F(0, -L, 2, 2, W.base);
-      F(0, -L, 1, 1, W.hi);
-      ctx.save(); ctx.globalAlpha = .45; ctx.fillStyle = W.hi;
-      ctx.fillRect(hx - 2 * s + lean, hy - (L + 2) * s, 6 * s, 5 * s);
-      ctx.restore();
-      break;
-
-    case 'dagger': {                              // 🗡️ กริช: สั้น คู่ (อีกเล่มอยู่มืออีกข้าง)
-      const dl = Math.max(5, Math.round(L * .55));
-      F(0, -2, 2, 4, '#3a2a1c');
-      F(-1, -3, 4, 1, W.shade);
-      F(0, -dl, 2, dl - 3, W.shade);
-      F(0, -dl, 1, dl - 3, W.base);
-      F(0, -dl, 1, 1, W.hi);
-      ctx.globalAlpha = .85;                      // เล่มหลัง เยื้องไปข้างหลัง
-      F(-13, -1, 2, 3, '#3a2a1c');
-      F(-13, -dl + 2, 2, dl - 4, W.shade);
-      F(-13, -dl + 2, 1, dl - 4, W.base);
-      ctx.globalAlpha = 1;
-      break;
-    }
-
-    case 'mace':                                  // ✨ ไม้เท้าหัวกลม มีรัศมี
-      F(0, -2, 2, 5, '#3a2a1c');
-      F(0, -L + 4, 2, L - 5, '#4a3520');
-      F(-1, -L + 1, 4, 4, W.shade);               // หัวกลม
-      F(0, -L + 2, 2, 2, W.base);
-      F(0, -L + 2, 1, 1, W.hi);
-      ctx.strokeStyle = W.hi; ctx.lineWidth = Math.max(1, s * .5);
-      ctx.globalAlpha = .5;
-      ctx.beginPath();
-      ctx.arc(hx + s + lean, hy - (L - 3) * s, 4 * s, 0, 7);
-      ctx.stroke(); ctx.globalAlpha = 1;
-      break;
-
-    default:                                      // ⚔️ ดาบมาตรฐาน (ของเดิม)
-      F(0, -2, 2, 4, '#3a2a1c');
-      F(-1, -3, 4, 1, W.shade);
-      F(0, -L, 2, L - 3, W.shade);
-      F(0, -L, 1, L - 3, W.base);
-      F(0, -L, 1, 2, W.hi);
-  }
+  blitGrid(ctx, grid, gx, gy, gs, weaponPalette(W));
 }

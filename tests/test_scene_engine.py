@@ -280,12 +280,15 @@ def test_every_class_holds_a_different_weapon():
 
 
 def test_every_weapon_shape_is_actually_drawn():
-    block = SPRITE[SPRITE.index("function drawWeapon("):]
-    shapes = set(re.findall(r"case '(\w+)':", block))
+    """ทรงอาวุธย้ายจาก switch/case มาเป็นตารางพิกเซลแล้ว (2026-08-15)
+    ทรงที่คลาสชี้ไปต้องมีตารางจริง ไม่งั้นถืออาวุธผิดแบบ"""
+    art = re.search(r"const WEAPON_ART = \{(.*?)\n\};", SPRITE, re.S)
+    assert art, "หาตารางพิกเซลอาวุธไม่เจอ"
+    shapes = set(re.findall(r"^\s{2}(\w+):\s*\[", art.group(1), re.M))
     declared = set(re.findall(r":\s*'(\w+)'",
                               re.search(r"const CLASS_WEAPON = \{(.*?)\};", SPRITE, re.S).group(1)))
-    assert declared - shapes <= {"sword"}, f"ทรงที่ประกาศแต่ไม่มีภาพ: {declared - shapes}"
-    assert "default:" in block, "คลาสที่ไม่รู้จักต้องมีดาบมาตรฐานรองรับ"
+    assert declared <= shapes, f"ทรงที่ประกาศแต่ไม่มีตาราง: {sorted(declared - shapes)}"
+    assert "WEAPON_ART.sword" in SPRITE, "คลาสที่ไม่รู้จักต้องมีดาบมาตรฐานรองรับ"
 
 
 def test_the_sound_engine_needs_no_external_files():
