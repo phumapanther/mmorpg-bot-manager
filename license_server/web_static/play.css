@@ -762,3 +762,45 @@ body.bar-min .pbar .money { margin-left: auto; }
   letter-spacing: .4px; color: var(--g-gold); border: 1px solid rgba(232,176,75,.45);
   border-radius: 999px; padding: 1px 9px; background: rgba(232,176,75,.1);
   vertical-align: middle; margin-right: 4px; }
+
+
+/* ── 👗 ตู้เสื้อผ้า ── */
+.fash-wrap { display: grid; grid-template-columns: minmax(170px, 220px) 1fr; gap: 16px; }
+.fash-preview { position: sticky; top: 12px; align-self: start;
+  background: linear-gradient(#241b14, #14100c); border: 2px solid #5c4733;
+  border-radius: var(--g-r); padding: 12px; text-align: center; }
+.fash-preview canvas { width: 100%; height: auto; image-rendering: pixelated; }
+.fash-hint { font-size: 11.5px; color: var(--g-dim); margin-top: 8px; line-height: 1.6; }
+.fash-hint b { color: #ffe6a8; }
+
+.fash-sec { margin-bottom: 16px; }
+.fash-head { display: flex; align-items: center; justify-content: space-between;
+  font-size: 13.5px; margin-bottom: 7px; }
+.fash-off { border: 1px solid var(--g-line); background: var(--g-hi); color: var(--g-muted);
+  border-radius: 999px; padding: 4px 12px; font-size: 11.5px; cursor: pointer;
+  font-family: inherit; }
+.fash-off:hover { color: var(--g-ink); background: #40311f; }
+
+.fash-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 9px; }
+.fash-card { position: relative; text-align: left; cursor: pointer; overflow: hidden;
+  background: var(--g-panel); border: 1px solid var(--g-line); border-radius: 14px;
+  padding: 11px 13px; color: var(--g-ink); font-family: inherit;
+  display: grid; gap: 4px; transition: transform .12s var(--g-ease), border-color .12s; }
+.fash-card::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 3px;
+  background: var(--fc, var(--g-gold)); }
+.fash-card:hover { transform: translateY(-2px); border-color: var(--fc, var(--g-gold)); }
+.fash-card b { font-size: 13px; }
+.fash-card small { font-size: 11.5px; color: var(--g-muted); line-height: 1.5; }
+.fash-card.on { border-color: var(--fc, var(--g-gold));
+  box-shadow: 0 0 0 1px var(--fc, var(--g-gold)) inset; }
+.fash-card.locked { opacity: .62; }
+.fash-tag { position: absolute; top: 8px; right: 9px; font-size: 10px;
+  font-family: var(--g-num); padding: 1px 8px; border-radius: 999px;
+  background: var(--fc, var(--g-gold)); color: #1c1418; font-weight: 700; }
+.fash-tag.lock { background: rgba(23,17,13,.7); color: var(--g-muted);
+  border: 1px solid var(--g-line); font-weight: 400; }
+
+@media (max-width: 560px) {
+  .fash-wrap { grid-template-columns: 1fr; }
+  .fash-preview { position: static; max-width: 190px; margin: 0 auto; }
+}

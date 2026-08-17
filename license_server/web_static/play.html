@@ -64,8 +64,8 @@
           <span class="ic">🐾</span>สัตว์เลี้ยง<span class="sub">เลือกตัวที่พาไปด้วย</span></button>
         <button class="g-tile" data-go="partner">
           <span class="ic">💍</span>คู่หู<span class="sub">ระบบแต่งงาน</span></button>
-        <button class="g-tile soon" disabled title="เปลี่ยนหน้าตาตัวละครให้เท่ขึ้น — ชุด อาวุธ ออร่า สัตว์เลี้ยง และธีม UI (ไม่บวกค่าอะไร ใส่สวยล้วน)"><span class="tag">เร็ว ๆ นี้</span>
-          <span class="ic">👗</span>แฟชั่น<span class="sub">ชุด · อาวุธ · ออร่า · UI</span></button>
+        <button class="g-tile" data-go="fashion">
+          <span class="ic">👗</span>แฟชั่น<span class="sub">ชุด · อาวุธ · ออร่า</span></button>
         <button class="g-tile soon" disabled title="แอดกันเป็นลูกได้ผ่านดิสคอร์ด แล้วดูผังตั้งแต่ทวดถึงเหลนบนเว็บ"><span class="tag">เร็ว ๆ นี้</span>
           <span class="ic">👨‍👩‍👧</span>ครอบครัว<span class="sub">ผังเครือญาติ 7 ชั้น</span></button>
       </div></div>
@@ -349,6 +349,20 @@
         <button data-mk="sell" aria-pressed="false">🏷️ ลงขายเพิ่ม</button>
       </div>
       <div id="marketList"></div>
+    </div>
+
+    <!-- ══ แฟชั่น ══ -->
+    <div class="g-panelview" id="v-fashion">
+      <button class="g-back" data-back>← กลับเมนูหลัก</button>
+      <div class="g-head"><h2>👗 ตู้เสื้อผ้า</h2>
+        <p>เปลี่ยนแค่หน้าตา — ค่าต่อสู้ ค่าเกราะ ความคงทน เหมือนเดิมทุกอย่าง</p></div>
+      <div class="fash-wrap">
+        <div class="fash-preview">
+          <canvas id="fashChar" width="160" height="220"></canvas>
+          <div class="fash-hint" id="fashHint">แตะที่ชุดเพื่อลองใส่ดูก่อนได้</div>
+        </div>
+        <div class="fash-list" id="fashList"></div>
+      </div>
     </div>
 
     <!-- ══ สรุปทุกทวีป ══ -->

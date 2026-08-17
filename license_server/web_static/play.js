@@ -119,6 +119,7 @@ function showPanel(id) {
   if (id === 'books') fillBooks().catch(e => toast(e.message, true));
   if (id === 'elembook') fillElemBook().catch(e => toast(e.message, true));
   if (id === 'atlas') fillAtlas().catch(e => toast(e.message, true));
+  if (id === 'fashion') fillFashion().catch(e => toast(e.message, true));
   if (id === 'market') fillMarket().catch(e => toast(e.message, true));
   if (id === 'season') fillSeason().catch(e => toast(e.message, true));
   if (id === 'partner') fillPartner().catch(e => toast(e.message, true));
@@ -401,7 +402,8 @@ function paint(g) {
 
   // ตัวละครประกอบจากของที่สวมจริง — เผ่า/คลาส/เกราะ/อาวุธ มาจาก DB ทั้งหมด
   CHAR = { race: id.race, cls: id.class_name,
-           armor: g.gear.armor.key, weapon: g.gear.weapon.key, pose: 'idle' };
+           armor: g.gear.armor.key, weapon: g.gear.weapon.key, pose: 'idle',
+           fashion: g.fashion || {} };   // 👗 แฟชั่นสวมทับตอนวาด ของจริงไม่ขยับ
   drawSprite(document.getElementById('pfp'));
   if (SCENE) SCENE.setPet(v.pet || '');     // 🐾 พาไปด้วยไหม เซิร์ฟเวอร์เป็นคนบอก
   paintProfile(g);
@@ -1796,6 +1798,105 @@ async function marketSell(it) {
 document.querySelectorAll('[data-mk]').forEach(t => t.onclick = () => {
   MK_TAB = t.dataset.mk; fillMarket();
 });
+
+// ── 👗 ตู้เสื้อผ้า ──
+// แฟชั่นเปลี่ยนแค่การแสดงผล เซิร์ฟเวอร์เป็นคนตัดสินว่ามีของจริงไหม ที่นี่แค่วาดกับส่งคำสั่ง
+let FASH = null;
+let FASH_TRY = null;        // ชุดที่กำลัง "ลองใส่ดู" (ยังไม่ได้ใส่จริง)
+let FASH_FRAME = 0;
+
+const FASH_SLOT = { outfit: '👘 ชุด', weapon: '⚔️ อาวุธ', aura: '✨ ออร่า' };
+
+async function fillFashion() {
+  const box = document.getElementById('fashList');
+  box.innerHTML = '<div class="g-note">กำลังโหลด...</div>';
+  try { FASH = await api('GET', '/api/web/me/fashion'); }
+  catch (e) { box.innerHTML = '<div class="g-note">โหลดไม่สำเร็จ: ' + esc(e.message) + '</div>'; return; }
+  FASH_TRY = null;
+  paintFashion();
+  fashPreview();
+}
+
+function paintFashion() {
+  const worn = FASH.worn || {};
+  const html = FASH.slots.map(slot => {
+    const mine = FASH.items.filter(i => i.slot === slot);
+    return `<div class="fash-sec">
+      <div class="fash-head"><b>${FASH_SLOT[slot] || slot}</b>
+        ${worn[slot] ? `<button class="fash-off" data-off="${slot}">✕ ถอด</button>` : ''}</div>
+      <div class="fash-row">${mine.map((i, n) => `
+        <button class="fash-card${i.worn ? ' on' : ''}${i.owned ? '' : ' locked'}"
+                data-key="${esc(i.key)}" style="--fc:${FASH.themes[i.theme].color}">
+          ${i.worn ? '<span class="fash-tag">ใส่อยู่</span>' : ''}
+          ${i.owned ? '' : '<span class="fash-tag lock">🔒 ยังไม่มี</span>'}
+          <b>${esc(i.name)}</b>
+          <small>${esc(i.desc)}</small>
+        </button>`).join('')}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('fashList').innerHTML = html;
+
+  document.getElementById('fashList').querySelectorAll('[data-key]').forEach(b =>
+    b.onclick = () => fashTry(b.dataset.key));
+  document.getElementById('fashList').querySelectorAll('[data-off]').forEach(b =>
+    b.onclick = () => fashOff(b.dataset.off));
+}
+
+/** แตะที่ชุด = ลองใส่ดูก่อน (ยังไม่บันทึก) · แตะซ้ำที่ชุดเดิม = ใส่จริง */
+function fashTry(key) {
+  const item = FASH.items.find(i => i.key === key);
+  if (!item) return;
+  if (FASH_TRY === key) return fashWear(key);
+  FASH_TRY = key;
+  SFX.play('click');
+  document.getElementById('fashHint').innerHTML = item.owned
+    ? `กำลังลอง <b>${esc(item.name)}</b> — แตะอีกครั้งเพื่อใส่จริง`
+    : `กำลังลอง <b>${esc(item.name)}</b> — 🔒 ยังไม่มีชิ้นนี้ (ได้จากกาชาแฟชั่น)`;
+  fashPreview();
+}
+
+/** ตัวอย่างบนหุ่น — ใช้ตัววาดตัวเดียวกับในเกม เห็นแบบไหนคือได้แบบนั้น */
+function fashPreview() {
+  const cv = document.getElementById('fashChar');
+  if (!cv || !FASH) return;
+  const look = { ...(FASH.worn || {}) };
+  if (FASH_TRY) {
+    const it = FASH.items.find(i => i.key === FASH_TRY);
+    if (it) look[it.slot] = FASH_TRY;
+  }
+  const ctx = cv.getContext('2d');
+  const s = Math.max(1, Math.floor(cv.width / 18));
+  const draw = () => {
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    drawCharacter(ctx, (cv.width - 16 * s) / 2, 6, s,
+                  { ...CHAR, fashion: look, frame: FASH_FRAME++ });
+    if (document.getElementById('v-fashion').classList.contains('on'))
+      requestAnimationFrame(draw);          // ออร่าต้องขยับ ไม่งั้นดูไม่ออกว่าเป็นเอฟเฟกต์
+  };
+  draw();
+}
+
+async function fashWear(key) {
+  try {
+    const r = await api('POST', '/api/web/me/fashion', { action: 'wear', key: key });
+    SFX.play('equip'); toast(r.message);
+    FASH.worn = r.worn; FASH_TRY = null;
+    FASH.items.forEach(i => i.worn = r.worn[i.slot] === i.key);
+    paintFashion(); fashPreview();
+    await reload();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function fashOff(slot) {
+  try {
+    const r = await api('POST', '/api/web/me/fashion', { action: 'off', slot: slot });
+    toast(r.message);
+    FASH.worn = r.worn; FASH_TRY = null;
+    FASH.items.forEach(i => i.worn = r.worn[i.slot] === i.key);
+    paintFashion(); fashPreview();
+    await reload();
+  } catch (e) { toast(e.message, true); }
+}
 
 // ── 🗺️ สรุปทุกทวีป ──
 // ตัวเลขทุกตัวมาจาก game_data ชุดเดียวกับที่ใช้ตอนเดินจริง ที่นี่แค่จัดหน้า

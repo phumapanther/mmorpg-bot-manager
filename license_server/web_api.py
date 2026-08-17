@@ -359,6 +359,7 @@ def me_game(request: Request):
     from bot.models.player_model import MAX_LEVEL, exp_required, load_inventory
     from bot.cogs.player_commands import usable_kind
     from bot import season as _season
+    from bot import fashion as _fashion
 
     p = dict(row)
     items = config_loader.get_all_items()
@@ -434,6 +435,7 @@ def me_game(request: Request):
         },
         # ป้าย "มีของค้างรับ" บนปุ่มเมนู — ต้องเห็นตั้งแต่ยังไม่กดเข้าไปดู
         "season": {"claimable": _season.season_view(uid)["claimable"]},
+        "fashion": _fashion.worn(p),      # 👗 ใส่อะไรอยู่ — ตัววาดเอาไปสวมทับ
         "bag": {"capacity": p.get("capacity", 0), "used": len(inv), "items": bag},
         "buffs": buffs,
     }
@@ -1711,6 +1713,42 @@ def board_roll(request: Request):
 # 📚 เมนูสะสม/รางวัล ที่มีในดิสอยู่แล้ว — ต่อขึ้นเว็บ (เว็บเกม รอบเก็บเมนู)
 # ทุกอันเรียกโมดูลเดียวกับคำสั่งในดิส เว็บแค่แปลงเป็น JSON พร้อมแสดงผล
 # ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/me/fashion")
+def me_fashion(request: Request):
+    """👗 ตู้เสื้อผ้า — มีอะไร ใส่อะไรอยู่ (แฟชั่นไม่มีผลต่อค่าต่อสู้เลย)"""
+    uid = int(require_player(request)["uid"])
+    from bot import fashion
+    return fashion.wardrobe(uid)
+
+
+class FashionBody(BaseModel):
+    action: str            # wear | off
+    key: str = ""          # รหัสแฟชั่น (ตอนใส่)
+    slot: str = ""         # ช่อง (ตอนถอด)
+
+
+@router.post("/me/fashion")
+def me_fashion_set(body: FashionBody, request: Request):
+    """ใส่/ถอดแฟชั่น — เช็คว่ามีของจริงที่เซิร์ฟเวอร์เสมอ ห้ามเชื่อเบราว์เซอร์"""
+    uid = int(require_player(request)["uid"])
+    from bot import fashion
+    with _user_lock(uid):
+        if body.action == "wear":
+            ok, msg = fashion.wear(uid, body.key)
+        elif body.action == "off":
+            ok, msg = fashion.take_off(uid, body.slot)
+        else:
+            raise HTTPException(400, "ไม่รู้จักคำสั่งนี้")
+    if not ok:
+        raise HTTPException(400, msg)
+    return {"ok": True, "message": msg, "worn": fashion.worn(player_model_get(uid))}
+
+
+def player_model_get(uid):
+    from bot.models import player_model
+    return player_model.get_player(uid) or {}
+
 
 @router.get("/me/pets")
 def me_pets(request: Request):

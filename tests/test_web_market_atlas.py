@@ -156,7 +156,7 @@ def test_the_three_buttons_are_wired_up():
 # ปุ่ม "เร็ว ๆ นี้" — โชว์ให้ผู้เล่นเห็นว่ากำลังจะมีอะไร แต่กดไม่ได้
 # รายชื่อตรงกับ docs/plan-2026-08-15-future-systems.md
 PLANNED_SOON = {
-    "แฟชั่น", "ครอบครัว", "เหรียญ",                       # ระบบใหม่ที่วางแผนไว้
+    "ครอบครัว", "เหรียญ",                                 # ระบบใหม่ที่วางแผนไว้
     "กาชาแฟชั่น", "สะสมแฟชั่น",                           # แฟชั่นแทรกเข้าหมวดเดิม
     "ซ้อมกับบอท", "ดวล 1v1", "ศึกกิลด์",                  # หมวด PVP
     "ไปต่างโลก",                                          # ยังไม่มีระบบในดิสเลย
@@ -196,6 +196,14 @@ def test_every_planned_system_has_a_teaser_button():
     """ผู้เล่นควรเห็นครบว่ากำลังจะมีอะไรบ้าง — ขาดปุ่มไหนแปลว่าลืมใส่"""
     missing = PLANNED_SOON - _soon_tiles()
     assert not missing, f"ระบบที่วางแผนไว้แต่ยังไม่มีปุ่มโชว์: {sorted(missing)}"
+
+
+def test_the_wardrobe_is_open_for_business():
+    """👗 แฟชั่นเปิดใช้งานแล้ว — ต้องไม่ติดป้าย "เร็ว ๆ นี้" อีก"""
+    assert 'data-go="fashion"' in HTML, "ไม่มีปุ่มเปิดตู้เสื้อผ้า"
+    assert 'id="v-fashion"' in HTML, "ไม่มีแผงตู้เสื้อผ้า"
+    assert "แฟชั่น" not in _soon_tiles(), "ตู้เสื้อผ้าใช้งานได้แล้วแต่ยังติดป้ายเร็ว ๆ นี้"
+    assert "if (id === 'fashion') fillFashion(" in PLAY
 
 
 def test_fashion_buttons_sit_in_the_right_sections():

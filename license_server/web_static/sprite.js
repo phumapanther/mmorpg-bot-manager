@@ -162,10 +162,74 @@ const HELMS = {
   2: ['................', '...oAAAAAAAAo...', '..oAZAAAAAAZAo..', '..oAAsssssAAo...'.slice(0,16)],
 };
 
-function spritePalette(race, cls, armor) {
+// ══════ 👗 แฟชั่น (2026-08-15) ══════
+// แฟชั่น "สวมทับตอนวาด" เท่านั้น — ข้อมูลจริงในฐานข้อมูลไม่ขยับสักตัว
+// เกราะเหล็กที่ใส่อยู่ยังเป็นเกราะเหล็ก (ค่าป้องกัน/ความคงทนเท่าเดิม) แค่วาดออกมาเป็นชุดอื่น
+// รูปทรงอาวุธยังแยกตามอาชีพเหมือนเดิม แฟชั่นเปลี่ยนแค่ "สีกับความยาว"
+
+const FASHION_OUTFIT = {
+  // ✨ สายแสงสว่าง — เกราะขาวมุกขอบทอง ผ้าคลุมทองพลิ้วหลัง
+  light_knight: { base:'#f6f1e2', shade:'#c0a874', hi:'#ffffff', helm:2,
+                  cape:'#e8bf5c', capeShade:'#b8892c', glow:'#ffe9a8' },
+  // 🌑 สายความมืด — ชุดคลุมดำอมม่วง ขอบเรืองม่วง เงาพลิ้ว
+  dark_cloak:   { base:'#2f2439', shade:'#171021', hi:'#7b5aa0', helm:1,
+                  cape:'#4a2f6b', capeShade:'#241539', glow:'#b06be0' },
+};
+
+const FASHION_WEAPON = {
+  // เก็บโครงเดียวกับ WEAPON_LOOK — ทรงยังมาจากอาชีพเหมือนเดิม
+  light_blade:  { base:'#fff3c4', shade:'#d8a93c', hi:'#ffffff', len:18, glow:1 },
+  dark_scythe:  { base:'#4a3560', shade:'#1e1329', hi:'#c07ff0', len:19, glow:1 },
+};
+
+// ออร่า — วงแหวน/หมอกรอบตัว วาดก่อนร่างกาย (อยู่ข้างหลัง)
+const FASHION_AURA = {
+  light_halo: { color:'#ffe9a8', ring:'#fff6d8', style:'ring' },
+  dark_mist:  { color:'#b06be0', ring:'#7b3fb0', style:'mist' },
+};
+
+/** วาดออร่ารอบตัว — t = เลขเฟรม (ใส่มาเพื่อให้ขยับ ไม่ใส่ก็ได้ = นิ่ง) */
+function drawAura(ctx, x, y, s, key, t = 0) {
+  const A = FASHION_AURA[key];
+  if (!A) return;
+  const cx = x + 8 * s, cy = y + 12 * s;
+  ctx.save();
+  if (A.style === 'ring') {
+    // 💫 วงแหวนแสงหมุนรอบตัว + ประกายลอยขึ้น
+    ctx.globalAlpha = .22; ctx.fillStyle = A.color;
+    ctx.beginPath(); ctx.ellipse(cx, cy, 11 * s, 13 * s, 0, 0, 7); ctx.fill();
+    ctx.globalAlpha = .55; ctx.strokeStyle = A.ring; ctx.lineWidth = Math.max(1, s * .6);
+    for (let i = 0; i < 2; i++) {
+      const w = (9 + i * 2) * s, h = (2.5 + Math.sin(t / 14 + i) * 1.6) * s;
+      ctx.beginPath(); ctx.ellipse(cx, y + (19 - i * 7) * s, w, Math.abs(h) + s * .6, 0, 0, 7);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = .8; ctx.fillStyle = A.ring;
+    for (let i = 0; i < 5; i++) {
+      const p = ((t * 1.3 + i * 40) % 100) / 100;
+      ctx.fillRect(cx + Math.sin(i * 2 + t / 20) * 7 * s, y + (21 - p * 20) * s, s, s);
+    }
+  } else {
+    // 🌫️ หมอกดำคลุ้งขึ้นจากพื้น
+    ctx.globalAlpha = .2; ctx.fillStyle = A.color;
+    ctx.beginPath(); ctx.ellipse(cx, cy + 2 * s, 12 * s, 12 * s, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = A.ring;
+    for (let i = 0; i < 7; i++) {
+      const p = ((t * .9 + i * 28) % 100) / 100;
+      ctx.globalAlpha = .45 * (1 - p);
+      const w = (2 + p * 3) * s;
+      ctx.fillRect(cx + Math.sin(i * 1.7 + t / 16) * 8 * s - w / 2, y + (22 - p * 22) * s, w, w);
+    }
+  }
+  ctx.restore();
+}
+
+
+function spritePalette(race, cls, armor, outfit) {
   const R = RACE_LOOK[race] || RACE_FALLBACK;
   const C = CLASS_LOOK[cls] || CLASS_FALLBACK;
-  const A = ARMOR_LOOK[armor] || ARMOR_FALLBACK;
+  // 👗 ใส่แฟชั่นอยู่ = ใช้สีของชุดแฟชั่นแทน (ค่าเกราะจริงไม่เกี่ยวกับตรงนี้เลย)
+  const A = FASHION_OUTFIT[outfit] || ARMOR_LOOK[armor] || ARMOR_FALLBACK;
   return {
     o: '#1c1418',                        // เส้นขอบอมม่วง นุ่มกว่าดำสนิท
     s: R.skin, S: R.dark, e: '#2a1a1e',  // ผิว/เงาผิว/ม่านตา
@@ -192,11 +256,15 @@ function blitGrid(ctx, grid, x, y, s, pal) {
 function drawCharacter(ctx, x, y, s, cfg) {
   const race = cfg.race, cls = cfg.cls;
   const R = RACE_LOOK[race] || RACE_FALLBACK;
-  const A = ARMOR_LOOK[cfg.armor] || ARMOR_FALLBACK;
+  // 👗 แฟชั่นสวมทับตอนวาดเท่านั้น — ของจริงที่ใส่อยู่ไม่ขยับ
+  const f = cfg.fashion || {};
+  const A = FASHION_OUTFIT[f.outfit] || ARMOR_LOOK[cfg.armor] || ARMOR_FALLBACK;
   const C = CLASS_LOOK[cls] || CLASS_FALLBACK;
-  const W = WEAPON_LOOK[cfg.weapon];
-  const pal = spritePalette(race, cls, cfg.armor);
+  const W = FASHION_WEAPON[f.weapon] || WEAPON_LOOK[cfg.weapon];
+  const pal = spritePalette(race, cls, cfg.armor, f.outfit);
   const grid = POSES[cfg.pose] || POSES.idle;
+
+  if (f.aura) drawAura(ctx, x, y, s, f.aura, cfg.frame || 0);   // ออร่าอยู่หลังตัว
 
   // เงาใต้เท้า — ทำให้ดูยืนบนพื้นจริง ไม่ลอย
   ctx.save();
@@ -224,6 +292,17 @@ function drawCharacter(ctx, x, y, s, cfg) {
     ctx.fillStyle = '#f4efe2';
     ctx.fillRect(x + 5 * s, y + 8 * s, s, 2 * s);
     ctx.fillRect(x + 10 * s, y + 8 * s, s, 2 * s);
+  }
+  if (A.cape) {                                   // 👘 ผ้าคลุมของชุดแฟชั่น พลิ้วอยู่ข้างหลัง
+    ctx.save(); ctx.globalAlpha = .9;
+    ctx.fillStyle = A.capeShade;
+    ctx.fillRect(x + 2 * s, y + 11 * s, 2 * s, 9 * s);
+    ctx.fillRect(x + 12 * s, y + 11 * s, 2 * s, 9 * s);
+    ctx.fillStyle = A.cape;
+    ctx.fillRect(x + 2 * s, y + 11 * s, s, 8 * s);
+    ctx.fillRect(x + 12 * s, y + 11 * s, s, 8 * s);
+    ctx.fillRect(x + 3 * s, y + 11 * s, 10 * s, s);   // สาบบ่า
+    ctx.restore();
   }
   if (A.helm) blitGrid(ctx, HELMS[A.helm], x, y, s, pal);
   if (C.hat) blitGrid(ctx, HATS[C.hat], x, y, s, pal);
