@@ -847,3 +847,8 @@ body.bar-min .pbar .money { margin-left: auto; }
 @media (max-width: 560px) {
   .fg-banner { grid-template-columns: 88px 1fr; }
 }
+
+/* 🔌 บอทดิสออฟไลน์ — ยศซื้อไม่ได้เพราะไม่มีใครแจก */
+.g-note.bot-off { border: 1px solid #7a3b2e; background: #2a1512; color: #ecc0b2;
+  border-radius: var(--g-r); padding: 11px 14px; margin-bottom: 12px; line-height: 1.7; }
+.g-note.bot-off b { color: #ff9d84; }

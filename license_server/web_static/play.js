@@ -141,7 +141,7 @@ function showPanel(id) {
   if (id === 'elembook') fillElemBook().catch(e => toast(e.message, true));
   if (id === 'atlas') fillAtlas().catch(e => toast(e.message, true));
   if (id === 'fashion') fillFashion().catch(e => toast(e.message, true));
-  if (id === 'fgacha') fillGacha().catch(e => toast(e.message, true));
+  if (id === 'fgacha') fillFashionGacha().catch(e => toast(e.message, true));
   if (id === 'market') fillMarket().catch(e => toast(e.message, true));
   if (id === 'season') fillSeason().catch(e => toast(e.message, true));
   if (id === 'partner') fillPartner().catch(e => toast(e.message, true));
@@ -181,6 +181,12 @@ async function waitTicket(id, onTick) {
   return { status: 'pending', note: 'บอทยังไม่ได้หยิบรายการนี้ — เดี๋ยวจะมอบยศให้เองภายหลัง' };
 }
 
+/** 🔌 ยศต้องให้บอทเป็นคนแจก บอทดับเมื่อไหร่ก็ซื้อไม่ได้ — บอกไว้ก่อนกด */
+function botOfflineBanner(online) {
+  return online ? '' : `<div class="g-note bot-off">🔌 <b>บอทดิสคอร์ดออฟไลน์อยู่</b> —
+    ยศต้องให้บอทเป็นคนมอบ ตอนนี้จึงซื้อไม่ได้ กลับมาลองใหม่เมื่อบอทออนไลน์</div>`;
+}
+
 async function fillRoleShop() {
   chipRow(document.getElementById('roleFactions'), FACTIONS, v => {
     ROLE_FACTION = v; fillRoleShop();
@@ -189,7 +195,7 @@ async function fillRoleShop() {
   box.innerHTML = '<div class="g-note">กำลังโหลด...</div>';
   try {
     const d = await api('GET', '/api/web/roleshop?faction=' + ROLE_FACTION);
-    box.innerHTML = d.roles.map((r, i) => `
+    box.innerHTML = botOfflineBanner(d.bot_online) + d.roles.map((r, i) => `
       <div class="role-card" style="--rc:${ROLE_FACTION === 'dark' ? '#8f2317' : '#2f6d84'}">
         <div class="rn">${esc(r.emoji || '')} ${esc(r.label)}</div>
         <div class="rp">${fmt(r.price)} ทอง</div>
@@ -241,6 +247,7 @@ async function fillGacha() {
     document.getElementById('gachaPrice').textContent =
       fmt(d.gacha.price) + ' ทอง/ครั้ง · ในตู้มี ' + d.gacha.pool_size + ' ยศ';
     document.getElementById('gachaBtn').onclick = () => spinGacha(d.gacha.price);
+    document.getElementById('gachaOffline').innerHTML = botOfflineBanner(d.bot_online);
   } catch (e) {
     document.getElementById('gachaPrice').textContent = 'โหลดไม่สำเร็จ';
   }
@@ -1938,7 +1945,7 @@ const FG_KIND = {                     // ผลที่ได้ → ป้า�
   bonus:    { tag: '💎 โบนัสการันตี', cls: 'dup' },
 };
 
-async function fillGacha() {
+async function fillFashionGacha() {
   const box = document.getElementById('fgTiers');
   box.innerHTML = '<div class="g-note">กำลังโหลด...</div>';
   try { FG = await api('GET', '/api/web/fashion/gacha'); }

@@ -281,7 +281,7 @@ def test_the_gacha_tile_is_no_longer_a_teaser():
 
 def test_the_panel_loads_itself_when_opened():
     play = (WEB / "play.js").read_text(encoding="utf-8")
-    assert "if (id === 'fgacha') fillGacha()" in play, "เปิดหน้าตู้แล้วไม่โหลดข้อมูล"
+    assert "if (id === 'fgacha') fillFashionGacha()" in play, "เปิดหน้าตู้แล้วไม่โหลดข้อมูล"
     for el in ("fgTiers", "fgResult", "fgExchange", "fgFeatName", "fgGems"):
         assert el in play and el in (WEB / "play.html").read_text(encoding="utf-8"), \
             f"อ้างถึง #{el} แต่ไม่มีในหน้าเว็บ (หรือกลับกัน)"

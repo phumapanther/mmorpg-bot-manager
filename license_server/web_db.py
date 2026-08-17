@@ -5,6 +5,7 @@
        role_grant_queue (สะพานให้บอทแจกยศแทนเว็บ — เว็บแจกยศ Discord เองไม่ได้)
 """
 import sqlite3
+import time
 from pathlib import Path
 
 DB_PATH = Path(__file__).resolve().parent / "web.db"
@@ -58,6 +59,12 @@ CREATE TABLE IF NOT EXISTS role_grant_queue (
     resolved_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_grant_pending ON role_grant_queue(status, id);
+-- 💓 บอทยังออนไลน์อยู่ไหม — แถวเดียวจบ บอทประทับเวลาทุกรอบที่ไล่คิวแจกยศ
+-- เว็บใช้ตัดสินว่า "ซื้อยศได้ไหม" เพราะยศต้องให้บอทเป็นคนแจก บอทดับ = ซื้อแล้วค้าง
+CREATE TABLE IF NOT EXISTS bot_heartbeat (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    beat_at REAL NOT NULL
+);
 CREATE TABLE IF NOT EXISTS topups (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     discord_id TEXT NOT NULL,
@@ -87,3 +94,25 @@ def connect():
         except sqlite3.OperationalError:
             pass
     return conn
+
+
+# 💓 บอทออนไลน์ไหม
+# บอทเต้นทุก 15 วิ (POLL_SECONDS ของ role_grant_worker) ให้อภัย 3 จังหวะก่อนตัดสินว่าดับ
+BEAT_TIMEOUT = 45
+
+
+def bot_ping():
+    """บอทบอกว่า 'ยังอยู่' — เรียกจากลูปที่ทำงานได้ก็ต่อเมื่อบอทต่อดิสคอร์ดติดแล้วเท่านั้น"""
+    with connect() as conn:
+        conn.execute("INSERT INTO bot_heartbeat(id, beat_at) VALUES (1, ?) "
+                     "ON CONFLICT(id) DO UPDATE SET beat_at=excluded.beat_at", (time.time(),))
+
+
+def bot_alive(timeout=BEAT_TIMEOUT):
+    """บอทยังเต้นอยู่ไหม — อ่านไม่ได้ก็ถือว่าดับ (ปลอดภัยกว่าปล่อยให้ซื้อแล้วค้าง)"""
+    try:
+        with connect() as conn:
+            row = conn.execute("SELECT beat_at FROM bot_heartbeat WHERE id=1").fetchone()
+    except sqlite3.Error:
+        return False
+    return bool(row) and (time.time() - float(row["beat_at"])) < timeout

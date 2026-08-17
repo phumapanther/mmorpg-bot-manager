@@ -27,6 +27,13 @@ class RoleGrantWorker(commands.Cog):
 
     @tasks.loop(seconds=POLL_SECONDS)
     async def drain(self):
+        # 💓 ลูปนี้เริ่มหลัง wait_until_ready เท่านั้น การที่มันเต้นได้ = บอทต่อดิสติดจริง
+        # เว็บใช้จังหวะนี้ตัดสินว่าจะให้ซื้อยศได้ไหม (บอทดับ = ซื้อแล้วยศไม่มา)
+        try:
+            web_db.bot_ping()
+        except Exception as e:
+            print(f"⚠️ [ROLE-QUEUE] ปั๊มหัวใจไม่ได้: {e}")
+
         try:
             with web_db.connect() as conn:
                 rows = conn.execute(

@@ -1588,6 +1588,9 @@ def _fight_action(uid, fight, action):
 
 _FACTIONS = ("dark", "light")
 
+BOT_OFFLINE = ("🔌 บอทดิสคอร์ดออฟไลน์อยู่ตอนนี้ — ยศต้องให้บอทเป็นคนมอบ "
+               "ถ้าซื้อตอนนี้เงินจะหักไปแล้วยศไม่มา ลองใหม่อีกครั้งเมื่อบอทกลับมา")
+
 
 @router.get("/roleshop")
 def roleshop(faction: str, request: Request):
@@ -1596,7 +1599,7 @@ def roleshop(faction: str, request: Request):
     if faction not in _FACTIONS:
         raise HTTPException(400, "ฝ่ายต้องเป็น dark หรือ light")
     from bot import role_shop_core
-    return role_shop_core.shop_view(faction, uid)
+    return role_shop_core.shop_view(faction, uid) | {"bot_online": web_db.bot_alive()}
 
 
 class RoleBuyBody(BaseModel):
@@ -1620,6 +1623,9 @@ def roleshop_buy(body: RoleBuyBody, request: Request):
     uid = int(require_player(request)["uid"])
     if body.faction not in _FACTIONS:
         raise HTTPException(400, "ฝ่ายต้องเป็น dark หรือ light")
+    # บอทดับ = ไม่มีใครแจกยศ ต้องกันตั้งแต่ก่อนหักเงิน ไม่ใช่หักแล้วค่อยไปค้างในคิว
+    if not web_db.bot_alive():
+        raise HTTPException(503, BOT_OFFLINE)
     from bot import role_shop_core
 
     with _user_lock(uid):
