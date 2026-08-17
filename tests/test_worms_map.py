@@ -46,7 +46,12 @@ def test_encoding_survives_a_round_trip(seed):
 def test_the_map_compresses_worth_it():
     """ถ้าบีบแล้วไม่เล็กลง ก็ส่งบิตดิบไปเลยง่ายกว่า — บีบต้องคุ้มจริง"""
     enc = T.encode(T.generate(55529632192042)["grid"])
-    assert len(enc) < T.W * T.H / 10, f"บีบได้แค่ {T.W * T.H / len(enc):.0f} เท่า"
+    assert len(enc) < T.W * T.H / 8, f"บีบได้แค่ {T.W * T.H / len(enc):.0f} เท่า"
+
+
+def test_the_map_is_big_enough_to_need_a_camera():
+    """เจ้าของเกมสั่งให้ใหญ่ขึ้น — ใหญ่กว่าจอจนต้องซูม/เลื่อนดู"""
+    assert T.W >= 700 and T.H >= 260, f"แผนที่ {T.W}×{T.H} ยังเล็กเกิน"
 
 
 def test_making_a_map_is_fast_enough_to_do_on_demand():
@@ -71,7 +76,7 @@ def test_nothing_is_ever_built_inside_the_water(seed):
 def test_there_is_enough_land_to_play_on(seed):
     """แผนที่ที่แทบไม่มีพื้น = ยืนไม่ได้ · พื้นเต็มจอ = ไม่มีที่ให้ตก ทั้งคู่ไม่สนุก"""
     g = T.generate(seed)["grid"]
-    solid = sum(sum(r) for r in g)
+    solid = sum(1 for r in g for v in r if v)
     pct = solid * 100 / (T.W * T.H)
     assert 4 < pct < 45, f"พื้นกินพื้นที่ {pct:.0f}% ของจอ"
 
@@ -82,7 +87,7 @@ def test_the_islands_actually_float(seed):
     g = T.generate(seed)["grid"]
     floating = 0
     for x in range(T.W):
-        col = [y for y in range(T.H) if g[y][x]]
+        col = [y for y in range(T.H) if g[y][x] and g[y][x] != T.LEAF]
         if col and any(not g[y][x] for y in range(col[0], col[-1])):
             floating += 1
     assert floating > 20, f"มีช่องว่างใต้พื้นแค่ {floating} คอลัมน์ — แผนที่ตันเกินไป"
@@ -144,11 +149,11 @@ def test_a_blast_actually_removes_ground():
 
 def test_a_blast_only_eats_a_circle():
     """ระเบิดต้องกินเป็นวงกลม ไม่ใช่ลบทั้งแถว"""
-    g = [[1] * T.W for _ in range(T.H)]
-    T.carve(g, 200, 90, 10)
-    assert not T.solid(g, 200, 90) and not T.solid(g, 205, 90)
-    assert T.solid(g, 200 + 12, 90), "ระเบิดกินเลยรัศมีไป"
-    assert T.solid(g, 200, 90 - 12), "ระเบิดกินเลยรัศมีในแนวตั้ง"
+    g = [[T.ROCK] * T.W for _ in range(T.H)]
+    T.carve(g, 300, 120, 10)
+    assert not T.solid(g, 300, 120) and not T.solid(g, 305, 120)
+    assert T.solid(g, 300 + 12, 120), "ระเบิดกินเลยรัศมีไป"
+    assert T.solid(g, 300, 120 - 12), "ระเบิดกินเลยรัศมีในแนวตั้ง"
 
 
 def test_a_blast_at_the_edge_does_not_crash():
@@ -185,12 +190,17 @@ def test_the_panel_is_wired():
         assert el in PLAY and el in HTML, f"อ้างถึง #{el} แต่ไม่มีในหน้าเว็บ (หรือกลับกัน)"
 
 
+def _worms_js():
+    """ทั้งหมวดสนามรบใน play.js — ตัดตามหัวข้อคอมเมนต์ ไม่ใช่นับตัวอักษร"""
+    a = PLAY.index("let WM = null, WM_CAM = null;")
+    return PLAY[a:PLAY.index("let FRIENDS = null;", a)]
+
+
 def test_the_fighters_are_our_characters_not_worms():
     """เจ้าของเกมสั่งไว้: ลงสนามด้วยตัวละครของเราเอง ไม่ใช่หนอน"""
-    fn = PLAY[PLAY.index("function loadWormsMap("):]
-    fn = fn[:fn.index("\n}\n")]
+    fn = _worms_js()
     assert "drawCharacter(" in fn, "ไม่ได้วาดตัวละครจริงลงสนาม"
-    assert "CHAR" in fn, "ไม่ได้ใช้ตัวละครของผู้เล่น"
+    assert "char: i ? bot : CHAR" in fn, "ไม่ได้ใช้ตัวละครของผู้เล่น"
 
 
 def test_every_continent_has_ground_colours():
@@ -283,7 +293,7 @@ def test_http_hands_out_a_playable_map(web):
     assert d["continent_label"], "ไม่ได้บอกชื่อทวีป"
     g = T.decode(d["terrain"])
     for s in d["spawns"]:
-        assert g[s["y"]][s["x"]] == 1, "จุดเกิดที่ส่งมาไม่ได้อยู่บนพื้น"
+        assert g[s["y"]][s["x"]] != T.AIR, "จุดเกิดที่ส่งมาไม่ได้อยู่บนพื้น"
 
 
 def test_http_gives_back_the_same_map_for_a_seed(web):

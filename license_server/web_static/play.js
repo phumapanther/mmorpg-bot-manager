@@ -93,6 +93,9 @@ document.getElementById('playLogout')?.addEventListener('click', async () => {
 fillDiscordInvite();
 document.getElementById('frAdd')?.addEventListener('click', addFriend);
 document.getElementById('wmNew')?.addEventListener('click', () => wormsReroll(0));
+document.getElementById('wmIn')?.addEventListener('click', () => wmZoom(1));
+document.getElementById('wmOut')?.addEventListener('click', () => wmZoom(-1));
+document.getElementById('wmFit')?.addEventListener('click', () => { WM_CAM?.fit(); paintWormsBar(); });
 document.getElementById('wmSame')?.addEventListener('click', async () => {
   const seed = prompt('วางรหัสแผนที่ที่อยากเปิด', document.getElementById('wmSeed').textContent);
   if (seed && /^\d+$/.test(seed.trim())) wormsReroll(seed.trim());
@@ -1944,57 +1947,81 @@ async function fashOff(slot) {
 }
 
 // ── 🪱 สนามรบผลัดเทิร์น ──
-// แผนที่มาจากเซิร์ฟเวอร์ทั้งใบ ที่นี่แค่วาดกับวางตัวละครตามจุดเกิดที่ได้มา
-let WM = null;          // WormsMap ที่กำลังเล่นอยู่
-let WM_FIGHTERS = [];   // [{x, y, char, name, bot}]
+// แผนที่มาจากเซิร์ฟเวอร์ทั้งใบ ที่นี่แค่วาด + คุมกล้อง (ซูม/เลื่อน/กระโดดไปดูคนอื่น)
+let WM = null, WM_CAM = null;
+let WM_FIGHTERS = [];
 let wmLoop = 0;
 
 async function fillWorms() {
-  const cv = document.getElementById('wmCanvas');
   document.getElementById('wmWhere').textContent = 'กำลังสร้างแผนที่...';
-  let d;
-  try { d = await api('GET', '/api/web/pvp/worms/map?players=2'); }
-  catch (e) { document.getElementById('wmWhere').textContent = e.message; return; }
-  loadWormsMap(d, cv);
+  try { loadWormsMap(await api('GET', '/api/web/pvp/worms/map?players=2')); }
+  catch (e) { document.getElementById('wmWhere').textContent = e.message; }
 }
 
-function loadWormsMap(d, cv) {
+function loadWormsMap(d) {
+  const cv = document.getElementById('wmCanvas');
   WM = new WormsMap(d);
+  WM_CAM = new WormsCam(cv, WM);
+  WM_CAM.attach(paintWormsBar);
   document.getElementById('wmSeed').textContent = d.seed;
-  document.getElementById('wmWhere').textContent =
-    '🗺️ ' + (d.continent_label || d.continent);
+  document.getElementById('wmWhere').innerHTML =
+    '🗺️ ' + esc(d.continent_label || d.continent) +
+    ' · 🎁 ' + (d.props || []).length + ' หีบ · 🕳️ ' + (d.traps || 0) + ' กับดัก (ซ่อนอยู่)';
 
-  // ตัวเราลงสนามเอง (ไม่ใช่หนอน) — บอทใช้หน้าตาเดียวกันแต่คนละคลาส ให้ดูออกว่าใครเป็นใคร
+  // ตัวเราลงสนามเอง ไม่ใช่หนอน — บอทใช้ตัววาดเดียวกันแต่คนละคลาส ให้ดูออกว่าใครเป็นใคร
   const bot = { ...CHAR, cls: CHAR.cls === 'Mage' ? 'Warrior' : 'Mage', fashion: {} };
   WM_FIGHTERS = (d.spawns || []).slice(0, 2).map((s, i) => ({
-    x: s.x, y: s.y, name: i ? '🤖 บอท' : 'คุณ', bot: i === 1,
-    char: i ? bot : CHAR,
+    x: s.x, y: s.y, name: i ? '🤖 บอท' : 'คุณ', bot: i === 1, char: i ? bot : CHAR,
   }));
+  paintWormsBar();
 
   const ctx = cv.getContext('2d');
   cancelAnimationFrame(wmLoop);
   let t = 0;
   const tick = () => {
     if (!document.getElementById('v-worms').classList.contains('on')) { wmLoop = 0; return; }
-    WM.draw(ctx, t++);
-    WM_FIGHTERS.forEach(f => {
-      drawCharacter(ctx, f.x - 8, f.y - 21, 1, { ...f.char, pose: 'idle' });
-      ctx.fillStyle = f.bot ? '#ff9d84' : '#8fd0a0';
-      ctx.fillRect(f.x - 5, f.y - 26, 10, 2);              // แถบเลือดเล็ก ๆ เหนือหัว
-      ctx.fillStyle = '#00000066';
-      ctx.fillRect(f.x - 6, f.y - 27, 12, 1);
-    });
+    WM.draw(ctx, WM_CAM, t++);
+    WM_FIGHTERS.forEach(f => wmDrawFighter(ctx, f));
     wmLoop = requestAnimationFrame(tick);
   };
   tick();
 }
 
+/** วาดนักสู้หนึ่งคนตามกล้อง — ซูมออกสุดตัวจะเล็กมาก จึงมีหมุดชี้ให้หาเจอ */
+function wmDrawFighter(ctx, f) {
+  const z = WM_CAM.z, x = WM_CAM.sx(f.x), y = WM_CAM.sy(f.y);
+  if (x < -40 || x > WM_CAM.vw + 40) return;
+  if (z >= 2) drawCharacter(ctx, x - 8 * z, y - 21 * z, z, { ...f.char, pose: 'idle' });
+  else { ctx.fillStyle = f.bot ? '#ff9d84' : '#8fd0a0'; ctx.fillRect(x - 2, y - 6, 4, 6); }
+  ctx.fillStyle = '#00000077'; ctx.fillRect(x - 7 * (z / 2 + .5), y - 27 * z / 2 - 6, 14 * (z / 2 + .5), 4);
+  ctx.fillStyle = f.bot ? '#ff9d84' : '#8fd0a0';
+  ctx.fillRect(x - 6 * (z / 2 + .5), y - 27 * z / 2 - 5, 12 * (z / 2 + .5), 2);
+}
+
+function paintWormsBar() {
+  document.getElementById('wmZoom').textContent = '×' + (WM_CAM ? WM_CAM.z : 1);
+  const box = document.getElementById('wmWho');
+  if (!box) return;
+  box.innerHTML = WM_FIGHTERS.map((f, i) =>
+    `<button data-look="${i}">${esc(f.name)}</button>`).join('');
+  box.querySelectorAll('[data-look]').forEach(b => b.onclick = () => {
+    const f = WM_FIGHTERS[+b.dataset.look];
+    if (WM_CAM.z < 2) WM_CAM.z = 3;
+    WM_CAM.center(f.x, f.y); paintWormsBar(); SFX.play('click');
+  });
+}
+
+function wmZoom(dz) {
+  if (!WM_CAM) return;
+  WM_CAM.zoomAt(dz, WM_CAM.mx(WM_CAM.vw / 2), WM_CAM.my(WM_CAM.vh / 2));
+  paintWormsBar();
+}
+
 async function wormsReroll(seed) {
-  const q = seed ? '&seed=' + encodeURIComponent(seed) : '';
   try {
-    const d = await api('GET', '/api/web/pvp/worms/map?players=2' + q);
+    loadWormsMap(await api('GET', '/api/web/pvp/worms/map?players=2' +
+                           (seed ? '&seed=' + encodeURIComponent(seed) : '')));
     SFX.play('click');
-    loadWormsMap(d, document.getElementById('wmCanvas'));
   } catch (e) { toast(e.message, true); }
 }
 

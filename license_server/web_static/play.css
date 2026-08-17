@@ -875,10 +875,27 @@ body.bar-min .pbar .money { margin-left: auto; }
 .fr-line span { color: var(--g-muted); }
 
 /* ── 🪱 สนามรบผลัดเทิร์น ── */
-.wm-stage { background: #0d0906; border: 1px solid var(--g-line); border-radius: var(--g-r);
-  overflow: hidden; line-height: 0; }
-.wm-stage canvas { width: 100%; height: auto; image-rendering: pixelated; display: block; }
+.wm-stage { position: relative; background: #0d0906; border: 1px solid var(--g-line);
+  border-radius: var(--g-r); overflow: hidden; line-height: 0; }
+.wm-stage canvas { width: 100%; height: auto; image-rendering: pixelated; display: block;
+  cursor: grab; touch-action: none; }
+.wm-stage canvas:active { cursor: grabbing; }
+.wm-zoom { position: absolute; right: 8px; bottom: 8px; display: flex; align-items: center;
+  gap: 6px; background: rgba(13,9,6,.78); border: 1px solid var(--g-line);
+  border-radius: 999px; padding: 4px 6px; line-height: 1; }
+.wm-zoom button { width: 32px; height: 32px; border-radius: 50%; border: 0;
+  background: var(--g-hi); color: var(--g-ink); font-size: 16px; font-family: inherit;
+  cursor: pointer; }
+.wm-zoom button:hover { background: #40311f; }
+.wm-zoom b { font-family: var(--g-num); font-size: 12px; color: var(--g-gold); min-width: 22px;
+  text-align: center; }
 .wm-bar { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
   font-size: 12px; color: var(--g-muted); padding: 10px 4px 0; }
 .wm-seed b { font-family: var(--g-num); color: var(--g-gold); user-select: all; cursor: text; }
+.wm-who { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 4px 0;
+  font-size: 12px; color: var(--g-muted); }
+.wm-who button { border: 1px solid var(--g-line); background: var(--g-hi); color: var(--g-ink);
+  border-radius: 999px; padding: 6px 14px; min-height: 36px; font-family: inherit;
+  font-size: 12.5px; cursor: pointer; margin-right: 6px; }
+.wm-who button:hover { background: #40311f; }
 .wm-buttons { margin-top: 12px; }
