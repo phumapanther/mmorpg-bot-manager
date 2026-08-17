@@ -1982,8 +1982,11 @@ let WM = null, WM_CAM = null, WM_ST = null;
 let wmLoop = 0, wmHold = 0, wmBusy = false;
 let WM_ANIM = null;        // เส้นทางที่เซิร์ฟเวอร์ส่งมา กำลังเล่นภาพอยู่
 
-const WM_WALK_STEPS = 5;   // ก้าวต่อการยิงคำสั่งหนึ่งครั้ง (กดค้างจะยิงซ้ำ)
-const WM_HOLD_MS = 200;
+// ก้าวต่อการยิงคำสั่งหนึ่งครั้ง — ยิงก้อนใหญ่ห่าง ๆ ดีกว่าก้อนเล็กถี่ ๆ
+// 20 ก้าวเล่นภาพที่ 60fps ≈ 333ms พอดีกับช่วงยิงทุก 350ms ภาพจึงเดินต่อเนื่องไม่สะดุด
+// (ของเดิม 5 ก้าว/200ms = 5 ครั้งต่อวินาที ชนเพดานจำกัดอัตราใน 6 วินาที)
+const WM_WALK_STEPS = 20;
+const WM_HOLD_MS = 350;
 
 async function fillWorms() {
   try { wmApply(await api('GET', '/api/web/pvp/worms/match')); }

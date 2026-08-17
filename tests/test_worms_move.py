@@ -354,3 +354,59 @@ def test_two_players_have_separate_matches(web, tmp_path):
     web.post("/api/web/pvp/worms/match", json={"action": "new", "seed": 7})
     web.cookies.set("web_session", web_api.sign({"uid": str(other), "exp": time.time() + 3600}))
     assert web.get("/api/web/pvp/worms/match").json()["active"] is False, "เห็นแมตช์ของคนอื่น"
+
+
+# ── 🚦 กดค้างเดินต้องไม่ชนเพดานจำกัดอัตรา ──
+
+def test_holding_walk_never_hits_the_rate_limit():
+    """บั๊กที่ผู้เล่นเจอ: กดเดิน/กระโดดแล้วขึ้น "ยิงคำสั่งถี่เกินไป — รออีก 32 วินาที"
+
+    ปุ่มเดินยิง 5 ครั้ง/วิ แต่เส้นทางนี้ตกกลุ่ม write (30 ครั้ง/นาที) เลยหมดโควตาใน 6 วินาที
+    """
+    from license_server import rate_limit as R
+
+    R.reset()
+    assert R.group_for("/api/web/pvp/worms/match", "POST") == "arena", \
+        "สนามรบยังถูกจัดอยู่กลุ่มเดียวกับการเดินทางในเกมหลัก"
+    hold = _hold_interval_ms() / 1000
+    n = int(70 / hold)                       # กดค้างเดินยาว ๆ กว่าหนึ่งนาที
+    blocked = [i for i in range(n)
+               if not R.check("u", "/api/web/pvp/worms/match", "POST", now=i * hold)[0]]
+    assert not blocked, f"กดค้างเดินแล้วโดนบล็อก {len(blocked)} ครั้ง"
+
+
+def test_the_arena_still_has_a_ceiling():
+    """ปล่อยกว้างได้ แต่ต้องยังกันยิงถล่มจนเซิร์ฟล่ม"""
+    from license_server import rate_limit as R
+
+    R.reset()
+    blocked = [i for i in range(600)
+               if not R.check("u", "/api/web/pvp/worms/match", "POST", now=i * 0.02)[0]]
+    assert blocked, "ยิงรัว 50 ครั้ง/วินาที แล้วไม่โดนบล็อกเลย — ไม่มีเพดาน"
+    R.reset()
+
+
+def test_opening_the_arena_did_not_loosen_the_money_routes():
+    """กันเผลอปล่อยเส้นทางที่แตะเงินไปด้วย"""
+    from license_server import rate_limit as R
+
+    assert R.group_for("/api/web/roleshop", "POST") == "money"
+    assert R.LIMITS["money"][0] <= 20 and R.LIMITS["write"][0] <= 60
+
+
+def _hold_interval_ms():
+    m = re.search(r"const WM_HOLD_MS = (\d+)", PLAY)
+    assert m, "หาอัตราการยิงตอนกดค้างใน play.js ไม่เจอ"
+    return int(m.group(1))
+
+
+def test_the_client_batches_enough_steps_to_look_smooth():
+    """ยิงห่างขึ้นแต่ก้อนเล็กเท่าเดิม = ตัวละครเดินกระตุก
+
+    ภาพเล่นก้าวละเฟรม (~60fps) ก้อนหนึ่งจึงต้องยาวพอกินเวลาจนถึงคำสั่งถัดไป
+    """
+    steps = int(re.search(r"const WM_WALK_STEPS = (\d+)", PLAY).group(1))
+    ms = _hold_interval_ms()
+    assert steps * 1000 / 60 >= ms * 0.85, \
+        f"{steps} ก้าวเล่นได้ {steps * 1000 / 60:.0f}ms แต่ยิงทุก {ms}ms — ภาพจะขาดช่วง"
+    assert steps <= P.STEP_MAX, "ขอเกินเพดานที่เซิร์ฟเวอร์ยอมให้ต่อคำสั่ง"
