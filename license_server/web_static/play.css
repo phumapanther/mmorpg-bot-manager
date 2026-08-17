@@ -755,3 +755,10 @@ body.bar-min .pbar .money { margin-left: auto; }
   body.fullscreen .pbar .avatar { width: 34px; height: 34px; }
   body.fullscreen .pbar .avatar canvas { width: 28px; }
 }
+
+
+/* ป้าย "เร็ว ๆ นี้" แบบวางในเนื้อหา (ไม่ใช่มุมปุ่ม) — ใช้ในแผงที่บอกว่าจะมีระบบอะไรเพิ่ม */
+.tag-soon { display: inline-block; font-family: var(--g-num); font-size: 10.5px;
+  letter-spacing: .4px; color: var(--g-gold); border: 1px solid rgba(232,176,75,.45);
+  border-radius: 999px; padding: 1px 9px; background: rgba(232,176,75,.1);
+  vertical-align: middle; margin-right: 4px; }
