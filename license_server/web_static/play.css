@@ -804,3 +804,43 @@ body.bar-min .pbar .money { margin-left: auto; }
   .fash-wrap { grid-template-columns: 1fr; }
   .fash-preview { position: static; max-width: 190px; margin: 0 auto; }
 }
+
+/* ── 🎁 กาชาแฟชั่น ── */
+.fg-top { display: grid; gap: 12px; }
+.fg-banner { display: grid; grid-template-columns: 120px 1fr; gap: 14px; align-items: center; }
+.fg-banner canvas { width: 100%; height: auto; image-rendering: pixelated;
+  background: linear-gradient(#241b14, #14100c); border: 2px solid #5c4733;
+  border-radius: var(--g-r); }
+.fg-tag { font-size: 11px; color: var(--g-gold); letter-spacing: .5px; }
+.fg-name { font-size: 17px; font-weight: 700; margin: 3px 0 5px; }
+.fg-have { font-size: 10.5px; padding: 1px 8px; border-radius: 999px;
+  background: var(--g-hi); color: var(--g-muted); vertical-align: middle; }
+.fg-desc { font-size: 12px; color: var(--g-muted); line-height: 1.6; }
+.fg-gems { border-top: 1px solid var(--g-line); padding-top: 10px;
+  font-size: 12px; color: var(--g-muted); }
+.fg-gems b { font-family: var(--g-num); font-size: 20px; color: #b9e2ff; }
+.fg-buttons { margin: 14px 0; }
+
+.fg-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 9px; margin: 14px 0; }
+.fg-card { position: relative; background: var(--g-panel); border: 1px solid var(--g-line);
+  border-radius: 14px; padding: 22px 13px 12px; display: grid; gap: 3px;
+  animation: fgPop .34s var(--g-ease) both; }
+.fg-card b { font-size: 13px; }
+.fg-card small { font-size: 11.5px; color: var(--g-muted); }
+.fg-ktag { position: absolute; top: 7px; left: 11px; font-size: 10px;
+  color: var(--g-dim); letter-spacing: .3px; }
+.fg-card.fash { border-color: #7fb3ff; box-shadow: 0 0 14px #7fb3ff33; }
+.fg-card.dup  { border-color: #6fa8c8; }
+.fg-card.arti { border-color: #c89a4b; }
+.fg-card.feat { border-color: var(--g-gold); box-shadow: 0 0 22px #ffd66b55;
+  animation: fgPop .34s var(--g-ease) both, fgShine 1.5s ease-in-out infinite .34s; }
+.fg-card.feat .fg-ktag, .fg-card.fash .fg-ktag { color: var(--g-gold); }
+
+@keyframes fgPop { from { opacity: 0; transform: translateY(10px) scale(.94); }
+                   to   { opacity: 1; transform: none; } }
+@keyframes fgShine { 50% { box-shadow: 0 0 34px #ffd66b99; } }
+
+@media (max-width: 560px) {
+  .fg-banner { grid-template-columns: 88px 1fr; }
+}

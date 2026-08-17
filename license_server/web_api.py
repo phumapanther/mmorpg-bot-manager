@@ -1750,6 +1750,39 @@ def player_model_get(uid):
     return player_model.get_player(uid) or {}
 
 
+@router.get("/fashion/gacha")
+def fashion_gacha(request: Request):
+    """🎁 หน้าตู้กาชาแฟชั่น — ปุ่มหมุน เรท ของหน้าตู้ อัญมณีที่มี"""
+    uid = int(require_player(request)["uid"])
+    from bot import fashion
+    return fashion.gacha_view(uid)
+
+
+class GachaBody(BaseModel):
+    action: str = "pull"   # pull | exchange
+    tier: str = ""         # ปุ่มหมุน (ตอน pull)
+    key: str = ""          # รหัสแฟชั่นที่จะแลก (ตอน exchange)
+
+
+@router.post("/fashion/gacha")
+def fashion_gacha_go(body: GachaBody, request: Request):
+    """หมุนกาชา / แลกอัญมณี — หักทองกับสุ่มอยู่ใต้ล็อกเดียวกัน กดรัวสองจอไม่ได้ของฟรี"""
+    uid = int(require_player(request)["uid"])
+    from bot import fashion
+    with _user_lock(uid):
+        if body.action == "exchange":
+            ok, msg = fashion.exchange(uid, body.key)
+            if not ok:
+                raise HTTPException(400, msg)
+            return {"ok": True, "message": msg} | fashion.gacha_view(uid)
+        if body.action != "pull":
+            raise HTTPException(400, "ไม่รู้จักคำสั่งนี้")
+        ok, r = fashion.pull(uid, body.tier)
+    if not ok:
+        raise HTTPException(400, r["error"])
+    return r | {"money": _money_now(uid)}
+
+
 @router.get("/me/pets")
 def me_pets(request: Request):
     """🐾 สัตว์เลี้ยงที่จับได้ + ตัวที่ติดอยู่"""

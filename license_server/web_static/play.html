@@ -88,7 +88,7 @@
         <button class="g-tile" data-go="roleshop"><span class="ic">👑</span>ร้านขายยศ<span class="sub">ซื้อยศเผ่า/คลาสตรงๆ</span></button>
         <button class="g-tile" data-go="gacha">
           <span class="ic">🎰</span>กาชาสุ่มยศ<span class="sub">เสี่ยงดวงลุ้นยศหายาก</span></button>
-        <button class="g-tile soon" disabled title="ทางเดียวที่จะได้แฟชั่น — สุ่ม 1M/10M ต่อครั้ง · ได้ซ้ำแปลงเป็นอัญมณีการันตี · 10 เม็ดแลกของหน้าตู้ได้เลย"><span class="tag">เร็ว ๆ นี้</span>
+        <button class="g-tile hot" data-go="fgacha" title="ทางเดียวที่จะได้แฟชั่น — ได้ซ้ำแปลงเป็นอัญมณีการันตี · 10 เม็ดแลกได้ 1 ชิ้น">
           <span class="ic">🎁</span>กาชาแฟชั่น<span class="sub">ทางเดียวที่ได้แฟชั่น</span></button>
       </div></div>
 
@@ -363,6 +363,27 @@
         </div>
         <div class="fash-list" id="fashList"></div>
       </div>
+    </div>
+
+    <!-- ══ กาชาแฟชั่น ══ -->
+    <div class="g-panelview" id="v-fgacha">
+      <button class="g-back" data-back>← กลับเมนูหลัก</button>
+      <div class="g-head"><h2>🎁 กาชาแฟชั่น</h2>
+        <p>ทางเดียวที่จะได้แฟชั่น — จ่ายด้วยทอง ได้ซ้ำแปลงเป็น 💎 อัญมณีการันตี</p></div>
+      <div class="g-card fg-top">
+        <div class="fg-banner">
+          <canvas id="fgFeat" width="120" height="170"></canvas>
+          <div><div class="fg-tag">✨ ของหน้าตู้สัปดาห์นี้</div>
+            <div class="fg-name" id="fgFeatName">—</div>
+            <div class="fg-desc" id="fgFeatDesc"></div></div>
+        </div>
+        <div class="fg-gems"><b id="fgGems">0</b> 💎 <span id="fgGemNote"></span></div>
+      </div>
+      <div class="g-grid fg-buttons" id="fgTiers"></div>
+      <div id="fgResult"></div>
+      <div class="g-card" id="fgExchange"></div>
+      <p class="g-note">แฟชั่น<b>ไม่บวกค่าต่อสู้อะไรเลย</b> เปลี่ยนแค่หน้าตา —
+      จ่ายค่าหมุน ไม่ใช่จ่ายค่าของ จึงไม่มีคืนเงิน</p>
     </div>
 
     <!-- ══ สรุปทุกทวีป ══ -->

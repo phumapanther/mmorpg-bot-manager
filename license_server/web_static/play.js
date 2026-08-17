@@ -141,6 +141,7 @@ function showPanel(id) {
   if (id === 'elembook') fillElemBook().catch(e => toast(e.message, true));
   if (id === 'atlas') fillAtlas().catch(e => toast(e.message, true));
   if (id === 'fashion') fillFashion().catch(e => toast(e.message, true));
+  if (id === 'fgacha') fillGacha().catch(e => toast(e.message, true));
   if (id === 'market') fillMarket().catch(e => toast(e.message, true));
   if (id === 'season') fillSeason().catch(e => toast(e.message, true));
   if (id === 'partner') fillPartner().catch(e => toast(e.message, true));
@@ -1919,6 +1920,114 @@ async function fashOff(slot) {
     FASH.worn = r.worn; FASH_TRY = null;
     FASH.items.forEach(i => i.worn = r.worn[i.slot] === i.key);
     paintFashion(); fashPreview();
+    await reload();
+  } catch (e) { toast(e.message, true); }
+}
+
+// ── 🎁 กาชาแฟชั่น ──
+// เรทกับผลการสุ่มตัดสินที่เซิร์ฟเวอร์ทั้งหมด ที่นี่แค่กดปุ่มแล้วเล่นภาพผลที่ได้มา
+let FG = null;
+
+const FG_KIND = {                     // ผลที่ได้ → ป้ายกับสีการ์ด
+  featured: { tag: '✨ ของหน้าตู้!', cls: 'feat' },
+  fashion:  { tag: '👗 แฟชั่นใหม่!', cls: 'fash' },
+  dup:      { tag: '💎 ได้ซ้ำ → อัญมณี', cls: 'dup' },
+  artifact: { tag: '🏺 อาร์ติแฟกต์', cls: 'arti' },
+  junk:     { tag: '🧂 ของธรรมดา', cls: '' },
+  sold:     { tag: '🎒 กระเป๋าเต็ม → ขายเป็นทอง', cls: '' },
+  bonus:    { tag: '💎 โบนัสการันตี', cls: 'dup' },
+};
+
+async function fillGacha() {
+  const box = document.getElementById('fgTiers');
+  box.innerHTML = '<div class="g-note">กำลังโหลด...</div>';
+  try { FG = await api('GET', '/api/web/fashion/gacha'); }
+  catch (e) { box.innerHTML = '<div class="g-note">โหลดไม่สำเร็จ: ' + esc(e.message) + '</div>'; return; }
+  document.getElementById('fgResult').innerHTML = '';
+  paintGacha();
+}
+
+function paintGacha() {
+  const f = FG.featured;
+  document.getElementById('fgFeatName').innerHTML =
+    esc(f.name) + (f.owned ? ' <span class="fg-have">มีแล้ว</span>' : '');
+  document.getElementById('fgFeatDesc').textContent = f.desc;
+  document.getElementById('fgGems').textContent = FG.gems;
+  document.getElementById('fgGemNote').textContent =
+    `อัญมณีการันตี — ครบ ${FG.gems_per_exchange} เม็ดแลกแฟชั่นได้ 1 ชิ้น ` +
+    `(มีแล้ว ${FG.owned_count}/${FG.total} ชิ้น)`;
+  fgFeatPreview();
+
+  document.getElementById('fgTiers').innerHTML = FG.tiers.map(t => {
+    const rate = (t.odds.fashion + t.odds.featured).toFixed(1);
+    const afford = FG.cash >= t.price;
+    return `<button class="g-tile${t.key === 'ten' ? ' hot' : ''}" data-tier="${esc(t.key)}"
+              ${afford ? '' : 'disabled'}>
+      <span class="ic">${t.name.slice(0, 2)}</span>${esc(t.name.slice(2).trim())}
+      <span class="sub">${fmt(t.price)} ทอง · ลุ้นแฟชั่น ${rate}%${
+        t.free_gems ? ` · 💎 ×${t.free_gems} แน่นอน` : ''}</span></button>`;
+  }).join('');
+  document.getElementById('fgTiers').querySelectorAll('[data-tier]').forEach(b =>
+    b.onclick = () => fgPull(b.dataset.tier));
+
+  const can = FG.gems >= FG.gems_per_exchange;
+  document.getElementById('fgExchange').innerHTML = !FG.exchangeable.length
+    ? '<div class="g-note">🎉 เก็บครบทุกชิ้นแล้ว — อัญมณีเก็บไว้รอตู้ชุดต่อไปได้เลย</div>'
+    : `<div class="fash-head"><b>💎 แลกด้วยอัญมณี</b>
+         <span class="g-note" style="margin:0">${can ? 'เลือกได้เลย' :
+           `ยังขาดอีก ${FG.gems_per_exchange - FG.gems} เม็ด`}</span></div>
+       <div class="fash-row">${FG.exchangeable.map(i => `
+         <button class="fash-card" data-buy="${esc(i.key)}" ${can ? '' : 'disabled'}
+                 style="--fc:${FG.featured.key === i.key ? '#ffd66b' : '#7f8aa8'}">
+           <b>${esc(i.name)}</b><small>${esc(i.desc)}</small></button>`).join('')}</div>`;
+  document.getElementById('fgExchange').querySelectorAll('[data-buy]').forEach(b =>
+    b.onclick = () => fgExchange(b.dataset.buy));
+}
+
+/** หุ่นโชว์ของหน้าตู้ — ใช้ตัววาดตัวเดียวกับในเกม เห็นแบบไหนคือได้แบบนั้น */
+function fgFeatPreview() {
+  const cv = document.getElementById('fgFeat');
+  if (!cv || !FG) return;
+  const ctx = cv.getContext('2d');
+  const s = Math.max(1, Math.floor(cv.width / 18));
+  const look = { [FG.featured.slot]: FG.featured.key };
+  auraRepaint(cv, () => {
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    drawCharacter(ctx, (cv.width - 16 * s) / 2, 4, s, { ...CHAR, fashion: look });
+  });
+}
+
+async function fgPull(tier) {
+  const box = document.getElementById('fgResult');
+  box.innerHTML = '<div class="g-note">🎰 กำลังหมุน...</div>';
+  SFX.play('gacha');
+  let r;
+  try { r = await api('POST', '/api/web/fashion/gacha', { action: 'pull', tier: tier }); }
+  catch (e) { box.innerHTML = ''; toast(e.message, true); SFX.play('error'); return; }
+
+  const best = r.pulls.some(p => p.kind === 'featured') ? 'reward'
+             : r.pulls.some(p => p.kind === 'fashion') ? 'win'
+             : r.pulls.some(p => p.kind === 'artifact') ? 'treasure' : 'item';
+  SFX.play(best);
+
+  // โหลดตู้ใหม่ก่อน (ทองลด อัญมณีเพิ่ม มีของเพิ่ม) แล้วค่อยวางการ์ดผล
+  // ไม่งั้น fillGacha จะล้างการ์ดที่เพิ่งโชว์ทิ้ง
+  try { FG = await api('GET', '/api/web/fashion/gacha'); paintGacha(); } catch (e) { }
+  box.innerHTML = `<div class="fg-cards">${r.pulls.map((p, n) => {
+    const k = FG_KIND[p.kind] || FG_KIND.junk;
+    return `<div class="fg-card ${k.cls}" style="animation-delay:${n * 70}ms">
+      <span class="fg-ktag">${k.tag}</span><b>${esc(p.name)}</b>
+      ${p.gold ? `<small>+${fmt(p.gold)} ทอง</small>` : ''}</div>`;
+  }).join('')}</div>`;
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  await reload();
+}
+
+async function fgExchange(key) {
+  try {
+    const r = await api('POST', '/api/web/fashion/gacha', { action: 'exchange', key: key });
+    SFX.play('reward'); toast(r.message);
+    FG = r; paintGacha();
     await reload();
   } catch (e) { toast(e.message, true); }
 }

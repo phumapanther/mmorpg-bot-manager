@@ -24,7 +24,9 @@ def world(tmp_path, monkeypatch):
     pm.get_player(UID)
     pm.update_player_fields(UID, {"armor": "Steel_H", "armor_dur": 80,
                                   "weapon": "Iron_Weapon", "weapon_dur": 100,
-                                  "hp": 300, "max_hp": 400, "level": 30})
+                                  "hp": 300, "max_hp": 400, "level": 30,
+                                  # ได้มาจากกาชาแล้ว — เทสชุดนี้สนใจเรื่องใส่/ถอด ไม่ใช่ที่มา
+                                  "fashion_owned": json.dumps(sorted(fashion.CATALOG))})
     return None
 
 
@@ -84,6 +86,7 @@ def test_the_dice_roll_is_untouched(world, monkeypatch):
 
 def test_you_cannot_wear_what_you_do_not_own(world, monkeypatch):
     monkeypatch.setattr(fashion, "_starter_sets_free", lambda: False)
+    pm.update_player_field(UID, "fashion_owned", "[]")
     ok, msg = fashion.wear(UID, "light_knight")
     assert not ok and "ยังไม่มี" in msg
 
@@ -161,7 +164,8 @@ def test_fashion_comes_from_gacha_only():
 
 
 def test_the_starter_giveaway_can_be_switched_off(world, monkeypatch):
-    """ตอนนี้แจกให้ลองใส่ก่อนเพราะกาชายังไม่เสร็จ — ต้องปิดได้ด้วยคอนฟิกเมื่อพร้อม"""
+    """เคยแจกให้ลองใส่ตอนกาชายังไม่เสร็จ — กาชาเปิดแล้วสวิตช์นี้ต้องปิดของฟรีได้จริง"""
+    pm.update_player_field(UID, "fashion_owned", "[]")
     monkeypatch.setattr(fashion, "_starter_sets_free", lambda: True)
     assert fashion.owned(pm.get_player(UID)) == set(fashion.CATALOG)
     monkeypatch.setattr(fashion, "_starter_sets_free", lambda: False)

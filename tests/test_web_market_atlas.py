@@ -157,7 +157,7 @@ def test_the_three_buttons_are_wired_up():
 # รายชื่อตรงกับ docs/plan-2026-08-15-future-systems.md
 PLANNED_SOON = {
     "ครอบครัว", "เหรียญ",                                 # ระบบใหม่ที่วางแผนไว้
-    "กาชาแฟชั่น", "สะสมแฟชั่น",                           # แฟชั่นแทรกเข้าหมวดเดิม
+    "สะสมแฟชั่น",                                         # แฟชั่นแทรกเข้าหมวดเดิม (กาชาเปิดแล้ว)
     "ซ้อมกับบอท", "ดวล 1v1", "ศึกกิลด์",                  # หมวด PVP
     "ไปต่างโลก",                                          # ยังไม่มีระบบในดิสเลย
 }
@@ -202,6 +202,8 @@ def test_the_wardrobe_is_open_for_business():
     """👗 แฟชั่นเปิดใช้งานแล้ว — ต้องไม่ติดป้าย "เร็ว ๆ นี้" อีก"""
     assert 'data-go="fashion"' in HTML, "ไม่มีปุ่มเปิดตู้เสื้อผ้า"
     assert 'id="v-fashion"' in HTML, "ไม่มีแผงตู้เสื้อผ้า"
+    assert 'data-go="fgacha"' in HTML, "ไม่มีปุ่มเปิดตู้กาชาแฟชั่น"
+    assert 'id="v-fgacha"' in HTML, "ไม่มีแผงตู้กาชาแฟชั่น"
     assert "แฟชั่น" not in _soon_tiles(), "ตู้เสื้อผ้าใช้งานได้แล้วแต่ยังติดป้ายเร็ว ๆ นี้"
     assert "if (id === 'fashion') fillFashion(" in PLAY
 
