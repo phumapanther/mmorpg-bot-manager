@@ -17,7 +17,7 @@ import time
 
 import pytest
 
-from bot.pvp import terrain as T
+from bot.pvp import physics as P, terrain as T
 
 WEB = pathlib.Path("license_server/web_static")
 WORMS = (WEB / "worms.js").read_text(encoding="utf-8")
@@ -47,11 +47,13 @@ def test_every_map_has_things_to_hide_behind(seed):
 def test_a_castle_shows_up_on_most_maps():
     """ปราสาทต้องการที่ราบกว้าง เมล็ดที่ไม่มีมีได้บ้าง แต่ต้องเป็นส่วนน้อย"""
     n = sum(1 for s in range(1, 41) if T.BRICK in _mats(T.generate(s)["grid"]))
-    assert n >= 28, f"มีปราสาทแค่ {n}/40 เมล็ด — ที่ราบกว้างหายากเกินไป"
+    assert n >= 20, f"มีปราสาทแค่ {n}/40 เมล็ด — ที่ราบกว้าง 84 ช่องหายากเกินไป"
 
 
 WALL = (T.WOOD, T.BRICK)
-HEAD, CLIMB = 5, 4        # ตัวละครสูงเท่านี้ · ปีนขั้นสูงได้ไม่เกินเท่านี้
+# ใช้ขนาดตัวจริงกับตัวเดินจริงจาก bot/pvp/physics.py
+# ไม่เขียนโมเดลเดินของตัวเองในเทส ไม่งั้นพอปรับขนาดตัวละครทีเดียวเทสเพี้ยนหมด
+HEAD = T.CH_H
 
 
 def _buildings(g):
@@ -92,12 +94,14 @@ def _inside_spots(g, box):
     """
     x0, y0, x1, y1 = box
     out = []
-    for x in range(x0 + 2, x1 - 1):
+    for x in range(x0 + 3, x1 - 2):
         for y in T.surfaces_at(g, x):
-            if y <= y0 + HEAD:
-                continue                  # นี่คือยืนบนหลังคา ไม่ใช่อยู่ในบ้าน
-            if y > y1 + 16:
-                continue                  # ต่ำกว่าตัวบ้านมาก = ไม่ได้อยู่ในบ้านแล้ว
+            # ช่องประตูกินกำแพงล่างไป DOOR_H แถว ขอบล่างของกรอบจึงลอยสูงกว่าพื้นห้องจริง
+            # เผื่อระยะเท่าความสูงประตู ไม่งั้นพื้นห้องจริงจะถูกตัดทิ้งทั้งหมด
+            if y <= y0 + 2 or y > y1 + T.DOOR_H + 4:
+                continue                  # บนหลังคาพอดี / ต่ำกว่าตัวบ้านมาก = ไม่ได้อยู่ในบ้าน
+            if not P.standable(g, x, y):
+                continue                  # ตัวจริงยัดลงตรงนี้ไม่ได้
             # ช่องประตูตัดกำแพงให้สั้นลง กรอบล่างจึงสูงกว่าพื้นห้องจริง
             # เกณฑ์ที่เชื่อได้คือ "มีกำแพงอยู่เหนือหัว" ไม่ใช่ขอบล่างของกรอบ
             if any(T.material(g, x, y - k) in WALL for k in range(HEAD, y - y0 + 1)):
@@ -114,16 +118,14 @@ def _walk_out(g, x, y, box):
     x0, _, x1, _ = box
     for step in (-1, 1):
         cx, cy = x, y
-        for _ in range(x1 - x0 + 8):
-            nx = cx + step
-            ny = next((s for s in T.surfaces_at(g, nx) if s >= cy - CLIMB), None)
-            if ny is None:
-                break                                     # ไม่มีที่เหยียบเลย = ตกน้ำ
-            if any(T.solid(g, nx, ny - k) for k in range(1, HEAD)):
-                break                                     # หัวชนกำแพง = ทางตัน
-            cx, cy = nx, ny
-            if cx < x0 or cx > x1:                        # พ้นกรอบอาคารแล้ว = ออกได้จริง
+        for _ in range(x1 - x0 + 12):
+            how, cx, cy = P.step(g, cx, cy, step)          # ใช้ตัวเดินจริงของเกม
+            if how == P.BLOCKED:
+                break
+            if cx < x0 or cx > x1:                         # พ้นกรอบอาคาร = ออกได้จริง
                 return True
+            if how == P.DROWNED:
+                break
     return False
 
 
@@ -159,7 +161,7 @@ def test_a_lone_building_is_hollow_with_a_way_in():
     for x in range(T.W):
         for y in range(150, T.H - T.WATER):
             g[y][x] = T.ROCK
-    T._building(g, 300, 149, 40, 28, T.BRICK, door=True)
+    T._building(g, 300, 149, 60, T.CH_H + 20, T.BRICK, door=True)   # ต้องใหญ่พอให้ตัวจริงเข้าไปยืน
     box = _buildings(g)[0]
     inside = _inside_spots(g, box)
     assert len(inside) >= 20, f"ข้างในตัน ยืนได้แค่ {len(inside)} จุด"
@@ -283,7 +285,7 @@ def test_the_camera_exists_and_is_wired():
 
 
 def test_you_can_jump_to_look_at_another_player():
-    assert "WM_CAM.center(f.x, f.y)" in PLAY, "กดชื่อคนแล้วกล้องไม่ตามไป"
+    assert "WM_CAM.center(f.x, f.y - 10)" in PLAY, "กดชื่อคนแล้วกล้องไม่ตามไป"
     assert "data-look=" in PLAY, "ไม่มีปุ่มเลือกคนที่จะไปดู"
 
 

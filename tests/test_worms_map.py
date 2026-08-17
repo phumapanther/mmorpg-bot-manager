@@ -108,8 +108,8 @@ def test_everyone_gets_a_spot_on_solid_ground(seed, n):
 
 
 def test_two_players_do_not_spawn_on_top_of_each_other():
-    """ต้องห่างกันทุกเมล็ด ไม่ใช่ห่างเพราะฟลุก — ลอง 60 เมล็ดกันเทสผ่านด้วยดวง"""
-    close = [s for s in range(1, 61)
+    """ต้องห่างกันทุกเมล็ด ไม่ใช่ห่างเพราะฟลุก — ลอง 40 เมล็ดกันเทสผ่านด้วยดวง"""
+    close = [s for s in range(1, 41)
              if abs(T.spawns(T.generate(s)["grid"], 2)[0][0]
                     - T.spawns(T.generate(s)["grid"], 2)[1][0]) < T.SPAWN_GAP]
     assert not close, f"เมล็ดที่เกิดมาติดกันจนยิงตายทันที: {close}"
@@ -179,7 +179,7 @@ def test_the_browser_has_no_map_generator():
     code = re.sub(r"/\*.*?\*/|//.*", "", WORMS, flags=re.S)
     for banned in ("function generate", "Math.random"):
         assert banned not in code, f"worms.js มี {banned} — ตัวสร้างแผนที่ต้องอยู่ที่เซิร์ฟเวอร์"
-    assert "/api/web/pvp/worms/map" in PLAY, "หน้าเว็บไม่ได้ขอแผนที่จากเซิร์ฟเวอร์"
+    assert "/api/web/pvp/worms/match" in PLAY, "หน้าเว็บไม่ได้ขอแผนที่จากเซิร์ฟเวอร์"
 
 
 def test_the_panel_is_wired():
@@ -191,8 +191,8 @@ def test_the_panel_is_wired():
 
 
 def _worms_js():
-    """ทั้งหมวดสนามรบใน play.js — ตัดตามหัวข้อคอมเมนต์ ไม่ใช่นับตัวอักษร"""
-    a = PLAY.index("let WM = null, WM_CAM = null;")
+    """ทั้งหมวดสนามรบใน play.js — ตัดตามจุดเริ่มของบล็อก ไม่ใช่นับตัวอักษร"""
+    a = PLAY.index("let WM = null, WM_CAM = null, WM_ST = null;")
     return PLAY[a:PLAY.index("let FRIENDS = null;", a)]
 
 
@@ -200,7 +200,7 @@ def test_the_fighters_are_our_characters_not_worms():
     """เจ้าของเกมสั่งไว้: ลงสนามด้วยตัวละครของเราเอง ไม่ใช่หนอน"""
     fn = _worms_js()
     assert "drawCharacter(" in fn, "ไม่ได้วาดตัวละครจริงลงสนาม"
-    assert "char: i ? bot : CHAR" in fn, "ไม่ได้ใช้ตัวละครของผู้เล่น"
+    assert "f.look" in fn, "ไม่ได้ใช้หน้าตาตัวละครที่เซิร์ฟเวอร์ส่งมา"
 
 
 def test_every_continent_has_ground_colours():

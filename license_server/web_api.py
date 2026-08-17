@@ -1810,6 +1810,45 @@ def worms_map(request: Request, seed: int = 0, continent: str = "", players: int
     return terrain.view(seed, continent, max(2, min(8, int(players))))
 
 
+class WormsBody(BaseModel):
+    action: str = "walk"       # new | walk | jump | end
+    dir: int = 1               # -1 ซ้าย · 1 ขวา
+    steps: int = 1
+    seed: int = 0
+
+
+@router.post("/pvp/worms/match")
+def worms_match(body: WormsBody, request: Request):
+    """🤖 ซ้อมกับบอท — ตำแหน่งทุกตัวตัดสินที่เซิร์ฟเวอร์ เบราว์เซอร์ส่งมาแค่ปุ่มที่กด"""
+    uid = int(require_player(request)["uid"])
+    from bot.pvp import match
+
+    with _user_lock(uid):
+        if body.action == "new":
+            p = player_model_get(uid)
+            from bot import fashion as _fashion
+            look = {"race": p.get("race"), "cls": p.get("class_name"),
+                    "armor": p.get("armor") or "None", "weapon": p.get("weapon") or "",
+                    "fashion": _fashion.worn(p)}
+            return match.view(uid, match.new_practice(uid, look, body.seed))
+        if body.action == "end":
+            ok, r = match.end_turn(uid)
+        elif body.action in ("walk", "jump"):
+            ok, r = match.move(uid, body.action, body.dir, body.steps)
+        else:
+            raise HTTPException(400, "ไม่รู้จักคำสั่งนี้")
+    if not ok:
+        raise HTTPException(400, r["error"])
+    return r
+
+
+@router.get("/pvp/worms/match")
+def worms_match_state(request: Request):
+    uid = int(require_player(request)["uid"])
+    from bot.pvp import match
+    return match.view(uid)
+
+
 @router.get("/friends/{target_id}/profile")
 def friend_profile(target_id: str, request: Request):
     """โปรไฟล์สาธารณะของเพื่อน — ไม่มีทอง/ธนาคาร/ของในกระเป๋าเด็ดขาด"""

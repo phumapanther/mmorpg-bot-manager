@@ -374,25 +374,33 @@
         <p>เกาะลอยที่ยิงจนพังได้ — ตัวละครของคุณลงสนามเอง ใช้สกิลอาชีพแทนอาวุธ</p></div>
       <div class="wm-stage"><canvas id="wmCanvas" width="720" height="270"></canvas>
         <div class="wm-zoom">
-          <button id="wmOut" title="ซูมออก">−</button>
-          <b id="wmZoom">×1</b>
+          <button id="wmOut" title="ซูมออก">−</button><b id="wmZoom">×3</b>
           <button id="wmIn" title="ซูมเข้า">+</button>
           <button id="wmFit" title="เห็นทั้งแผนที่">⛶</button>
         </div>
+        <div class="wm-hud"><span id="wmTurn"></span>
+          <span class="wm-mv"><i><b id="wmMoves"></b></i><small id="wmMovesTxt"></small></span></div>
       </div>
       <div class="wm-bar">
-        <span class="wm-seed">รหัสแผนที่ <b id="wmSeed">—</b></span>
-        <span id="wmWhere"></span>
+        <span class="wm-seed">รหัสแผนที่ <b id="wmSeed">—</b></span><span id="wmWhere"></span>
       </div>
-      <div class="wm-who">ไปดู: <span id="wmWho"></span></div>
+      <div class="wm-who" id="wmWho"></div>
+      <div class="wm-pad">
+        <button data-wm="left" title="เดินซ้าย (ปุ่มลูกศรซ้าย)">◀</button>
+        <button data-wm="jumpL" title="กระโดดซ้าย">↖</button>
+        <button data-wm="jumpR" title="กระโดดขวา (Space)">↗</button>
+        <button data-wm="right" title="เดินขวา (ปุ่มลูกศรขวา)">▶</button>
+        <button data-wm="end" class="wm-end" title="จบเทิร์น (Enter)">จบเทิร์น ⏭️</button>
+      </div>
+      <div class="wm-log" id="wmLog"></div>
       <div class="g-grid wm-buttons">
-        <button class="g-tile hot" id="wmNew"><span class="ic">🎲</span>สุ่มแผนที่ใหม่
-          <span class="sub">ได้ทวีปกับรูปเกาะใหม่ทุกครั้ง</span></button>
+        <button class="g-tile hot" id="wmNew"><span class="ic">🎲</span>สนามใหม่
+          <span class="sub">สุ่มแผนที่แล้วเริ่มซ้อมกับบอท</span></button>
         <button class="g-tile" id="wmSame"><span class="ic">📋</span>เปิดจากรหัสแผนที่
           <span class="sub">รหัสเดียวกันได้แผนที่เดียวกันเป๊ะ</span></button>
       </div>
-      <p class="g-note">ลากเพื่อเลื่อนดู · หมุนล้อหรือหุบสองนิ้วเพื่อซูม · กดชื่อคนเพื่อกระโดดไปดู
-      <br><b>ตอนนี้ทำถึงขั้นแผนที่</b> — ขั้นต่อไปคือเดิน/ตก แล้วค่อยเป็นสกิล เปิดหีบ และยิงจนพัง</p>
+      <p class="g-note">กดค้างที่ ◀ ▶ เพื่อเดินต่อเนื่อง · ลากบนจอเพื่อเลื่อนดู · ล้อ/สองนิ้วเพื่อซูม
+      <br><b>ตอนนี้เดิน กระโดด ตก เหยียบกับดัก เปิดหีบ ได้แล้ว</b> — ขั้นต่อไปคือเล็งยิงสกิลและแผนที่พัง</p>
     </div>
 
     <!-- ══ เพื่อน ══ -->

@@ -23,6 +23,10 @@ MIN_ISLANDS, MAX_ISLANDS = 4, 6
 SPAWN_GAP = 55           # ผู้เล่นสองคนต้องห่างกันอย่างน้อยเท่านี้
 FLAT_SPAN, FLAT_DROP = 5, 4     # ต้องเดินออกไปได้เท่านี้ทั้งสองข้างโดยไม่เจอหน้าผา
 
+# 🧍 ขนาดตัวละครในสนาม — ทุกอย่างที่ "เดินลอดได้/ยืนได้" ต้องอ้างอิงตัวเลขนี้
+# สไปรต์วาด 16×22 · กล่องชนแคบกว่าเพราะสองคอลัมน์ริมของสไปรต์ว่างอยู่แล้ว
+CH_W, CH_H = 9, 21
+
 # วัสดุในกริด — 0 คืออากาศ ที่เหลือคือพื้นแข็งทั้งหมด (เบราว์เซอร์แปลงเป็นสีเอง)
 AIR, GRASS, DIRT, ROCK, WOOD, BRICK, TRUNK, LEAF = range(8)
 GRASS_DEPTH, DIRT_DEPTH = 3, 10
@@ -93,14 +97,14 @@ def _skin(g):
 # ── 🏗️ สิ่งปลูกสร้าง (เป็นเนื้อเดียวกับพื้น จึงยิงพังได้และแอบข้างในได้) ──
 
 def _tree(rng, g, x, y):
-    """🌳 ต้นไม้ — ลำต้นบังกระสุนแนวตั้ง พุ่มใบบังจากด้านบน"""
-    h = rng.randint(12, 22)
-    tw = 1 if h < 16 else 2
+    """🌳 ต้นไม้ — ลำต้นบังกระสุนแนวตั้ง พุ่มใบบังจากด้านบน (สูงกว่าตัวละครเสมอ)"""
+    h = rng.randint(CH_H + 6, CH_H + 22)
+    tw = 1 if h < CH_H + 12 else 2
     for i in range(h):
         for dx in range(-tw, tw + 1):
             if 0 <= x + dx < W and 0 <= y - i < H:
                 g[y - i][x + dx] = TRUNK
-    r = rng.randint(7, 12)
+    r = rng.randint(10, 17)
     top = y - h
     for dy in range(-r, r // 2 + 1):
         for dx in range(-r, r + 1):
@@ -111,7 +115,7 @@ def _tree(rng, g, x, y):
 
 def _boulder(rng, g, x, y):
     """🪨 ก้อนหิน — ที่กำบังเตี้ย ๆ หมอบหลบได้"""
-    r = rng.randint(5, 10)
+    r = rng.randint(7, 14)
     n = _noise(rng, r * 2 + 1, 2)
     for dy in range(-r, 3):
         for dx in range(-r, r + 1):
@@ -120,7 +124,8 @@ def _boulder(rng, g, x, y):
                     g[y + dy][x + dx] = ROCK
 
 
-DOOR_H = 7          # ความสูงช่องประตู — ต้องเดินลอดเข้าไปได้จริง
+# ช่องประตูต้องสูงกว่าตัวละคร ไม่งั้นเดินลอดไม่ได้เลยสักหลัง (เจอตอนจะทำระบบเดิน)
+DOOR_H = CH_H + 4
 
 
 def _building(g, x, y, w, h, mat, door=True, battlement=False):
@@ -155,7 +160,7 @@ def _building(g, x, y, w, h, mat, door=True, battlement=False):
         #
         # ต้องเหลือกำแพงเหนือช่องประตูอย่างน้อย 3 แถวเสมอ — เคยพลาด: บ้านสูง 10
         # เจอประตูสูง 7 บวกแถวล่างอีก 1 กินกำแพงไป 8 จาก 11 แถว เหลือเป็นเสาลอย
-        dh = max(2, min(DOOR_H, h - 3))
+        dh = max(CH_H + 2, min(DOOR_H, h - 4))
         for side in (x0, x0 + w):
             for dy in range(h - dh, h + 1):
                 if 0 <= side < W and 0 <= y0 + dy < H:
@@ -201,31 +206,31 @@ def _decorate(rng, g):
 
     # 🏰 ปราสาท 1 หลัง — ที่แอบที่ใหญ่ที่สุดในสนาม
     for x, y in spots:
-        if _flat_run(g, x, y, 46) and free(x, 21 + DOOR_CLEAR):
-            _building(g, x, y + 1, 42, 30, BRICK, door=True, battlement=True)
-            taken.append((x, 21 + DOOR_CLEAR))
+        if _flat_run(g, x, y, 84) and free(x, 40 + DOOR_CLEAR):
+            _building(g, x, y + 1, 80, CH_H + 34, BRICK, door=True, battlement=True)
+            taken.append((x, 40 + DOOR_CLEAR))
             break
 
     # 🏘️ หมู่บ้าน 2-4 หลัง เกาะกลุ่มกัน
     for x, y in spots:
         if len(taken) >= 5:
             break
-        w = rng.randint(13, 17)
-        if _flat_run(g, x, y, 18) and free(x, w // 2 + DOOR_CLEAR):
-            h = rng.randint(15, 19)
+        w = rng.randint(30, 40)
+        if _flat_run(g, x, y, w + 4) and free(x, w // 2 + DOOR_CLEAR):
+            h = rng.randint(CH_H + 10, CH_H + 16)
             _building(g, x, y + 1, w, h, WOOD)
             _roof(g, x, y + 1 - h, w + 2, WOOD)
             taken.append((x, w // 2 + DOOR_CLEAR))
 
     # 🌳🪨 ต้นไม้กับก้อนหิน
     for x, y in spots:
-        if not free(x, 12):
+        if not free(x, 16):
             continue
         if rng.random() < .55:
             _tree(rng, g, x, y)
         else:
             _boulder(rng, g, x, y)
-        taken.append((x, 12))
+        taken.append((x, 16))
         if len(taken) > 34:
             break
 
@@ -313,11 +318,26 @@ def carve(grid, cx, cy, r):
 
 # ── 💎 ของบนแผนที่ ──
 
+def _headroom(grid, x, y):
+    """ตัวสูง CH_H กว้าง CH_W ยัดลงตรงนี้ได้ไหม
+
+    เคยพลาด: เช็คแค่ "มีพื้นให้เหยียบ" ผู้เล่นเลยไปเกิดใต้พุ่มไม้/ในซอกหิน
+    แล้วตัวจมอยู่ในเนื้อพื้นตั้งแต่วินาทีแรก
+    """
+    for gy in range(y - CH_H, y):
+        for gx in range(x - CH_W // 2, x + CH_W // 2 + 1):
+            if solid(grid, gx, gy):
+                return False
+    return True
+
+
 def _standable(grid, x, y):
-    """ยืนตรงนี้แล้วขยับได้จริงไหม — ไม่ใช่ยอดแหลมหรือริมผาที่ก้าวแล้วร่วง"""
+    """ยืนตรงนี้แล้วขยับได้จริงไหม — ไม่ใช่ยอดแหลม ริมผา หรือซอกที่ตัวไม่พอดี"""
+    if not _headroom(grid, x, y):
+        return False
     for d in range(-FLAT_SPAN, FLAT_SPAN + 1):
         s = surface_at(grid, x + d)
-        if s is None or abs(s - y) > FLAT_DROP:
+        if s is None or abs(s - y) > FLAT_DROP or not _headroom(grid, x + d, s):
             return False
     return True
 
