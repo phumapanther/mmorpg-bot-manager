@@ -172,16 +172,23 @@ def test_you_cannot_move_forever(world):
 
 
 def test_ending_a_turn_hands_over_and_refills(world):
+    """สู้กับบอท: จบเทิร์นแล้วบอทเดินจบในคำขอเดียว เทิร์นจึงกลับมาที่เราทันที"""
     match.new_practice(UID, LOOK, seed=7)
     match.move(UID, "walk", 1, 5)
     ok, r = match.end_turn(UID)
-    assert ok and r["turn"] == 1, "จบเทิร์นแล้วยังเป็นตาเดิม"
+    assert ok and r["round"] == 2, "จบเทิร์นแล้วรอบไม่เดิน"
     assert r["moves"] == match.MOVE_BUDGET, "เทิร์นใหม่แรงไม่เต็ม"
+    assert r["turn"] == 0 or r["over"], "ค้างอยู่ที่ตาบอท"
 
 
 def test_you_cannot_move_on_someone_elses_turn(world):
-    match.new_practice(UID, LOOK, seed=7)
-    match.end_turn(UID)
+    """สั่งให้ตัวอื่นเดินไม่ได้ — บังคับสถานะให้เป็นตาบอทเพื่อทดสอบด่านนี้ตรง ๆ
+
+    (เรียก end_turn ธรรมดาไม่ได้แล้ว เพราะบอทเดินจบในคำขอเดียว เทิร์นกลับมาที่เราทันที)
+    """
+    st = match.new_practice(UID, LOOK, seed=7)
+    st["turn"] = 1
+    match.save(UID, st)
     ok, r = match.move(UID, "walk", 1, 5)
     assert not ok and "ยังไม่ถึงตา" in r["error"]
 
@@ -329,13 +336,18 @@ def test_the_whole_loop_works_over_http(web):
     assert r.status_code == 200, r.text
     assert r.json()["moves"] < d["moves"], "เดินแล้วแรงไม่ลด"
 
-    assert web.post("/api/web/pvp/worms/match", json={"action": "end"}).json()["turn"] == 1
-    assert web.get("/api/web/pvp/worms/match").json()["turn"] == 1
+    # จบเทิร์นแล้วบอทเดินจบในคำขอเดียว เทิร์นกลับมาที่เราพร้อมนาฬิกาใหม่
+    e = web.post("/api/web/pvp/worms/match", json={"action": "end"}).json()
+    assert e["round"] == 2 and (e["turn"] == 0 or e["over"])
+    assert e["moves"] == e["move_budget"] and e["time_left"] > 0
+    assert web.get("/api/web/pvp/worms/match").json()["round"] == 2
 
 
 def test_http_rejects_moving_out_of_turn(web):
     web.post("/api/web/pvp/worms/match", json={"action": "new", "seed": 7})
-    web.post("/api/web/pvp/worms/match", json={"action": "end"})
+    st = match.load(UID)
+    st["turn"] = 1                       # บังคับให้เป็นตาบอท
+    match.save(UID, st)
     assert web.post("/api/web/pvp/worms/match",
                     json={"action": "walk", "dir": 1}).status_code == 400
 
@@ -410,3 +422,134 @@ def test_the_client_batches_enough_steps_to_look_smooth():
     assert steps * 1000 / 60 >= ms * 0.85, \
         f"{steps} ก้าวเล่นได้ {steps * 1000 / 60:.0f}ms แต่ยิงทุก {ms}ms — ภาพจะขาดช่วง"
     assert steps <= P.STEP_MAX, "ขอเกินเพดานที่เซิร์ฟเวอร์ยอมให้ต่อคำสั่ง"
+
+
+# ── ⏱️ นาฬิกาจับเวลาเทิร์น ──
+
+def test_a_turn_has_a_clock(world):
+    st = match.new_practice(UID, LOOK, seed=7)
+    assert match.TURN_SECONDS == 60, "เจ้าของเกมสั่งไว้ 1 นาทีต่อเทิร์น"
+    assert 55 <= match.time_left(st) <= 60
+    assert match.view(UID)["turn_seconds"] == 60
+
+
+def test_the_clock_runs_out_and_blocks_moving(world):
+    match.new_practice(UID, LOOK, seed=7)
+    st = match.load(UID)
+    st["turn_started"] = time.time() - match.TURN_SECONDS - 1
+    match.save(UID, st)
+    assert match.time_left(match.load(UID)) == 0
+    ok, r = match.move(UID, "walk", 1, 5)
+    assert not ok and "หมดเวลา" in r["error"], "หมดเวลาแล้วยังเดินได้"
+
+
+def test_the_clock_resets_every_turn(world):
+    match.new_practice(UID, LOOK, seed=7)
+    st = match.load(UID)
+    st["turn_started"] = time.time() - 50
+    match.save(UID, st)
+    ok, r = match.end_turn(UID)
+    assert ok and r["time_left"] >= match.TURN_SECONDS - 2, "เทิร์นใหม่ไม่ได้รีเซ็ตนาฬิกา"
+
+
+def test_the_browser_cannot_skip_a_turn_by_lying_about_time(world):
+    """เบราว์เซอร์ส่ง timeout มาตอนเวลายังเหลือ = ต้องไม่มีอะไรเกิดขึ้น
+
+    ไม่งั้นแก้นาฬิกาเครื่องตัวเองแล้วรีบข้ามเทิร์นคู่ต่อสู้ได้
+    """
+    match.new_practice(UID, LOOK, seed=7)
+    ok, r = match.end_turn(UID, auto=True)
+    assert ok and r["turn"] == 0, "เวลายังเหลือแต่ข้ามเทิร์นไปแล้ว"
+
+
+def test_the_countdown_on_screen_comes_from_the_server(world):
+    """นาฬิกาบนจอเป็นแค่การแสดงผล ความจริงอยู่ที่ time_left ของเซิร์ฟเวอร์"""
+    assert "WM_DEADLINE = performance.now() + (d.time_left || 0) * 1000" in PLAY, \
+        "หน้าเว็บนับเวลาเองโดยไม่อิงเซิร์ฟเวอร์"
+    assert "wmClock" in HTML and "'timeout'" in PLAY, "ไม่มีนาฬิกาบนจอ / ไม่ขอจบเมื่อหมดเวลา"
+
+
+# ── 🤖 บอทเดินเอง ──
+
+def test_the_bot_actually_moves_on_its_turn(world):
+    """บั๊กที่ผู้เล่นเจอ: ถึงตาบอทแล้วบอททำอะไรไม่ได้เลย เกมค้าง"""
+    st = match.new_practice(UID, LOOK, seed=7)
+    before = st["fighters"][1]["x"]
+    ok, r = match.end_turn(UID)
+    assert ok and r["bot_moves"], "ถึงตาบอทแล้วบอทไม่ขยับเลย"
+    assert r["fighters"][1]["x"] != before, "บอทอยู่ที่เดิม"
+
+
+def test_the_turn_comes_straight_back_to_the_player(world):
+    """บอทเดินจบในคำขอเดียว ไม่ต้องให้เบราว์เซอร์คอยถามซ้ำว่าบอทเดินยัง"""
+    match.new_practice(UID, LOOK, seed=7)
+    ok, r = match.end_turn(UID)
+    assert ok and (r["turn"] == 0 or r["over"]), f"ค้างอยู่ที่ตาบอท (turn={r['turn']})"
+    assert r["round"] == 2, "ครบรอบแล้วเลขรอบไม่เพิ่ม"
+
+
+def test_the_bot_walks_toward_you(world):
+    st = match.new_practice(UID, LOOK, seed=7)
+    gap = abs(st["fighters"][0]["x"] - st["fighters"][1]["x"])
+    ok, r = match.end_turn(UID)
+    assert abs(r["fighters"][0]["x"] - r["fighters"][1]["x"]) < gap, "บอทเดินหนีแทนที่จะเดินเข้าหา"
+
+
+@pytest.mark.parametrize("seed", list(range(1, 16)))
+def test_the_bot_does_not_kill_itself(world, seed):
+    """เจอจริงตอนเทส: บอทเดินตรงเข้าหาผู้เล่นแล้วร่วงลงทะเลตายทุกเมล็ด ซ้อมไม่ได้เลย"""
+    match.new_practice(UID, LOOK, seed=seed)
+    for _ in range(8):
+        st = match.load(UID)
+        st["turn_started"] = 0                 # บังคับให้หมดเวลาทันที
+        match.save(UID, st)
+        ok, r = match.end_turn(UID, auto=True)
+        if not ok or r["over"]:
+            break
+    bot = match.load(UID)["fighters"][1]
+    assert not bot["dead"], f"เมล็ด {seed}: บอทฆ่าตัวตายเองใน 8 เทิร์น"
+
+
+@pytest.mark.parametrize("seed", list(range(1, 12)))
+def test_the_bot_always_ends_up_somewhere_it_can_stand(world, seed):
+    match.new_practice(UID, LOOK, seed=seed)
+    match.end_turn(UID)
+    st = match.load(UID)
+    bot = st["fighters"][1]
+    if not bot["dead"]:
+        assert P.standable(T.decode(st["terrain"]), bot["x"], bot["y"]), \
+            f"เมล็ด {seed}: บอทลงเอยที่ ({bot['x']},{bot['y']}) ยืนไม่ได้"
+
+
+def test_the_bot_respects_the_same_move_budget(world):
+    """บอทเดินไม่จำกัด = ซ้อมไม่มีความหมาย"""
+    st = match.new_practice(UID, LOOK, seed=7)
+    before = st["fighters"][1]["x"]
+    match.end_turn(UID)
+    moved = abs(match.load(UID)["fighters"][1]["x"] - before)
+    assert moved <= match.MOVE_BUDGET, f"บอทเดินไป {moved} เกินโควตา {match.MOVE_BUDGET}"
+
+
+def test_the_bot_stops_when_it_is_close_enough(world):
+    """เดินทับตัวผู้เล่นแล้วไม่มีที่ให้ยิง — ต้องหยุดห่าง ๆ ไว้"""
+    match.new_practice(UID, LOOK, seed=7)
+    for _ in range(12):
+        st = match.load(UID)
+        st["turn_started"] = 0
+        match.save(UID, st)
+        ok, r = match.end_turn(UID, auto=True)
+        if not ok or r["over"]:
+            break
+    st = match.load(UID)
+    if not st["fighters"][1]["dead"]:
+        gap = abs(st["fighters"][0]["x"] - st["fighters"][1]["x"])
+        assert gap >= 4, f"บอทเดินมาทับตัวผู้เล่น (ห่างแค่ {gap})"
+
+
+def test_http_runs_the_bot_turn_in_one_call(web):
+    web.post("/api/web/pvp/worms/match", json={"action": "new", "seed": 7})
+    r = web.post("/api/web/pvp/worms/match", json={"action": "end"})
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert "bot_moves" in d and (d["turn"] == 0 or d["over"])
+    assert d["time_left"] > 0, "ไม่ได้ส่งเวลาที่เหลือมาให้หน้าเว็บ"

@@ -1980,6 +1980,7 @@ async function fashOff(slot) {
 // แผนที่มาจากเซิร์ฟเวอร์ทั้งใบ ที่นี่แค่วาด + คุมกล้อง (ซูม/เลื่อน/กระโดดไปดูคนอื่น)
 let WM = null, WM_CAM = null, WM_ST = null;
 let wmLoop = 0, wmHold = 0, wmBusy = false;
+let WM_DEADLINE = 0;       // เวลาหมดเทิร์น (เทียบจาก time_left ที่เซิร์ฟเวอร์ส่งมา)
 let WM_ANIM = null;        // เส้นทางที่เซิร์ฟเวอร์ส่งมา กำลังเล่นภาพอยู่
 
 // ก้าวต่อการยิงคำสั่งหนึ่งครั้ง — ยิงก้อนใหญ่ห่าง ๆ ดีกว่าก้อนเล็กถี่ ๆ
@@ -2007,6 +2008,7 @@ function wmApply(d) {
   document.getElementById('v-worms').classList.toggle('wm-idle', !d.active);
   if (!d.active) { cancelAnimationFrame(wmLoop); wmLoop = 0; return; }
 
+  WM_DEADLINE = performance.now() + (d.time_left || 0) * 1000;
   if (fresh) {
     WM = new WormsMap(d);
     WM_CAM = new WormsCam(document.getElementById('wmCanvas'), WM);
@@ -2039,7 +2041,11 @@ function wmStartLoop() {
       WM_ANIM.f.x = x; WM_ANIM.f.y = y;
       if (WM_ANIM.i % 3 === 0) SFX.play('walk');
       wmFocus();
-    } else if (WM_ANIM) { WM_ANIM = null; wmPaintHud(); }
+    } else if (WM_ANIM) {
+      WM_ANIM = WM_QUEUE.shift() || null;      // ท่อนถัดไปของบอท (ถ้ามี)
+      if (!WM_ANIM) wmPaintHud();
+    }
+    wmTick();
 
     WM.draw(ctx, WM_CAM, t++);
     WM_ST.fighters.forEach((f, i) => { if (!f.dead) wmDrawFighter(ctx, f, i === WM_ST.turn, t); });
@@ -2064,6 +2070,23 @@ function wmDrawFighter(ctx, f, active, t) {
     ctx.fillStyle = '#ffd66b';
     const bob = Math.round(Math.sin(t / 9) * 2);
     for (let i = 0; i < 5; i++) ctx.fillRect(x - 4 + i, by - 12 + bob + i, 9 - i * 2, 1);
+  }
+}
+
+let WM_QUEUE = [];         // ท่อนเดินที่รอเล่นภาพ (บอทเดินหลายท่อนต่อกัน)
+let wmTimingOut = false;
+
+/** นับถอยหลังบนจอ + พอหมดเวลาก็ขอจบเทิร์น (เซิร์ฟเวอร์เช็คเวลาเองอีกชั้น) */
+function wmTick() {
+  const el = document.getElementById('wmClock');
+  if (!el || !WM_ST || !WM_ST.active) return;
+  const left = WM_ST.over ? 0 : Math.max(0, Math.ceil((WM_DEADLINE - performance.now()) / 1000));
+  el.textContent = '⏱️ ' + String(Math.floor(left / 60)) + ':' + String(left % 60).padStart(2, '0');
+  el.classList.toggle('low', left <= 10 && !WM_ST.over);
+  if (left <= 0 && !WM_ST.over && !wmTimingOut) {
+    wmTimingOut = true;
+    wmHoldStop();
+    wmEndTurn('timeout').finally(() => { wmTimingOut = false; });
   }
 }
 
@@ -2114,9 +2137,21 @@ async function wmDo(action, dir) {
   finally { wmBusy = false; }
 }
 
-async function wmEndTurn() {
-  try { wmApply(await api('POST', '/api/web/pvp/worms/match', { action: 'end' })); SFX.play('click'); }
-  catch (e) { toast(e.message, true); }
+async function wmEndTurn(how) {
+  try {
+    const d = await api('POST', '/api/web/pvp/worms/match', { action: how || 'end' });
+    wmApply(d);
+    // บอทเดินไปแล้วฝั่งเซิร์ฟเวอร์ ที่นี่แค่เล่นภาพตามเส้นทางที่ได้มาทีละท่อน
+    const bot = WM_ST.fighters.find(f => f.bot);
+    WM_QUEUE = (d.bot_moves || []).filter(m => m.path.length)
+                                  .map(m => ({ f: bot, path: m.path, i: 0 }));
+    if (WM_QUEUE.length && bot) {
+      const first = d.bot_moves.find(m => m.path.length);
+      bot.x = first.path[0][0]; bot.y = first.path[0][1];
+      WM_ANIM = WM_QUEUE.shift();
+    }
+    SFX.play('click');
+  } catch (e) { toast(e.message, true); }
 }
 
 /** กดค้าง = เดินต่อเนื่อง (ยิงเป็นก้อนละ 5 ก้าว ไม่ใช่ยิงทุกก้าว) */

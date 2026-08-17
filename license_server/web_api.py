@@ -1831,8 +1831,10 @@ def worms_match(body: WormsBody, request: Request):
                     "armor": p.get("armor") or "None", "weapon": p.get("weapon") or "",
                     "fashion": _fashion.worn(p)}
             return match.view(uid, match.new_practice(uid, look, body.seed))
-        if body.action == "end":
-            ok, r = match.end_turn(uid)
+        if body.action in ("end", "timeout"):
+            # timeout = เบราว์เซอร์บอกว่านาฬิกาหมด แต่เซิร์ฟเวอร์เช็คเวลาเองอีกที
+            # (ปรับนาฬิกาเครื่องตัวเองแล้วขอเทิร์นเพิ่มไม่ได้)
+            ok, r = match.end_turn(uid, auto=body.action == "timeout")
         elif body.action in ("walk", "jump"):
             ok, r = match.move(uid, body.action, body.dir, body.steps)
         else:

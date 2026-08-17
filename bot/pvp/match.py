@@ -17,6 +17,8 @@ from license_server import web_db
 from bot.pvp import physics, terrain
 
 MOVE_BUDGET = 60         # ก้าวได้กี่ก้าวต่อหนึ่งเทิร์น
+TURN_SECONDS = 60        # หมดเวลาเทิร์นแล้วสลับให้เอง (ปิดจอหนีไม่ได้ ทั้งห้องจะได้ไม่ค้าง)
+BOT_REACH = 26           # บอทเดินเข้าหาจนใกล้เท่านี้แล้วพอ
 TRAP_RADIUS = 7          # เดินเข้าใกล้กับดักเท่านี้ = โดน
 TRAP_DAMAGE = (12, 26)
 MATCH_TTL = 6 * 3600     # แมตช์ที่ทิ้งไว้เกินนี้ = ล้างทิ้ง (กันตารางบวม)
@@ -88,6 +90,7 @@ def new_practice(uid, player_look, seed=0, continent=""):
         "terrain": terrain.encode(grid),
         "props": props,                    # รวมกับดัก — ฝั่งนี้เท่านั้น
         "turn": 0, "round": 1, "moves": MOVE_BUDGET, "over": False, "log": [],
+        "turn_started": time.time(),
         "fighters": [
             {"name": "คุณ", "bot": False, "hp": 100, "max_hp": 100, "face": 1,
              "x": spots[0][0], "y": spots[0][1], "look": look, "dead": False},
@@ -146,6 +149,9 @@ def move(uid, action, direction=1, steps=1):
     if st["over"]:
         return False, {"error": "แมตช์นี้จบแล้ว"}
 
+    if time_left(st) <= 0:
+        return False, {"error": "⏱️ หมดเวลาเทิร์นแล้ว — กดจบเทิร์นได้เลย"}
+
     f = _fighter(st)
     if f["bot"]:
         return False, {"error": "ยังไม่ถึงตาคุณ"}
@@ -185,25 +191,114 @@ def move(uid, action, direction=1, steps=1):
     return True, {"move": r, "sprung": traps, "opened": chests} | view(uid, st)
 
 
-def end_turn(uid):
-    """จบเทิร์น — สลับไปคนถัดไป (บอทยังไม่ขยับเอง รอเฟสถัดไป)"""
+def time_left(st):
+    """เหลือเวลาในเทิร์นนี้กี่วินาที — เซิร์ฟเวอร์เป็นคนนับ ไม่ใช่นาฬิกาในเบราว์เซอร์"""
+    if st.get("over"):
+        return 0
+    return max(0, int(TURN_SECONDS - (time.time() - st.get("turn_started", 0))))
+
+
+def _pass_turn(st):
+    """สลับไปคนถัดไปที่ยังไม่ตาย แล้วรีเซ็ตแรงเดินกับนาฬิกา"""
+    if not [f for f in st["fighters"] if not f["dead"]]:
+        st["over"] = True
+        return
+    for _ in range(len(st["fighters"])):
+        st["turn"] = (st["turn"] + 1) % len(st["fighters"])
+        if not st["fighters"][st["turn"]]["dead"]:
+            break
+    if st["turn"] == 0:
+        st["round"] += 1
+    st["moves"] = MOVE_BUDGET
+    st["turn_started"] = time.time()
+    _check_over(st)
+
+
+BOT_MAX_FALL = 30        # บอทยอมกระโดดลงได้สูงสุดเท่านี้ ลึกกว่านี้ไม่เอา
+
+
+def _bot_safe_walk(grid, x, y, d, steps):
+    """เดินแบบมองล่วงหน้า — ตัดก้าวที่จะพาไปตกน้ำหรือตกสูงจนเจ็บหนักออก
+
+    ไม่งั้นบอทเดินตรงเข้าหาผู้เล่นแล้วร่วงลงทะเลตายตั้งแต่เทิร์นแรก
+    (เจอจริงตอนเทส: บอทตายเองในรอบที่ 3 ทุกครั้ง ซ้อมไม่ได้เลย)
+    """
+    while steps > 0:
+        r = physics.walk(grid, x, y, d, steps)
+        if not r["drowned"] and physics.fall_damage(r["fell"]) == 0 and r["fell"] <= BOT_MAX_FALL:
+            return r
+        steps -= 1
+    return {"path": [], "x": x, "y": y, "drowned": False, "fell": 0}
+
+
+def _bot_turn(st):
+    """🤖 บอทเดินเข้าหาศัตรูที่ใกล้ที่สุด ติดกำแพงก็กระโดดข้าม แล้วจบเทิร์น
+
+    ยังไม่มีระบบโจมตี บอทจึงทำได้แค่ขยับ — พอทำสกิลเสร็จค่อยมาเพิ่มการยิงตรงนี้
+    คืนรายการผลการเคลื่อนที่ ไว้ให้เบราว์เซอร์เล่นภาพเรียงกัน
+    """
+    me = _fighter(st)
+    prey = [f for f in st["fighters"] if not f["dead"] and f is not me]
+    if not prey:
+        return []
+    target = min(prey, key=lambda f: abs(f["x"] - me["x"]))
+    grid = _grid(st)
+    out, stuck = [], 0
+
+    while st["moves"] > 0 and not me["dead"] and stuck < 2:
+        gap = target["x"] - me["x"]
+        if abs(gap) <= BOT_REACH:
+            break
+        d = 1 if gap > 0 else -1
+        me["face"] = d
+        before = me["x"]
+        r = _bot_safe_walk(grid, me["x"], me["y"], d, min(12, st["moves"]))
+        if not r["path"] and st["moves"] >= 6:      # ไปต่อไม่ได้ — ลองกระโดดข้าม
+            j = physics.jump(grid, me["x"], me["y"], d)
+            st["moves"] -= 6
+            r = j if not j["drowned"] else r        # กระโดดแล้วตกน้ำก็อยู่เฉย ๆ ดีกว่า
+        else:
+            st["moves"] -= max(len(r["path"]), 1)
+
+        me["x"], me["y"] = r["x"], r["y"]
+        if r["drowned"]:
+            _drown(st, me)
+        else:
+            dmg = physics.fall_damage(r["fell"])
+            if dmg:
+                _hurt(st, me, dmg, "ตกจากที่สูง")
+        if not me["dead"]:
+            _spring_traps(st, me)
+            _open_chests(st, me)
+        out.append(r)
+        stuck = stuck + 1 if me["x"] == before else 0
+
+    _check_over(st)
+    return out
+
+
+def end_turn(uid, auto=False):
+    """จบเทิร์น — สลับไปคนถัดไป ถ้าตาถัดไปเป็นบอทก็ให้บอทเดินเลยในคำขอเดียวกัน
+
+    ทำให้จบในคำขอเดียวเพราะไม่งั้นเบราว์เซอร์ต้องคอยถามซ้ำว่า "บอทเดินยัง"
+    """
     st = load(uid)
     if not st:
         return False, {"error": "ยังไม่ได้เริ่มแมตช์"}
-    alive = [i for i, f in enumerate(st["fighters"]) if not f["dead"]]
-    if not alive:
-        st["over"] = True
-    else:
-        for _ in range(len(st["fighters"])):
-            st["turn"] = (st["turn"] + 1) % len(st["fighters"])
-            if not st["fighters"][st["turn"]]["dead"]:
-                break
-        if st["turn"] == 0:
-            st["round"] += 1
-    st["moves"] = MOVE_BUDGET
-    _check_over(st)
+    if st["over"]:
+        return False, {"error": "แมตช์นี้จบแล้ว"}
+    if auto and time_left(st) > 0:
+        return True, view(uid, st)            # ยังไม่หมดเวลา ไม่ต้องทำอะไร
+
+    _pass_turn(st)
+    bot_moves = []
+    for _ in range(len(st["fighters"])):      # ไล่ให้บอททุกตัวเดินจนกว่าจะถึงตาคนจริง
+        if st["over"] or not _fighter(st)["bot"]:
+            break
+        bot_moves += _bot_turn(st)
+        _pass_turn(st)
     save(uid, st)
-    return True, view(uid, st)
+    return True, {"bot_moves": bot_moves} | view(uid, st)
 
 
 def _check_over(st):
@@ -228,6 +323,7 @@ def view(uid, st=None):
         "traps": sum(1 for p in st["props"] if p["kind"] == "trap"),
         "turn": st["turn"], "round": st["round"], "moves": st["moves"],
         "move_budget": MOVE_BUDGET, "over": st["over"], "winner": st.get("winner", ""),
+        "time_left": time_left(st), "turn_seconds": TURN_SECONDS,
         "log": st["log"][-6:],
         "fighters": [{k: v for k, v in f.items() if k != "look"} | {"look": f["look"]}
                      for f in st["fighters"]],

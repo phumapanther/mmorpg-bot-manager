@@ -922,3 +922,7 @@ body.bar-min .pbar .money { margin-left: auto; }
 .wm-log { margin-top: 10px; font-size: 12px; color: var(--g-muted); line-height: 1.8;
   min-height: 22px; }
 .wm-idle .wm-pad, .wm-idle .wm-hud, .wm-idle .wm-log { display: none; }
+.wm-clock { font-family: var(--g-num); font-size: 15px; color: var(--g-ink) !important;
+  min-width: 52px; }
+.wm-clock.low { color: #ff6a4a !important; animation: wmBeat .7s ease-in-out infinite; }
+@keyframes wmBeat { 50% { opacity: .35; } }
