@@ -194,7 +194,13 @@ const FASHION_AURA = {
                 tongues: 6, height: 13, sway: 2.8 },
 };
 
-/** วาดออร่ารอบตัว — t = เลขเฟรม (ไม่ใส่ = นิ่ง) */
+// นาฬิกากลางของเอฟเฟกต์ — จุดที่วาดตัวละครโดยไม่ส่งเลขเฟรมมาก็ยังขยับตามเวลาจริง
+// (ไม่งั้นต้องไล่ส่ง frame ทุกจุดที่วาด และจุดใหม่ในอนาคตจะลืมส่งแน่นอน)
+function auraClock() {
+  return Math.floor((typeof performance !== 'undefined' ? performance.now() : Date.now()) / 33);
+}
+
+/** วาดออร่ารอบตัว — t = เลขเฟรม (ไม่ใส่ = ใช้นาฬิกากลาง) */
 function drawAura(ctx, x, y, s, key, t = 0) {
   const A = FASHION_AURA[key];
   if (!A) return;
@@ -298,7 +304,8 @@ function drawCharacter(ctx, x, y, s, cfg) {
   const pal = spritePalette(race, cls, cfg.armor, f.outfit);
   const grid = POSES[cfg.pose] || POSES.idle;
 
-  if (f.aura) drawAura(ctx, x, y, s, f.aura, cfg.frame || 0);   // ออร่าอยู่หลังตัว
+  // ออร่าอยู่หลังตัว · ไม่ส่งเลขเฟรมมาก็ขยับเองตามนาฬิกากลาง
+  if (f.aura) drawAura(ctx, x, y, s, f.aura, cfg.frame ?? auraClock());
 
   // เงาใต้เท้า — ทำให้ดูยืนบนพื้นจริง ไม่ลอย
   ctx.save();

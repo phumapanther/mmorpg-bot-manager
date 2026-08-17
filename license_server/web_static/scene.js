@@ -673,7 +673,7 @@ class Scene {
       const shake = this.heroShake ? (this.heroShake--, Math.random() * 5 - 2.5) : 0;
       drawCharacter(ctx, Math.round(this.heroX + this.heroLunge + shake),
                     GROUND_Y - 68 + bob + this.heroFall, 3,
-                    { ...this.char, pose }, this.heroAlpha);
+                    { ...this.char, pose, frame: this.frame }, this.heroAlpha);
     }
 
     this._drawPet();

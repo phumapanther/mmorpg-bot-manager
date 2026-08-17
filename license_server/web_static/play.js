@@ -96,11 +96,32 @@ fillDiscordInvite();
 let LAST = null;                 // ข้อมูลตัวละครล่าสุดจาก API
 let CHAR = { race: null, cls: null, armor: 'None', weapon: null, pose: 'idle' };
 
+// ✨ ออร่าต้องขยับ "ทุกที่ที่มีตัวละคร" ไม่ใช่แค่ในฉากผจญภัย
+// ฉากผจญภัยวาดใหม่ทุกเฟรมอยู่แล้ว แต่รูปโปรไฟล์/หัวการ์ดวาดครั้งเดียว ออร่าเลยค้างเป็นภาพนิ่ง
+// ตรงนี้เก็บรายชื่อจอพวกนั้นไว้ แล้ววาดซ้ำให้ — เฉพาะตอนที่ใส่ออร่าอยู่ (ไม่ใส่ = ไม่กินแบตเปล่า)
+const AURA_CANVASES = [];
+let auraLoop = 0;
+
+function auraRepaint(cv, draw) {
+  if (!cv) return;
+  if (!AURA_CANVASES.some(a => a.cv === cv)) AURA_CANVASES.push({ cv, draw });
+  draw();
+  if (auraLoop) return;
+  const tick = () => {
+    if (!((CHAR.fashion || {}).aura)) { auraLoop = 0; return; }   // ถอดออร่าแล้วหยุดลูป
+    AURA_CANVASES.forEach(a => { try { a.draw(); } catch (e) { /* จอหาย ไม่ต้องพัง */ } });
+    auraLoop = requestAnimationFrame(tick);
+  };
+  auraLoop = requestAnimationFrame(tick);
+}
+
 function drawSprite(cv, scale) {
-  const ctx = cv.getContext('2d');
-  ctx.clearRect(0, 0, cv.width, cv.height);
-  const s = scale || Math.max(1, Math.floor(cv.width / 18));
-  drawCharacter(ctx, (cv.width - 16 * s) / 2, 2, s, CHAR);
+  auraRepaint(cv, () => {
+    const ctx = cv.getContext('2d');
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    const s = scale || Math.max(1, Math.floor(cv.width / 18));
+    drawCharacter(ctx, (cv.width - 16 * s) / 2, 2, s, CHAR);
+  });
 }
 
 // ── สลับแผง ──
@@ -453,9 +474,11 @@ function paintAdvHud(g) {
     (b.no_tick ? '' : ` <b>${b.turns}</b>${esc(b.unit || '')}`) + '</span>').join('');
 
   const face = document.getElementById('advFace');
-  const ctx = face.getContext('2d');
-  ctx.clearRect(0, 0, face.width, face.height);
-  drawCharacter(ctx, (face.width - 16 * 3) / 2, -6, 3, CHAR);   // ครึ่งตัวบนพอดีกรอบ
+  auraRepaint(face, () => {
+    const ctx = face.getContext('2d');
+    ctx.clearRect(0, 0, face.width, face.height);
+    drawCharacter(ctx, (face.width - 16 * 3) / 2, -6, 3, CHAR);   // ครึ่งตัวบนพอดีกรอบ
+  });
 }
 
 // ── โปรไฟล์ (เฟส 1.3) ──
@@ -532,9 +555,11 @@ function paintProfile(g) {
     `<span>${esc(b.label)} ${b.no_tick ? '<b>ค้างไว้</b>' : `<b>${b.turns}</b> ${esc(b.unit)}`}</span>`).join('');
 
   const big = document.getElementById('bigChar');
-  const ctx = big.getContext('2d');
-  ctx.clearRect(0, 0, big.width, big.height);
-  drawCharacter(ctx, (big.width - 16 * 8) / 2, 4, 8, CHAR);   // ตัวใหญ่ ×8
+  auraRepaint(big, () => {
+    const ctx = big.getContext('2d');
+    ctx.clearRect(0, 0, big.width, big.height);
+    drawCharacter(ctx, (big.width - 16 * 8) / 2, 4, 8, CHAR);   // ตัวใหญ่ ×8
+  });
 }
 
 // ── กระเป๋า (เฟส 1.3) ──
