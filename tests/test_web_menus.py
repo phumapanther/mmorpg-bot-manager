@@ -62,12 +62,18 @@ def test_marriage_stays_in_discord_and_says_so():
 
 
 def test_no_menu_button_is_left_marked_as_coming_later_without_reason():
-    """ปุ่มที่ยังไม่ทำต้องเหลือเฉพาะของที่ยังไม่มีระบบจริง"""
-    soon = re.findall(r'<button class="g-tile soon">.*?<span class="ic">[^<]*</span>([^<]+)<',
+    """ของที่ทำเสร็จแล้วต้องไม่ติดป้าย "เร็ว ๆ นี้" ค้างไว้
+
+    (รายชื่อระบบที่วางแผนไว้ + กติกา "ต้องกดไม่ได้จริง" อยู่ใน tests/test_web_market_atlas.py)
+    ⚠️ regex ต้องเผื่อ attribute หลัง class ด้วย — ของเดิมจับ `class="g-tile soon">` เป๊ะ ๆ
+    พอเพิ่ม disabled เข้าไปเลยจับไม่ได้สักปุ่ม เทสผ่านทั้งที่ไม่ได้ตรวจอะไรเลย
+    """
+    soon = re.findall(r'<button class="g-tile soon"[^>]*>.*?<span class="ic">[^<]*</span>([^<]+)<',
                       HTML, re.S)
-    left = {s.strip() for s in soon}
-    assert left <= {"เดินต่อ ×5", "สรุปทุกทวีป", "ตลาดผู้เล่น", "ไปต่างโลก"}, \
-        f"ยังมีปุ่มค้างที่ควรทำได้แล้ว: {left}"
+    assert soon, "ไม่เจอปุ่มเร็ว ๆ นี้เลยสักปุ่ม — regex อ่านไม่ออกหรือเปล่า?"
+    done = {"เดินต่อ ×5", "เดินเร็ว ×5", "สรุปทุกทวีป", "ตลาดผู้เล่น"}
+    still_marked = {s.strip() for s in soon} & done
+    assert not still_marked, f"ทำเสร็จแล้วแต่ยังติดป้ายเร็ว ๆ นี้: {still_marked}"
 
 
 def test_the_premium_price_shown_is_the_price_charged():

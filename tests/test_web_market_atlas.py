@@ -153,8 +153,45 @@ def test_the_three_buttons_are_wired_up():
     assert "advWalk(5)" in PLAY, "ไม่มีปุ่มเดินเร็ว ×5 บนเว็บ"
 
 
+# ปุ่ม "เร็ว ๆ นี้" — โชว์ให้ผู้เล่นเห็นว่ากำลังจะมีอะไร แต่กดไม่ได้
+# รายชื่อตรงกับ docs/plan-2026-08-15-future-systems.md
+PLANNED_SOON = {
+    "แฟชั่น", "ครอบครัว", "อีโวสัตว์เลี้ยง", "เหรียญ",   # ระบบใหม่ที่วางแผนไว้
+    "ซ้อมกับบอท", "ดวล 1v1", "ศึกกิลด์",                  # หมวด PVP
+    "ไปต่างโลก",                                          # ยังไม่มีระบบในดิสเลย
+}
+
+
+def _soon_tiles():
+    """ชื่อปุ่มที่ติดป้าย "เร็ว ๆ นี้" ทั้งหมด
+
+    ⚠️ regex ต้องเผื่อ attribute หลัง class — ของเดิมจับ `class="g-tile soon">` เป๊ะ ๆ
+    พอเพิ่ม disabled เข้าไปเลยจับไม่ได้สักปุ่ม เทสผ่านทั้งที่ไม่ได้ตรวจอะไรเลย
+    """
+    return {s.strip() for s in re.findall(
+        r'<button class="g-tile soon"[^>]*>.*?<span class="ic">[^<]*</span>([^<]+)<', HTML, re.S)}
+
+
 def test_only_the_unbuilt_button_is_left_marked_as_coming_later():
-    soon = re.findall(r'<button class="g-tile soon">.*?<span class="ic">[^<]*</span>([^<]+)<',
-                      HTML, re.S)
-    assert {s.strip() for s in soon} <= {"ไปต่างโลก"}, \
-        f"ยังมีปุ่มค้างที่ทำได้แล้ว: {[s.strip() for s in soon]}"
+    """ปุ่มที่ติดป้ายต้องเป็นระบบที่วางแผนไว้จริง ไม่ใช่ของที่ทำเสร็จแล้วลืมเปิด"""
+    tiles = _soon_tiles()
+    assert tiles, "ไม่เจอปุ่มเร็ว ๆ นี้เลย — regex อ่านไม่ออกหรือเปล่า?"
+    extra = tiles - PLANNED_SOON
+    assert not extra, f"ปุ่มที่ติดป้ายเร็ว ๆ นี้แต่ไม่มีในแผน: {sorted(extra)}"
+
+
+def test_the_teaser_buttons_really_cannot_be_clicked():
+    """โชว์ให้เห็นว่ากำลังจะมี แต่ต้องกดไม่ได้จริง ไม่ใช่กดแล้วเงียบให้ผู้เล่นงง"""
+    found = re.findall(r'<button class="g-tile soon"([^>]*)>', HTML)
+    assert len(found) == len(PLANNED_SOON), \
+        f"เจอปุ่มเร็ว ๆ นี้ {len(found)} ปุ่ม แต่ในแผนมี {len(PLANNED_SOON)}"
+    for attrs in found:
+        assert "disabled" in attrs, f"ปุ่มเร็ว ๆ นี้ยังกดได้อยู่: {attrs.strip()[:70]}"
+        assert "data-go" not in attrs, "ปุ่มเร็ว ๆ นี้ไม่ควรชี้ไปแผงไหน"
+        assert "title=" in attrs, "ควรบอกด้วยว่าระบบนี้จะทำอะไรได้"
+
+
+def test_every_planned_system_has_a_teaser_button():
+    """ผู้เล่นควรเห็นครบว่ากำลังจะมีอะไรบ้าง — ขาดปุ่มไหนแปลว่าลืมใส่"""
+    missing = PLANNED_SOON - _soon_tiles()
+    assert not missing, f"ระบบที่วางแผนไว้แต่ยังไม่มีปุ่มโชว์: {sorted(missing)}"
