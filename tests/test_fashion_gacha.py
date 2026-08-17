@@ -386,3 +386,28 @@ def test_the_gacha_prize_can_actually_be_worn(web):
             assert r.json()["worn"][fashion.CATALOG[key]["slot"]] == key
             return
     pytest.fail("หมุน 400 ครั้งแล้วไม่ได้แฟชั่นสักชิ้น — เรทเพี้ยน")
+
+
+def test_a_button_you_cannot_afford_still_says_why(web):
+    """กดแล้วเงียบคือบั๊ก — ต้องกดได้และได้ข้อความบอกว่าทองไม่พอ"""
+    play = (WEB / "play.js").read_text(encoding="utf-8")
+    block = play[play.index("document.getElementById('fgTiers').innerHTML"):]
+    block = block[:block.index("}).join('');")]
+    assert "disabled" not in block, "ปุ่มหมุนถูกปิดตายเมื่อทองไม่พอ — กดแล้วไม่มีอะไรเกิดขึ้น"
+    assert "ขาดอีก" in block, "ไม่ได้บอกว่าขาดอีกเท่าไหร่"
+
+    pm.update_player_field(UID, "cash", 5)
+    r = web.post("/api/web/fashion/gacha", json={"action": "pull", "tier": "single"})
+    assert r.status_code == 400
+    assert "ไม่พอ" in r.json()["detail"], f"ข้อความไม่ได้บอกว่าทองไม่พอ: {r.text}"
+    assert "5" in r.json()["detail"], "ไม่ได้บอกว่าตอนนี้มีเท่าไหร่"
+
+
+def test_the_exchange_button_also_speaks_up(web):
+    play = (WEB / "play.js").read_text(encoding="utf-8")
+    block = play[play.index("document.getElementById('fgExchange').innerHTML"):]
+    block = block[:block.index("document.getElementById('fgExchange').querySelectorAll")]
+    assert "disabled" not in block, "ปุ่มแลกถูกปิดตายเมื่ออัญมณีไม่พอ"
+
+    r = web.post("/api/web/fashion/gacha", json={"action": "exchange", "key": "light_knight"})
+    assert r.status_code == 400 and "ไม่พอ" in r.json()["detail"]

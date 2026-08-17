@@ -1958,14 +1958,17 @@ function paintGacha() {
     `(มีแล้ว ${FG.owned_count}/${FG.total} ชิ้น)`;
   fgFeatPreview();
 
+  // ปุ่มที่จ่ายไม่ไหวยัง "กดได้" อยู่ — หรี่ให้เห็นว่าเงินไม่พอ แล้วปล่อยให้เซิร์ฟเวอร์
+  // เป็นคนบอกว่าขาดเท่าไหร่ (disabled เฉย ๆ = กดแล้วเงียบ ผู้เล่นไม่รู้ว่าทำไมไม่เกิดอะไร)
   document.getElementById('fgTiers').innerHTML = FG.tiers.map(t => {
     const rate = (t.odds.fashion + t.odds.featured).toFixed(1);
-    const afford = FG.cash >= t.price;
-    return `<button class="g-tile${t.key === 'ten' ? ' hot' : ''}" data-tier="${esc(t.key)}"
-              ${afford ? '' : 'disabled'}>
+    const short = t.price - FG.cash;
+    return `<button class="g-tile${t.key === 'ten' ? ' hot' : ''}${short > 0 ? ' poor' : ''}"
+              data-tier="${esc(t.key)}">
       <span class="ic">${t.name.slice(0, 2)}</span>${esc(t.name.slice(2).trim())}
       <span class="sub">${fmt(t.price)} ทอง · ลุ้นแฟชั่น ${rate}%${
-        t.free_gems ? ` · 💎 ×${t.free_gems} แน่นอน` : ''}</span></button>`;
+        t.free_gems ? ` · 💎 ×${t.free_gems} แน่นอน` : ''}${
+        short > 0 ? `<br>💰 ขาดอีก ${fmt(short)} ทอง` : ''}</span></button>`;
   }).join('');
   document.getElementById('fgTiers').querySelectorAll('[data-tier]').forEach(b =>
     b.onclick = () => fgPull(b.dataset.tier));
@@ -1977,7 +1980,7 @@ function paintGacha() {
          <span class="g-note" style="margin:0">${can ? 'เลือกได้เลย' :
            `ยังขาดอีก ${FG.gems_per_exchange - FG.gems} เม็ด`}</span></div>
        <div class="fash-row">${FG.exchangeable.map(i => `
-         <button class="fash-card" data-buy="${esc(i.key)}" ${can ? '' : 'disabled'}
+         <button class="fash-card${can ? '' : ' locked'}" data-buy="${esc(i.key)}"
                  style="--fc:${FG.featured.key === i.key ? '#ffd66b' : '#7f8aa8'}">
            <b>${esc(i.name)}</b><small>${esc(i.desc)}</small></button>`).join('')}</div>`;
   document.getElementById('fgExchange').querySelectorAll('[data-buy]').forEach(b =>
