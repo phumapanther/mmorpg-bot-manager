@@ -66,6 +66,8 @@
           <span class="ic">💍</span>คู่หู<span class="sub">ระบบแต่งงาน</span></button>
         <button class="g-tile" data-go="fashion">
           <span class="ic">👗</span>แฟชั่น<span class="sub">ชุด · อาวุธ · ออร่า</span></button>
+        <button class="g-tile" data-go="friends">
+          <span class="ic">👥</span>เพื่อน<span class="sub">เพิ่มด้วยไอดี Discord</span></button>
         <button class="g-tile soon" disabled title="แอดกันเป็นลูกได้ผ่านดิสคอร์ด แล้วดูผังตั้งแต่ทวดถึงเหลนบนเว็บ"><span class="tag">เร็ว ๆ นี้</span>
           <span class="ic">👨‍👩‍👧</span>ครอบครัว<span class="sub">ผังเครือญาติ 7 ชั้น</span></button>
       </div></div>
@@ -363,6 +365,31 @@
         </div>
         <div class="fash-list" id="fashList"></div>
       </div>
+    </div>
+
+    <!-- ══ เพื่อน ══ -->
+    <div class="g-panelview" id="v-friends">
+      <button class="g-back" data-back>← กลับเมนูหลัก</button>
+      <div class="g-head"><h2>👥 เพื่อน</h2>
+        <p>เพิ่มเพื่อนด้วยไอดี Discord — เป็นเพื่อนแล้วชวนเข้าห้อง PVP กันได้</p></div>
+      <div class="g-card">
+        <div class="field-row"><label for="frInput">ไอดี Discord ของเพื่อน</label>
+          <input id="frInput" inputmode="numeric" autocomplete="off"
+                 placeholder="วางไอดีที่คัดลอกมา เช่น 123456789012345678"></div>
+        <div class="bet-row" style="margin-top:10px">
+          <button class="g-tile hot casino-go" id="frAdd">
+            <span class="ic">➕</span>เพิ่มเพื่อน</button></div>
+        <p class="g-note" style="margin-top:10px">หาไอดีไม่เจอ? ในดิสคอร์ดเปิด
+          <b>ตั้งค่า → ขั้นสูง → โหมดนักพัฒนา</b> แล้วคลิกขวาที่ชื่อคน → <b>คัดลอกไอดีผู้ใช้</b>
+          <br>ไอดีของคุณเอง: <b id="frMyId">—</b></p>
+      </div>
+      <div id="frList" style="margin-top:14px"></div>
+    </div>
+
+    <!-- ══ โปรไฟล์เพื่อน ══ -->
+    <div class="g-panelview" id="v-friendcard">
+      <button class="g-back" data-friends-back>← กลับรายชื่อเพื่อน</button>
+      <div id="frCard"></div>
     </div>
 
     <!-- ══ กาชาแฟชั่น ══ -->

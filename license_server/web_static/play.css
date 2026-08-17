@@ -852,3 +852,24 @@ body.bar-min .pbar .money { margin-left: auto; }
 .g-note.bot-off { border: 1px solid #7a3b2e; background: #2a1512; color: #ecc0b2;
   border-radius: var(--g-r); padding: 11px 14px; margin-bottom: 12px; line-height: 1.7; }
 .g-note.bot-off b { color: #ff9d84; }
+
+/* ── 👥 เพื่อน ── */
+.fr-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.fr-card { display: grid; grid-template-columns: 56px 1fr; gap: 12px; align-items: center;
+  background: var(--g-panel); border: 1px solid var(--g-line); border-radius: var(--g-r);
+  padding: 12px 14px; }
+.fr-pic { width: 56px; height: auto; image-rendering: pixelated;
+  background: #1b140f; border: 1px solid var(--g-line); border-radius: 12px; }
+.fr-info { display: grid; gap: 2px; min-width: 0; }
+.fr-info b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fr-info small { font-size: 11.5px; color: var(--g-muted); }
+.fr-id { font-family: var(--g-num); color: var(--g-dim) !important; font-size: 10.5px !important; }
+.fr-btns { grid-column: 1 / -1; display: flex; gap: 8px; }
+.fr-btns button { flex: 1; min-height: 40px; border-radius: 12px; border: 1px solid var(--g-line);
+  background: var(--g-hi); color: var(--g-ink); font-family: inherit; font-size: 12.5px;
+  font-weight: 600; cursor: pointer; }
+.fr-btns button:hover { background: #40311f; }
+.fr-line { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0;
+  border-bottom: 1px solid var(--g-line); font-size: 13px; }
+.fr-line:last-child { border-bottom: 0; }
+.fr-line span { color: var(--g-muted); }

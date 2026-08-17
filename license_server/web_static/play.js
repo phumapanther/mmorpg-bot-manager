@@ -91,6 +91,9 @@ document.getElementById('playLogout')?.addEventListener('click', async () => {
   location.href = '/login';
 });
 fillDiscordInvite();
+document.getElementById('frAdd')?.addEventListener('click', addFriend);
+document.getElementById('frInput')?.addEventListener('keydown',
+  e => { if (e.key === 'Enter') addFriend(); });
 
 // ── สไปรต์ตัวละคร (เฟส 1.2 — เอนจินอยู่ใน sprite.js) ──
 let LAST = null;                 // ข้อมูลตัวละครล่าสุดจาก API
@@ -142,6 +145,7 @@ function showPanel(id) {
   if (id === 'atlas') fillAtlas().catch(e => toast(e.message, true));
   if (id === 'fashion') fillFashion().catch(e => toast(e.message, true));
   if (id === 'fgacha') fillFashionGacha().catch(e => toast(e.message, true));
+  if (id === 'friends') fillFriends().catch(e => toast(e.message, true));
   if (id === 'market') fillMarket().catch(e => toast(e.message, true));
   if (id === 'season') fillSeason().catch(e => toast(e.message, true));
   if (id === 'partner') fillPartner().catch(e => toast(e.message, true));
@@ -161,6 +165,8 @@ document.querySelectorAll('[data-go]').forEach(b => {
 });
 document.querySelectorAll('[data-back]').forEach(b =>
   b.addEventListener('click', () => showPanel('home')));
+document.querySelectorAll('[data-friends-back]').forEach(b =>
+  b.addEventListener('click', () => showPanel('friends')));
 
 // ── ร้านขายยศ + กาชา (เฟส 7) ──
 // เว็บแจกยศ Discord เองไม่ได้ — กดซื้อแล้วเซิร์ฟเวอร์โยนเข้าคิวให้บอทมาแจก
@@ -1929,6 +1935,113 @@ async function fashOff(slot) {
     paintFashion(); fashPreview();
     await reload();
   } catch (e) { toast(e.message, true); }
+}
+
+// ── 👥 เพื่อน ──
+// เพิ่มด้วยไอดี Discord ที่คัดลอกมาวาง — เซิร์ฟเวอร์เป็นคนตัดสินว่าไอดีนั้นมีในเกมไหม
+// โปรไฟล์ที่ดูได้มีแต่ของสาธารณะ (ทอง/กระเป๋าไม่ส่งมาตั้งแต่ฝั่งเซิร์ฟเวอร์แล้ว)
+let FRIENDS = null;
+
+async function fillFriends() {
+  const box = document.getElementById('frList');
+  box.innerHTML = '<div class="g-note">กำลังโหลด...</div>';
+  try { FRIENDS = await api('GET', '/api/web/me/friends'); }
+  catch (e) { box.innerHTML = '<div class="g-note">โหลดไม่สำเร็จ: ' + esc(e.message) + '</div>'; return; }
+  document.getElementById('frMyId').textContent = FRIENDS.my_id;
+  paintFriends();
+}
+
+function paintFriends() {
+  const box = document.getElementById('frList');
+  box.innerHTML = !FRIENDS.friends.length
+    ? `<div class="g-note">ยังไม่มีเพื่อนสักคน — คัดลอกไอดี Discord ของเพื่อนมาวางข้างบนได้เลย</div>`
+    : `<div class="fash-head"><b>รายชื่อเพื่อน</b>
+         <span class="g-note" style="margin:0">${FRIENDS.count}/${FRIENDS.max} คน</span></div>
+       <div class="fr-row">${FRIENDS.friends.map(f => `
+         <div class="fr-card">
+           <canvas class="fr-pic" data-pic="${esc(f.id)}" width="56" height="76"></canvas>
+           <div class="fr-info">
+             <b>${esc(f.name)}</b>
+             <small>Lv ${f.level} · ${esc(f.race || '—')} ${esc(f.class_name || '')}
+               ${f.guild ? '· 🏰 ' + esc(f.guild) : ''}${f.married ? ' · 💍' : ''}</small>
+             <small class="fr-id">${esc(f.id)}</small>
+           </div>
+           <div class="fr-btns">
+             <button data-see="${esc(f.id)}">👁️ โปรไฟล์</button>
+             <button data-del="${esc(f.id)}">✕ ลบ</button>
+           </div>
+         </div>`).join('')}</div>`;
+
+  box.querySelectorAll('[data-pic]').forEach(cv => {
+    const f = FRIENDS.friends.find(x => x.id === cv.dataset.pic);
+    if (f) drawFriend(cv, f);
+  });
+  box.querySelectorAll('[data-see]').forEach(b => b.onclick = () => seeFriend(b.dataset.see));
+  box.querySelectorAll('[data-del]').forEach(b => b.onclick = () => delFriend(b.dataset.del));
+}
+
+/** วาดตัวละครเพื่อนด้วยตัววาดตัวเดียวกับในเกม — เห็นแฟชั่นที่เขาใส่จริง */
+function drawFriend(cv, f, scale) {
+  const ctx = cv.getContext('2d');
+  const s = scale || Math.max(1, Math.floor(cv.width / 18));
+  const cfg = { race: f.race, cls: f.class_name, armor: f.armor || 'None',
+                weapon: f.weapon, pose: 'idle', fashion: f.fashion || {} };
+  const draw = () => {
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    drawCharacter(ctx, (cv.width - 16 * s) / 2, 2, s, cfg);
+  };
+  draw();
+  // ออร่าของเพื่อนก็ต้องขยับ แต่ลูปกลางดูที่ออร่า "ของเรา" จึงหมุนเองแยกที่นี่
+  if ((f.fashion || {}).aura) {
+    const tick = () => { if (!cv.isConnected) return; draw(); requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }
+}
+
+async function addFriend() {
+  const el = document.getElementById('frInput');
+  const id = el.value.trim();
+  if (!id) return toast('วางไอดี Discord ของเพื่อนก่อน', true);
+  try {
+    const r = await api('POST', '/api/web/me/friends', { action: 'add', id: id });
+    SFX.play('reward'); toast(r.message);
+    el.value = ''; FRIENDS = r; paintFriends();
+  } catch (e) { toast(e.message, true); SFX.play('error'); }
+}
+
+async function delFriend(id) {
+  const f = FRIENDS.friends.find(x => x.id === id);
+  if (!await confirmAction({ title: '👋 ลบเพื่อน',
+                             message: 'ลบ ' + (f ? f.name : id) + ' ออกจากรายชื่อ',
+                             okText: 'ลบเลย', danger: true })) return;
+  try {
+    const r = await api('POST', '/api/web/me/friends', { action: 'remove', id: id });
+    toast(r.message); FRIENDS = r; paintFriends();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function seeFriend(id) {
+  const box = document.getElementById('frCard');
+  box.innerHTML = '<div class="g-note">กำลังโหลด...</div>';
+  showPanel('friendcard');
+  let f;
+  try { f = await api('GET', '/api/web/friends/' + encodeURIComponent(id) + '/profile'); }
+  catch (e) { box.innerHTML = '<div class="g-note">' + esc(e.message) + '</div>'; return; }
+  box.innerHTML = `<div class="g-head"><h2>${esc(f.name)}</h2>
+      <p>Lv ${f.level} · ${esc(f.race || '—')} ${esc(f.class_name || '')}</p></div>
+    <div class="g-card fash-wrap">
+      <div class="fash-preview"><canvas id="frBig" width="160" height="220"></canvas></div>
+      <div>${[['ไอดี Discord', f.id], ['เลเวล', 'Lv ' + f.level],
+              ['เผ่า', f.race || '—'], ['คลาส', f.class_name || '—'],
+              ['ตำแหน่ง', f.title || '—'], ['ทวีปที่อยู่', f.continent_label],
+              ['สัตว์เลี้ยง', f.pet || 'ไม่มี'], ['กิลด์', f.guild || 'ไม่มี'],
+              ['สถานะ', f.married ? '💍 แต่งงานแล้ว' : 'โสด'],
+              ['พลังชีวิต', f.hp + ' / ' + f.max_hp]]
+             .map(([k, v]) => `<div class="fr-line"><span>${esc(k)}</span><b>${esc(String(v))}</b></div>`)
+             .join('')}</div>
+    </div>
+    <p class="g-note">โปรไฟล์เพื่อนโชว์เฉพาะข้อมูลสาธารณะ — ทอง ธนาคาร และของในกระเป๋าไม่เปิดให้ดู</p>`;
+  drawFriend(document.getElementById('frBig'), f, 9);
 }
 
 // ── 🎁 กาชาแฟชั่น ──

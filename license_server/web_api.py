@@ -1756,6 +1756,50 @@ def player_model_get(uid):
     return player_model.get_player(uid) or {}
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 👥 ระบบเพื่อน — ฐานของหมวด PVP (ชวนกันเข้าล็อบบี้)
+# เพิ่มด้วยไอดี Discord ที่คัดลอกมาวาง · โปรไฟล์เปิดให้ดูเฉพาะเพื่อนเท่านั้น
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/me/friends")
+def me_friends(request: Request):
+    uid = int(require_player(request)["uid"])
+    from bot import friends
+    return friends.list_of(uid)
+
+
+class FriendBody(BaseModel):
+    action: str = "add"        # add | remove
+    id: str = ""               # ไอดี Discord ที่คัดลอกมาวาง
+
+
+@router.post("/me/friends")
+def me_friends_edit(body: FriendBody, request: Request):
+    uid = int(require_player(request)["uid"])
+    from bot import friends
+    with _user_lock(uid):
+        if body.action == "add":
+            ok, msg = friends.add(uid, body.id)
+        elif body.action == "remove":
+            ok, msg = friends.remove(uid, body.id)
+        else:
+            raise HTTPException(400, "ไม่รู้จักคำสั่งนี้")
+    if not ok:
+        raise HTTPException(400, msg)
+    return {"ok": True, "message": msg} | friends.list_of(uid)
+
+
+@router.get("/friends/{target_id}/profile")
+def friend_profile(target_id: str, request: Request):
+    """โปรไฟล์สาธารณะของเพื่อน — ไม่มีทอง/ธนาคาร/ของในกระเป๋าเด็ดขาด"""
+    uid = int(require_player(request)["uid"])
+    from bot import friends
+    ok, data = friends.profile_of(uid, target_id)
+    if not ok:
+        raise HTTPException(403, data)
+    return data
+
+
 @router.get("/fashion/gacha")
 def fashion_gacha(request: Request):
     """🎁 หน้าตู้กาชาแฟชั่น — ปุ่มหมุน เรท ของหน้าตู้ อัญมณีที่มี"""
