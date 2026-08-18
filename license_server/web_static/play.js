@@ -98,6 +98,11 @@ document.getElementById('wmSame')?.addEventListener('click', () => {
   if (seed && /^\d+$/.test(seed.trim())) wmNewMatch(seed.trim());
 });
 document.getElementById('wmFire')?.addEventListener('click', () => WM_SKILL && wmAttack(WM_SKILL));
+document.querySelectorAll('[data-dir]').forEach(b => b.addEventListener('click', () => {
+  WM_DIR = +b.dataset.dir;
+  document.querySelectorAll('[data-dir]').forEach(x => x.classList.toggle('on', x === b));
+  SFX.play('click');
+}));
 ['wmAngle', 'wmPower'].forEach(id => document.getElementById(id)?.addEventListener('input', e => {
   document.getElementById(id === 'wmAngle' ? 'wmAngVal' : 'wmPowVal').textContent =
     e.target.value + (id === 'wmAngle' ? '°' : '');
@@ -2067,8 +2072,11 @@ function wmDrawFighter(ctx, f, active, t) {
   const z = WM_CAM.z, x = WM_CAM.sx(f.x), y = WM_CAM.sy(f.y);
   if (x < -60 || x > WM_CAM.vw + 60) return;
   const look = { ...(f.look || {}), pose: 'idle', flip: f.face < 0 };
+  const hurt = WM_FLASH[f.name] || 0;
+  if (hurt) { WM_FLASH[f.name] = hurt - 1; ctx.globalAlpha = hurt % 4 < 2 ? .35 : 1; }
   if (z >= 2) drawCharacter(ctx, x - 8 * z, y - 21 * z, z, look);
   else { ctx.fillStyle = f.bot ? '#ff9d84' : '#8fd0a0'; ctx.fillRect(x - 3, y - 10, 6, 10); }
+  ctx.globalAlpha = 1;
 
   const bw = Math.max(16, 14 * z / 2), by = y - 22 * z - 8;
   ctx.fillStyle = '#00000099'; ctx.fillRect(x - bw / 2 - 1, by - 1, bw + 2, 5);
@@ -2127,6 +2135,7 @@ function wmPaintHud() {
 }
 
 let WM_SKILL = null;       // สกิลที่เลือกไว้ (ที่ต้องเล็งจะรอกดยิงอีกที)
+let WM_DIR = 1;            // ทิศที่จะยิง — เลือกเองได้ ไม่ใช่ตามที่เดินล่าสุด
 
 function wmPaintSkills() {
   const box = document.getElementById('wmSkills');
@@ -2163,7 +2172,7 @@ async function wmAttack(key) {
   wmBusy = true;
   try {
     const d = await api('POST', '/api/web/pvp/worms/match', {
-      action: 'attack', skill: key,
+      action: 'attack', skill: key, dir: WM_DIR,
       angle: +document.getElementById('wmAngle').value,
       power: +document.getElementById('wmPower').value,
     });
@@ -2175,28 +2184,85 @@ async function wmAttack(key) {
 
 /** เล่นภาพผลการโจมตี แล้วต่อด้วยตาบอท (ผลทั้งหมดเซิร์ฟเวอร์ตัดสินไปแล้ว) */
 function wmPlayAttack(d) {
-  const a = d.attack || {};
-  SFX.play(a.kind === 'self' ? 'use' : a.kind === 'lob' ? 'skill' : 'hit');
-  if (a.path && a.path.length) WM_SHOT = { path: a.path, i: 0 };
-  if (a.blast) { WM.carve(a.blast.x, a.blast.y, a.blast.crater || 6); wmBoom(a.blast); }
-  const hits = (a.hits || []).concat((a.blast || {}).hits || []);
-  if (hits.length) { SFX.play('foehit'); toast(hits.map(h => `${h.name} -${h.damage}`).join(' · '), true); }
-  if (a.heal) toast(`✨ ฟื้นเลือด +${a.heal}`);
+  wmShowHit(d.attack || {});
   wmApply(d);
+  // ตาบอทต่อทันที — ต้องเห็นด้วยว่าบอททำอะไรเรา ไม่งั้นเลือดลดแล้วนึกว่าตีตัวเอง
   const bot = WM_ST.fighters.find(f => f.bot);
   WM_QUEUE = (d.bot_moves || []).filter(m => (m.path || []).length)
                                 .map(m => ({ f: bot, path: m.path, i: 0 }));
-  (d.bot_moves || []).forEach(m => { if (m.attack && m.attack.blast) {
-    WM.carve(m.attack.blast.x, m.attack.blast.y, m.attack.blast.crater || 6); } });
   if (WM_QUEUE.length) WM_ANIM = WM_QUEUE.shift();
+  const shots = (d.bot_moves || []).filter(m => m.attack).map(m => m.attack);
+  if (shots.length) setTimeout(() => shots.forEach(a => wmShowHit(a, true)), 420);
 }
 
-let WM_SHOT = null, WM_BOOMS = [];
+/** เล่นเอฟเฟกต์ของการโจมตีหนึ่งครั้ง — ใช้ร่วมกันทั้งของเราและของบอท */
+function wmShowHit(a, byBot) {
+  if (!a || !a.kind) return;
+  SFX.play(a.kind === 'self' ? 'use' : a.kind === 'lob' ? 'skill' : 'hit');
+  if (a.path && a.path.length) WM_SHOT = { path: a.path, i: 0 };
+  if (a.kind === 'melee') wmSwing(a);
+  if (a.blast) { WM.carve(a.blast.x, a.blast.y, a.blast.crater || 6); wmBoom(a.blast); }
+  const hits = (a.hits || []).concat((a.blast || {}).hits || []);
+  wmPop(hits);
+  if (hits.some(h => !h.dodged)) SFX.play('foehit');
+  if (a.heal) { WM_POPS.push({ x: (a.from || [0, 0])[0], y: 0, t: 46, text: '', miss: true });
+                toast(`✨ ฟื้นเลือด +${a.heal}`); }
+  if (byBot) toast(`🤖 บอทใช้ ${a.name}`, hits.some(h => h.name === 'คุณ' && !h.dodged));
+}
+
+let WM_SHOT = null, WM_BOOMS = [], WM_POPS = [], WM_SWINGS = [];
+const WM_FLASH = {};       // ชื่อ -> เฟรมที่เหลือของการกระพริบตอนโดนตี
+
+/** เด้งตัวเลขดาเมจตรงตัวคนที่โดน + ทำให้ตัวกระพริบ */
+function wmPop(hits, kind) {
+  (hits || []).forEach(h => {
+    if (h.x === undefined) return;
+    WM_POPS.push({ x: h.x, y: h.y - 26, t: 0,
+                   text: h.dodged ? 'หลบ!' : '-' + h.damage,
+                   miss: !!h.dodged });
+    if (!h.dodged) WM_FLASH[h.name] = 10;
+  });
+}
 
 function wmBoom(b) { WM_BOOMS.push({ x: b.x, y: b.y, r: (b.crater || 8) * 1.6, t: 0 }); }
 
-/** วาดกระสุนที่กำลังบิน + ลูกไฟระเบิด */
+/** วงเหวี่ยงของสกิลประชิด — บอกให้เห็นว่าฟันไปถึงตรงไหน */
+function wmSwing(a) {
+  if (!a.from) return;
+  WM_SWINGS.push({ x: a.from[0], y: a.from[1], face: a.face || 1, r: a.reach || 24, t: 0 });
+}
+
+/** เส้นเล็ง — บอกทิศ/มุม/แรงที่เลือกไว้ (ไม่ใช่การทำนายวิถี กติกาอยู่ที่เซิร์ฟเวอร์) */
+function wmDrawAim(ctx) {
+  if (!WM_SKILL || !WM_ST || WM_ST.over) return;
+  const f = wmMe();
+  if (!f || f.bot) return;
+  const ang = +document.getElementById('wmAngle').value * Math.PI / 180;
+  const pw = +document.getElementById('wmPower').value;
+  const x0 = WM_CAM.sx(f.x), y0 = WM_CAM.sy(f.y - 10);
+  const len = (16 + pw * 0.42) * WM_CAM.z / 2;
+  ctx.strokeStyle = '#ffd66b'; ctx.lineWidth = Math.max(1, WM_CAM.z / 2);
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath(); ctx.moveTo(x0, y0);
+  ctx.lineTo(x0 + Math.cos(ang) * len * WM_DIR, y0 - Math.sin(ang) * len);
+  ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = '#ffd66b';
+  ctx.fillRect(x0 + Math.cos(ang) * len * WM_DIR - 2, y0 - Math.sin(ang) * len - 2, 4, 4);
+}
+
+/** วาดกระสุนที่กำลังบิน + ลูกไฟระเบิด + ตัวเลขดาเมจ + วงเหวี่ยงฟัน */
 function wmDrawFx(ctx) {
+  wmDrawAim(ctx);
+  WM_SWINGS = WM_SWINGS.filter(s => s.t < 10);
+  WM_SWINGS.forEach(s => {
+    const k = s.t++ / 10, z = WM_CAM.z;
+    ctx.strokeStyle = '#fff6d8'; ctx.globalAlpha = 1 - k;
+    ctx.lineWidth = Math.max(2, z);
+    ctx.beginPath();
+    ctx.arc(WM_CAM.sx(s.x), WM_CAM.sy(s.y - 10), s.r * z * (.5 + k * .6),
+            s.face > 0 ? -0.9 : 2.2, s.face > 0 ? 0.9 : 4.1);
+    ctx.stroke(); ctx.globalAlpha = 1;
+  });
   if (WM_SHOT) {
     for (let k = 0; k < 3 && WM_SHOT.i < WM_SHOT.path.length; k++) WM_SHOT.i++;
     const p = WM_SHOT.path[Math.min(WM_SHOT.i, WM_SHOT.path.length - 1)];
@@ -2211,6 +2277,20 @@ function wmDrawFx(ctx) {
     ctx.fillStyle = k < .4 ? '#fff6d8' : k < .7 ? '#ffb45a' : '#8f2317';
     ctx.beginPath(); ctx.arc(WM_CAM.sx(b.x), WM_CAM.sy(b.y), r, 0, 6.29); ctx.fill();
     ctx.globalAlpha = 1;
+  });
+
+  // ตัวเลขดาเมจลอยขึ้นตรงตัวคนที่โดน — เห็นชัดว่าใครโดนเท่าไหร่ ตรงไหน
+  WM_POPS = WM_POPS.filter(p => p.t < 46);
+  WM_POPS.forEach(p => {
+    const k = p.t++ / 46;
+    ctx.globalAlpha = k < .75 ? 1 : (1 - k) * 4;
+    ctx.font = `bold ${Math.max(10, 8 * WM_CAM.z)}px ` + getComputedStyle(document.body).fontFamily;
+    ctx.textAlign = 'center';
+    const x = WM_CAM.sx(p.x), y = WM_CAM.sy(p.y) - k * 26 * WM_CAM.z / 2;
+    ctx.fillStyle = '#000'; ctx.fillText(p.text, x + 1, y + 1);
+    ctx.fillStyle = p.miss ? '#9fd0e8' : '#ff6a4a';
+    ctx.fillText(p.text, x, y);
+    ctx.globalAlpha = 1; ctx.textAlign = 'left';
   });
 }
 

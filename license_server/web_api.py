@@ -1839,7 +1839,7 @@ def worms_match(body: WormsBody, request: Request):
             # (ปรับนาฬิกาเครื่องตัวเองแล้วขอเทิร์นเพิ่มไม่ได้)
             ok, r = match.end_turn(uid, auto=body.action == "timeout")
         elif body.action == "attack":
-            ok, r = match.attack(uid, body.skill, body.angle, body.power)
+            ok, r = match.attack(uid, body.skill, body.angle, body.power, body.dir)
         elif body.action in ("walk", "jump"):
             ok, r = match.move(uid, body.action, body.dir, body.steps)
         else:

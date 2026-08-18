@@ -387,3 +387,138 @@ def test_http_refuses_a_skill_you_do_not_have(web):
     match.save(UID, st)
     r = web.post("/api/web/pvp/worms/match", json={"action": "attack", "skill": "fire"})
     assert r.status_code == 400
+
+
+# ── 🎯 ต้องเห็นว่าตีตรงไหน โดนอะไร เสียหายเท่าไหร่ ──
+
+def test_a_hit_reports_where_it_landed(world):
+    """ไม่บอกพิกัด = เบราว์เซอร์เด้งตัวเลขดาเมจตรงไหนไม่ได้"""
+    arena()
+    hits = match.attack(UID, "basic")[1]["attack"]["hits"]
+    assert hits and all("x" in h and "y" in h for h in hits), "ไม่ได้บอกว่าโดนตรงไหน"
+    assert all("damage" in h for h in hits)
+
+
+def test_a_dodge_is_reported_too(world):
+    """หลบได้แต่ไม่บอก = ผู้เล่นเห็นแค่ไม่มีอะไรเกิดขึ้น"""
+    arena("Rogue")
+    st = match.load(UID)
+    st["fighters"][1]["buffs"] = {"evade": 3}
+    match.save(UID, st)
+    hits = match.attack(UID, "basic")[1]["attack"]["hits"]
+    assert hits and hits[0]["dodged"] is True, "หลบแล้วไม่บอกว่าหลบ"
+
+
+def test_a_melee_swing_reports_its_arc(world):
+    """ต้องรู้จุดเริ่ม ทิศ และระยะ ถึงจะวาดวงเหวี่ยงได้"""
+    arena()
+    a = match.attack(UID, "basic")[1]["attack"]
+    for k in ("from", "face", "reach"):
+        assert k in a, f"สกิลประชิดไม่ได้บอก {k}"
+
+
+def test_a_blast_reports_its_centre_and_size(world):
+    arena("Mage", gap=200)
+    b = match.attack(UID, "fire", angle=45, power=60)[1]["attack"].get("blast")
+    assert b and {"x", "y", "crater", "hits"} <= set(b), "ระเบิดไม่ได้บอกจุด/ขนาด"
+
+
+def test_the_bot_attack_comes_back_so_it_can_be_shown(world):
+    """เลือดลดโดยไม่เห็นอะไรเลย = ผู้เล่นนึกว่าตีตัวเอง (เจ้าของเกมรายงานมาจริง)"""
+    match.new_practice(UID, {"race": "Human", "cls": "Warrior",
+                             "armor": "None", "weapon": ""}, seed=7)
+    seen = False
+    for _ in range(14):
+        st = match.load(UID)
+        st["turn_started"] = 0
+        match.save(UID, st)
+        ok, r = match.end_turn(UID, auto=True)
+        if not ok or r["over"]:
+            break
+        for m in r["bot_moves"]:
+            if m.get("attack"):
+                seen = True
+                assert m["attack"].get("name"), "ไม่ได้บอกว่าบอทใช้สกิลอะไร"
+    assert seen, "บอทโจมตีแต่ไม่ได้ส่งรายละเอียดกลับมาให้แสดงผล"
+
+
+def test_the_page_shows_damage_numbers_and_flashes():
+    for need in ("wmPop", "WM_FLASH", "wmSwing", "wmBoom", "wmDrawAim"):
+        assert need in PLAY, f"ไม่มีเอฟเฟกต์ {need}"
+    fn = PLAY[PLAY.index("function wmShowHit("):]
+    fn = fn[:fn.index("\n}\n")]
+    assert "wmPop(hits)" in fn, "ไม่ได้เด้งตัวเลขดาเมจ"
+    assert "wmSwing(a)" in fn, "ไม่ได้วาดวงเหวี่ยงตอนฟัน"
+
+
+def test_the_bot_turn_is_animated_too():
+    """ใช้ตัวเล่นเอฟเฟกต์ตัวเดียวกันทั้งของเราและของบอท จะได้ไม่ลืมอันใดอันหนึ่ง"""
+    fn = PLAY[PLAY.index("function wmPlayAttack("):]
+    fn = fn[:fn.index("\n}\n")]
+    assert "wmShowHit(a, true)" in fn, "ไม่ได้เล่นเอฟเฟกต์การโจมตีของบอท"
+
+
+# ── 🔥 ยิงแล้วต้องไม่ระเบิดใส่ตัวเอง ──
+
+def test_a_shot_never_explodes_in_your_own_face(world):
+    """วัดจากแผนที่จริง: ก่อนแก้มี 8/24 นัดที่ระเบิดในรัศมีตัวเอง เพราะยืนติดบ้าน/ก้อนหิน"""
+    close = 0
+    for seed in range(1, 25):
+        match.new_practice(UID, {"race": "Human", "cls": "Mage",
+                                 "armor": "None", "weapon": ""}, seed=seed)
+        st = match.load(UID)
+        g = T.decode(st["terrain"])
+        me = st["fighters"][0]
+        r = P.shoot(g, me["x"], me["y"], 45, 70)
+        if r["hit"] and abs(r["x"] - me["x"]) < W.SKILLS["fire"]["radius"]:
+            close += 1
+    assert close == 0, f"{close}/24 นัดระเบิดในรัศมีตัวเอง"
+
+
+def test_the_arming_distance_covers_the_biggest_blast():
+    """ระยะปลอดภัยต้องกว้างกว่ารัศมีระเบิดที่แรงที่สุด ไม่งั้นยังโดนตัวเองอยู่ดี"""
+    biggest = max(s.get("radius", 0) for s in W.SKILLS.values())
+    assert P.ARM_DIST > biggest, f"ระยะปลอดภัย {P.ARM_DIST} ไม่พ้นรัศมี {biggest}"
+
+
+def test_shots_pass_through_leaves(world):
+    """ลูกไฟทะลุพุ่มไม้ได้ ไม่งั้นต้นไม้ต้นเดียวกันหมดทั้งสนาม"""
+    g = [[T.AIR] * T.W for _ in range(T.H)]
+    for x in range(T.W):
+        for y in range(200, T.H - T.WATER):
+            g[y][x] = T.ROCK
+    for y in range(150, 190):
+        for x in range(250, 270):
+            g[y][x] = T.LEAF
+    r = P.shoot(g, 200, 200, 20, 70)
+    assert r["x"] > 280, f"กระสุนไปได้แค่ x={r['x']} — ติดพุ่มใบไม้"
+
+
+def test_shots_still_stop_at_a_trunk(world):
+    g = [[T.AIR] * T.W for _ in range(T.H)]
+    for x in range(T.W):
+        for y in range(200, T.H - T.WATER):
+            g[y][x] = T.ROCK
+    for y in range(150, 200):
+        for x in range(258, 262):
+            g[y][x] = T.TRUNK
+    r = P.shoot(g, 200, 200, 20, 70)
+    assert r["hit"] and r["x"] < 270, "ยิงทะลุลำต้นไปได้"
+
+
+# ── 🧭 เลือกทิศยิงเองได้ ──
+
+def test_you_can_aim_the_other_way(world):
+    """เดิมยิงตามทิศที่เดินล่าสุดอย่างเดียว ศัตรูอยู่ข้างหลังก็ยิงไม่ได้เลย"""
+    st = arena(gap=18)
+    st["fighters"][1]["x"] = st["fighters"][0]["x"] - 18
+    st["fighters"][0]["face"] = 1
+    match.save(UID, st)
+    ok, r = match.attack(UID, "basic", direction=-1)
+    assert ok and r["attack"]["hits"], "สั่งหันซ้ายแล้วยังฟันไม่โดน"
+    assert r["attack"]["face"] == -1
+
+
+def test_the_page_lets_you_pick_a_direction():
+    assert 'data-dir="-1"' in HTML and 'data-dir="1"' in HTML, "ไม่มีปุ่มเลือกทิศยิง"
+    assert "dir: WM_DIR" in PLAY, "ไม่ได้ส่งทิศไปกับคำสั่งโจมตี"

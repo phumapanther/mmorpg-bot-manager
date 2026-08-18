@@ -222,7 +222,7 @@ def _explode(st, grid, cx, cy, radius, dmg, crater, why):
     for f, raw in weapons.blast_targets(cx, cy, st["fighters"], radius, dmg):
         got = _hurt(st, f, raw, why, dodgeable=False)
         if got:
-            hits.append({"name": f["name"], "damage": got})
+            hits.append({"name": f["name"], "damage": got, "x": f["x"], "y": f["y"]})
     if gone:
         st["terrain"] = terrain.encode(grid)
         _settle_everyone(st, grid)
@@ -246,7 +246,7 @@ def _settle_everyone(st, grid):
                 _hurt(st, f, hurt, "ร่วงลงมาเพราะพื้นหาย", dodgeable=False)
 
 
-def attack(uid, skill, angle=45, power=70):
+def attack(uid, skill, angle=45, power=70, direction=None):
     """⚔️ ใช้สกิล — คืน (ok, ผล) · ใช้แล้วจบเทิร์นทันทีเสมอ
 
     เบราว์เซอร์ส่งมาแค่ "ใช้สกิลอะไร เล็งมุมไหน แรงเท่าไหร่"
@@ -273,6 +273,8 @@ def attack(uid, skill, angle=45, power=70):
     if left > 0:
         return False, {"error": f"⏳ สกิลนี้ยังคูลดาวน์อีก {left} เทิร์น"}
 
+    if direction is not None:
+        f["face"] = 1 if int(direction) >= 0 else -1      # เล็งซ้าย/ขวาได้ ไม่ใช่ยิงตามที่เดินล่าสุด
     grid = _grid(st)
     r = _use_skill(st, grid, f, key, angle, power)
     cd = weapons.SKILLS[key]["cooldown"]
@@ -306,6 +308,8 @@ def _use_skill(st, grid, f, key, angle, power):
 
     if s["kind"] == "melee":
         out["reach"] = s["reach"]
+        out["from"] = [f["x"], f["y"]]
+        out["face"] = f["face"]
         hits = []
         for t in weapons.melee_targets(f, st["fighters"], s["reach"]):
             dmg = s["dmg"]
@@ -313,8 +317,8 @@ def _use_skill(st, grid, f, key, angle, power):
                 dmg = int(dmg * s["behind"])
                 st["log"].append(f"🗡️ ลอบแทงจากด้านหลัง!")
             got = _hurt(st, t, dmg, f"โดน {s['name']}")
-            if got:
-                hits.append({"name": t["name"], "damage": got})
+            hits.append({"name": t["name"], "damage": got, "x": t["x"], "y": t["y"],
+                         "dodged": got == 0})
             if s.get("knock") and not t["dead"]:               # กระแทกให้กระเด็น
                 kb = physics.walk(grid, t["x"], t["y"], f["face"], s["knock"])
                 t["x"], t["y"] = kb["x"], kb["y"]

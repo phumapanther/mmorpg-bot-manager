@@ -149,6 +149,24 @@ SHOT_GRAVITY = 0.16      # เบากว่าตอนกระโดด ก�
 SHOT_SPEED = 0.09        # แรง 100 = ความเร็วต้น 9 พิกเซล/เฟรม
 SHOT_FRAMES = 900        # เพดานเวลาบิน กันกระสุนลอยวนไม่จบ
 
+# 🔒 ระยะปลอดภัยก่อนกระสุนจะระเบิดได้ — ต้องพ้นตัวคนยิงไปก่อน
+#
+# ⚠️ ไม่มีอันนี้แล้วยิงไม่ได้เลยจริง ๆ: วัดจากแผนที่จริง 24 นัด มี 8 นัดที่ระเบิด
+#    ห่างตัวไม่ถึง 30 px ซึ่งอยู่ในรัศมี Fireball (26) พอดี = ระเบิดใส่หน้าตัวเอง
+#    เพราะยืนติดบ้าน/ก้อนหิน กระสุนเลยชนของที่อยู่ข้างตัวตั้งแต่เฟรมแรก
+#    ต้องกว้างกว่ารัศมีระเบิดที่แรงที่สุด (Fireball 26) ไม่งั้นยังโดนตัวเองอยู่ดี
+#    และต้องวัดจาก "ปากกระบอก" ไม่ใช่จากเท้า (ปากกระบอกอยู่สูงจากเท้าราว 15 px
+#    วัดจากเท้าแล้วกระสุนจะติดอาวุธตั้งแต่เฟรมแรก เท่ากับไม่ได้ใส่อะไรเลย)
+ARM_DIST = 30
+
+# ใบไม้ไม่กั้นกระสุน — ลูกไฟทะลุพุ่มไม้ได้ (ลำต้นยังกั้น)
+# สอดคล้องกับการเดินที่ลอดพุ่มไม้ได้อยู่แล้ว
+PASSES = (T.AIR, T.LEAF)
+
+
+def _blocks(grid, x, y):
+    return T.material(grid, x, y) not in PASSES
+
 
 def shoot(grid, x, y, angle_deg, power, muzzle=None):
     """ยิงกระสุนแบบวิถีโค้ง — คืน {path, hit, x, y, out}
@@ -163,6 +181,7 @@ def shoot(grid, x, y, angle_deg, power, muzzle=None):
     step = muzzle if muzzle is not None else (T.CH_W // 2 + 3)
     px = float(x) + math.cos(rad) * step
     py = float(y) - T.CH_H // 2 - math.sin(rad) * step
+    sx, sy = px, py                              # ปากกระบอก — ใช้เป็นจุดตั้งต้นของระยะปลอดภัย
 
     path = []
     for _ in range(SHOT_FRAMES):
@@ -175,7 +194,8 @@ def shoot(grid, x, y, angle_deg, power, muzzle=None):
             return {"path": path, "hit": False, "x": ix, "y": iy, "out": True}
         if not (0 <= ix < T.W) or iy > T.H:
             return {"path": path, "hit": False, "x": ix, "y": iy, "out": True}
-        if iy >= 0 and T.solid(grid, ix, iy):
+        armed = (px - sx) ** 2 + (py - sy) ** 2 > ARM_DIST ** 2
+        if armed and iy >= 0 and _blocks(grid, ix, iy):
             return {"path": path, "hit": True, "x": ix, "y": iy, "out": False}
     return {"path": path, "hit": False, "x": int(round(px)), "y": int(round(py)),
             "out": True}
@@ -194,7 +214,7 @@ def beam(grid, x, y, angle_deg, reach=260):
         if not (0 <= ix < T.W) or iy < 0 or iy >= T.H - T.WATER:
             return {"path": path, "hit": False, "x": ix, "y": iy, "out": True}
         path.append([ix, iy])
-        if i > T.CH_W and T.solid(grid, ix, iy):
+        if i > ARM_DIST and _blocks(grid, ix, iy):
             return {"path": path, "hit": True, "x": ix, "y": iy, "out": False}
     return {"path": path, "hit": False, "x": int(round(px)), "y": int(round(py)), "out": True}
 
