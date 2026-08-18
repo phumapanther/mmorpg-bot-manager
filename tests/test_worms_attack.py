@@ -14,6 +14,7 @@ import bot.models.player_model as pm
 from bot.pvp import match, physics as P, terrain as T, weapons as W
 from license_server import web_db
 
+NL = chr(10)
 UID = 6301
 WEB = pathlib.Path("license_server/web_static")
 PLAY = (WEB / "play.js").read_text(encoding="utf-8")
@@ -45,6 +46,11 @@ def arena(cls="Warrior", gap=18, top=200):
     match.save(UID, st)
     return st
 
+
+def _fn(head):
+    """ตัดเนื้อฟังก์ชันหนึ่งตัวจาก play.js — ตัดที่ขอบฟังก์ชันจริง ไม่ใช่นับตัวอักษร"""
+    a = PLAY.index(head)
+    return PLAY[a:PLAY.index(NL + "}" + NL, a)]
 
 def _retake_turn():
     """ให้ถึงตาเราอีกครั้งโดยไม่ต้องรอบอท (ใช้ทดสอบกติกาต่อเนื่อง)"""
@@ -443,12 +449,44 @@ def test_the_bot_attack_comes_back_so_it_can_be_shown(world):
 
 
 def test_the_page_shows_damage_numbers_and_flashes():
-    for need in ("wmPop", "WM_FLASH", "wmSwing", "wmBoom", "wmDrawAim"):
+    for need in ("wmPop", "WM_FLASH", "wmSwing", "wmBoom", "wmDrawAim", "wmDrawTrail"):
         assert need in PLAY, f"ไม่มีเอฟเฟกต์ {need}"
-    fn = PLAY[PLAY.index("function wmShowHit("):]
-    fn = fn[:fn.index("\n}\n")]
+    fn = _fn("function wmShowHit(")
     assert "wmPop(hits)" in fn, "ไม่ได้เด้งตัวเลขดาเมจ"
     assert "wmSwing(a)" in fn, "ไม่ได้วาดวงเหวี่ยงตอนฟัน"
+
+
+def test_a_projectile_leaves_a_dotted_trail():
+    """เจ้าของเกมสั่ง: ต้องเห็นว่ากระสุนโค้งไปถึงตรงนั้นได้ยังไง"""
+    assert "function wmDrawTrail" in PLAY, "ไม่มีเส้นประวิถี"
+    fx = _fn("function wmDrawFx(")
+    assert "wmDrawTrail(ctx, seen" in fx, "ไม่ได้ลากเส้นตามทางที่บินผ่านมาแล้ว"
+    assert "WM_TRAIL = { path:" in fx, "ไม่ได้เก็บวิถีไว้ให้ดูต่อหลังระเบิด"
+    assert "if (WM_TRAIL)" in fx, "เก็บวิถีไว้แต่ไม่ได้วาด"
+
+
+def test_melee_gets_a_swing_not_a_trail():
+    """ประชิดไม่มีวิถี — แสดงแค่วงเหวี่ยงตรงจุดที่ฟันถึง"""
+    fn = _fn("function wmShowHit(")
+    assert "if (a.path && a.path.length)" in fn, "ไม่ได้แยกสกิลมีวิถีออกจากประชิด"
+    tail = fn[fn.index("if (a.path && a.path.length)"):]
+    assert "return;" in tail[:400], "สกิลมีวิถีต้องรอบินให้จบก่อน ไม่ใช่แสดงผลทันที"
+
+
+def test_the_crater_appears_only_when_the_shot_lands():
+    """เดิมเจาะหลุมทันทีที่ได้ผลกลับมา พื้นหายก่อนกระสุนบินถึงด้วยซ้ำ"""
+    # การเจาะพื้นต้องอยู่ใน wmLand() ที่ถูกเรียกตอนกระสุนถึงเป้าเท่านั้น
+    # ไม่ใช่ที่ wmShowHit() ซึ่งทำงานทันทีที่ได้ผลกลับมาจากเซิร์ฟเวอร์
+    assert "WM.carve" not in _fn("function wmShowHit("),         "เจาะหลุมตั้งแต่ยังไม่ได้ยิง"
+    assert "wmLand(WM_SHOT.blast)" in _fn("function wmDrawFx("), \
+        "กระสุนถึงเป้าแล้วไม่ได้เจาะพื้น"
+
+
+def test_the_impact_throws_debris():
+    """สกิลปะทะแล้วต้องเห็นว่าทำลายสิ่งแวดล้อมจริง"""
+    fn = _fn("function wmLand(")
+    assert "WM.carve" in fn and "wmBoom" in fn and "WM_BITS.push" in fn, \
+        "ปะทะแล้วไม่ครบทั้งเจาะพื้น ระเบิด และสะเก็ด"
 
 
 def test_the_bot_turn_is_animated_too():

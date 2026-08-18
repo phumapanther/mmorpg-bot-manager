@@ -2195,22 +2195,47 @@ function wmPlayAttack(d) {
   if (shots.length) setTimeout(() => shots.forEach(a => wmShowHit(a, true)), 420);
 }
 
-/** เล่นเอฟเฟกต์ของการโจมตีหนึ่งครั้ง — ใช้ร่วมกันทั้งของเราและของบอท */
+/** เล่นเอฟเฟกต์ของการโจมตีหนึ่งครั้ง — ใช้ร่วมกันทั้งของเราและของบอท
+
+    ⚠️ ลำดับสำคัญ: สกิลที่มีวิถีต้อง "บินให้เห็นก่อน แล้วค่อยระเบิด"
+       เดิมเจาะหลุมทันทีที่ได้ผลกลับมา พื้นเลยหายไปก่อนกระสุนจะบินถึงด้วยซ้ำ
+ */
 function wmShowHit(a, byBot) {
   if (!a || !a.kind) return;
   SFX.play(a.kind === 'self' ? 'use' : a.kind === 'lob' ? 'skill' : 'hit');
-  if (a.path && a.path.length) WM_SHOT = { path: a.path, i: 0 };
-  if (a.kind === 'melee') wmSwing(a);
-  if (a.blast) { WM.carve(a.blast.x, a.blast.y, a.blast.crater || 6); wmBoom(a.blast); }
   const hits = (a.hits || []).concat((a.blast || {}).hits || []);
+
+  if (a.path && a.path.length) {
+    // 🎯 มีวิถี — วาดเส้นประตามทางที่บินไป พอถึงปลายทางค่อยระเบิด
+    WM_SHOT = { path: a.path, i: 0, blast: a.blast || null, hits: hits, byBot: byBot,
+                name: a.name };
+    return;
+  }
+
+  if (a.kind === 'melee') wmSwing(a);
   wmPop(hits);
+  if (a.blast) wmLand(a.blast);
   if (hits.some(h => !h.dodged)) SFX.play('foehit');
-  if (a.heal) { WM_POPS.push({ x: (a.from || [0, 0])[0], y: 0, t: 46, text: '', miss: true });
-                toast(`✨ ฟื้นเลือด +${a.heal}`); }
+  if (a.heal) toast(`✨ ฟื้นเลือด +${a.heal}`);
   if (byBot) toast(`🤖 บอทใช้ ${a.name}`, hits.some(h => h.name === 'คุณ' && !h.dodged));
 }
 
+/** 💥 กระสุนถึงเป้า — เจาะพื้นจริง ระเบิด และสะเก็ดกระเด็น */
+function wmLand(b) {
+  if (!b) return;
+  WM.carve(b.x, b.y, b.crater || 6);
+  wmBoom(b);
+  SFX.play('trap');
+  const n = Math.min(26, 6 + (b.crater || 6));
+  for (let i = 0; i < n; i++) {
+    const ang = Math.PI * (1 + i / n) + (i % 3) * 0.11;   // กระจายขึ้นด้านบนเป็นหลัก
+    WM_BITS.push({ x: b.x, y: b.y, vx: Math.cos(ang) * (0.7 + (i % 5) * .45),
+                   vy: Math.sin(ang) * (0.7 + (i % 4) * .5), t: 0 });
+  }
+}
+
 let WM_SHOT = null, WM_BOOMS = [], WM_POPS = [], WM_SWINGS = [];
+let WM_TRAIL = null, WM_BITS = [];    // เส้นประของวิถีที่ผ่านมาแล้ว · สะเก็ดจากหลุม
 const WM_FLASH = {};       // ชื่อ -> เฟรมที่เหลือของการกระพริบตอนโดนตี
 
 /** เด้งตัวเลขดาเมจตรงตัวคนที่โดน + ทำให้ตัวกระพริบ */
@@ -2225,6 +2250,19 @@ function wmPop(hits, kind) {
 }
 
 function wmBoom(b) { WM_BOOMS.push({ x: b.x, y: b.y, r: (b.crater || 8) * 1.6, t: 0 }); }
+
+/** เส้นประตามวิถีกระสุน — บอกว่ามันโค้งไปถึงตรงนั้นได้ยังไง */
+function wmDrawTrail(ctx, path, alpha) {
+  if (!path || path.length < 2 || alpha <= 0) return;
+  const step = Math.max(2, Math.round(6 / WM_CAM.z));
+  ctx.globalAlpha = alpha * .85;
+  ctx.fillStyle = '#ffd66b';
+  const sz = Math.max(1, Math.round(WM_CAM.z / 2));
+  for (let i = 0; i < path.length; i += step) {
+    ctx.fillRect(WM_CAM.sx(path[i][0]), WM_CAM.sy(path[i][1]), sz, sz);
+  }
+  ctx.globalAlpha = 1;
+}
 
 /** วงเหวี่ยงของสกิลประชิด — บอกให้เห็นว่าฟันไปถึงตรงไหน */
 function wmSwing(a) {
@@ -2263,13 +2301,44 @@ function wmDrawFx(ctx) {
             s.face > 0 ? -0.9 : 2.2, s.face > 0 ? 0.9 : 4.1);
     ctx.stroke(); ctx.globalAlpha = 1;
   });
+  // 🌠 กระสุนที่กำลังบิน — ลากเส้นประไว้ข้างหลังให้เห็นว่าโค้งไปยังไง
   if (WM_SHOT) {
     for (let k = 0; k < 3 && WM_SHOT.i < WM_SHOT.path.length; k++) WM_SHOT.i++;
+    const seen = WM_SHOT.path.slice(0, WM_SHOT.i);
+    wmDrawTrail(ctx, seen, 1);
     const p = WM_SHOT.path[Math.min(WM_SHOT.i, WM_SHOT.path.length - 1)];
-    ctx.fillStyle = '#ffd66b';
-    ctx.fillRect(WM_CAM.sx(p[0]) - 2, WM_CAM.sy(p[1]) - 2, 4, 4);
-    if (WM_SHOT.i >= WM_SHOT.path.length) WM_SHOT = null;
+    const hx = WM_CAM.sx(p[0]), hy = WM_CAM.sy(p[1]);
+    ctx.fillStyle = '#fff6d8';
+    ctx.fillRect(hx - 2, hy - 2, 5, 5);
+    ctx.fillStyle = '#ffb45a';
+    ctx.fillRect(hx - 1, hy - 1, 3, 3);
+    if (WM_SHOT.i >= WM_SHOT.path.length) {
+      // ถึงปลายทางแล้ว — ตอนนี้ค่อยเจาะพื้นกับเด้งตัวเลขดาเมจ
+      WM_TRAIL = { path: WM_SHOT.path, t: 0 };
+      wmLand(WM_SHOT.blast);
+      wmPop(WM_SHOT.hits);
+      if (WM_SHOT.hits.some(h => !h.dodged)) SFX.play('foehit');
+      if (WM_SHOT.byBot) toast(`🤖 บอทใช้ ${WM_SHOT.name}`,
+                               WM_SHOT.hits.some(h => h.name === 'คุณ' && !h.dodged));
+      WM_SHOT = null;
+    }
   }
+  // เส้นประค้างไว้อีกครู่หลังระเบิด จะได้ดูทันว่ากระสุนวิ่งไปทางไหน
+  if (WM_TRAIL) {
+    WM_TRAIL.t++;
+    wmDrawTrail(ctx, WM_TRAIL.path, Math.max(0, 1 - WM_TRAIL.t / 70));
+    if (WM_TRAIL.t > 70) WM_TRAIL = null;
+  }
+  // 🪨 สะเก็ดจากหลุมที่เพิ่งเจาะ
+  WM_BITS = WM_BITS.filter(b => b.t < 34);
+  WM_BITS.forEach(b => {
+    b.vy += 0.14; b.x += b.vx; b.y += b.vy; b.t++;
+    ctx.globalAlpha = 1 - b.t / 34;
+    ctx.fillStyle = b.t % 5 < 2 ? '#c89a4b' : '#6b5433';
+    ctx.fillRect(WM_CAM.sx(b.x), WM_CAM.sy(b.y), Math.max(1, WM_CAM.z / 2),
+                 Math.max(1, WM_CAM.z / 2));
+    ctx.globalAlpha = 1;
+  });
   WM_BOOMS = WM_BOOMS.filter(b => b.t < 14);
   WM_BOOMS.forEach(b => {
     const k = b.t++ / 14, r = b.r * (0.4 + k) * WM_CAM.z;
