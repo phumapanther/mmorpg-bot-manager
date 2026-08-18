@@ -106,7 +106,8 @@ document.getElementById('wmFit')?.addEventListener('click', () => {
 const WM_ACT = { left: ['walk', -1], right: ['walk', 1], jumpL: ['jump', -1], jumpR: ['jump', 1] };
 document.querySelectorAll('[data-wm]').forEach(b => {
   const a = WM_ACT[b.dataset.wm];
-  if (!a) { b.addEventListener('click', wmEndTurn); return; }
+  // ต้องห่อด้วยลูกศร ไม่งั้น MouseEvent จะถูกส่งไปเป็นชื่อคำสั่ง เซิร์ฟเวอร์ปฏิเสธทุกครั้ง
+  if (!a) { b.addEventListener('click', () => wmEndTurn()); return; }
   b.addEventListener('pointerdown', e => { e.preventDefault(); wmHoldStart(a[0], a[1]); });
   ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev =>
     b.addEventListener(ev, wmHoldStop));
@@ -118,7 +119,7 @@ const WM_KEY = { ArrowLeft: ['walk', -1], ArrowRight: ['walk', 1],
 document.addEventListener('keydown', e => {
   if (!document.getElementById('v-worms')?.classList.contains('on')) return;
   if (e.repeat) return;
-  if (e.key === 'Enter') return wmEndTurn();
+  if (e.key === 'Enter') return void wmEndTurn();
   const a = WM_KEY[e.key];
   if (!a) return;
   e.preventDefault();
@@ -1984,10 +1985,11 @@ let WM_DEADLINE = 0;       // เวลาหมดเทิร์น (เที
 let WM_ANIM = null;        // เส้นทางที่เซิร์ฟเวอร์ส่งมา กำลังเล่นภาพอยู่
 
 // ก้าวต่อการยิงคำสั่งหนึ่งครั้ง — ยิงก้อนใหญ่ห่าง ๆ ดีกว่าก้อนเล็กถี่ ๆ
-// 20 ก้าวเล่นภาพที่ 60fps ≈ 333ms พอดีกับช่วงยิงทุก 350ms ภาพจึงเดินต่อเนื่องไม่สะดุด
-// (ของเดิม 5 ก้าว/200ms = 5 ครั้งต่อวินาที ชนเพดานจำกัดอัตราใน 6 วินาที)
-const WM_WALK_STEPS = 20;
-const WM_HOLD_MS = 350;
+// 36 ก้าวเล่นภาพที่ 60fps = 600ms พอดีกับช่วงยิง ภาพจึงเดินต่อเนื่องไม่สะดุด
+// ตกเหลือ 1.7 ครั้ง/วินาที (แรงเดินมีแค่ 60/เทิร์นอยู่แล้ว สองคำสั่งก็หมดเทิร์น)
+const WM_WALK_STEPS = 36;
+const WM_HOLD_MS = 600;
+let WM_BACKOFF = 0;        // โดน 429 แล้วหยุดยิงชั่วคราว กันวนยิงซ้ำจนแย่ลงกว่าเดิม
 
 async function fillWorms() {
   try { wmApply(await api('GET', '/api/web/pvp/worms/match')); }
@@ -2074,7 +2076,7 @@ function wmDrawFighter(ctx, f, active, t) {
 }
 
 let WM_QUEUE = [];         // ท่อนเดินที่รอเล่นภาพ (บอทเดินหลายท่อนต่อกัน)
-let wmTimingOut = false;
+let wmTimingOut = false, wmNextTimeout = 0;
 
 /** นับถอยหลังบนจอ + พอหมดเวลาก็ขอจบเทิร์น (เซิร์ฟเวอร์เช็คเวลาเองอีกชั้น) */
 function wmTick() {
@@ -2083,8 +2085,12 @@ function wmTick() {
   const left = WM_ST.over ? 0 : Math.max(0, Math.ceil((WM_DEADLINE - performance.now()) / 1000));
   el.textContent = '⏱️ ' + String(Math.floor(left / 60)) + ':' + String(left % 60).padStart(2, '0');
   el.classList.toggle('low', left <= 10 && !WM_ST.over);
-  if (left <= 0 && !WM_ST.over && !wmTimingOut) {
+  // ⚠️ ขอจบเทิร์นแล้วพลาด (เน็ตหลุด/โดนจำกัดอัตรา) ห้ามวนยิงใหม่ทุกเฟรม
+  //    ไม่งั้นกลายเป็นยิง 60 ครั้งต่อวินาที ซึ่งยิ่งทำให้โดนจำกัดหนักกว่าเดิม
+  const now = performance.now();
+  if (left <= 0 && !WM_ST.over && !wmTimingOut && now >= WM_BACKOFF && now >= wmNextTimeout) {
     wmTimingOut = true;
+    wmNextTimeout = now + 4000;
     wmHoldStop();
     wmEndTurn('timeout').finally(() => { wmTimingOut = false; });
   }
@@ -2114,8 +2120,18 @@ function wmPaintHud() {
 }
 
 /** ส่งคำสั่งไปเซิร์ฟเวอร์ แล้วเอาเส้นทางที่ได้มาเล่นภาพ */
+/** โดนจำกัดอัตราแล้วหยุดยิงชั่วคราว — ยิงต่อมีแต่ทำให้รอนานขึ้น */
+function wmBackoff(e) {
+  if (e.status !== 429) return false;
+  const wait = Math.max(2, e.retryAfter || 3);
+  WM_BACKOFF = performance.now() + wait * 1000;
+  wmHoldStop();
+  return true;
+}
+
 async function wmDo(action, dir) {
   if (wmBusy || !WM_ST || !WM_ST.active || WM_ST.over) return;
+  if (performance.now() < WM_BACKOFF) return;
   wmBusy = true;
   try {
     const d = await api('POST', '/api/web/pvp/worms/match',
@@ -2133,7 +2149,7 @@ async function wmDo(action, dir) {
     if (d.move && d.move.drowned) SFX.play('lose');
     WM.props = d.props; WM.repaint();
     wmPaintHud();
-  } catch (e) { toast(e.message, true); }
+  } catch (e) { if (!wmBackoff(e)) toast(e.message, true); }
   finally { wmBusy = false; }
 }
 
@@ -2151,7 +2167,7 @@ async function wmEndTurn(how) {
       WM_ANIM = WM_QUEUE.shift();
     }
     SFX.play('click');
-  } catch (e) { toast(e.message, true); }
+  } catch (e) { if (!wmBackoff(e)) toast(e.message, true); }
 }
 
 /** กดค้าง = เดินต่อเนื่อง (ยิงเป็นก้อนละ 5 ก้าว ไม่ใช่ยิงทุกก้าว) */

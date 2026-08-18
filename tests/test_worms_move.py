@@ -553,3 +553,49 @@ def test_http_runs_the_bot_turn_in_one_call(web):
     d = r.json()
     assert "bot_moves" in d and (d["turn"] == 0 or d["over"])
     assert d["time_left"] > 0, "ไม่ได้ส่งเวลาที่เหลือมาให้หน้าเว็บ"
+
+
+def test_a_failed_timeout_never_becomes_a_hammer_loop():
+    """นาฬิกาหมดแล้วขอจบเทิร์นพลาด — เดิมวนยิงใหม่ทุกเฟรม = 60 ครั้ง/วินาที
+
+    ยิ่งทำให้โดนจำกัดอัตราหนักกว่าเดิม กลายเป็นวงจรที่ออกไม่ได้
+    """
+    fn = PLAY[PLAY.index("function wmTick("):]
+    fn = fn[:fn.index("\n}\n")]
+    # ต้องอยู่ใน "เงื่อนไข" ของ if ไม่ใช่แค่โผล่ที่ไหนสักแห่งในฟังก์ชัน
+    cond = re.search(r"if \(left <= 0[^)]*\)", fn)
+    assert cond, "หาเงื่อนไขตอนหมดเวลาไม่เจอ"
+    assert "wmNextTimeout" in cond.group(0), "ขอจบเทิร์นพลาดแล้ววนยิงใหม่ทุกเฟรม"
+    assert "WM_BACKOFF" in cond.group(0), "ไม่ได้เว้นช่วงหลังโดนจำกัดอัตรา"
+
+
+def test_the_arena_backs_off_when_rate_limited():
+    """โดน 429 แล้วยิงต่อมีแต่ทำให้รอนานขึ้น ต้องหยุดเองก่อน"""
+    assert "function wmBackoff" in PLAY
+    assert "e.status !== 429" in PLAY, "ไม่ได้ดูสถานะ 429"
+    assert "err.status = res.status" in (WEB / "web.js").read_text(encoding="utf-8"), \
+        "api() ไม่ได้แนบสถานะมาให้ ผู้เรียกจึงแยกไม่ออกว่าโดนจำกัดอัตรา"
+    for fn_name in ("wmDo", "wmEndTurn"):
+        blk = PLAY[PLAY.index(f"async function {fn_name}("):]
+        blk = blk[:blk.index("\n}\n")]
+        assert "wmBackoff(e)" in blk, f"{fn_name} ไม่ได้ถอยเมื่อโดนจำกัดอัตรา"
+
+
+def test_the_end_turn_button_sends_a_real_action():
+    """ผูก addEventListener ตรง ๆ = MouseEvent ถูกส่งไปเป็นชื่อคำสั่ง เซิร์ฟเวอร์ปฏิเสธทุกครั้ง"""
+    assert "b.addEventListener('click', wmEndTurn)" not in PLAY, \
+        "ปุ่มจบเทิร์นส่ง MouseEvent ไปเป็นชื่อคำสั่ง"
+    assert "() => wmEndTurn()" in PLAY
+
+
+def test_the_request_rate_stays_well_under_the_ceiling():
+    """เผื่อไว้เยอะ ๆ — ผู้เล่นกดค้างยาว ๆ ต้องไม่มีวันชนเพดาน"""
+    from license_server import rate_limit as R
+
+    steps = int(re.search(r"const WM_WALK_STEPS = (\d+)", PLAY).group(1))
+    ms = _hold_interval_ms()
+    per_min = 60_000 / ms
+    limit = R.LIMITS["arena"][0]
+    assert per_min <= limit * 0.6, \
+        f"กดค้างยิง {per_min:.0f} ครั้ง/นาที เทียบเพดาน {limit} — เผื่อไว้น้อยเกิน"
+    assert steps <= P.STEP_MAX, "ขอเกินเพดานที่เซิร์ฟเวอร์ยอมให้ต่อคำสั่ง"

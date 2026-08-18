@@ -18,7 +18,13 @@ async function api(method, url, body) {
     onSessionExpired();
     throw new Error(data.detail || "หมดเวลาเข้าสู่ระบบ — กรุณาล็อกอินใหม่");
   }
-  if (!res.ok) throw new Error(data.detail || res.statusText);
+  if (!res.ok) {
+    // แนบสถานะกับเวลาที่ต้องรอไปด้วย — ผู้เรียกจะได้ถอยเองเมื่อโดนจำกัดอัตรา (429)
+    const err = new Error(data.detail || res.statusText);
+    err.status = res.status;
+    err.retryAfter = +(res.headers.get("Retry-After") || 0);
+    throw err;
+  }
   return data;
 }
 
