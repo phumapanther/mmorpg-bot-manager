@@ -20,8 +20,10 @@ import random
 W, H = 720, 270          # ใหญ่กว่าเดิม 2.7 เท่า — จอแคบเลื่อนดูตามแนวนอนได้
 WATER = 18               # น้ำก้นจอ — ตกลงไปคือตาย (กติกาคลาสสิกของแนวนี้)
 MIN_ISLANDS, MAX_ISLANDS = 4, 6
-SPAWN_GAP = 55           # ผู้เล่นสองคนต้องห่างกันอย่างน้อยเท่านี้
-FLAT_SPAN, FLAT_DROP = 5, 4     # ต้องเดินออกไปได้เท่านี้ทั้งสองข้างโดยไม่เจอหน้าผา
+SPAWN_GAP = 45           # ระยะเกิดขั้นต่ำ — ต้องไกลกว่าระยะฟัน (24-30) แต่ไม่มากจน
+                         # ไม่มีเกาะไหนกว้างพอ แล้วต้องไปเกิดคนละเกาะจนคลาสประชิดสู้ไม่ได้
+FLAT_SPAN, FLAT_DROP = 3, 4     # ต้องเดินออกไปได้เท่านี้ทั้งสองข้างโดยไม่เจอหน้าผา
+                                # เข้มกว่านี้แล้วแผนที่บางใบเหลือที่ยืนไม่ถึง 10 จุด เกิดไม่ครบคน
 
 # 🧍 ขนาดตัวละครในสนาม — ทุกอย่างที่ "เดินลอดได้/ยืนได้" ต้องอ้างอิงตัวเลขนี้
 # สไปรต์วาด 16×22 · กล่องชนแคบกว่าเพราะสองคอลัมน์ริมของสไปรต์ว่างอยู่แล้ว
@@ -185,6 +187,7 @@ def _flat_run(g, x, y, need):
     return True
 
 
+TREE_GAP = 22        # ระยะห่างต้นไม้/ก้อนหิน — ต้องกว้างกว่าพุ่มใบ ไม่งั้นคลุมพื้นหมด
 DOOR_CLEAR = 14      # ที่โล่งหน้าประตูทั้งสองข้าง — ไม่งั้นต้นไม้ขึ้นขวางทางเข้าจนใช้ไม่ได้
 
 
@@ -223,15 +226,18 @@ def _decorate(rng, g):
             taken.append((x, w // 2 + DOOR_CLEAR))
 
     # 🌳🪨 ต้นไม้กับก้อนหิน
+    # ระยะห่างต้องเผื่อ "พุ่มใบ/ก้อนหิน" ที่กว้างได้ถึง ~34 ช่อง ไม่ใช่แค่ลำต้น
+    # เคยพลาด: เว้นแค่ 16 ช่อง ต้นไม้เลยขึ้นชิดกันจนคลุมผิวดินทั้งเกาะ
+    # ทั้งแผนที่เหลือที่ยืนได้แค่ 37 จุด เกิดไม่ได้ เดินไม่ได้ สู้ไม่ได้
     for x, y in spots:
-        if not free(x, 16):
+        if not free(x, TREE_GAP):
             continue
         if rng.random() < .55:
             _tree(rng, g, x, y)
         else:
             _boulder(rng, g, x, y)
-        taken.append((x, 16))
-        if len(taken) > 34:
+        taken.append((x, TREE_GAP))
+        if len(taken) > 30:
             break
 
 
@@ -370,25 +376,30 @@ def place_props(grid, rng, spots=None):
     return out
 
 
-def spawns(grid, count, rng=None, avoid=()):
-    """จุดเกิดของผู้เล่น — ยืนได้จริง ห่างกัน และไม่ทับหีบ/กับดัก"""
+def spawns(grid, count, rng=None, avoid=(), spots=None):
+    """จุดเกิดของผู้เล่น — ยืนได้จริง กระจายให้ห่างกันที่สุดเท่าที่แผนที่ยอมให้
+
+    ส่ง spots เข้ามาได้ถ้าอยากจำกัดให้เกิดเฉพาะบางจุด (เช่น เกาะเดียวกันทั้งหมด)
+
+    ⚠️ ห้ามแค่ "คัดจุดที่ห่างเกินเกณฑ์ แล้วเติมจุดที่เหลือมั่ว ๆ" — เคยพลาดแบบนั้น
+       พอแผนที่แคบจนไม่มีคู่ไหนห่างถึงเกณฑ์ สองคนเลยไปเกิดห่างกัน 1 พิกเซล
+       ใช้วิธีเลือกจุดที่ไกลจากคนที่เลือกไปแล้วมากที่สุดแทน ได้ระยะดีที่สุดเสมอ
+    """
     rng = rng or random.Random(0)
-    ok = [(x, y) for x, y in _open_spots(grid)
-          if all(abs(x - p["x"]) >= 10 for p in avoid)]
+    pool = _open_spots(grid) if spots is None else list(spots)
+    ok = [(x, y) for x, y in pool if all(abs(x - p["x"]) >= 10 for p in avoid)]
+    ok = ok or pool                  # เลี่ยงของบนแผนที่แล้วไม่เหลือที่ — ยอมเกิดใกล้หีบ
     if not ok:
         return []
-    rng.shuffle(ok)
-    picked = []
-    for x, y in ok:
-        if all(abs(x - px) >= SPAWN_GAP for px, _ in picked):
-            picked.append((x, y))
-            if len(picked) == count:
-                break
-    for x, y in ok:                # ที่ไม่พอให้ห่างครบ — ยอมใกล้กว่าเกณฑ์ดีกว่าเกิดไม่ครบคน
-        if len(picked) >= count:
-            break
-        if (x, y) not in picked:
-            picked.append((x, y))
+
+    picked = [rng.choice(ok)]
+    while len(picked) < count:
+        far = max(ok, key=lambda p: min(abs(p[0] - q[0]) for q in picked))
+        if far in picked:
+            break                    # จุดหมดแล้ว ที่เหลือซ้ำกับที่เลือกไปแล้ว
+        picked.append(far)
+    while len(picked) < count:       # แผนที่มีจุดน้อยกว่าจำนวนคน — จำเป็นต้องซ้ำ
+        picked.append(picked[-1])
     return sorted(picked[:count])
 
 

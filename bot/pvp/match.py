@@ -14,11 +14,11 @@ import time
 
 from license_server import web_db
 
-from bot.pvp import physics, terrain
+from bot.pvp import physics, terrain, weapons
 
 MOVE_BUDGET = 60         # ก้าวได้กี่ก้าวต่อหนึ่งเทิร์น
 TURN_SECONDS = 60        # หมดเวลาเทิร์นแล้วสลับให้เอง (ปิดจอหนีไม่ได้ ทั้งห้องจะได้ไม่ค้าง)
-BOT_REACH = 26           # บอทเดินเข้าหาจนใกล้เท่านี้แล้วพอ
+BOT_REACH = 18           # บอทเดินเข้าหาจนใกล้เท่านี้ — ต้องน้อยกว่าระยะฟันสั้นสุด (24) ไม่งั้นเข้าไม่ถึงตัว
 TRAP_RADIUS = 7          # เดินเข้าใกล้กับดักเท่านี้ = โดน
 TRAP_DAMAGE = (12, 26)
 MATCH_TTL = 6 * 3600     # แมตช์ที่ทิ้งไว้เกินนี้ = ล้างทิ้ง (กันตารางบวม)
@@ -80,7 +80,15 @@ def new_practice(uid, player_look, seed=0, continent=""):
     grid = terrain.generate(seed, continent)["grid"]
     prng = random.Random(seed ^ 0x5EED)
     props = terrain.place_props(grid, prng)
-    spots = terrain.spawns(grid, 2, prng, avoid=props)
+    # ทุกคนควรเกิดบนผืนที่เดินถึงกันได้ ไม่งั้นคลาสสกิลประชิดเข้าไม่ถึงตัวเลยทั้งเกม
+    # แต่ห้ามแลกมาด้วยการเกิดทับกัน — ถ้าเกาะนั้นแคบไป ใช้ทั้งแผนที่แทน
+    open_spots = terrain._open_spots(grid)
+    island = physics.connected_spots(grid, open_spots, need_span=terrain.SPAWN_GAP)
+    spots = terrain.spawns(grid, 2, prng, avoid=props, spots=island)
+    if abs(spots[0][0] - spots[1][0]) < terrain.SPAWN_GAP:
+        wide = terrain.spawns(grid, 2, prng, avoid=props, spots=open_spots)
+        if abs(wide[0][0] - wide[1][0]) > abs(spots[0][0] - spots[1][0]):
+            spots = wide
     look = dict(player_look or {})
     bot_look = {**look, "cls": "Mage" if look.get("cls") != "Mage" else "Warrior", "fashion": {}}
 
@@ -93,20 +101,32 @@ def new_practice(uid, player_look, seed=0, continent=""):
         "turn_started": time.time(),
         "fighters": [
             {"name": "คุณ", "bot": False, "hp": 100, "max_hp": 100, "face": 1,
-             "x": spots[0][0], "y": spots[0][1], "look": look, "dead": False},
+             "x": spots[0][0], "y": spots[0][1], "look": look, "dead": False,
+             "buffs": {}, "cd": {}},
             {"name": "🤖 บอท", "bot": True, "hp": 100, "max_hp": 100, "face": -1,
-             "x": spots[1][0], "y": spots[1][1], "look": bot_look, "dead": False},
+             "x": spots[1][0], "y": spots[1][1], "look": bot_look, "dead": False,
+             "buffs": {}, "cd": {}},
         ],
     }
     return save(uid, st)
 
 
-def _hurt(st, f, dmg, why):
-    f["hp"] = max(0, f["hp"] - int(dmg))
-    st["log"].append(f"{f['name']} {why} -{int(dmg)} HP")
+def _hurt(st, f, dmg, why, dodgeable=True):
+    """เข้าดาเมจ — บัฟหักล้างได้ก่อน (หลบ = พลาดทั้งหมด · ออร่า = ครึ่งเดียว)"""
+    buffs = f.setdefault("buffs", {})
+    if dodgeable and buffs.get("evade"):
+        buffs.pop("evade", None)
+        st["log"].append(f"💨 {f['name']} หลบพ้น!")
+        return 0
+    dmg = int(dmg)
+    if buffs.get("aura"):
+        dmg = max(1, dmg // 2)
+    f["hp"] = max(0, f["hp"] - dmg)
+    st["log"].append(f"{f['name']} {why} -{dmg} HP")
     if f["hp"] <= 0:
         f["dead"] = True
         st["log"].append(f"☠️ {f['name']} ตกรอบ!")
+    return dmg
 
 
 def _drown(st, f):
@@ -191,6 +211,155 @@ def move(uid, action, direction=1, steps=1):
     return True, {"move": r, "sprung": traps, "opened": chests} | view(uid, st)
 
 
+def _explode(st, grid, cx, cy, radius, dmg, crater, why):
+    """💥 ระเบิด ณ จุดหนึ่ง — เจาะพื้นเป็นหลุมแล้วกระจายดาเมจตามระยะ
+
+    เจาะหลุมด้วย carve() ตัวเดียวกับที่ใช้กับพื้นดิน กำแพงปราสาท/ต้นไม้จึงพังด้วยเลย
+    ระเบิดหลบไม่ได้ (dodgeable=False) — สกิลหลบมีไว้กันการฟันตรง ๆ
+    """
+    gone = terrain.carve(grid, cx, cy, crater) if crater else []
+    hits = []
+    for f, raw in weapons.blast_targets(cx, cy, st["fighters"], radius, dmg):
+        got = _hurt(st, f, raw, why, dodgeable=False)
+        if got:
+            hits.append({"name": f["name"], "damage": got})
+    if gone:
+        st["terrain"] = terrain.encode(grid)
+        _settle_everyone(st, grid)
+    return {"x": cx, "y": cy, "crater": crater, "hits": hits}
+
+
+def _settle_everyone(st, grid):
+    """พื้นใต้เท้าหายไปแล้วต้องร่วงลง ไม่ใช่ยืนลอยอยู่กลางอากาศ"""
+    for f in st["fighters"]:
+        if f["dead"]:
+            continue
+        if physics.standable(grid, f["x"], f["y"]):
+            continue
+        x, y, fell, drowned = physics.settle(grid, f["x"], f["y"])
+        f["x"], f["y"] = x, y
+        if drowned:
+            _drown(st, f)
+        else:
+            hurt = physics.fall_damage(fell)
+            if hurt:
+                _hurt(st, f, hurt, "ร่วงลงมาเพราะพื้นหาย", dodgeable=False)
+
+
+def attack(uid, skill, angle=45, power=70):
+    """⚔️ ใช้สกิล — คืน (ok, ผล) · ใช้แล้วจบเทิร์นทันทีเสมอ
+
+    เบราว์เซอร์ส่งมาแค่ "ใช้สกิลอะไร เล็งมุมไหน แรงเท่าไหร่"
+    ผลทั้งหมด (โดนใคร พื้นพังตรงไหน) ตัดสินที่นี่
+    """
+    st = load(uid)
+    if not st:
+        return False, {"error": "ยังไม่ได้เริ่มแมตช์ — กดซ้อมกับบอทก่อน"}
+    if st["over"]:
+        return False, {"error": "แมตช์นี้จบแล้ว"}
+    if time_left(st) <= 0:
+        return False, {"error": "⏱️ หมดเวลาเทิร์นแล้ว — กดจบเทิร์นได้เลย"}
+
+    f = _fighter(st)
+    if f["bot"]:
+        return False, {"error": "ยังไม่ถึงตาคุณ"}
+    if f["dead"]:
+        return False, {"error": "ตัวละครของคุณตกรอบแล้ว"}
+
+    key = str(skill or "")
+    if key not in weapons.kit_for((f.get("look") or {}).get("cls")):
+        return False, {"error": "คลาสของคุณใช้สกิลนี้ไม่ได้"}
+    left = int(f.setdefault("cd", {}).get(key, 0))
+    if left > 0:
+        return False, {"error": f"⏳ สกิลนี้ยังคูลดาวน์อีก {left} เทิร์น"}
+
+    grid = _grid(st)
+    r = _use_skill(st, grid, f, key, angle, power)
+    cd = weapons.SKILLS[key]["cooldown"]
+    if cd:
+        f["cd"][key] = cd + 1        # +1 เพราะจะถูกลบหนึ่งตอนขึ้นเทิร์นของตัวเอง
+
+    save(uid, st)
+    ok, after = end_turn(uid)        # ใช้สกิลแล้วจบเทิร์นทันที
+    return True, {"attack": r} | (after if ok else view(uid))
+
+
+def _use_skill(st, grid, f, key, angle, power):
+    """ลงมือใช้สกิลหนึ่งอัน — คืนผลไว้ให้เบราว์เซอร์เล่นภาพ"""
+    s = weapons.SKILLS[key]
+    angle = max(-89, min(89, float(angle)))
+    power = max(10, min(100, float(power)))
+    out = {"skill": key, "name": s["name"], "kind": s["kind"]}
+
+    if s["kind"] == "self":
+        if s.get("heal"):
+            before = f["hp"]
+            f["hp"] = min(f["max_hp"], f["hp"] + s["heal"])
+            st["log"].append(f"✨ {f['name']} ฟื้นเลือด +{f['hp'] - before} HP")
+            out["heal"] = f["hp"] - before
+        if s.get("buff"):
+            b = weapons.BUFFS[s["buff"]]
+            f.setdefault("buffs", {})[s["buff"]] = b["turns"] + 1
+            st["log"].append(f"{b['name']} ติดตัว {f['name']} แล้ว")
+            out["buff"] = s["buff"]
+        return out
+
+    if s["kind"] == "melee":
+        out["reach"] = s["reach"]
+        hits = []
+        for t in weapons.melee_targets(f, st["fighters"], s["reach"]):
+            dmg = s["dmg"]
+            if s.get("behind") and t["face"] == f["face"]:     # หันหลังให้เรา = ลอบแทง
+                dmg = int(dmg * s["behind"])
+                st["log"].append(f"🗡️ ลอบแทงจากด้านหลัง!")
+            got = _hurt(st, t, dmg, f"โดน {s['name']}")
+            if got:
+                hits.append({"name": t["name"], "damage": got})
+            if s.get("knock") and not t["dead"]:               # กระแทกให้กระเด็น
+                kb = physics.walk(grid, t["x"], t["y"], f["face"], s["knock"])
+                t["x"], t["y"] = kb["x"], kb["y"]
+                out["knock"] = kb["path"]
+                if kb["drowned"]:
+                    _drown(st, t)
+                else:
+                    hurt = physics.fall_damage(kb["fell"])
+                    if hurt:
+                        _hurt(st, t, hurt, "กระเด็นตกจากที่สูง", dodgeable=False)
+        out["hits"] = hits
+        if s.get("crater"):
+            # เจาะที่ระดับอก ไม่ใช่ระดับเท้า — ไม่งั้นสกิลประชิดตัดพื้นใต้เท้าขาด
+            # แล้วคู่ต่อสู้ร่วงลงทะเลตายทุกครั้ง กลายเป็นท่าฆ่าตัดตอน
+            cx = f["x"] + f["face"] * (s["reach"] // 2)
+            out["blast"] = _explode(st, grid, cx, f["y"] - terrain.CH_H // 2,
+                                    0, 0, s["crater"], "")
+        if not hits:
+            st["log"].append(f"{f['name']} ใช้ {s['name']} แต่ไม่โดนใคร")
+        return out
+
+    # lob / beam — ต้องเล็ง
+    aim = angle * f["face"] if f["face"] < 0 else angle
+    if f["face"] < 0:
+        aim = 180 - angle
+    out["angle"], out["power"] = angle, power
+    shot = (physics.beam(grid, f["x"], f["y"], aim) if s["kind"] == "beam"
+            else physics.shoot(grid, f["x"], f["y"], aim, power))
+    out["path"] = shot["path"]
+    if not shot["hit"]:
+        st["log"].append(f"{f['name']} ยิง {s['name']} พลาดออกนอกสนาม")
+        return out
+
+    out["blast"] = _explode(st, grid, shot["x"], shot["y"], s["radius"],
+                            s["dmg"], s.get("crater", 0), f"โดน {s['name']}")
+    if s.get("buff"):
+        b = weapons.BUFFS[s["buff"]]
+        for h in out["blast"]["hits"]:
+            t = next((x for x in st["fighters"] if x["name"] == h["name"]), None)
+            if t and not t["dead"]:
+                t.setdefault("buffs", {})[s["buff"]] = b["turns"]
+                st["log"].append(f"{b['name']} ติดตัว {t['name']}")
+    return out
+
+
 def time_left(st):
     """เหลือเวลาในเทิร์นนี้กี่วินาที — เซิร์ฟเวอร์เป็นคนนับ ไม่ใช่นาฬิกาในเบราว์เซอร์"""
     if st.get("over"):
@@ -209,7 +378,13 @@ def _pass_turn(st):
             break
     if st["turn"] == 0:
         st["round"] += 1
-    st["moves"] = MOVE_BUDGET
+    f = _fighter(st)
+    for d, key in ((f.setdefault("buffs", {}), "buffs"), (f.setdefault("cd", {}), "cd")):
+        for k in list(d):
+            d[k] -= 1
+            if d[k] <= 0:
+                d.pop(k)
+    st["moves"] = MOVE_BUDGET // 2 if f.get("buffs", {}).get("slow") else MOVE_BUDGET
     st["turn_started"] = time.time()
     _check_over(st)
 
@@ -273,8 +448,73 @@ def _bot_turn(st):
         out.append(r)
         stuck = stuck + 1 if me["x"] == before else 0
 
+    if not me["dead"] and not st["over"]:
+        shot = _bot_attack(st, grid, me, target)
+        if shot:
+            out.append({"attack": shot})
     _check_over(st)
     return out
+
+
+def _bot_aim(grid, me, target):
+    """หามุมกับแรงที่ยิงแล้วตกใกล้เป้าที่สุด — ลองยิงจริงหลายชุดแล้วเลือกอันที่ดีที่สุด
+
+    ใช้ฟิสิกส์ตัวเดียวกับผู้เล่น ไม่ได้คำนวณสูตรวิถีแยก บอทจึงพลาดได้เหมือนคนจริง
+    """
+    d = 1 if target["x"] > me["x"] else -1
+    best = None
+    for ang in (25, 35, 45, 55, 65):
+        for pw in (35, 50, 65, 80, 95):
+            aim = ang if d > 0 else 180 - ang
+            r = physics.shoot(grid, me["x"], me["y"], aim, pw)
+            if not r["hit"]:
+                continue
+            miss = abs(r["x"] - target["x"]) + abs(r["y"] - target["y"]) * .5
+            if best is None or miss < best[0]:
+                best = (miss, ang, pw, d)
+    return best
+
+
+def _bot_attack(st, grid, me, target):
+    """🤖 บอทเลือกสกิลเอง — ใกล้ก็ฟัน ไกลก็ยิง เลือดน้อยก็ฮีล"""
+    kit = weapons.kit_for((me.get("look") or {}).get("cls"))
+    ready = [k for k in kit if int(me.get("cd", {}).get(k, 0)) <= 0]
+    if not ready:
+        return None
+    gap = abs(target["x"] - me["x"])
+
+    # เลือดน้อยแล้วมีฮีล = ฮีลก่อน
+    if me["hp"] <= me["max_hp"] * .4 and "heal" in ready:
+        pick, aim = "heal", None
+    else:
+        melee = [k for k in ready
+                 if weapons.SKILLS[k]["kind"] == "melee" and gap <= weapons.SKILLS[k]["reach"]]
+        lob = [k for k in ready if weapons.SKILLS[k]["kind"] == "lob"]
+        buff = [k for k in ready if weapons.SKILLS[k]["kind"] == "self"
+                and weapons.SKILLS[k].get("buff")]
+        if melee:
+            pick, aim = max(melee, key=lambda k: weapons.SKILLS[k]["dmg"]), None
+        elif lob:
+            aim = _bot_aim(grid, me, target)
+            if not aim:
+                return None
+            pick = max(lob, key=lambda k: weapons.SKILLS[k]["dmg"])
+        elif buff:
+            pick, aim = buff[0], None
+        else:
+            return None
+
+    if aim:
+        me["face"] = aim[3]
+    elif weapons.SKILLS[pick]["kind"] == "melee":
+        me["face"] = 1 if target["x"] > me["x"] else -1
+
+    r = _use_skill(st, grid, me, pick,
+                   aim[1] if aim else 45, aim[2] if aim else 70)
+    cd = weapons.SKILLS[pick]["cooldown"]
+    if cd:
+        me.setdefault("cd", {})[pick] = cd + 1
+    return r
 
 
 def end_turn(uid, auto=False):
@@ -327,4 +567,7 @@ def view(uid, st=None):
         "log": st["log"][-6:],
         "fighters": [{k: v for k, v in f.items() if k != "look"} | {"look": f["look"]}
                      for f in st["fighters"]],
+        "skills": weapons.view((_fighter(st).get("look") or {}).get("cls"),
+                               _fighter(st).get("cd")),
+        "buff_names": {k: v["name"] for k, v in weapons.BUFFS.items()},
     }

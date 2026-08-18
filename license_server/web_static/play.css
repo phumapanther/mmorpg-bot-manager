@@ -926,3 +926,27 @@ body.bar-min .pbar .money { margin-left: auto; }
   min-width: 52px; }
 .wm-clock.low { color: #ff6a4a !important; animation: wmBeat .7s ease-in-out infinite; }
 @keyframes wmBeat { 50% { opacity: .35; } }
+
+/* ── ⚔️ สกิลในสนามรบ ── */
+.wm-skills { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px; margin-top: 10px; }
+.wm-skills button { position: relative; text-align: left; padding: 10px 12px; min-height: 56px;
+  border-radius: 14px; border: 1px solid var(--g-line); background: var(--g-panel);
+  color: var(--g-ink); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  display: grid; gap: 3px; }
+.wm-skills button small { font-size: 11px; font-weight: 400; color: var(--g-muted); }
+.wm-skills button:hover:not(:disabled) { border-color: var(--g-gold); background: var(--g-hi); }
+.wm-skills button.on { border-color: var(--g-gold); box-shadow: 0 0 0 1px var(--g-gold) inset; }
+.wm-skills button:disabled { opacity: .45; cursor: not-allowed; }
+.wm-skills .cd { position: absolute; top: 8px; right: 10px; font-family: var(--g-num);
+  font-size: 11px; color: #ff9d84; }
+.wm-aim { display: grid; gap: 10px; margin-top: 10px; background: var(--g-panel);
+  border: 1px solid var(--g-line); border-radius: var(--g-r); padding: 12px 14px; }
+.wm-aim label { display: grid; grid-template-columns: 82px 1fr; align-items: center; gap: 10px;
+  font-size: 12.5px; color: var(--g-muted); }
+.wm-aim label b { font-family: var(--g-num); color: var(--g-gold); }
+.wm-aim input[type=range] { width: 100%; accent-color: var(--g-gold); }
+.wm-fire { min-height: 48px; border-radius: 14px; border: 1px solid #6d1a11; cursor: pointer;
+  background: linear-gradient(160deg,#d93b2b,#8f2317); color: #fff; font-family: inherit;
+  font-size: 15px; font-weight: 700; }
+.wm-idle .wm-skills, .wm-idle .wm-aim { display: none; }

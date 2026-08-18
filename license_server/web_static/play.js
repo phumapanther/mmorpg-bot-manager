@@ -97,6 +97,11 @@ document.getElementById('wmSame')?.addEventListener('click', () => {
   const seed = prompt('วางรหัสแผนที่ที่อยากเปิด', document.getElementById('wmSeed').textContent);
   if (seed && /^\d+$/.test(seed.trim())) wmNewMatch(seed.trim());
 });
+document.getElementById('wmFire')?.addEventListener('click', () => WM_SKILL && wmAttack(WM_SKILL));
+['wmAngle', 'wmPower'].forEach(id => document.getElementById(id)?.addEventListener('input', e => {
+  document.getElementById(id === 'wmAngle' ? 'wmAngVal' : 'wmPowVal').textContent =
+    e.target.value + (id === 'wmAngle' ? '°' : '');
+}));
 document.getElementById('wmIn')?.addEventListener('click', () => wmZoom(1));
 document.getElementById('wmOut')?.addEventListener('click', () => wmZoom(-1));
 document.getElementById('wmFit')?.addEventListener('click', () => {
@@ -2051,6 +2056,7 @@ function wmStartLoop() {
 
     WM.draw(ctx, WM_CAM, t++);
     WM_ST.fighters.forEach((f, i) => { if (!f.dead) wmDrawFighter(ctx, f, i === WM_ST.turn, t); });
+    wmDrawFx(ctx);
     wmLoop = requestAnimationFrame(tick);
   };
   tick();
@@ -2117,6 +2123,95 @@ function wmPaintHud() {
                         WM_CAM.center(f.x, f.y - 10); SFX.play('click'); });
   document.getElementById('wmLog').innerHTML = (d.log || []).map(l => '<div>' + esc(l) + '</div>').join('');
   document.querySelectorAll('[data-wm]').forEach(b => b.disabled = d.over || !!wmMe().bot);
+  wmPaintSkills();
+}
+
+let WM_SKILL = null;       // สกิลที่เลือกไว้ (ที่ต้องเล็งจะรอกดยิงอีกที)
+
+function wmPaintSkills() {
+  const box = document.getElementById('wmSkills');
+  const d = WM_ST;
+  if (!box || !d || !d.active) return;
+  const locked = d.over || wmMe().bot;
+  box.innerHTML = (d.skills || []).map(s => `
+    <button data-skill="${esc(s.key)}" ${locked || s.ready_in ? 'disabled' : ''}
+            class="${WM_SKILL === s.key ? 'on' : ''}">
+      ${s.ready_in ? `<span class="cd">⏳${s.ready_in}</span>` : ''}
+      ${esc(s.name)}<small>${esc(s.desc)}</small></button>`).join('');
+  box.querySelectorAll('[data-skill]').forEach(b =>
+    b.onclick = () => wmPickSkill(b.dataset.skill));
+  wmShowAim();
+}
+
+/** เลือกสกิล — แบบที่ต้องเล็งจะโชว์แถบมุม/แรงก่อน ที่เหลือใช้ทันที */
+function wmPickSkill(key) {
+  const s = (WM_ST.skills || []).find(x => x.key === key);
+  if (!s) return;
+  SFX.play('click');
+  if (!s.aim) { WM_SKILL = null; wmAttack(key); return; }
+  WM_SKILL = WM_SKILL === key ? null : key;
+  wmPaintSkills();
+}
+
+function wmShowAim() {
+  const el = document.getElementById('wmAim');
+  if (el) el.hidden = !WM_SKILL;
+}
+
+async function wmAttack(key) {
+  if (wmBusy || performance.now() < WM_BACKOFF) return;
+  wmBusy = true;
+  try {
+    const d = await api('POST', '/api/web/pvp/worms/match', {
+      action: 'attack', skill: key,
+      angle: +document.getElementById('wmAngle').value,
+      power: +document.getElementById('wmPower').value,
+    });
+    WM_SKILL = null;
+    wmPlayAttack(d);
+  } catch (e) { if (!wmBackoff(e)) toast(e.message, true); }
+  finally { wmBusy = false; }
+}
+
+/** เล่นภาพผลการโจมตี แล้วต่อด้วยตาบอท (ผลทั้งหมดเซิร์ฟเวอร์ตัดสินไปแล้ว) */
+function wmPlayAttack(d) {
+  const a = d.attack || {};
+  SFX.play(a.kind === 'self' ? 'use' : a.kind === 'lob' ? 'skill' : 'hit');
+  if (a.path && a.path.length) WM_SHOT = { path: a.path, i: 0 };
+  if (a.blast) { WM.carve(a.blast.x, a.blast.y, a.blast.crater || 6); wmBoom(a.blast); }
+  const hits = (a.hits || []).concat((a.blast || {}).hits || []);
+  if (hits.length) { SFX.play('foehit'); toast(hits.map(h => `${h.name} -${h.damage}`).join(' · '), true); }
+  if (a.heal) toast(`✨ ฟื้นเลือด +${a.heal}`);
+  wmApply(d);
+  const bot = WM_ST.fighters.find(f => f.bot);
+  WM_QUEUE = (d.bot_moves || []).filter(m => (m.path || []).length)
+                                .map(m => ({ f: bot, path: m.path, i: 0 }));
+  (d.bot_moves || []).forEach(m => { if (m.attack && m.attack.blast) {
+    WM.carve(m.attack.blast.x, m.attack.blast.y, m.attack.blast.crater || 6); } });
+  if (WM_QUEUE.length) WM_ANIM = WM_QUEUE.shift();
+}
+
+let WM_SHOT = null, WM_BOOMS = [];
+
+function wmBoom(b) { WM_BOOMS.push({ x: b.x, y: b.y, r: (b.crater || 8) * 1.6, t: 0 }); }
+
+/** วาดกระสุนที่กำลังบิน + ลูกไฟระเบิด */
+function wmDrawFx(ctx) {
+  if (WM_SHOT) {
+    for (let k = 0; k < 3 && WM_SHOT.i < WM_SHOT.path.length; k++) WM_SHOT.i++;
+    const p = WM_SHOT.path[Math.min(WM_SHOT.i, WM_SHOT.path.length - 1)];
+    ctx.fillStyle = '#ffd66b';
+    ctx.fillRect(WM_CAM.sx(p[0]) - 2, WM_CAM.sy(p[1]) - 2, 4, 4);
+    if (WM_SHOT.i >= WM_SHOT.path.length) WM_SHOT = null;
+  }
+  WM_BOOMS = WM_BOOMS.filter(b => b.t < 14);
+  WM_BOOMS.forEach(b => {
+    const k = b.t++ / 14, r = b.r * (0.4 + k) * WM_CAM.z;
+    ctx.globalAlpha = 1 - k;
+    ctx.fillStyle = k < .4 ? '#fff6d8' : k < .7 ? '#ffb45a' : '#8f2317';
+    ctx.beginPath(); ctx.arc(WM_CAM.sx(b.x), WM_CAM.sy(b.y), r, 0, 6.29); ctx.fill();
+    ctx.globalAlpha = 1;
+  });
 }
 
 /** ส่งคำสั่งไปเซิร์ฟเวอร์ แล้วเอาเส้นทางที่ได้มาเล่นภาพ */

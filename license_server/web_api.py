@@ -1811,10 +1811,13 @@ def worms_map(request: Request, seed: int = 0, continent: str = "", players: int
 
 
 class WormsBody(BaseModel):
-    action: str = "walk"       # new | walk | jump | end
+    action: str = "walk"       # new | walk | jump | attack | end | timeout
     dir: int = 1               # -1 ซ้าย · 1 ขวา
     steps: int = 1
     seed: int = 0
+    skill: str = ""            # สกิลที่ใช้ (ตอน attack)
+    angle: float = 45          # มุมเล็ง องศา
+    power: float = 70          # แรงยิง 10-100
 
 
 @router.post("/pvp/worms/match")
@@ -1835,6 +1838,8 @@ def worms_match(body: WormsBody, request: Request):
             # timeout = เบราว์เซอร์บอกว่านาฬิกาหมด แต่เซิร์ฟเวอร์เช็คเวลาเองอีกที
             # (ปรับนาฬิกาเครื่องตัวเองแล้วขอเทิร์นเพิ่มไม่ได้)
             ok, r = match.end_turn(uid, auto=body.action == "timeout")
+        elif body.action == "attack":
+            ok, r = match.attack(uid, body.skill, body.angle, body.power)
         elif body.action in ("walk", "jump"):
             ok, r = match.move(uid, body.action, body.dir, body.steps)
         else:

@@ -392,6 +392,14 @@
         <button data-wm="right" title="เดินขวา (ปุ่มลูกศรขวา)">▶</button>
         <button data-wm="end" class="wm-end" title="จบเทิร์น (Enter)">จบเทิร์น ⏭️</button>
       </div>
+      <div class="wm-skills" id="wmSkills"></div>
+      <div class="wm-aim" id="wmAim" hidden>
+        <label>มุม <b id="wmAngVal">45°</b>
+          <input type="range" id="wmAngle" min="5" max="85" value="45"></label>
+        <label>แรง <b id="wmPowVal">70</b>
+          <input type="range" id="wmPower" min="10" max="100" value="70"></label>
+        <button class="wm-fire" id="wmFire">🔥 ยิง!</button>
+      </div>
       <div class="wm-log" id="wmLog"></div>
       <div class="g-grid wm-buttons">
         <button class="g-tile hot" id="wmNew"><span class="ic">🎲</span>สนามใหม่

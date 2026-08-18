@@ -119,14 +119,16 @@ def test_two_players_do_not_spawn_on_top_of_each_other():
 def test_you_can_actually_walk_where_you_spawn(seed):
     """เกิดบนยอดหินแหลมเดียว = ขยับไปทางไหนก็ร่วง ยังไม่ทันได้เล่น
 
-    เช็คด้วย "ก้าวออกไปแล้วยังมีพื้นให้เหยียบไหม" ไม่ใช่ลอกเงื่อนไขในตัวสร้างมาเขียนซ้ำ
+    ใช้ตัวเดินจริงของเกมตัดสิน ไม่ลอกเงื่อนไขในตัวสร้างมาเขียนซ้ำ
+    (เขียนโมเดลเดินของตัวเองแล้วปรับขนาดตัวละครทีเดียวเทสเพี้ยนหมด เคยเจอมาแล้ว)
     """
+    from bot.pvp import physics as P
+
     g = T.generate(seed)["grid"]
     for x, y in T.spawns(g, 4):
-        for d in (-4, -2, 2, 4):
-            step = T.surface_at(g, x + d)
-            assert step is not None and abs(step - y) <= 6, \
-                f"จุดเกิด ({x},{y}) ก้าวไป {d} แล้วไม่มีพื้น — ยืนบนยอดแหลม"
+        assert P.standable(g, x, y), f"จุดเกิด ({x},{y}) ยืนไม่ได้"
+        moved = [d for d in (-1, 1) if P.step(g, x, y, d)[0] != P.BLOCKED]
+        assert moved, f"จุดเกิด ({x},{y}) ขยับไม่ได้สักทาง — ติดอยู่ในซอก"
 
 
 def test_spawns_are_stable_for_a_seed():

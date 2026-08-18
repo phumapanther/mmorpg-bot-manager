@@ -7,6 +7,8 @@
 ส่งกลับเป็น "เส้นทางทีละก้าว" ไม่ใช่แค่จุดปลาย เพราะเบราว์เซอร์ต้องเล่นภาพให้เห็นว่า
 เดินไปยังไง ตกยังไง — และการส่งทีละก้าวทำให้ยิงคำสั่งเป็นก้อน ไม่ต้องยิงทุก 1 ก้าว
 """
+import math
+
 from bot.pvp import terrain as T
 
 CLIMB = 5           # ปีนขั้นสูงได้ไม่เกินนี้ (สูงกว่านี้ต้องกระโดด)
@@ -17,22 +19,39 @@ FALL_HURT_FROM = 40         # ตกสูงเกินนี้เริ่�
 FALL_DMG_PER_PX = 0.8
 
 
+FOOT_W = 2          # ครึ่งความกว้างของกล่องชน — แคบกว่าสไปรต์ (16 px) มาก
+#
+# ทำไมกล่องชนถึงแคบกว่าภาพ: ถ้ากว้างเท่าภาพ ไหล่จะชนขั้นบันไดก่อนที่เท้าจะก้าวถึง
+# ตัวละครเลยปีนขั้นเตี้ย ๆ ไม่ขึ้นเลย และไปติดค้างหน้าขั้นแทน
+# (เกมแพลตฟอร์มทั่วไปก็แยกกล่องชนออกจากภาพแบบนี้)
+
+
 def _clear(grid, x, y):
-    """กล่องตัวละครที่เท้าอยู่ (x, y) ว่างไหม — ตัวอยู่เหนือเท้า ไม่รวมแถวที่เหยียบ"""
-    half = T.CH_W // 2
+    """กล่องตัวละครที่เท้าอยู่ (x, y) ว่างไหม — ตัวอยู่เหนือเท้า ไม่รวมแถวที่เหยียบ
+
+    ⚠️ ใบไม้ไม่กั้นทาง — เดินลอดพุ่มไม้ได้ (ลำต้นยังกั้นตามปกติ)
+       เคยพลาด: นับใบไม้เป็นกำแพงตัน ต้นไม้ทุกต้นเลยตัดเกาะขาดเป็นท่อน ๆ
+       ผู้เล่นสองคนอยู่เกาะเดียวกันแท้ ๆ แต่เดินหากันไม่ได้เพราะมีต้นไม้คั่น
+       (surface_at() ไม่นับใบไม้เป็นพื้นอยู่แล้ว ตรงนี้ต้องสอดคล้องกัน)
+    """
     for gy in range(y - T.CH_H, y):
-        for gx in range(x - half, x + half + 1):
-            if T.solid(grid, gx, gy):
+        for gx in range(x - FOOT_W, x + FOOT_W + 1):
+            if T.material(grid, gx, gy) not in (T.AIR, T.LEAF):
                 return False
     return True
 
 
 def standable(grid, x, y):
-    """ยืนตรงนี้ได้ไหม — ตัวไม่จมกำแพง และมีพื้นรองเท้า"""
+    """ยืนตรงนี้ได้ไหม — ตัวไม่จมกำแพง และมีพื้นรองใต้ฝ่าเท้า
+
+    ⚠️ ฝ่าเท้าต้องแคบกว่าลำตัว เคยพลาด: เช็คพื้นตลอดความกว้างตัว (9 ช่อง)
+       ตัวละครเลย "ยืน" ได้ด้วยปลายเท้าข้างเดียวเกาะขอบผา ตัวลอยเหนืออากาศ 4 ช่อง
+       แล้วก้าวต่อไปไหนไม่ได้เลย — บอทไปติดค้างตรงนั้นทั้งเกม
+    """
     if not (0 <= x < T.W and 0 <= y < T.H - T.WATER):
         return False
     return _clear(grid, x, y) and any(T.solid(grid, gx, y)
-                                      for gx in range(x - T.CH_W // 2, x + T.CH_W // 2 + 1))
+                                      for gx in range(x - FOOT_W, x + FOOT_W + 1))
 
 
 def settle(grid, x, y, max_fall=400):
@@ -122,3 +141,114 @@ def jump(grid, x, y, direction):
 def fall_damage(fell):
     """ตกสูงเกิน FALL_HURT_FROM ถึงจะเจ็บ — ตกเตี้ย ๆ ระหว่างเดินไม่ควรเสียเลือด"""
     return int(max(0, fell - FALL_HURT_FROM) * FALL_DMG_PER_PX)
+
+
+# ── 💥 กระสุน ──
+
+SHOT_GRAVITY = 0.16      # เบากว่าตอนกระโดด กระสุนจะได้ลอยไปไกลกว่า
+SHOT_SPEED = 0.09        # แรง 100 = ความเร็วต้น 9 พิกเซล/เฟรม
+SHOT_FRAMES = 900        # เพดานเวลาบิน กันกระสุนลอยวนไม่จบ
+
+
+def shoot(grid, x, y, angle_deg, power, muzzle=None):
+    """ยิงกระสุนแบบวิถีโค้ง — คืน {path, hit, x, y, out}
+
+    เริ่มจากปากกระบอกที่เลื่อนออกจากตัวเล็กน้อย ไม่งั้นระเบิดใส่ตัวเองทุกนัด
+    path = เส้นทางทั้งเส้นไว้ให้เบราว์เซอร์เล่นภาพ · hit = โดนพื้นไหม
+    out = ออกนอกแผนที่/ตกน้ำ (ไม่ระเบิด)
+    """
+    rad = math.radians(float(angle_deg))
+    vx = math.cos(rad) * float(power) * SHOT_SPEED
+    vy = -math.sin(rad) * float(power) * SHOT_SPEED
+    step = muzzle if muzzle is not None else (T.CH_W // 2 + 3)
+    px = float(x) + math.cos(rad) * step
+    py = float(y) - T.CH_H // 2 - math.sin(rad) * step
+
+    path = []
+    for _ in range(SHOT_FRAMES):
+        vy += SHOT_GRAVITY
+        px += vx
+        py += vy
+        ix, iy = int(round(px)), int(round(py))
+        path.append([ix, iy])
+        if iy >= T.H - T.WATER:                     # ตกน้ำ — จมหายไปเฉย ๆ
+            return {"path": path, "hit": False, "x": ix, "y": iy, "out": True}
+        if not (0 <= ix < T.W) or iy > T.H:
+            return {"path": path, "hit": False, "x": ix, "y": iy, "out": True}
+        if iy >= 0 and T.solid(grid, ix, iy):
+            return {"path": path, "hit": True, "x": ix, "y": iy, "out": False}
+    return {"path": path, "hit": False, "x": int(round(px)), "y": int(round(py)),
+            "out": True}
+
+
+def beam(grid, x, y, angle_deg, reach=260):
+    """ยิงเป็นเส้นตรง — ทะลุอากาศจนกว่าจะชนพื้น (เลเซอร์ ลูกธนู ฯลฯ)"""
+    rad = math.radians(float(angle_deg))
+    dx, dy = math.cos(rad), -math.sin(rad)
+    px, py = float(x), float(y) - T.CH_H // 2
+    path = []
+    for i in range(int(reach)):
+        px += dx
+        py += dy
+        ix, iy = int(round(px)), int(round(py))
+        if not (0 <= ix < T.W) or iy < 0 or iy >= T.H - T.WATER:
+            return {"path": path, "hit": False, "x": ix, "y": iy, "out": True}
+        path.append([ix, iy])
+        if i > T.CH_W and T.solid(grid, ix, iy):
+            return {"path": path, "hit": True, "x": ix, "y": iy, "out": False}
+    return {"path": path, "hit": False, "x": int(round(px)), "y": int(round(py)), "out": True}
+
+
+def blast_damage(dist, radius, full):
+    """แรงระเบิดลดลงตามระยะ — กลางหลุมเต็ม ขอบหลุมเหลือราวหนึ่งในสาม"""
+    if not full or dist > radius:
+        return 0
+    return max(1, int(full * (1 - 0.66 * (dist / max(radius, 1)))))
+
+
+# ── 🏝️ เกาะที่เดินถึงกันได้ ──
+
+def walk_group(grid, start, limit=3000):
+    """ทุกจุดที่เดินไปถึงได้จากจุดเริ่ม — คือ "เกาะเดียวกัน" ในความหมายที่เล่นได้จริง"""
+    seen, stack = {start}, [start]
+    while stack and len(seen) < limit:
+        x, y = stack.pop()
+        for d in (-1, 1):
+            how, nx, ny = step(grid, x, y, d)
+            if how != MOVED or (nx, ny) in seen:
+                continue
+            seen.add((nx, ny))
+            stack.append((nx, ny))
+    return seen
+
+
+def connected_spots(grid, candidates, need_span=0, least=2):
+    """คัดเฉพาะจุดบนผืนแผ่นดินที่เดินถึงกันได้และ**กว้างพอ**
+
+    ⚠️ จำเป็นจริง ๆ ไม่ใช่ของแถม: แผนที่เป็นเกาะลอย ถ้าปล่อยให้เกิดคนละเกาะ
+       คลาสที่มีแต่สกิลประชิด (Warrior/Rogue) จะเข้าไม่ถึงตัวคู่ต่อสู้ได้เลยทั้งเกม
+
+    วัดด้วย "ความกว้าง" ไม่ใช่ "จำนวนจุด" — เกาะที่มีจุดเยอะแต่แคบ
+    จะทำให้สองคนเกิดมาติดกันจนยิงตายในเทิร์นแรก
+    """
+    # วัดความกว้างจาก "ทุกจุดที่เดินถึง" ไม่ใช่เฉพาะจุดที่ผ่านเกณฑ์จุดเกิด
+    # (เกณฑ์จุดเกิดเข้มกว่าการเดินมาก ถ้าวัดจากมันจะได้ตัวเลขต่ำกว่าความจริงหลายเท่า)
+    left = list(candidates)
+    best, best_span, best_all = [], -1, []
+    while left:
+        group = walk_group(grid, left[0])
+        here = [p for p in left if p in group]
+        span = _span(list(group))
+        if here and span > best_span:
+            best, best_span, best_all = here, span, sorted(group)
+        left = [p for p in left if p not in group]
+    if need_span and best_span < need_span:
+        return list(candidates)      # ไม่มีเกาะไหนกว้างพอ — ยอมคนละเกาะดีกว่าเกิดติดกัน
+    # คืน "ทุกจุดที่เดินถึง" ไม่ใช่เฉพาะจุดที่ผ่านเกณฑ์จุดเกิดสวย
+    # เกณฑ์นั้นเข้มจนจุดที่ผ่านมักกระจุกอยู่มุมเดียวของเกาะ พอเอามาเลือกจุดเกิด
+    # สองคนเลยไปอยู่ใกล้กันทั้งที่เกาะกว้างพอ (ทุกจุดใน best_all ยืนได้อยู่แล้วโดยนิยาม)
+    return best_all or best or list(candidates)
+
+
+def _span(spots):
+    return (max(p[0] for p in spots) - min(p[0] for p in spots)) if spots else 0

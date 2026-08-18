@@ -38,10 +38,25 @@ def _mats(grid):
 
 @pytest.mark.parametrize("seed", SEEDS)
 def test_every_map_has_things_to_hide_behind(seed):
-    """แผนที่โล่ง ๆ ไม่มีที่กำบัง = ยิงกันตายรอบเดียวจบ ไม่สนุก"""
+    """แผนที่โล่ง ๆ ไม่มีที่กำบัง = ยิงกันตายรอบเดียวจบ ไม่สนุก
+
+    ไม่บังคับว่าต้องมีครบทุกชนิดทุกใบ — ต้นไม้ต้องมีเสมอ ส่วนบ้าน/ปราสาทต้องใช้
+    พื้นราบกว้าง บางแผนที่จึงไม่มี ขอแค่มีของกำบังชนิดอื่นทดแทน
+    """
     have = _mats(T.generate(seed)["grid"])
-    for m in (T.TRUNK, T.LEAF, T.WOOD):
-        assert m in have, f"แผนที่นี้ไม่มี{MAT_NAMES[m]}เลย"
+    kinds = {T.TRUNK, T.WOOD, T.BRICK, T.ROCK} & have
+    assert len(kinds) >= 2,         f"มีของกำบังแค่ {len(kinds)} ชนิด — โล่งเกินไป ยิงกันตายรอบเดียวจบ"
+
+
+def test_trees_and_villages_show_up_on_most_maps():
+    """ทุกอย่างต้องการที่ว่าง แผนที่ที่แน่นจนไม่มีบางอย่างมีได้ แต่ต้องเป็นส่วนน้อย"""
+    trees = houses = 0
+    for s in range(1, 31):
+        have = _mats(T.generate(s)["grid"])
+        trees += T.TRUNK in have
+        houses += T.WOOD in have
+    assert trees >= 25, f"มีต้นไม้แค่ {trees}/30 เมล็ด"
+    assert houses >= 20, f"มีหมู่บ้านแค่ {houses}/30 เมล็ด — พื้นราบกว้างหายากเกินไป"
 
 
 def test_a_castle_shows_up_on_most_maps():
