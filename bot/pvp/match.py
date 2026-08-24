@@ -9,6 +9,7 @@
 🔒 กับดักส่งไปให้เบราว์เซอร์ไม่ได้จนกว่าจะเหยียบโดน — view() คัดออกให้แล้ว
 """
 import json
+import math
 import random
 import time
 
@@ -287,7 +288,7 @@ def _settle_everyone(st, grid):
             _fall_hurt(st, f, fell, "ร่วงลงมาเพราะพื้นหาย")
 
 
-def attack(uid, skill, angle=45, power=70, direction=None):
+def attack(uid, skill, angle=None, power=70, direction=None):
     """⚔️ ใช้สกิล — คืน (ok, ผล) · ใช้แล้วจบเทิร์นทันทีเสมอ
 
     เบราว์เซอร์ส่งมาแค่ "ใช้สกิลอะไร เล็งมุมไหน แรงเท่าไหร่"
@@ -341,11 +342,17 @@ def attack(uid, skill, angle=45, power=70, direction=None):
 def _use_skill(st, grid, f, key, angle, power):
     """ลงมือใช้สกิลหนึ่งอัน — คืนผลไว้ให้เบราว์เซอร์เล่นภาพ"""
     s = weapons.spec(key)
+    if angle is None:
+        # ท่าประชิดตั้งต้น = ฟันตรงหน้า · ท่ายิงตั้งต้น = โยนโค้ง 45°
+        angle = 0 if s["kind"] == "melee" else 45
     angle = max(-89, min(89, float(angle)))
     power = max(10, min(100, float(power)))
     out = {"skill": key, "name": s["name"], "kind": s["kind"]}
 
     if s["kind"] == "self":
+        # บัฟ/ของป้องกัน — ไม่มีดาเมจ ไม่มีหลุม ไม่มีเป้า เว็บจะได้เล่นเอฟเฟกต์บัฟล้วน ๆ
+        out["from"] = [f["x"], f["y"]]
+        out["hits"] = []
         if s.get("heal"):
             before = f["hp"]
             f["hp"] = min(f["max_hp"], f["hp"] + s["heal"])
@@ -359,12 +366,16 @@ def _use_skill(st, grid, f, key, angle, power):
         return out
 
     if s["kind"] == "melee":
+        # ฟันได้ 360° — ทิศมาจากมุมที่เล็ง คูณกับฝั่งที่กด ไม่ใช่แค่ซ้าย/ขวาแบน ๆ
+        rad = math.radians(angle)
+        ax, ay = math.cos(rad) * f["face"], -math.sin(rad)
         out["reach"] = s["reach"]
         out["from"] = [f["x"], f["y"]]
         out["face"] = f["face"]
+        out["aim"] = [round(ax, 3), round(ay, 3)]
         hits = []
         out["times"] = s.get("times", 1)
-        for t in weapons.melee_targets(f, st["fighters"], s["reach"]) * s.get("times", 1):
+        for t in weapons.melee_targets(f, st["fighters"], s["reach"], (ax, ay)) * s.get("times", 1):
             if t["dead"]:
                 continue
             dmg = s["dmg"]
@@ -387,9 +398,10 @@ def _use_skill(st, grid, f, key, angle, power):
             # เจาะที่ระดับเข่า — ต่ำพอให้กัดพื้นตรงหน้าจริง (ระดับอกอย่างเดียว
             # ยืนบนลานราบแล้วต่อยไปก็ไม่โดนอะไรเลย) แต่ยังสูงพอไม่ตัดพื้นใต้เท้าขาด
             # จนคู่ต่อสู้ร่วงลงทะเลตายทุกครั้ง — เทสไล่ 15 เมล็ด × ทุกท่าคุมไว้อยู่
-            cx = f["x"] + f["face"] * (s["reach"] // 2)
-            out["blast"] = _explode(st, grid, cx, f["y"] - terrain.CH_H // 4,
-                                    0, 0, s["crater"], "")
+            reach = s["reach"] // 2
+            cx = int(f["x"] + ax * reach)
+            cy = int(f["y"] - terrain.CH_H // 4 + ay * reach)
+            out["blast"] = _explode(st, grid, cx, cy, 0, 0, s["crater"], "")
         if not hits:
             st["log"].append(f"{f['name']} ใช้ {s['name']} แต่ไม่โดนใคร")
         return out
@@ -585,7 +597,7 @@ def _bot_attack(st, grid, me, target):
         me["face"] = 1 if target["x"] > me["x"] else -1
 
     r = _use_skill(st, grid, me, pick,
-                   aim[1] if aim else 45, aim[2] if aim else 70)
+                   aim[1] if aim else None, aim[2] if aim else 70)
     if pick in weapons.ARTIFACTS:              # ของใช้แล้วหมดเหมือนคนจริง
         me["bag"][pick] -= 1
         if me["bag"][pick] <= 0:

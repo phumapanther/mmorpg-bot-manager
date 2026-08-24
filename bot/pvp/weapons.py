@@ -145,14 +145,19 @@ def hit_box(f, other):
             + ((f["y"] - terrain.CH_H // 2) - (other["y"] - terrain.CH_H // 2)) ** 2) ** .5
 
 
-def melee_targets(attacker, fighters, reach):
-    """ใครอยู่ในระยะฟันบ้าง — ต้องอยู่ฝั่งที่หันหน้าไปเท่านั้น"""
+def melee_targets(attacker, fighters, reach, aim=None):
+    """ใครอยู่ในระยะฟันบ้าง — ฟันได้รอบตัว 360° ตามทิศที่เล็ง ไม่ใช่แค่ซ้ายขวา
+
+    aim = เวกเตอร์หนึ่งหน่วยที่เล็งไป · ไม่ส่งมาก็ถือว่าฟันตามทิศที่หันหน้า
+    นับเฉพาะครึ่งวงกลมด้านที่หมัดไป — ฟันขึ้นแล้วโดนคนที่อยู่ใต้เท้าด้วยก็แปลก
+    """
+    ax, ay = aim if aim else (attacker["face"], 0)
     out = []
     for f in fighters:
         if f is attacker or f["dead"]:
             continue
-        dx = f["x"] - attacker["x"]
-        if dx * attacker["face"] < 0:            # อยู่ข้างหลัง ฟันไม่ถึง
+        dx, dy = f["x"] - attacker["x"], f["y"] - attacker["y"]
+        if dx * ax + dy * ay < 0:                # อยู่ด้านหลังหมัด ฟันไม่ถึง
             continue
         if hit_box(attacker, f) <= reach:
             out.append(f)

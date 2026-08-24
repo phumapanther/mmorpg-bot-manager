@@ -12,7 +12,7 @@ import re
 import pytest
 
 import bot.models.player_model as pm
-from bot.pvp import match, physics as P, terrain as T
+from bot.pvp import match, physics as P, terrain as T, weapons as W
 from license_server import web_db
 
 UID = 6402
@@ -213,3 +213,149 @@ def test_a_short_walk_is_played_out_step_by_step():
     assert m, "ไม่ได้หน่วงการเล่นภาพเดินเลย"
     assert int(m.group(1)) > 1, "ก้าวสั้นยังเล่นรวดเดียว"
     assert int(m.group(2)) == 1, "ท่อนยาวก็หน่วงด้วย — ตาบอทจะนานเป็นชาติ"
+
+
+# ── 5. เดินแล้วขาต้องขยับ พื้นต้องไม่ลื่น ──
+
+def test_a_walking_fighter_uses_a_walking_pose():
+    """ยืนท่าเดิมแล้วเลื่อนตัวไป = เห็นเป็นลื่นไถลไปกับพื้น"""
+    body = PLAY[PLAY.index("function wmDrawFighter("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "'run1'" in body and "'run2'" in body, "เดินแล้วยังใช้ท่ายืนเฉย ๆ"
+    assert "WM_ANIM.i % 2" in body, "สลับขาไม่ตามก้าวจริง"
+
+
+def test_the_camera_only_follows_near_the_edge():
+    """ตามทุกเฟรม = ตัวค้างกลางจอ พื้นไหลข้างใต้ เห็นเป็นพื้นลื่น"""
+    body = PLAY[PLAY.index("function wmFocus("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "force || x < mx" in body, "กล้องยังตามติดทุกเฟรม ไม่ได้เช็คว่าใกล้ขอบจอหรือยัง"
+    assert "WM_CAM.center" in body, "ไม่มีทางเลื่อนกล้องกลับมาที่ตัวเลย"
+
+
+def test_the_camera_follows_whoever_is_moving():
+    """ตอนบอทเดิน กล้องเกาะตัวเราอยู่ก็ไม่เห็นว่าบอททำอะไร"""
+    assert "wmFocus(af)" in PLAY, "กล้องไม่ตามคนที่กำลังขยับ"
+
+
+# ── 6. ฟันได้รอบตัว 360° ──
+
+def test_melee_can_be_aimed_in_any_direction(world):
+    """เจ้าของเกมทัก: ตีปกติใช้ได้แค่ซ้ายกับขวา"""
+    fresh()
+    st = match.load(UID)
+    me, foe = st["fighters"]
+    me.update(x=300, y=180, face=1)
+    foe.update(x=300, y=180 - 20)              # ยืนอยู่ "เหนือหัว" เรา
+    match.save(UID, st)
+    good, r = match.attack(UID, "basic", angle=88)
+    assert good, r.get("error")
+    assert any(h["name"] != "คุณ" for h in r["attack"]["hits"]), "ฟันขึ้นข้างบนแล้วไม่โดน"
+
+
+def test_melee_still_misses_what_is_behind_you(world):
+    """รอบตัว ไม่ได้แปลว่าฟันทีเดียวโดนทุกคนรอบทิศ"""
+    fresh()
+    st = match.load(UID)
+    me, foe = st["fighters"]
+    me.update(x=300, y=180, face=1)
+    foe.update(x=300, y=180 + 20)              # อยู่ใต้เท้า แต่เราฟันขึ้น
+    match.save(UID, st)
+    r = match.attack(UID, "basic", angle=88)[1]
+    assert not [h for h in r["attack"]["hits"] if h["name"] != "คุณ"],         "ฟันขึ้นข้างบนแล้วโดนคนที่อยู่ใต้เท้าด้วย"
+
+
+def test_the_server_tells_the_page_which_way_the_swing_went(world):
+    fresh()
+    r = match.attack(UID, "basic", angle=30)[1]
+    assert r["attack"].get("aim"), "ไม่ได้ส่งทิศที่ฟันกลับไปให้เว็บวาด"
+
+
+def test_a_plain_tap_swings_straight_ahead(world):
+    """ไม่เล็ง = ฟันตรงหน้า ไม่ใช่ฟันขึ้นฟ้า 45° แล้วพลาดคนที่ยืนข้าง ๆ"""
+    fresh()
+    r = match.attack(UID, "basic")[1]
+    ax, ay = r["attack"]["aim"]
+    assert abs(ay) < 0.01 and abs(ax) == 1, f"ค่าตั้งต้นฟันไปทาง {ax},{ay}"
+
+
+def test_the_page_aims_melee_the_same_way_as_a_shot():
+    assert "sp.kind === 'melee' ? 0 : 45" in PLAY, "ท่าประชิดไม่ได้เริ่มที่ฟันตรงหน้า"
+    body = PLAY[PLAY.index("function wmSwing("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "a.aim" in body, "วงเหวี่ยงยังหันตามซ้าย/ขวาแทนทิศที่เล็ง"
+
+
+# ── 7. บัฟไม่ใช่การโจมตี ──
+
+BUFFS_ONLY = ["evade", "heal", "aura", "feather_boots", "bark_cloak", "ice_scale"]
+
+
+@pytest.mark.parametrize("key", BUFFS_ONLY)
+def test_a_buff_hurts_nobody_and_breaks_nothing(world, key):
+    """เจ้าของเกมสั่ง: ของป้องกัน/บัฟ ต้องไม่สร้างความเสียหาย
+
+    เรียก _use_skill ตรง ๆ เพราะ attack() จบเทิร์นให้แล้วบอทตีสวนทันที
+    ภูมิประเทศที่พังจากบอทจะกลบผลของบัฟจนวัดไม่ได้
+    """
+    cls = {"evade": "Rogue", "heal": "Cleric", "aura": "Cleric"}.get(key, "Warrior")
+    match.new_practice(UID, {"race": "Human", "cls": cls,
+                             "armor": "None", "weapon": ""}, seed=7)
+    st = match.load(UID)
+    me, foe = st["fighters"]
+    me["look"]["cls"] = cls
+    foe.update(x=me["x"] + 12, y=me["y"])      # ยืนติดตัวเลย จะได้รู้ว่าโดนลูกหลงไหม
+    hp, ground = foe["hp"], st["terrain"]
+    grid = T.decode(st["terrain"])
+
+    a = match._use_skill(st, grid, me, key, None, 70)
+    assert not a.get("hits"), f"{key} ทำดาเมจใส่คนอื่น"
+    assert not a.get("blast"), f"{key} เจาะพื้นเป็นหลุม"
+    assert not a.get("path"), f"{key} ยิงอะไรออกไปด้วย"
+    assert foe["hp"] == hp, f"{key} ทำให้คู่ต่อสู้เลือดลด"
+    assert T.encode(grid) == ground, f"{key} ทำสิ่งแวดล้อมพัง"
+
+
+@pytest.mark.parametrize("key", BUFFS_ONLY)
+def test_a_buff_actually_does_its_own_thing(world, key):
+    """ไม่ทำดาเมจ ก็ต้องไม่ใช่กดแล้วไม่เกิดอะไรเลย"""
+    cls = {"evade": "Rogue", "heal": "Cleric", "aura": "Cleric"}.get(key, "Warrior")
+    match.new_practice(UID, {"race": "Human", "cls": cls,
+                             "armor": "None", "weapon": ""}, seed=7)
+    st = match.load(UID)
+    st["fighters"][0]["look"]["cls"] = cls
+    st["fighters"][0]["hp"] = 40
+    if key in W.ARTIFACTS:
+        st["fighters"][0]["bag"] = {key: 1}
+    match.save(UID, st)
+    a = match.attack(UID, key)[1]["attack"]
+    assert a.get("buff") or a.get("heal"), f"{key} กดแล้วไม่เกิดอะไรเลย"
+    assert a.get("from"), f"{key} ไม่บอกตำแหน่งคนใช้ เว็บเล่นเอฟเฟกต์ไม่ได้"
+
+
+def test_the_page_plays_a_buff_effect_not_an_attack_one():
+    body = PLAY[PLAY.index("function wmShowHit("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "wmBuffFx(a)" in body, "บัฟไม่มีเอฟเฟกต์ของตัวเอง"
+    at = body.index("wmBuffFx(a)")
+    assert "return;" in body[at:at + 120], "เล่นเอฟเฟกต์บัฟแล้วยังไหลไปเล่นเอฟเฟกต์โจมตีต่อ"
+
+
+def test_every_buff_in_the_game_has_its_own_look():
+    look = PLAY[PLAY.index("const WM_BUFF_LOOK"):]
+    look = look[:look.index("};")]
+    for key in W.BUFFS:
+        assert f"{key}:" in look, f"บัฟ {key} ไม่มีสีกับชื่อของตัวเองบนจอ"
+
+
+def test_a_buff_draws_its_own_ring(world):
+    """สีกับชื่ออย่างเดียวไม่พอ ต้องมีอะไรให้เห็นบนจอจริง ๆ ตอนกด"""
+    body = PLAY[PLAY.index("function wmDrawFx("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "WM_AURAS.forEach" in body, "ไม่ได้วาดวงแหวนบัฟเลย"
+    assert "ctx.arc(" in body[body.index("WM_AURAS.forEach"):][:400], "วนลูปแล้วแต่ไม่ได้วาดอะไร"
+    assert "wmBuffFx" in PLAY and "WM_AURAS.push" in PLAY, "ไม่มีใครใส่วงแหวนเข้าคิว"
+
+
+def test_buff_text_is_not_damage_coloured():
+    assert "p.buff ? '#8ef0b0'" in PLAY, "ตัวหนังสือบัฟยังใช้สีแดงเหมือนตัวเลขดาเมจ"

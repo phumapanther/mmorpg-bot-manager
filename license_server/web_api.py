@@ -1816,7 +1816,7 @@ class WormsBody(BaseModel):
     steps: int = 1
     seed: int = 0
     skill: str = ""            # สกิลที่ใช้ (ตอน attack)
-    angle: float = 45          # มุมเล็ง องศา
+    angle: float | None = None   # มุมเล็ง องศา · ไม่ส่งมาก็ใช้ค่าตั้งต้นตามชนิดท่า
     power: float = 70          # แรงยิง 10-100
 
 

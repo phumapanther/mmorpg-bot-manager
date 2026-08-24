@@ -2019,7 +2019,7 @@ function wmApply(d) {
     WM_CAM.attach(null);
     if (!cv.dataset.aimed) { cv.dataset.aimed = '1'; wmBindAim(cv); }
     WM_CAM.z = 3;
-    wmFocus();
+    wmFocus(null, true);
     wmStartLoop();
   } else {
     WM.props = d.props; WM.repaint();
@@ -2029,9 +2029,18 @@ function wmApply(d) {
 
 function wmMe() { return WM_ST.fighters[WM_ST.turn]; }
 
-function wmFocus() {
-  const f = wmMe();
-  if (WM_CAM && f) WM_CAM.center(f.x, f.y - 10);
+/** เลื่อนกล้องตามเฉพาะตอนตัวใกล้ขอบจอ
+
+    ตามทุกเฟรมแล้วตัวจะค้างกลางจอ พื้นไหลอยู่ข้างใต้ — เห็นเป็นยืนลื่นไถลไปกับพื้น
+    ต้องปล่อยให้ตัวเดินข้ามพื้นจริง ๆ แล้วค่อยเลื่อนจอตามเมื่อจะตกขอบ
+ */
+function wmFocus(f, force) {
+  f = f || wmMe();
+  if (!WM_CAM || !f) return;
+  const x = WM_CAM.sx(f.x), y = WM_CAM.sy(f.y);
+  const mx = WM_CAM.vw * 0.28, my = WM_CAM.vh * 0.28;
+  if (force || x < mx || x > WM_CAM.vw - mx || y < my || y > WM_CAM.vh - my)
+    WM_CAM.center(f.x, f.y - 10);
 }
 
 function wmStartLoop() {
@@ -2051,7 +2060,7 @@ function wmStartLoop() {
         const af = WM_ST.fighters[WM_ANIM.fi];    // อ่านสดทุกเฟรม สถานะอาจถูกแทนไปแล้ว
         if (af) { af.x = x; af.y = y; }
         if (WM_ANIM.i % 3 === 0) SFX.play('walk');
-        wmFocus();
+        wmFocus(af);              // ตามคนที่กำลังขยับ ไม่ใช่ตาปัจจุบัน จะได้เห็นบอทเดินด้วย
       }
     } else if (WM_ANIM) {
       WM_ANIM = WM_QUEUE.shift() || null;      // ท่อนถัดไปของบอท (ถ้ามี)
@@ -2060,7 +2069,9 @@ function wmStartLoop() {
     wmTick();
 
     WM.draw(ctx, WM_CAM, t++);
-    WM_ST.fighters.forEach((f, i) => { if (!f.dead) wmDrawFighter(ctx, f, i === WM_ST.turn, t); });
+    WM_ST.fighters.forEach((f, i) => {
+      if (!f.dead) wmDrawFighter(ctx, f, i === WM_ST.turn, t, WM_ANIM && WM_ANIM.fi === i);
+    });
     wmDrawFx(ctx);
     wmLoop = requestAnimationFrame(tick);
   };
@@ -2068,10 +2079,12 @@ function wmStartLoop() {
 }
 
 /** วาดนักสู้ตามกล้อง — ซูมออกสุดตัวจะเล็กมาก จึงมีแถบเลือดกับลูกศรชี้ตาปัจจุบัน */
-function wmDrawFighter(ctx, f, active, t) {
+function wmDrawFighter(ctx, f, active, t, walking) {
   const z = WM_CAM.z, x = WM_CAM.sx(f.x), y = WM_CAM.sy(f.y);
   if (x < -60 || x > WM_CAM.vw + 60) return;
-  const look = { ...(f.look || {}), pose: 'idle', flip: f.face < 0 };
+  // เดินอยู่ก็สลับท่าขาตามก้าวจริง ไม่ใช่ยืนท่าเดิมแล้วเลื่อนตัวไป (เห็นเป็นลื่นไถล)
+  const pose = walking ? (WM_ANIM.i % 2 ? 'run1' : 'run2') : 'idle';
+  const look = { ...(f.look || {}), pose: pose, flip: f.face < 0 };
   const hurt = WM_FLASH[f.name] || 0;
   if (hurt) { WM_FLASH[f.name] = hurt - 1; ctx.globalAlpha = hurt % 4 < 2 ? .35 : 1; }
   if (z >= 2) drawCharacter(ctx, x - 8 * z, y - 21 * z, z, look);
@@ -2156,7 +2169,8 @@ function wmBindAim(cv) {
     if (!WM_SKILL || wmBusy || !WM_ST || !WM_ST.active || WM_ST.over || wmMe().bot) return;
     const p = at(e), sp = wmSpec(WM_SKILL);
     if (!sp) return;
-    WM_AIM = { t0: performance.now(), y0: p.y, ang: 45, pow: 10, kind: sp.kind,
+    WM_AIM = { t0: performance.now(), y0: p.y, pow: 10, kind: sp.kind,
+               ang: sp.kind === 'melee' ? 0 : 45,     // ฟันตรงหน้า / โยนโค้ง 45°
                dir: WM_CAM.mx(p.x) >= wmMe().x ? 1 : -1 };
     WM_CAM.locked = true;              // ห้ามลากเลื่อนกล้องทับการเล็ง
     SFX.play('click');
@@ -2164,7 +2178,8 @@ function wmBindAim(cv) {
   };
   const move = e => {
     if (!WM_AIM) return;
-    WM_AIM.ang = Math.max(-60, Math.min(85, 45 + (WM_AIM.y0 - at(e).y) * 0.5));
+    const base = WM_AIM.kind === 'melee' ? 0 : 45;
+    WM_AIM.ang = Math.max(-89, Math.min(89, base + (WM_AIM.y0 - at(e).y) * 0.5));
     e.preventDefault();
   };
   const up = () => {
@@ -2276,11 +2291,15 @@ function wmShowHit(a, byBot) {
     return;
   }
 
+  if (a.kind === 'self') {          // บัฟ/ของป้องกัน — ไม่มีวงฟัน ไม่มีหลุม ไม่มีตัวเลขดาเมจ
+    wmBuffFx(a);
+    if (byBot) toast(`🤖 บอทใช้ ${a.name}`);
+    return;
+  }
   if (a.kind === 'melee') wmSwing(a);
   wmPop(hits);
   if (a.blast) wmLand(a.blast);
   if (hits.some(h => !h.dodged)) SFX.play('foehit');
-  if (a.heal) toast(`✨ ฟื้นเลือด +${a.heal}`);
   if (byBot) toast(`🤖 บอทใช้ ${a.name}`, hits.some(h => h.name === 'คุณ' && !h.dodged));
 }
 
@@ -2313,6 +2332,32 @@ function wmPop(hits, kind) {
   });
 }
 
+/** ✨ เอฟเฟกต์บัฟ — วงแหวนสีประจำบัฟขยายรอบตัว + ชื่อบัฟลอยขึ้น
+
+    จงใจแยกจากเอฟเฟกต์โจมตีให้ขาด: ไม่มีสะเก็ด ไม่มีหลุม ไม่มีเลขดาเมจสีแดง
+    ไม่งั้นกดโล่แล้วเห็นภาพเหมือนตีคน นึกว่าโจมตีตัวเอง
+ */
+const WM_BUFF_LOOK = {
+  heal:    ['#7ef2a0', '✨ ฟื้นเลือด'],
+  evade:   ['#9fd8ff', '💨 หลบหลีก'],
+  aura:    ['#ffe08a', '🛡️ ออร่าคุ้มกาย'],
+  feather: ['#dff2ff', '🥾 ตกไม่เจ็บ'],
+  bark:    ['#d0a878', '🧥 กันหนึ่งครั้ง'],
+  reflect: ['#a8e8ff', '🧊 สะท้อนกลับ'],
+  slow:    ['#9fd8ff', '❄️ ช้าลง'],
+  emp:     ['#c9a6ff', '⚡ EMP'],
+};
+let WM_AURAS = [];
+
+function wmBuffFx(a) {
+  if (!a.from) return;
+  const key = a.buff || (a.heal ? 'heal' : '');
+  const [color, label] = WM_BUFF_LOOK[key] || ['#ffd66b', a.name];
+  WM_AURAS.push({ x: a.from[0], y: a.from[1], color: color, t: 0 });
+  WM_POPS.push({ x: a.from[0], y: a.from[1] - 30, t: 0, buff: true,
+                 text: a.heal ? `${label} +${a.heal}` : label });
+}
+
 function wmBoom(b) { WM_BOOMS.push({ x: b.x, y: b.y, r: (b.crater || 8) * 1.6, t: 0 }); }
 
 /** เส้นประตามวิถีกระสุน — บอกว่ามันโค้งไปถึงตรงนั้นได้ยังไง */
@@ -2331,7 +2376,9 @@ function wmDrawTrail(ctx, path, alpha) {
 /** วงเหวี่ยงของสกิลประชิด — บอกให้เห็นว่าฟันไปถึงตรงไหน */
 function wmSwing(a) {
   if (!a.from) return;
-  WM_SWINGS.push({ x: a.from[0], y: a.from[1], face: a.face || 1, r: a.reach || 24, t: 0 });
+  const [ax, ay] = a.aim || [a.face || 1, 0];       // ฟันได้รอบตัว วงเหวี่ยงต้องหันตาม
+  WM_SWINGS.push({ x: a.from[0], y: a.from[1], r: a.reach || 24, t: 0,
+                   mid: Math.atan2(ay, ax) });
 }
 
 /** เส้นเล็ง — บอกทิศ/มุม/แรงที่เลือกไว้ (ไม่ใช่การทำนายวิถี กติกาอยู่ที่เซิร์ฟเวอร์) */
@@ -2339,12 +2386,11 @@ function wmDrawAim(ctx) {
   if (!WM_AIM || !WM_ST || !WM_CAM) return;
   const f = wmMe(), z = WM_CAM.z, pw = WM_AIM.pow;
   const x0 = WM_CAM.sx(f.x), y0 = WM_CAM.sy(f.y) - 11 * z;
-  if (WM_AIM.kind === 'melee') {                 // ประชิดไม่ต้องเล็งมุม บอกแค่ทิศที่จะฟาด
-    ctx.fillStyle = '#ffd66b';
-    for (let i = 0; i < 3; i++)
-      ctx.fillRect(x0 + (9 + i * 7) * WM_AIM.dir - 2, y0 - 2 - i, 5, 3 + i * 2);
-  } else {
-    const ang = WM_AIM.ang * Math.PI / 180, len = 14 + pw * 0.6;
+  {
+    // ประชิดก็เล็งได้รอบตัวเหมือนกัน ต่างแค่ระยะคงที่ ชาร์จไม่ได้ไกลขึ้น
+    const melee = WM_AIM.kind === 'melee';
+    const ang = WM_AIM.ang * Math.PI / 180;
+    const len = melee ? (wmSpec(WM_SKILL) || {}).reach || 26 : 14 + pw * 0.6;
     ctx.strokeStyle = '#ffd66b'; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
     ctx.beginPath(); ctx.moveTo(x0, y0);
     ctx.lineTo(x0 + Math.cos(ang) * len * WM_AIM.dir, y0 - Math.sin(ang) * len);
@@ -2354,6 +2400,7 @@ function wmDrawAim(ctx) {
     ctx.fillStyle = '#fff'; ctx.font = '10px monospace'; ctx.textAlign = 'left';
     ctx.fillText(Math.round(WM_AIM.ang) + '°', x0 + 8 * WM_AIM.dir, y0 - 16);
   }
+  if (WM_AIM.kind === 'melee') return;             // ประชิดชาร์จไม่ได้ ไม่ต้องมีแถบ
   const bw = 44, bx = x0 - bw / 2, by = y0 - 34;   // แถบชาร์จเหนือหัว
   ctx.fillStyle = '#000000aa'; ctx.fillRect(bx - 1, by - 1, bw + 2, 7);
   ctx.fillStyle = pw > 85 ? '#ff6a4a' : pw > 55 ? '#ffd66b' : '#6fd07a';
@@ -2363,6 +2410,16 @@ function wmDrawAim(ctx) {
 /** วาดกระสุนที่กำลังบิน + ลูกไฟระเบิด + ตัวเลขดาเมจ + วงเหวี่ยงฟัน */
 function wmDrawFx(ctx) {
   wmDrawAim(ctx);
+  // ✨ วงแหวนบัฟ — ขยายออกจากตัวคนใช้แล้วจางหาย
+  WM_AURAS = WM_AURAS.filter(v => v.t < 26);
+  WM_AURAS.forEach(v => {
+    const k = v.t++ / 26, z = WM_CAM.z;
+    ctx.strokeStyle = v.color; ctx.globalAlpha = (1 - k) * .9;
+    ctx.lineWidth = Math.max(1.5, z * .8);
+    ctx.beginPath();
+    ctx.arc(WM_CAM.sx(v.x), WM_CAM.sy(v.y - 11), (4 + k * 20) * z, 0, 7);
+    ctx.stroke(); ctx.globalAlpha = 1;
+  });
   WM_SWINGS = WM_SWINGS.filter(s => s.t < 10);
   WM_SWINGS.forEach(s => {
     const k = s.t++ / 10, z = WM_CAM.z;
@@ -2370,7 +2427,7 @@ function wmDrawFx(ctx) {
     ctx.lineWidth = Math.max(2, z);
     ctx.beginPath();
     ctx.arc(WM_CAM.sx(s.x), WM_CAM.sy(s.y - 10), s.r * z * (.5 + k * .6),
-            s.face > 0 ? -0.9 : 2.2, s.face > 0 ? 0.9 : 4.1);
+            s.mid - 0.9, s.mid + 0.9);
     ctx.stroke(); ctx.globalAlpha = 1;
   });
   // 🌠 กระสุนที่กำลังบิน — ลากเส้นประไว้ข้างหลังให้เห็นว่าโค้งไปยังไง
@@ -2429,7 +2486,7 @@ function wmDrawFx(ctx) {
     ctx.textAlign = 'center';
     const x = WM_CAM.sx(p.x), y = WM_CAM.sy(p.y) - k * 26 * WM_CAM.z / 2;
     ctx.fillStyle = '#000'; ctx.fillText(p.text, x + 1, y + 1);
-    ctx.fillStyle = p.miss ? '#9fd0e8' : '#ff6a4a';
+    ctx.fillStyle = p.buff ? '#8ef0b0' : p.miss ? '#9fd0e8' : '#ff6a4a';
     ctx.fillText(p.text, x, y);
     ctx.globalAlpha = 1; ctx.textAlign = 'left';
   });

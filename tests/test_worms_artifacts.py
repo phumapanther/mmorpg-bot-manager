@@ -313,7 +313,7 @@ def test_you_can_aim_downhill():
     """เลเซอร์ใช้ได้จริงแค่มุมเกือบราบ และบางทีต้องยิงลงจากหน้าผา"""
     import re
 
-    m = re.search(r"Math\.max\((-?\d+), Math\.min\((-?\d+), 45", PLAY)
+    m = re.search(r"Math\.max\((-?\d+), Math\.min\((-?\d+), base", PLAY)
     assert m, "หาช่วงองศาที่ยอมให้เล็งไม่เจอ"
     assert int(m.group(1)) <= 0, "เล็งลงต่ำกว่าแนวราบไม่ได้"
 
