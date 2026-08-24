@@ -70,7 +70,18 @@ def test_login_codes_are_rate_limited_hardest():
     """ขอโค้ดล็อกอินรัว = สุ่มเดาโค้ดคนอื่น ต้องคุมแน่นและหน้าต่างยาว"""
     assert rate_limit.LIMITS["auth"][0] <= 10 and rate_limit.LIMITS["auth"][1] >= 300
     assert rate_limit.group_for("/api/web/login/code", "POST") == "auth"
-    assert rate_limit.group_for("/api/web/login/status", "GET") == "auth"
+    assert rate_limit.group_for("/api/web/login/t/abc", "GET") == "auth"
+
+
+def test_checking_your_own_code_is_not_the_same_as_asking_for_one():
+    """เดิมรวมสองอย่างนี้ไว้กลุ่มเดียวกัน แล้วล็อกอินพังจริง
+
+    หน้าล็อกอินหมุนถามสถานะทุก 2.5 วิ รอผู้ใช้ไปพิมพ์โค้ดในดิส
+    โควตา 10 ครั้ง/5 นาที เลยหมดใน 25 วินาที หน้าเว็บค้างก่อนผู้ใช้จะพิมพ์ทัน
+    รายละเอียดครบอยู่ใน tests/test_login_flow.py
+    """
+    assert rate_limit.group_for("/api/web/login/status", "GET") == "poll"
+    assert rate_limit.LIMITS["poll"][0] > 300 / 2.5, "หมุนถามครบ 5 นาทีไม่ได้"
 
 
 def test_non_api_paths_are_left_alone():
