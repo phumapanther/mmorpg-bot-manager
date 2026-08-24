@@ -969,3 +969,9 @@ body.bar-min .pbar .money { margin-left: auto; }
 .wm-items .wm-item .cd { color: var(--g-gold); }
 .wm-empty { grid-column: 1 / -1; font-size: 12px; color: var(--g-dim); padding: 4px 2px; }
 .wm-idle .wm-items { display: none; }
+
+/* 🎯 แถบบอกวิธีเล็ง — แทนที่แผงปุ่มมุม/แรง/ยิงที่ทิ้งไปแล้ว */
+#wmAim { display: block; margin: 6px 0 0; padding: 7px 10px; border-radius: 8px;
+  background: #2a2136; border: 1px solid #4a3c5e; color: #ffd66b;
+  font-size: .82rem; line-height: 1.5; text-align: center; }
+#wmAim[hidden] { display: none; }

@@ -163,12 +163,18 @@ def test_moving_costs_the_turn_budget(world):
 
 
 def test_you_cannot_move_forever(world):
+    """เทิร์นเดียวเดินได้เท่าที่แรงมี — หมดแล้วเซิร์ฟเวอร์จบเทิร์นให้ ไม่ใช่ปล่อยเดินต่อ"""
     match.new_practice(UID, LOOK, seed=7)
+    spent = 0
     for _ in range(60):
-        ok, _ = match.move(UID, "walk", 1, 5)
+        ok, r = match.move(UID, "walk", 1, 5)
         if not ok:
             break
-    assert not match.move(UID, "walk", 1, 5)[0], "แรงหมดแล้วยังเดินได้อีก"
+        spent += len(r["move"]["path"])
+        if r.get("auto_ended"):
+            assert spent <= match.MOVE_BUDGET, f"เทิร์นเดียวเดินไป {spent} ก้าว เกินแรงที่มี"
+            return
+    pytest.fail("เดินจนสุดแรงแล้วเทิร์นก็ยังไม่จบ — เดินได้ไม่รู้จบ")
 
 
 def test_ending_a_turn_hands_over_and_refills(world):

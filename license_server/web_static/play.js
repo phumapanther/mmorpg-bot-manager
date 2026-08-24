@@ -97,16 +97,6 @@ document.getElementById('wmSame')?.addEventListener('click', () => {
   const seed = prompt('วางรหัสแผนที่ที่อยากเปิด', document.getElementById('wmSeed').textContent);
   if (seed && /^\d+$/.test(seed.trim())) wmNewMatch(seed.trim());
 });
-document.getElementById('wmFire')?.addEventListener('click', () => WM_SKILL && wmAttack(WM_SKILL));
-document.querySelectorAll('[data-dir]').forEach(b => b.addEventListener('click', () => {
-  WM_DIR = +b.dataset.dir;
-  document.querySelectorAll('[data-dir]').forEach(x => x.classList.toggle('on', x === b));
-  SFX.play('click');
-}));
-['wmAngle', 'wmPower'].forEach(id => document.getElementById(id)?.addEventListener('input', e => {
-  document.getElementById(id === 'wmAngle' ? 'wmAngVal' : 'wmPowVal').textContent =
-    e.target.value + (id === 'wmAngle' ? '°' : '');
-}));
 document.getElementById('wmIn')?.addEventListener('click', () => wmZoom(1));
 document.getElementById('wmOut')?.addEventListener('click', () => wmZoom(-1));
 document.getElementById('wmFit')?.addEventListener('click', () => {
@@ -2016,6 +2006,7 @@ async function wmNewMatch(seed) {
 /** รับสถานะจากเซิร์ฟเวอร์มาแสดง — พื้นสร้างใหม่เฉพาะตอนแมตช์เปลี่ยน */
 function wmApply(d) {
   const fresh = !WM || !WM_ST || WM_ST.seed !== d.seed;
+  WM_ANIM = null; WM_QUEUE = [];   // สถานะถูกแทนทั้งก้อน ภาพที่ค้างเป็นของสถานะเก่าไปแล้ว
   WM_ST = d;
   document.getElementById('v-worms').classList.toggle('wm-idle', !d.active);
   if (!d.active) { cancelAnimationFrame(wmLoop); wmLoop = 0; return; }
@@ -2023,8 +2014,10 @@ function wmApply(d) {
   WM_DEADLINE = performance.now() + (d.time_left || 0) * 1000;
   if (fresh) {
     WM = new WormsMap(d);
-    WM_CAM = new WormsCam(document.getElementById('wmCanvas'), WM);
+    const cv = document.getElementById('wmCanvas');
+    WM_CAM = new WormsCam(cv, WM);
     WM_CAM.attach(null);
+    if (!cv.dataset.aimed) { cv.dataset.aimed = '1'; wmBindAim(cv); }
     WM_CAM.z = 3;
     wmFocus();
     wmStartLoop();
@@ -2050,7 +2043,8 @@ function wmStartLoop() {
     // เล่นภาพเส้นทางที่เซิร์ฟเวอร์ส่งมาทีละเฟรม (ตำแหน่งจริงเซิร์ฟเวอร์ตัดสินไปแล้ว)
     if (WM_ANIM && WM_ANIM.i < WM_ANIM.path.length) {
       const [x, y] = WM_ANIM.path[WM_ANIM.i++];
-      WM_ANIM.f.x = x; WM_ANIM.f.y = y;
+      const af = WM_ST.fighters[WM_ANIM.fi];      // อ่านสดทุกเฟรม สถานะอาจถูกแทนไปแล้ว
+      if (af) { af.x = x; af.y = y; }
       if (WM_ANIM.i % 3 === 0) SFX.play('walk');
       wmFocus();
     } else if (WM_ANIM) {
@@ -2094,6 +2088,7 @@ let wmTimingOut = false, wmNextTimeout = 0;
 
 /** นับถอยหลังบนจอ + พอหมดเวลาก็ขอจบเทิร์น (เซิร์ฟเวอร์เช็คเวลาเองอีกชั้น) */
 function wmTick() {
+  if (WM_AIM) WM_AIM.pow = Math.min(100, 10 + (performance.now() - WM_AIM.t0) * 90 / WM_CHARGE_MS);
   const el = document.getElementById('wmClock');
   if (!el || !WM_ST || !WM_ST.active) return;
   const left = WM_ST.over ? 0 : Math.max(0, Math.ceil((WM_DEADLINE - performance.now()) / 1000));
@@ -2135,7 +2130,51 @@ function wmPaintHud() {
 }
 
 let WM_SKILL = null;       // สกิลที่เลือกไว้ (ที่ต้องเล็งจะรอกดยิงอีกที)
-let WM_DIR = 1;            // ทิศที่จะยิง — เลือกเองได้ ไม่ใช่ตามที่เดินล่าสุด
+// 🎯 เล็งด้วยการกดค้างบนแผนที่ — ไม่มีปุ่มมุม/แรง/ยิงมารกจอ
+//    กดฝั่งไหน = ยิงไปทางนั้น · ค้างนาน = แรงขึ้น(ไกลขึ้น) · เลื่อนขึ้นลง = ปรับองศา · ปล่อย = ยิง
+let WM_AIM = null;
+const WM_CHARGE_MS = 1100;    // กดค้างนานเท่านี้แถบชาร์จเต็ม
+
+function wmSpec(key) {
+  return (WM_ST.skills || []).concat(WM_ST.items || []).find(x => x.key === key);
+}
+
+/** ผูกการเล็งเข้ากับผืนผ้าใบ — เรียกครั้งเดียวตอนเปิดสนามแรก */
+function wmBindAim(cv) {
+  const at = e => {
+    const r = cv.getBoundingClientRect(), t = e.touches ? e.touches[0] : e;
+    return { x: (t.clientX - r.left) * cv.width / r.width,
+             y: (t.clientY - r.top) * cv.height / r.height };
+  };
+  const down = e => {
+    if (!WM_SKILL || wmBusy || !WM_ST || !WM_ST.active || WM_ST.over || wmMe().bot) return;
+    const p = at(e), sp = wmSpec(WM_SKILL);
+    if (!sp) return;
+    WM_AIM = { t0: performance.now(), y0: p.y, ang: 45, pow: 10, kind: sp.kind,
+               dir: WM_CAM.mx(p.x) >= wmMe().x ? 1 : -1 };
+    WM_CAM.locked = true;              // ห้ามลากเลื่อนกล้องทับการเล็ง
+    SFX.play('click');
+    e.preventDefault();
+  };
+  const move = e => {
+    if (!WM_AIM) return;
+    WM_AIM.ang = Math.max(-60, Math.min(85, 45 + (WM_AIM.y0 - at(e).y) * 0.5));
+    e.preventDefault();
+  };
+  const up = () => {
+    if (!WM_AIM) return;
+    const a = WM_AIM;
+    WM_AIM = null; WM_CAM.locked = false;
+    wmAttack(WM_SKILL, Math.round(a.ang), Math.round(a.pow), a.dir);
+  };
+  cv.addEventListener('mousedown', down);
+  cv.addEventListener('touchstart', down, { passive: false });
+  addEventListener('mousemove', move);
+  cv.addEventListener('touchmove', move, { passive: false });
+  addEventListener('mouseup', up);
+  cv.addEventListener('touchend', up);
+  cv.addEventListener('touchcancel', up);
+}
 
 function wmPaintSkills() {
   const box = document.getElementById('wmSkills');
@@ -2174,24 +2213,29 @@ function wmPickSkill(key) {
   const s = (WM_ST.skills || []).concat(WM_ST.items || []).find(x => x.key === key);
   if (!s) return;
   SFX.play('click');
-  if (!s.aim) { WM_SKILL = null; wmAttack(key); return; }
-  WM_SKILL = WM_SKILL === key ? null : key;
+  if (s.kind === 'self') { WM_SKILL = null; wmAttack(key, 45, 70, wmMe().face); return; }
+  WM_SKILL = WM_SKILL === key ? null : key;    // ที่เหลือรอกดค้างบนแผนที่
   wmPaintSkills();
 }
 
 function wmShowAim() {
   const el = document.getElementById('wmAim');
-  if (el) el.hidden = !WM_SKILL;
+  if (!el) return;
+  el.hidden = !WM_SKILL;
+  if (!WM_SKILL) return;
+  const sp = wmSpec(WM_SKILL) || {};
+  el.textContent = sp.kind === 'melee'
+    ? '🎯 ' + sp.name + ' — แตะค้างบนแผนที่ ฝั่งที่จะฟาด แล้วปล่อย'
+    : '🎯 ' + sp.name + ' — กดค้างบนแผนที่ ฝั่งที่จะยิง (ค้างนาน = ไกลขึ้น) '
+      + 'เลื่อนขึ้นลงปรับองศา ปล่อยเพื่อยิง';
 }
 
-async function wmAttack(key) {
+async function wmAttack(key, ang, pow, dir) {
   if (wmBusy || performance.now() < WM_BACKOFF) return;
   wmBusy = true;
   try {
     const d = await api('POST', '/api/web/pvp/worms/match', {
-      action: 'attack', skill: key, dir: WM_DIR,
-      angle: +document.getElementById('wmAngle').value,
-      power: +document.getElementById('wmPower').value,
+      action: 'attack', skill: key, dir: dir, angle: ang, power: pow,
     });
     WM_SKILL = null;
     wmPlayAttack(d);
@@ -2204,10 +2248,7 @@ function wmPlayAttack(d) {
   wmShowHit(d.attack || {});
   wmApply(d);
   // ตาบอทต่อทันที — ต้องเห็นด้วยว่าบอททำอะไรเรา ไม่งั้นเลือดลดแล้วนึกว่าตีตัวเอง
-  const bot = WM_ST.fighters.find(f => f.bot);
-  WM_QUEUE = (d.bot_moves || []).filter(m => (m.path || []).length)
-                                .map(m => ({ f: bot, path: m.path, i: 0 }));
-  if (WM_QUEUE.length) WM_ANIM = WM_QUEUE.shift();
+  wmQueueBot(d);
   const shots = (d.bot_moves || []).filter(m => m.attack).map(m => m.attack);
   if (shots.length) setTimeout(() => shots.forEach(a => wmShowHit(a, true)), 420);
 }
@@ -2289,20 +2330,28 @@ function wmSwing(a) {
 
 /** เส้นเล็ง — บอกทิศ/มุม/แรงที่เลือกไว้ (ไม่ใช่การทำนายวิถี กติกาอยู่ที่เซิร์ฟเวอร์) */
 function wmDrawAim(ctx) {
-  if (!WM_SKILL || !WM_ST || WM_ST.over) return;
-  const f = wmMe();
-  if (!f || f.bot) return;
-  const ang = +document.getElementById('wmAngle').value * Math.PI / 180;
-  const pw = +document.getElementById('wmPower').value;
-  const x0 = WM_CAM.sx(f.x), y0 = WM_CAM.sy(f.y - 10);
-  const len = (16 + pw * 0.42) * WM_CAM.z / 2;
-  ctx.strokeStyle = '#ffd66b'; ctx.lineWidth = Math.max(1, WM_CAM.z / 2);
-  ctx.setLineDash([3, 3]);
-  ctx.beginPath(); ctx.moveTo(x0, y0);
-  ctx.lineTo(x0 + Math.cos(ang) * len * WM_DIR, y0 - Math.sin(ang) * len);
-  ctx.stroke(); ctx.setLineDash([]);
-  ctx.fillStyle = '#ffd66b';
-  ctx.fillRect(x0 + Math.cos(ang) * len * WM_DIR - 2, y0 - Math.sin(ang) * len - 2, 4, 4);
+  if (!WM_AIM || !WM_ST || !WM_CAM) return;
+  const f = wmMe(), z = WM_CAM.z, pw = WM_AIM.pow;
+  const x0 = WM_CAM.sx(f.x), y0 = WM_CAM.sy(f.y) - 11 * z;
+  if (WM_AIM.kind === 'melee') {                 // ประชิดไม่ต้องเล็งมุม บอกแค่ทิศที่จะฟาด
+    ctx.fillStyle = '#ffd66b';
+    for (let i = 0; i < 3; i++)
+      ctx.fillRect(x0 + (9 + i * 7) * WM_AIM.dir - 2, y0 - 2 - i, 5, 3 + i * 2);
+  } else {
+    const ang = WM_AIM.ang * Math.PI / 180, len = 14 + pw * 0.6;
+    ctx.strokeStyle = '#ffd66b'; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(x0, y0);
+    ctx.lineTo(x0 + Math.cos(ang) * len * WM_AIM.dir, y0 - Math.sin(ang) * len);
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = '#ffd66b';
+    ctx.fillRect(x0 + Math.cos(ang) * len * WM_AIM.dir - 2, y0 - Math.sin(ang) * len - 2, 5, 5);
+    ctx.fillStyle = '#fff'; ctx.font = '10px monospace'; ctx.textAlign = 'left';
+    ctx.fillText(Math.round(WM_AIM.ang) + '°', x0 + 8 * WM_AIM.dir, y0 - 16);
+  }
+  const bw = 44, bx = x0 - bw / 2, by = y0 - 34;   // แถบชาร์จเหนือหัว
+  ctx.fillStyle = '#000000aa'; ctx.fillRect(bx - 1, by - 1, bw + 2, 7);
+  ctx.fillStyle = pw > 85 ? '#ff6a4a' : pw > 55 ? '#ffd66b' : '#6fd07a';
+  ctx.fillRect(bx, by, bw * pw / 100, 5);
 }
 
 /** วาดกระสุนที่กำลังบิน + ลูกไฟระเบิด + ตัวเลขดาเมจ + วงเหวี่ยงฟัน */
@@ -2397,14 +2446,16 @@ async function wmDo(action, dir) {
   try {
     const d = await api('POST', '/api/web/pvp/worms/match',
                         { action: action, dir: dir, steps: WM_WALK_STEPS });
-    const before = WM_ST.fighters[WM_ST.turn];
+    const mine = WM_ST.turn;              // ตาใครตอนสั่ง — แรงหมดแล้วเซิร์ฟเวอร์สลับตาให้แล้ว
+    const from = { ...WM_ST.fighters[mine] };
+    WM_ANIM = null; WM_QUEUE = [];
     WM_ST = { ...d };
-    const f = WM_ST.fighters[WM_ST.turn];
     if (d.move && d.move.path.length) {
-      f.x = before.x; f.y = before.y;
-      WM_ANIM = { f: f, path: d.move.path, i: 0 };
+      WM_ST.fighters[mine].x = from.x; WM_ST.fighters[mine].y = from.y;
+      WM_ANIM = { fi: mine, path: d.move.path, i: 0 };
       if (action === 'jump') SFX.play('skill');
     }
+    if (d.auto_ended) { wmQueueBot(d); toast('⏭️ แรงเดินหมด — จบเทิร์นให้อัตโนมัติ'); }
     (d.sprung || []).forEach(() => { SFX.play('trap'); toast('🕳️ เหยียบกับดัก!', true); });
     (d.opened || []).forEach(o => { SFX.play('chest');
       toast('🎁 เปิดหีบได้ ' + (o.name || 'ของ') + '!'); });
@@ -2419,17 +2470,25 @@ async function wmEndTurn(how) {
   try {
     const d = await api('POST', '/api/web/pvp/worms/match', { action: how || 'end' });
     wmApply(d);
-    // บอทเดินไปแล้วฝั่งเซิร์ฟเวอร์ ที่นี่แค่เล่นภาพตามเส้นทางที่ได้มาทีละท่อน
-    const bot = WM_ST.fighters.find(f => f.bot);
-    WM_QUEUE = (d.bot_moves || []).filter(m => m.path.length)
-                                  .map(m => ({ f: bot, path: m.path, i: 0 }));
-    if (WM_QUEUE.length && bot) {
-      const first = d.bot_moves.find(m => m.path.length);
-      bot.x = first.path[0][0]; bot.y = first.path[0][1];
-      WM_ANIM = WM_QUEUE.shift();
-    }
+    wmQueueBot(d);
     SFX.play('click');
   } catch (e) { if (!wmBackoff(e)) toast(e.message, true); }
+}
+
+/** ต่อคิวภาพตาบอท — บอทเดินไปแล้วฝั่งเซิร์ฟเวอร์ ที่นี่แค่เล่นภาพตามเส้นทางที่ได้มา
+
+    ⚠️ ต้องย้อนบอทกลับไปจุดเริ่มก่อน ไม่งั้นมันโผล่ที่หมายทันทีแล้วค่อยเด้งกลับมาเดินซ้ำ
+ */
+function wmQueueBot(d) {
+  const bi = WM_ST.fighters.findIndex(f => f.bot);
+  const moves = (d.bot_moves || []).filter(m => (m.path || []).length);
+  if (bi < 0 || !moves.length) return;
+  if (!WM_ANIM || WM_ANIM.fi !== bi) {
+    WM_ST.fighters[bi].x = moves[0].path[0][0];
+    WM_ST.fighters[bi].y = moves[0].path[0][1];
+  }
+  moves.forEach(m => WM_QUEUE.push({ fi: bi, path: m.path, i: 0 }));
+  if (!WM_ANIM) WM_ANIM = WM_QUEUE.shift();
 }
 
 /** กดค้าง = เดินต่อเนื่อง (ยิงเป็นก้อนละ 5 ก้าว ไม่ใช่ยิงทุกก้าว) */

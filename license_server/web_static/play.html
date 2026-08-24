@@ -394,15 +394,7 @@
       </div>
       <div class="wm-skills" id="wmSkills"></div>
       <div class="wm-items" id="wmItems"></div>
-      <div class="wm-aim" id="wmAim" hidden>
-        <div class="wm-dir">ยิงไปทาง
-          <button data-dir="-1">◀ ซ้าย</button><button data-dir="1" class="on">ขวา ▶</button></div>
-        <label>มุม <b id="wmAngVal">45°</b>
-          <input type="range" id="wmAngle" min="-60" max="85" value="45"></label>
-        <label>แรง <b id="wmPowVal">70</b>
-          <input type="range" id="wmPower" min="10" max="100" value="70"></label>
-        <button class="wm-fire" id="wmFire">🔥 ยิง!</button>
-      </div>
+      <div class="wm-aim" id="wmAim" hidden></div>
       <div class="wm-log" id="wmLog"></div>
       <div class="g-grid wm-buttons">
         <button class="g-tile hot" id="wmNew"><span class="ic">🎲</span>สนามใหม่
@@ -411,7 +403,8 @@
           <span class="sub">รหัสเดียวกันได้แผนที่เดียวกันเป๊ะ</span></button>
       </div>
       <p class="g-note">กดค้างที่ ◀ ▶ เพื่อเดินต่อเนื่อง · ลากบนจอเพื่อเลื่อนดู · ล้อ/สองนิ้วเพื่อซูม
-      <br><b>ตอนนี้เดิน กระโดด ตก เหยียบกับดัก เปิดหีบ ได้แล้ว</b> — ขั้นต่อไปคือเล็งยิงสกิลและแผนที่พัง</p>
+      <br><b>เลือกสกิลแล้วกดค้างบนแผนที่ฝั่งที่จะยิง</b> — ค้างนานยิ่งไกล เลื่อนขึ้นลงปรับองศา ปล่อยเพื่อยิง
+      <br>แรงเดินหมดจะจบเทิร์นให้เอง</p>
     </div>
 
     <!-- ══ เพื่อน ══ -->

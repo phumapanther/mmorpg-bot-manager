@@ -243,7 +243,15 @@ def move(uid, action, direction=1, steps=1):
     chests = [] if f["dead"] else _open_chests(st, f)     # หีบที่เพิ่งเปิด
     _check_over(st)
     save(uid, st)
-    return True, {"move": r, "sprung": traps, "opened": chests} | view(uid, st)
+    mine = {"move": r, "sprung": traps, "opened": chests}
+
+    # แรงเดินหมด = จบเทิร์นให้เลย ไม่ต้องให้ผู้เล่นมากดเอง
+    # (ใช้สกิลก็จบเทิร์นอยู่แล้ว เดินจนหมดแรงจึงเท่ากับเลือกทางเดินแทนทางยิง)
+    if not st["over"] and st["moves"] <= 0:
+        ok, after = end_turn(uid)
+        if ok:
+            return True, mine | {"auto_ended": True} | after
+    return True, mine | view(uid, st)
 
 
 def _explode(st, grid, cx, cy, radius, dmg, crater, why, by=None):

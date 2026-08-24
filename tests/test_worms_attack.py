@@ -339,9 +339,15 @@ def test_the_api_only_takes_a_skill_and_an_aim():
 
 
 def test_the_skill_panel_is_wired():
-    for el in ("wmSkills", "wmAim", "wmAngle", "wmPower", "wmFire"):
+    for el in ("wmSkills", "wmItems", "wmAim"):
         assert el in HTML and el in PLAY, f"อ้างถึง #{el} แต่ไม่มีในหน้าเว็บ (หรือกลับกัน)"
-    assert "s.aim" in PLAY, "ไม่ได้แยกสกิลที่ต้องเล็งออกจากสกิลที่กดใช้ได้เลย"
+    assert "s.kind === 'self'" in PLAY, "ไม่ได้แยกบัฟใส่ตัวเอง (กดใช้ได้เลย) ออกจากท่าที่ต้องเล็ง"
+
+
+def test_no_aim_buttons_clutter_the_screen():
+    """เจ้าของเกมสั่ง: ไม่ควรมีปุ่มปรับองศา ความแรง หรือปุ่มยิงมารกจอ"""
+    for gone in ("wmAngle", "wmPower", "wmFire", "data-dir=", "WM_DIR"):
+        assert gone not in HTML and gone not in PLAY, f"ยังมี {gone} ค้างอยู่"
 
 
 def test_the_server_tells_the_page_which_skills_are_ready(world):
@@ -557,6 +563,7 @@ def test_you_can_aim_the_other_way(world):
     assert r["attack"]["face"] == -1
 
 
-def test_the_page_lets_you_pick_a_direction():
-    assert 'data-dir="-1"' in HTML and 'data-dir="1"' in HTML, "ไม่มีปุ่มเลือกทิศยิง"
-    assert "dir: WM_DIR" in PLAY, "ไม่ได้ส่งทิศไปกับคำสั่งโจมตี"
+def test_the_direction_comes_from_which_side_you_press():
+    """ไม่มีปุ่มเลือกทิศแล้ว — กดฝั่งไหนของตัวเองก็ยิงไปทางนั้น"""
+    assert "WM_CAM.mx(p.x) >= wmMe().x ? 1 : -1" in PLAY, "ไม่ได้อ่านทิศจากฝั่งที่กด"
+    assert "dir: dir" in PLAY, "ไม่ได้ส่งทิศไปกับคำสั่งโจมตี"

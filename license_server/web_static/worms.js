@@ -208,8 +208,10 @@ class WormsCam {
     };
     let last = null, pinch = 0;
 
-    const down = e => { last = pt(e); };
+    // locked = กำลังกดค้างเล็งอยู่ ลากนิ้ว/เมาส์ตอนนั้นคือปรับองศา ไม่ใช่เลื่อนกล้อง
+    const down = e => { if (!this.locked) last = pt(e); };
     const move = e => {
+      if (this.locked) return;
       if (e.touches && e.touches.length === 2) {           // หุบสองนิ้ว = ซูม
         const [a, b] = e.touches;
         const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
