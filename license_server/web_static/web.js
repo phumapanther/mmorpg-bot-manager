@@ -5,6 +5,11 @@ const SITE = {
   tagline: "MMORPG ผจญภัยเต็มรูปแบบใน Discord — 9 ทวีป 7 ธาตุ บอสลับ กิลด์วอร์ และเพื่อนร่วมทาง",
 };
 
+// 401 จากสามอันนี้แปลว่า "ยังไม่ได้ล็อกอิน" ซึ่งเป็นเรื่องปกติ ไม่ใช่ session หมดอายุ
+// หน้า /admin ยิง admin/ping ถามก่อนโชว์ฟอร์มกรอกรหัส ถ้าเด้งป้ายเต็มจอทับ ฟอร์มก็กดไม่ได้เลย
+// และกรอกรหัสผิดก็ตอบ 401 เหมือนกัน ต้องปล่อยให้ผู้เรียกบอกเองว่า "รหัสไม่ถูกต้อง"
+const AUTH_PROBES = ["/me/session", "/admin/ping", "/admin/login"];
+
 async function api(method, url, body) {
   const opts = { method, headers: {} };
   if (body !== undefined) {
@@ -13,7 +18,7 @@ async function api(method, url, body) {
   }
   const res = await fetch(url, opts);
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401 && !url.includes("/me/session")) {
+  if (res.status === 401 && !AUTH_PROBES.some((p) => url.includes(p))) {
     // session หมดอายุ/ถูกลบ — บอกให้รู้แล้วพากลับไปล็อกอิน ไม่ใช่ปล่อยให้กดแล้วเงียบ
     onSessionExpired();
     throw new Error(data.detail || "หมดเวลาเข้าสู่ระบบ — กรุณาล็อกอินใหม่");
@@ -41,7 +46,8 @@ function onSessionExpired() {
     '<div style="font-size:44px;margin-bottom:10px">🔒</div>' +
     '<h2 style="margin:0 0 8px">หมดเวลาเข้าสู่ระบบ</h2>' +
     '<p style="color:#a99274;margin:0 0 18px">เพื่อความปลอดภัย ระบบให้ล็อกอินใหม่อีกครั้ง</p>' +
-    '<a href="/login" style="display:inline-block;padding:12px 26px;border-radius:10px;' +
+    '<a href="' + (location.pathname.startsWith("/admin") ? "/admin" : "/login") +
+    '" style="display:inline-block;padding:12px 26px;border-radius:10px;' +
     'background:#c8452f;color:#fff;text-decoration:none;font-weight:700">ไปหน้าล็อกอิน</a></div>';
   document.body.appendChild(box);
 }
