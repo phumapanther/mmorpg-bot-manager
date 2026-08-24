@@ -1,8 +1,14 @@
 """P2 ชุด 1: เลือดไหล + ผ้าพันแผล"""
+import datetime
 import json
 import random
 
 import bot.game_modifiers as gm
+
+
+# ธีมรายสัปดาห์ทับค่าของทวีปได้ (เช่น "เต๋าแห่งเทพี" ตั้ง on_hit_status ทับทั้งหมด)
+# เทสเรื่องทวีปจึงต้องตรึงสัปดาห์ไว้ ไม่งั้นผ่าน 12 สัปดาห์ พังสัปดาห์เดียวโดยไม่มีใครแตะโค้ด
+PLAIN_WEEK = datetime.datetime(2026, 1, 5)
 
 
 def test_bleed_status():
@@ -13,7 +19,7 @@ def test_bleed_status():
 
 
 def test_demon_inflicts_bleed():
-    mods = gm.get_active_modifiers({"continent": "demon"})
+    mods = gm.get_active_modifiers({"continent": "demon"}, when=PLAIN_WEEK)
     assert mods["on_hit_status"] == {"key": "bleed", "chance": 10}
 
 
@@ -44,7 +50,7 @@ def test_bloom_pct_damage_and_roll_penalty():
 
 
 def test_sylvan_inflicts_spores_and_antidote_cures():
-    mods = gm.get_active_modifiers({"continent": "sylvan"})
+    mods = gm.get_active_modifiers({"continent": "sylvan"}, when=PLAIN_WEEK)
     assert mods["on_hit_status"] == {"key": "spores", "chance": 10}
     it = json.load(open("config.example.json", encoding="utf-8"))["item_catalog"]["items"]["30"]
     assert "spores" in it["effect_value"]
