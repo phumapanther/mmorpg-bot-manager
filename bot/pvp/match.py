@@ -102,31 +102,59 @@ def new_practice(uid, player_look, seed=0, continent=""):
         "fighters": [
             {"name": "คุณ", "bot": False, "hp": 100, "max_hp": 100, "face": 1,
              "x": spots[0][0], "y": spots[0][1], "look": look, "dead": False,
-             "buffs": {}, "cd": {}},
+             "buffs": {}, "cd": {}, "bag": {}},
             {"name": "🤖 บอท", "bot": True, "hp": 100, "max_hp": 100, "face": -1,
              "x": spots[1][0], "y": spots[1][1], "look": bot_look, "dead": False,
-             "buffs": {}, "cd": {}},
+             "buffs": {}, "cd": {}, "bag": {}},
         ],
     }
     return save(uid, st)
 
 
-def _hurt(st, f, dmg, why, dodgeable=True):
-    """เข้าดาเมจ — บัฟหักล้างได้ก่อน (หลบ = พลาดทั้งหมด · ออร่า = ครึ่งเดียว)"""
+REFLECT_SHARE = 0.5      # เกล็ดน้ำแข็งสะท้อนกลับเท่าไหร่ของดาเมจที่รับมา
+
+
+def _hurt(st, f, dmg, why, dodgeable=True, by=None):
+    """เข้าดาเมจ — บัฟหักล้างกันเป็นชั้น ๆ ก่อนถึงเลือดจริง
+
+    ลำดับ: หลบ (พลาดทั้งหมด) → เปลือกไม้ (กันหมดหนึ่งครั้ง) → ออร่า (ครึ่งเดียว)
+    แล้วค่อยสะท้อนกลับถ้าใส่เกล็ดน้ำแข็งอยู่
+    """
     buffs = f.setdefault("buffs", {})
     if dodgeable and buffs.get("evade"):
         buffs.pop("evade", None)
         st["log"].append(f"💨 {f['name']} หลบพ้น!")
         return 0
+    if dodgeable and buffs.get("bark"):
+        buffs.pop("bark", None)
+        st["log"].append(f"🧥 เปลือกไม้ของ {f['name']} รับไว้หมด!")
+        return 0
     dmg = int(dmg)
     if buffs.get("aura"):
         dmg = max(1, dmg // 2)
+    # 🧊 สะท้อนกลับก่อนหักเลือดตัวเอง — ต้องเช็ค by is not f ไม่งั้นระเบิดใส่ตัวเอง
+    #    จะสะท้อนใส่ตัวเองซ้ำอีกรอบเป็นวงวน
+    if buffs.get("reflect") and by is not None and by is not f and not by["dead"]:
+        back = max(1, int(dmg * REFLECT_SHARE))
+        st["log"].append(f"🧊 เกล็ดน้ำแข็งสะท้อนกลับใส่ {by['name']}!")
+        _hurt(st, by, back, "โดนสะท้อนกลับ", dodgeable=False)
     f["hp"] = max(0, f["hp"] - dmg)
     st["log"].append(f"{f['name']} {why} -{dmg} HP")
     if f["hp"] <= 0:
         f["dead"] = True
         st["log"].append(f"☠️ {f['name']} ตกรอบ!")
     return dmg
+
+
+def _fall_hurt(st, f, fell, why="ตกจากที่สูง"):
+    """เจ็บจากการตก — 🥾 รองเท้าขนนกวายุกันไว้ได้ทั้งหมด"""
+    dmg = physics.fall_damage(fell)
+    if not dmg:
+        return 0
+    if f.get("buffs", {}).get("feather"):
+        st["log"].append(f"🥾 {f['name']} ร่อนลงเบา ๆ ไม่เจ็บเลย")
+        return 0
+    return _hurt(st, f, dmg, why, dodgeable=False)
 
 
 def _drown(st, f):
@@ -150,14 +178,23 @@ def _spring_traps(st, f):
 
 
 def _open_chests(st, f):
-    """เดินทับหีบ = เปิดเลย (ของที่ได้จะต่อกับระบบไอเทมตอนทำเฟสอาวุธ)"""
+    """เดินทับหีบ = เปิดเลย ได้อาร์ติแฟกต์หนึ่งชิ้น
+
+    นี่คือ **ทางเดียว** ที่จะได้ไอเทมโจมตีในสนาม — ไม่ได้ดึงจากกระเป๋าในเกมหลัก
+    ทุกคนเข้าสนามมือเปล่าเท่ากันตามที่เจ้าของเกมเคาะ
+    """
     got = []
     for p in list(st["props"]):
         if p["kind"] != "chest" or abs(p["x"] - f["x"]) > 8 or abs(p["y"] - f["y"]) > 12:
             continue
         st["props"].remove(p)
-        st["log"].append(f"🎁 {f['name']} เปิดหีบสมบัติ!")
-        got.append({"x": p["x"], "y": p["y"]})
+        rng = random.Random(st["seed"] ^ (p["x"] * 7919))     # หีบเดิมได้ของเดิมเสมอ
+        key = rng.choice(sorted(weapons.ARTIFACTS))
+        bag = f.setdefault("bag", {})
+        bag[key] = bag.get(key, 0) + 1
+        st["log"].append(f"🎁 {f['name']} เปิดหีบได้ {weapons.ARTIFACTS[key]['name']}!")
+        got.append({"x": p["x"], "y": p["y"], "item": key,
+                    "name": weapons.ARTIFACTS[key]["name"]})
     return got
 
 
@@ -200,9 +237,7 @@ def move(uid, action, direction=1, steps=1):
     if r["drowned"]:
         _drown(st, f)
     else:
-        dmg = physics.fall_damage(r["fell"])
-        if dmg:
-            _hurt(st, f, dmg, "ตกจากที่สูง")
+        _fall_hurt(st, f, r["fell"])
 
     traps = [] if f["dead"] else _spring_traps(st, f)     # กับดักที่เพิ่งเหยียบโดน
     chests = [] if f["dead"] else _open_chests(st, f)     # หีบที่เพิ่งเปิด
@@ -211,7 +246,7 @@ def move(uid, action, direction=1, steps=1):
     return True, {"move": r, "sprung": traps, "opened": chests} | view(uid, st)
 
 
-def _explode(st, grid, cx, cy, radius, dmg, crater, why):
+def _explode(st, grid, cx, cy, radius, dmg, crater, why, by=None):
     """💥 ระเบิด ณ จุดหนึ่ง — เจาะพื้นเป็นหลุมแล้วกระจายดาเมจตามระยะ
 
     เจาะหลุมด้วย carve() ตัวเดียวกับที่ใช้กับพื้นดิน กำแพงปราสาท/ต้นไม้จึงพังด้วยเลย
@@ -220,7 +255,7 @@ def _explode(st, grid, cx, cy, radius, dmg, crater, why):
     gone = terrain.carve(grid, cx, cy, crater) if crater else []
     hits = []
     for f, raw in weapons.blast_targets(cx, cy, st["fighters"], radius, dmg):
-        got = _hurt(st, f, raw, why, dodgeable=False)
+        got = _hurt(st, f, raw, why, dodgeable=False, by=by)
         if got:
             hits.append({"name": f["name"], "damage": got, "x": f["x"], "y": f["y"]})
     if gone:
@@ -241,9 +276,7 @@ def _settle_everyone(st, grid):
         if drowned:
             _drown(st, f)
         else:
-            hurt = physics.fall_damage(fell)
-            if hurt:
-                _hurt(st, f, hurt, "ร่วงลงมาเพราะพื้นหาย", dodgeable=False)
+            _fall_hurt(st, f, fell, "ร่วงลงมาเพราะพื้นหาย")
 
 
 def attack(uid, skill, angle=45, power=70, direction=None):
@@ -266,8 +299,15 @@ def attack(uid, skill, angle=45, power=70, direction=None):
     if f["dead"]:
         return False, {"error": "ตัวละครของคุณตกรอบแล้ว"}
 
+    if f.get("buffs", {}).get("emp"):
+        return False, {"error": "⚡ โดนคลื่น EMP อยู่ — เทิร์นนี้ทำได้แค่เดิน"}
+
     key = str(skill or "")
-    if key not in weapons.kit_for((f.get("look") or {}).get("cls")):
+    artifact = key in weapons.ARTIFACTS
+    if artifact:
+        if int(f.get("bag", {}).get(key, 0)) <= 0:
+            return False, {"error": "❌ คุณไม่มีไอเทมชิ้นนี้ — หาจากหีบสมบัติในสนาม"}
+    elif key not in weapons.kit_for((f.get("look") or {}).get("cls")):
         return False, {"error": "คลาสของคุณใช้สกิลนี้ไม่ได้"}
     left = int(f.setdefault("cd", {}).get(key, 0))
     if left > 0:
@@ -277,7 +317,11 @@ def attack(uid, skill, angle=45, power=70, direction=None):
         f["face"] = 1 if int(direction) >= 0 else -1      # เล็งซ้าย/ขวาได้ ไม่ใช่ยิงตามที่เดินล่าสุด
     grid = _grid(st)
     r = _use_skill(st, grid, f, key, angle, power)
-    cd = weapons.SKILLS[key]["cooldown"]
+    if artifact:
+        f["bag"][key] -= 1           # อาร์ติแฟกต์ใช้ครั้งเดียวหมด
+        if f["bag"][key] <= 0:
+            f["bag"].pop(key, None)
+    cd = weapons.spec(key)["cooldown"]
     if cd:
         f["cd"][key] = cd + 1        # +1 เพราะจะถูกลบหนึ่งตอนขึ้นเทิร์นของตัวเอง
 
@@ -288,7 +332,7 @@ def attack(uid, skill, angle=45, power=70, direction=None):
 
 def _use_skill(st, grid, f, key, angle, power):
     """ลงมือใช้สกิลหนึ่งอัน — คืนผลไว้ให้เบราว์เซอร์เล่นภาพ"""
-    s = weapons.SKILLS[key]
+    s = weapons.spec(key)
     angle = max(-89, min(89, float(angle)))
     power = max(10, min(100, float(power)))
     out = {"skill": key, "name": s["name"], "kind": s["kind"]}
@@ -311,12 +355,15 @@ def _use_skill(st, grid, f, key, angle, power):
         out["from"] = [f["x"], f["y"]]
         out["face"] = f["face"]
         hits = []
-        for t in weapons.melee_targets(f, st["fighters"], s["reach"]):
+        out["times"] = s.get("times", 1)
+        for t in weapons.melee_targets(f, st["fighters"], s["reach"]) * s.get("times", 1):
+            if t["dead"]:
+                continue
             dmg = s["dmg"]
             if s.get("behind") and t["face"] == f["face"]:     # หันหลังให้เรา = ลอบแทง
                 dmg = int(dmg * s["behind"])
                 st["log"].append(f"🗡️ ลอบแทงจากด้านหลัง!")
-            got = _hurt(st, t, dmg, f"โดน {s['name']}")
+            got = _hurt(st, t, dmg, f"โดน {s['name']}", by=f)
             hits.append({"name": t["name"], "damage": got, "x": t["x"], "y": t["y"],
                          "dodged": got == 0})
             if s.get("knock") and not t["dead"]:               # กระแทกให้กระเด็น
@@ -326,9 +373,7 @@ def _use_skill(st, grid, f, key, angle, power):
                 if kb["drowned"]:
                     _drown(st, t)
                 else:
-                    hurt = physics.fall_damage(kb["fell"])
-                    if hurt:
-                        _hurt(st, t, hurt, "กระเด็นตกจากที่สูง", dodgeable=False)
+                    _fall_hurt(st, t, kb["fell"], "กระเด็นตกจากที่สูง")
         out["hits"] = hits
         if s.get("crater"):
             # เจาะที่ระดับอก ไม่ใช่ระดับเท้า — ไม่งั้นสกิลประชิดตัดพื้นใต้เท้าขาด
@@ -348,12 +393,24 @@ def _use_skill(st, grid, f, key, angle, power):
     shot = (physics.beam(grid, f["x"], f["y"], aim) if s["kind"] == "beam"
             else physics.shoot(grid, f["x"], f["y"], aim, power))
     out["path"] = shot["path"]
+
+    if s["kind"] == "beam":
+        # ⚡ ลำแสงโดนทุกคนที่มันพาดผ่าน ไม่ใช่แค่คนที่อยู่ตรงปลายทาง
+        beam_hits = []
+        for t in weapons.path_targets(shot["path"], st["fighters"], exclude=f):
+            got = _hurt(st, t, s["dmg"], f"โดน {s['name']}", by=f)
+            beam_hits.append({"name": t["name"], "damage": got, "x": t["x"], "y": t["y"],
+                              "dodged": got == 0})
+        out["hits"] = beam_hits
+        if not beam_hits:
+            st["log"].append(f"{f['name']} ยิง {s['name']} พลาดไม่โดนใคร")
+
     if not shot["hit"]:
         st["log"].append(f"{f['name']} ยิง {s['name']} พลาดออกนอกสนาม")
         return out
 
     out["blast"] = _explode(st, grid, shot["x"], shot["y"], s["radius"],
-                            s["dmg"], s.get("crater", 0), f"โดน {s['name']}")
+                            s["dmg"], s.get("crater", 0), f"โดน {s['name']}", by=f)
     if s.get("buff"):
         b = weapons.BUFFS[s["buff"]]
         for h in out["blast"]["hits"]:
@@ -443,9 +500,7 @@ def _bot_turn(st):
         if r["drowned"]:
             _drown(st, me)
         else:
-            dmg = physics.fall_damage(r["fell"])
-            if dmg:
-                _hurt(st, me, dmg, "ตกจากที่สูง")
+            _fall_hurt(st, me, r["fell"])
         if not me["dead"]:
             _spring_traps(st, me)
             _open_chests(st, me)
@@ -481,8 +536,12 @@ def _bot_aim(grid, me, target):
 
 def _bot_attack(st, grid, me, target):
     """🤖 บอทเลือกสกิลเอง — ใกล้ก็ฟัน ไกลก็ยิง เลือดน้อยก็ฮีล"""
+    if me.get("buffs", {}).get("emp"):
+        return None                      # โดน EMP ก็ทำได้แค่เดินเหมือนคนจริง
+
     kit = weapons.kit_for((me.get("look") or {}).get("cls"))
-    ready = [k for k in kit if int(me.get("cd", {}).get(k, 0)) <= 0]
+    bag = [k for k, n in (me.get("bag") or {}).items() if n > 0 and k in weapons.ARTIFACTS]
+    ready = [k for k in kit + bag if int(me.get("cd", {}).get(k, 0)) <= 0]
     if not ready:
         return None
     gap = abs(target["x"] - me["x"])
@@ -491,18 +550,21 @@ def _bot_attack(st, grid, me, target):
     if me["hp"] <= me["max_hp"] * .4 and "heal" in ready:
         pick, aim = "heal", None
     else:
+        def kind(k):
+            return weapons.spec(k)["kind"]
+
         melee = [k for k in ready
-                 if weapons.SKILLS[k]["kind"] == "melee" and gap <= weapons.SKILLS[k]["reach"]]
-        lob = [k for k in ready if weapons.SKILLS[k]["kind"] == "lob"]
-        buff = [k for k in ready if weapons.SKILLS[k]["kind"] == "self"
-                and weapons.SKILLS[k].get("buff")]
+                 if kind(k) == "melee" and gap <= weapons.spec(k)["reach"]]
+        shots = [k for k in ready if kind(k) in ("lob", "beam")]
+        buff = [k for k in ready if kind(k) == "self" and weapons.spec(k).get("buff")]
         if melee:
-            pick, aim = max(melee, key=lambda k: weapons.SKILLS[k]["dmg"]), None
-        elif lob:
+            pick, aim = max(melee, key=lambda k: weapons.spec(k)["dmg"]
+                            * weapons.spec(k).get("times", 1)), None
+        elif shots:
             aim = _bot_aim(grid, me, target)
             if not aim:
                 return None
-            pick = max(lob, key=lambda k: weapons.SKILLS[k]["dmg"])
+            pick = max(shots, key=lambda k: weapons.spec(k)["dmg"])
         elif buff:
             pick, aim = buff[0], None
         else:
@@ -510,12 +572,16 @@ def _bot_attack(st, grid, me, target):
 
     if aim:
         me["face"] = aim[3]
-    elif weapons.SKILLS[pick]["kind"] == "melee":
+    elif weapons.spec(pick)["kind"] == "melee":
         me["face"] = 1 if target["x"] > me["x"] else -1
 
     r = _use_skill(st, grid, me, pick,
                    aim[1] if aim else 45, aim[2] if aim else 70)
-    cd = weapons.SKILLS[pick]["cooldown"]
+    if pick in weapons.ARTIFACTS:              # ของใช้แล้วหมดเหมือนคนจริง
+        me["bag"][pick] -= 1
+        if me["bag"][pick] <= 0:
+            me["bag"].pop(pick, None)
+    cd = weapons.spec(pick)["cooldown"]
     if cd:
         me.setdefault("cd", {})[pick] = cd + 1
     return r
@@ -573,5 +639,6 @@ def view(uid, st=None):
                      for f in st["fighters"]],
         "skills": weapons.view((_fighter(st).get("look") or {}).get("cls"),
                                _fighter(st).get("cd")),
+        "items": weapons.items_view(_fighter(st).get("bag")),
         "buff_names": {k: v["name"] for k, v in weapons.BUFFS.items()},
     }

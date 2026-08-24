@@ -2149,12 +2149,29 @@ function wmPaintSkills() {
       ${esc(s.name)}<small>${esc(s.desc)}</small></button>`).join('');
   box.querySelectorAll('[data-skill]').forEach(b =>
     b.onclick = () => wmPickSkill(b.dataset.skill));
+  wmPaintItems(locked);
   wmShowAim();
+}
+
+/** 🏺 อาร์ติแฟกต์ที่เก็บได้จากหีบ — ใช้ครั้งเดียวหมด */
+function wmPaintItems(locked) {
+  const box = document.getElementById('wmItems');
+  if (!box) return;
+  const items = WM_ST.items || [];
+  box.innerHTML = !items.length
+    ? '<div class="wm-empty">🎁 ยังไม่มีไอเทม — เดินทับหีบสมบัติในสนามเพื่อเก็บ</div>'
+    : items.map(i => `
+      <button data-skill="${esc(i.key)}" ${locked ? 'disabled' : ''}
+              class="wm-item${WM_SKILL === i.key ? ' on' : ''}">
+        <span class="cd">×${i.count}</span>
+        ${esc(i.name)}<small>${esc(i.desc)}</small></button>`).join('');
+  box.querySelectorAll('[data-skill]').forEach(b =>
+    b.onclick = () => wmPickSkill(b.dataset.skill));
 }
 
 /** เลือกสกิล — แบบที่ต้องเล็งจะโชว์แถบมุม/แรงก่อน ที่เหลือใช้ทันที */
 function wmPickSkill(key) {
-  const s = (WM_ST.skills || []).find(x => x.key === key);
+  const s = (WM_ST.skills || []).concat(WM_ST.items || []).find(x => x.key === key);
   if (!s) return;
   SFX.play('click');
   if (!s.aim) { WM_SKILL = null; wmAttack(key); return; }
@@ -2389,7 +2406,8 @@ async function wmDo(action, dir) {
       if (action === 'jump') SFX.play('skill');
     }
     (d.sprung || []).forEach(() => { SFX.play('trap'); toast('🕳️ เหยียบกับดัก!', true); });
-    (d.opened || []).forEach(() => { SFX.play('chest'); toast('🎁 เปิดหีบสมบัติ!'); });
+    (d.opened || []).forEach(o => { SFX.play('chest');
+      toast('🎁 เปิดหีบได้ ' + (o.name || 'ของ') + '!'); });
     if (d.move && d.move.drowned) SFX.play('lose');
     WM.props = d.props; WM.repaint();
     wmPaintHud();
