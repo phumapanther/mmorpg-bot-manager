@@ -316,3 +316,114 @@ def test_you_can_aim_downhill():
     m = re.search(r"Math\.max\((-?\d+), Math\.min\((-?\d+), 45", PLAY)
     assert m, "หาช่วงองศาที่ยอมให้เล็งไม่เจอ"
     assert int(m.group(1)) <= 0, "เล็งลงต่ำกว่าแนวราบไม่ได้"
+
+
+# ── ทุกท่าประชิดต้องทำพื้นแตก ──
+
+MELEE = ["basic", "bash", "heavy", "stab", "twin_blades"]
+
+
+def real_arena(key, seed=7, adjacent=True):
+    """แผนที่จริง ไม่ใช่พื้นราบสังเคราะห์ — ของจริงมีเนิน กำแพง ต้นไม้ระดับอกให้ฟันโดน
+
+    วางคู่ต่อสู้ประชิดตัวด้วย เพราะกรณีอันตรายคือฟันคนที่ยืนบนหิ้งบาง ๆ ข้างเรา
+    """
+    cls = "Rogue" if key == "stab" else "Warrior"
+    match.new_practice(UID, {"race": "Human", "cls": cls,
+                             "armor": "None", "weapon": ""}, seed=seed)
+    st = match.load(UID)
+    me, foe = st["fighters"]
+    if key in W.ARTIFACTS:
+        me["bag"] = {key: 1}
+    me["look"]["cls"] = cls
+    if adjacent:
+        g = T.decode(st["terrain"])
+        for dx in (14, -14, 16, -16, 12, -12):
+            y = T.surface_at(g, me["x"] + dx)
+            if y is not None:
+                foe["x"], foe["y"] = me["x"] + dx, y
+                me["face"] = 1 if dx > 0 else -1
+                break
+    match.save(UID, st)
+    return st
+
+
+def _solid(st):
+    return sum(1 for row in T.decode(st["terrain"]) for m in row if m != T.AIR)
+
+
+@pytest.mark.parametrize("key", MELEE)
+def test_every_melee_move_chews_up_the_ground(world, key):
+    """เจ้าของเกมทัก: ตีปกติแล้วสิ่งแวดล้อมไม่พังเลย"""
+    before = _solid(real_arena(key))
+    good, r = match.attack(UID, key)
+    assert good, r.get("error")
+    assert _solid(match.load(UID)) < before, f"{key} ฟันแล้วพื้นไม่แหว่งเลย"
+    assert r["attack"].get("blast"), "ไม่ได้ส่งหลุมกลับไปให้เว็บวาด"
+
+
+@pytest.mark.parametrize("key", MELEE)
+def test_a_melee_crater_never_cuts_the_ground_from_under_anyone(world, key):
+    """เจาะระดับอก ไม่ใช่ระดับเท้า — ไม่งั้นฟันทีเดียวคู่ต่อสู้ร่วงทะเลตายทุกครั้ง"""
+    from bot.pvp import physics as P
+
+    for seed in range(1, 16):
+        real_arena(key, seed=seed)
+        match.attack(UID, key)
+        st = match.load(UID)
+        g = T.decode(st["terrain"])
+        for f in st["fighters"]:
+            assert f["dead"] or P.standable(g, f["x"], f["y"]),                 f"{key} เมล็ด {seed}: {f['name']} ลอยกลางอากาศ"
+        assert not any("จมน้ำ" in line for line in st["log"]),             f"{key} เมล็ด {seed}: เจาะพื้นจนมีคนตกทะเล"
+
+
+def ledge(key, thick=7, top=200):
+    """หิ้งบาง ๆ เหนือน้ำ — จุดที่ "เจาะพื้นใต้เท้า" อันตรายจริง
+
+    บนแผนที่จริงเกาะหนาเป็นสิบพิกเซล เจาะระดับไหนก็ไม่มีใครร่วง
+    เทสความปลอดภัยจึงต้องมาวัดกันตรงนี้ ไม่ใช่หวังว่าเมล็ดสุ่มจะบังเอิญบาง
+    """
+    cls = "Rogue" if key == "stab" else "Warrior"
+    match.new_practice(UID, {"race": "Human", "cls": cls,
+                             "armor": "None", "weapon": ""}, seed=7)
+    g = [[T.AIR] * T.W for _ in range(T.H)]
+    for x in range(100, 320):
+        for y in range(top, top + thick):
+            g[y][x] = T.ROCK
+    st = match.load(UID)
+    st["terrain"], st["props"] = T.encode(g), []
+    me, foe = st["fighters"]
+    me.update(x=150, y=top, face=1, bag={key: 1} if key in W.ARTIFACTS else {})
+    me["look"]["cls"] = cls
+    foe.update(x=166, y=top)
+    match.save(UID, st)
+    return st
+
+
+@pytest.mark.parametrize("key", ["basic", "bash", "stab", "twin_blades"])
+def test_a_light_hit_never_drops_anyone_through_a_thin_ledge(world, key):
+    """ท่าเบาต้องกัดพื้นแค่ผิว ๆ — ไม่ใช่เจาะทะลุหิ้งจนคู่ต่อสู้ร่วงทะเลตายฟรี"""
+    ledge(key)
+    match.attack(UID, key)
+    st = match.load(UID)
+    assert not any("จมน้ำ" in line for line in st["log"]),         f"{key} เจาะหิ้งขาดจนมีคนร่วงทะเล"
+    assert all(f["hp"] > 0 for f in st["fighters"]), f"{key} ฆ่าคนด้วยการเจาะพื้น"
+
+
+def test_a_light_hit_still_scuffs_that_ledge(world):
+    """กัดพื้นแค่ผิว ๆ ก็ต้องเห็นว่ากัด ไม่ใช่ไม่โดนอะไรเลย"""
+    before = sum(1 for row in T.decode(ledge("basic")["terrain"]) for m in row if m != T.AIR)
+    match.attack(UID, "basic")
+    after = sum(1 for row in T.decode(match.load(UID)["terrain"]) for m in row if m != T.AIR)
+    assert after < before, "ต่อยลานราบแล้วพื้นไม่แหว่งเลย — อาการที่เจ้าของเกมทักมา"
+
+
+def test_a_punch_dents_less_than_a_heavy_swing(world):
+    """ตีปกติต้องทำพื้นแตกน้อยกว่าท่าหนัก ไม่งั้นจะมีท่าหนักไว้ทำไม"""
+    assert W.SKILLS["basic"]["crater"] < W.SKILLS["heavy"]["crater"]
+
+
+@pytest.mark.parametrize("key", MELEE)
+def test_no_melee_move_is_left_without_a_crater(key):
+    """เดิมมีแค่ Heavy Strike ที่ทำพื้นแตก อันอื่นฟันแล้วสิ่งแวดล้อมนิ่งสนิท"""
+    assert W.ALL[key].get("crater"), f"{key} ฟันแล้วไม่ทำอะไรกับสิ่งแวดล้อมเลย"

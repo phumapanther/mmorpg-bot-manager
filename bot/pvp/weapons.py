@@ -29,11 +29,13 @@ BUFFS = {
 # ทุกคลาสมีตีปกติ · ที่เหลือมาจาก CLASS_SKILLS ของเกมหลัก
 SKILLS = {
     "basic": {"name": "🤜 ตีปกติ", "kind": "melee", "dmg": 15, "reach": 26,
-              "cooldown": 0, "desc": "ทุกคลาสใช้ได้ ไม่มีคูลดาวน์"},
+              "cooldown": 0, "crater": 7,
+              "desc": "ทุกคลาสใช้ได้ ไม่มีคูลดาวน์ ต่อยจนพื้นเป็นรอย"},
 
     # ── Warrior ──
     "bash":  {"name": "🛡️ Shield Bash", "kind": "melee", "dmg": 12, "reach": 30,
-              "cooldown": 1, "knock": 34, "desc": "กระแทกให้กระเด็นไปไกล"},
+              "cooldown": 1, "knock": 34, "crater": 8,
+              "desc": "กระแทกให้กระเด็นไปไกล พื้นแตกตามแรง"},
     "heavy": {"name": "⚔️ Heavy Strike", "kind": "melee", "dmg": 34, "reach": 26,
               "cooldown": 2, "crater": 12, "desc": "ฟันหนัก พื้นแตกเป็นหลุม"},
 
@@ -46,7 +48,8 @@ SKILLS = {
 
     # ── Rogue ──
     "stab":  {"name": "🗡️ Backstab", "kind": "melee", "dmg": 20, "reach": 24,
-              "cooldown": 1, "behind": 2.2, "desc": "ลอบแทงจากด้านหลัง แรงกว่าสองเท่า"},
+              "cooldown": 1, "behind": 2.2, "crater": 6,
+              "desc": "ลอบแทงจากด้านหลัง แรงกว่าสองเท่า"},
     "evade": {"name": "💨 Evasion", "kind": "self", "cooldown": 3, "buff": "evade",
               "desc": "หลบการโจมตีครั้งถัดไปได้"},
 
@@ -78,7 +81,8 @@ ARTIFACTS = {
                      "crater": 16,
                      "desc": "ปล่อยวิญญาณเป็นวงกว้าง ใครอยู่ใกล้โดนหมด"},
     "twin_blades": {"name": "⚔️ ดาบคู่แฝด", "kind": "melee", "dmg": 13, "reach": 30,
-                    "times": 4, "desc": "ฟันรัวสี่ครั้งไปทางที่เลือก"},
+                    "times": 4, "crater": 9,
+                    "desc": "ฟันรัวสี่ครั้งไปทางที่เลือก พื้นแหลกไปด้วย"},
     "divine_staff": {"name": "🌟 คทาไม้เทวา", "kind": "beam", "dmg": 38, "radius": 18,
                      "crater": 12, "desc": "ยิงเลเซอร์เป็นเส้นตรง ทะลุไปไกล"},
 }

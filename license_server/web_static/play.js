@@ -1987,8 +1987,8 @@ let WM_ANIM = null;        // เส้นทางที่เซิร์ฟ�
 // ก้าวต่อการยิงคำสั่งหนึ่งครั้ง — ยิงก้อนใหญ่ห่าง ๆ ดีกว่าก้อนเล็กถี่ ๆ
 // 36 ก้าวเล่นภาพที่ 60fps = 600ms พอดีกับช่วงยิง ภาพจึงเดินต่อเนื่องไม่สะดุด
 // ตกเหลือ 1.7 ครั้ง/วินาที (แรงเดินมีแค่ 60/เทิร์นอยู่แล้ว สองคำสั่งก็หมดเทิร์น)
-const WM_WALK_STEPS = 36;
-const WM_HOLD_MS = 600;
+const WM_WALK_STEPS = 6;
+const WM_HOLD_MS = 500;
 let WM_BACKOFF = 0;        // โดน 429 แล้วหยุดยิงชั่วคราว กันวนยิงซ้ำจนแย่ลงกว่าเดิม
 
 async function fillWorms() {
@@ -2042,11 +2042,17 @@ function wmStartLoop() {
     if (!document.getElementById('v-worms').classList.contains('on')) { wmLoop = 0; return; }
     // เล่นภาพเส้นทางที่เซิร์ฟเวอร์ส่งมาทีละเฟรม (ตำแหน่งจริงเซิร์ฟเวอร์ตัดสินไปแล้ว)
     if (WM_ANIM && WM_ANIM.i < WM_ANIM.path.length) {
-      const [x, y] = WM_ANIM.path[WM_ANIM.i++];
-      const af = WM_ST.fighters[WM_ANIM.fi];      // อ่านสดทุกเฟรม สถานะอาจถูกแทนไปแล้ว
-      if (af) { af.x = x; af.y = y; }
-      if (WM_ANIM.i % 3 === 0) SFX.play('walk');
-      wmFocus();
+      // ก้าวสั้น ๆ ค้างจุดละหลายเฟรม จะได้เดินเตาะแตะทีละก้าวให้เห็น ไม่ใช่วืดไปทีเดียว
+      // ส่วนท่อนยาว (ตาบอททั้งเทิร์น) เล่นรวดเดียว ไม่งั้นนั่งดูบอทเดินนาน
+      const hold = WM_ANIM.path.length <= 12 ? 5 : 1;
+      if ((WM_ANIM.w = (WM_ANIM.w || 0) + 1) >= hold) {
+        WM_ANIM.w = 0;
+        const [x, y] = WM_ANIM.path[WM_ANIM.i++];
+        const af = WM_ST.fighters[WM_ANIM.fi];    // อ่านสดทุกเฟรม สถานะอาจถูกแทนไปแล้ว
+        if (af) { af.x = x; af.y = y; }
+        if (WM_ANIM.i % 3 === 0) SFX.play('walk');
+        wmFocus();
+      }
     } else if (WM_ANIM) {
       WM_ANIM = WM_QUEUE.shift() || null;      // ท่อนถัดไปของบอท (ถ้ามี)
       if (!WM_ANIM) wmPaintHud();

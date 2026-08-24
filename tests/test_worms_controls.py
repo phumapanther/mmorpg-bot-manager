@@ -189,3 +189,27 @@ def test_the_page_explains_how_to_aim():
     body = PLAY[PLAY.index("function wmShowAim("):]
     body = body[:body.index("\n}")]
     assert "กดค้าง" in body and "ปล่อย" in body, "ไม่ได้บอกผู้เล่นว่าต้องกดค้างแล้วปล่อย"
+
+
+# ── 4. เดินเตาะแตะ ไม่ใช่วืดไปทีเดียว ──
+
+def _num(name):
+    m = re.search(rf"{name} = (\d+)", PLAY)
+    assert m, f"หา {name} ไม่เจอ"
+    return int(m.group(1))
+
+
+def test_one_press_is_a_small_shuffle_not_a_sprint():
+    """กดทีเดียวไม่ควรกินแรงทั้งเทิร์น — เดิมกดสองทีก็หมดแรงแล้ว"""
+    steps = _num("WM_WALK_STEPS")
+    presses = match.MOVE_BUDGET / steps
+    assert presses >= 8, (f"กดทีเดียวเดิน {steps} ก้าว = ทั้งเทิร์นกดได้แค่ {presses:.0f} ที "
+                          "แรงหมดเร็วเกินจะขยับให้ตรงจุด")
+
+
+def test_a_short_walk_is_played_out_step_by_step():
+    """ก้าวสั้นต้องค้างจุดละหลายเฟรม ไม่งั้นเดิน 6 ก้าวจบใน 0.1 วิ เห็นเป็นวาร์ป"""
+    m = re.search(r"const hold = WM_ANIM\.path\.length <= \d+ \? (\d+) : (\d+);", PLAY)
+    assert m, "ไม่ได้หน่วงการเล่นภาพเดินเลย"
+    assert int(m.group(1)) > 1, "ก้าวสั้นยังเล่นรวดเดียว"
+    assert int(m.group(2)) == 1, "ท่อนยาวก็หน่วงด้วย — ตาบอทจะนานเป็นชาติ"

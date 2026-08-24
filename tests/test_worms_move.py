@@ -419,14 +419,16 @@ def _hold_interval_ms():
 
 
 def test_the_client_batches_enough_steps_to_look_smooth():
-    """ยิงห่างขึ้นแต่ก้อนเล็กเท่าเดิม = ตัวละครเดินกระตุก
+    """ยิงห่างขึ้นแต่ภาพเล่นจบเร็ว = ตัวละครยืนนิ่งเป็นช่วง ๆ ดูกระตุก
 
-    ภาพเล่นก้าวละเฟรม (~60fps) ก้อนหนึ่งจึงต้องยาวพอกินเวลาจนถึงคำสั่งถัดไป
+    ก้าวสั้นค้างจุดละหลายเฟรม (เดินเตาะแตะ) ก้อนหนึ่งจึงต้องกินเวลาจนถึงคำสั่งถัดไป
     """
     steps = int(re.search(r"const WM_WALK_STEPS = (\d+)", PLAY).group(1))
+    hold = int(re.search(r"WM_ANIM\.path\.length <= \d+ \? (\d+) :", PLAY).group(1))
     ms = _hold_interval_ms()
-    assert steps * 1000 / 60 >= ms * 0.85, \
-        f"{steps} ก้าวเล่นได้ {steps * 1000 / 60:.0f}ms แต่ยิงทุก {ms}ms — ภาพจะขาดช่วง"
+    played = steps * hold * 1000 / 60
+    assert played >= ms * 0.85, \
+        f"{steps} ก้าว × {hold} เฟรม เล่นได้ {played:.0f}ms แต่ยิงทุก {ms}ms — ภาพจะขาดช่วง"
     assert steps <= P.STEP_MAX, "ขอเกินเพดานที่เซิร์ฟเวอร์ยอมให้ต่อคำสั่ง"
 
 
