@@ -2019,6 +2019,7 @@ function wmApply(d) {
     WM_CAM.attach(null);
     if (!cv.dataset.aimed) { cv.dataset.aimed = '1'; wmBindAim(cv); }
     WM_CAM.z = 3;
+    WM_TURN_SHOWN = -1;
     wmFocus(null, true);
     wmStartLoop();
   } else {
@@ -2066,6 +2067,11 @@ function wmStartLoop() {
       WM_ANIM = WM_QUEUE.shift() || null;      // ท่อนถัดไปของบอท (ถ้ามี)
       if (!WM_ANIM) wmPaintHud();
     }
+    // ถึงตาใครก็เลื่อนกล้องไปหาคนนั้นเอง — รอให้ภาพที่ค้างเล่นจบก่อน ไม่งั้นตัดกลางคัน
+    if (!WM_ANIM && WM_ST.turn !== WM_TURN_SHOWN) {
+      WM_TURN_SHOWN = WM_ST.turn;
+      wmFocus(wmMe(), true);
+    }
     wmTick();
 
     WM.draw(ctx, WM_CAM, t++);
@@ -2103,6 +2109,7 @@ function wmDrawFighter(ctx, f, active, t, walking) {
 }
 
 let WM_QUEUE = [];         // ท่อนเดินที่รอเล่นภาพ (บอทเดินหลายท่อนต่อกัน)
+let WM_TURN_SHOWN = -1;    // เลื่อนกล้องไปหาคนที่ถึงตาไปแล้วหรือยัง
 let wmTimingOut = false, wmNextTimeout = 0;
 
 /** นับถอยหลังบนจอ + พอหมดเวลาก็ขอจบเทิร์น (เซิร์ฟเวอร์เช็คเวลาเองอีกชั้น) */
@@ -2197,6 +2204,39 @@ function wmBindAim(cv) {
   cv.addEventListener('touchcancel', up);
 }
 
+/** 🏁 จบเกมแล้วสรุปให้ดู — ใครชนะ ใครทำดาเมจไปเท่าไหร่ อันดับใคร แล้วจะเอายังไงต่อ */
+function wmPaintOver() {
+  const box = document.getElementById('wmOver'), d = WM_ST;
+  if (!box) return;
+  box.hidden = !d || !d.over;
+  if (box.hidden) return;
+
+  const me = (d.standings || []).find(r => !r.bot);
+  const won = me && !me.dead;
+  box.innerHTML = `
+    <div>
+      <h3>${won ? '🏆 คุณชนะ!' : '☠️ คุณแพ้'}</h3>
+      <p class="sub">${esc(d.winner || 'ไม่มีใครรอด')} เป็นฝ่ายรอดสุดท้าย · จบใน ${d.rounds || 0} รอบ</p>
+      <table><tr><th>อันดับ</th><th>ผู้เล่น</th><th>ดาเมจ</th><th>ล้ม</th><th>เลือดที่เหลือ</th></tr>
+      ${(d.standings || []).map(r => `
+        <tr class="${r.rank === 1 ? 'win' : ''} ${r.dead ? 'out' : ''}">
+          <td>${r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : '#' + r.rank}</td>
+          <td>${esc(r.name)}</td><td>${r.dealt}</td><td>${r.kills}</td>
+          <td>${r.dead ? 'ตกรอบ' : r.hp + '/' + r.max_hp}</td>
+        </tr>`).join('')}
+      </table>
+      <div class="bars">
+        <button class="again" id="wmAgain">🎲 เล่นอีกรอบ</button>
+        <button class="quit" id="wmQuit">✖️ จบเกม</button>
+      </div>
+    </div>`;
+  document.getElementById('wmAgain').onclick = () => { SFX.play('click'); wmNewMatch(0); };
+  document.getElementById('wmQuit').onclick = () => {
+    SFX.play('click');
+    document.querySelector('#v-worms [data-back]')?.click();
+  };
+}
+
 function wmPaintSkills() {
   const box = document.getElementById('wmSkills');
   const d = WM_ST;
@@ -2211,6 +2251,7 @@ function wmPaintSkills() {
     b.onclick = () => wmPickSkill(b.dataset.skill));
   wmPaintItems(locked);
   wmShowAim();
+  wmPaintOver();
 }
 
 /** 🏺 อาร์ติแฟกต์ที่เก็บได้จากหีบ — ใช้ครั้งเดียวหมด */

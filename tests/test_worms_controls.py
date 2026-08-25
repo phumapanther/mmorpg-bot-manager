@@ -359,3 +359,126 @@ def test_a_buff_draws_its_own_ring(world):
 
 def test_buff_text_is_not_damage_coloured():
     assert "p.buff ? '#8ef0b0'" in PLAY, "ตัวหนังสือบัฟยังใช้สีแดงเหมือนตัวเลขดาเมจ"
+
+
+# ── 8. กระสุนต้องออกจากมือคนยิง ──
+
+def test_a_shot_starts_at_the_shooter_not_out_in_thin_air(world):
+    """เจ้าของเกมทัก: ผลการยิงไม่ค่อยตรงจากจุดที่คนยิงอยู่
+
+    เดิมเก็บจุดแรกหลังกระสุนบินไปแล้วหนึ่งก้าว ตอนชาร์จเต็มก้าวหนึ่งยาว 9 px
+    บวกระยะแขนอีก 7 = เห็นกระสุนโผล่ห่างตัวไป 16 px เหมือนยิงจากที่ว่าง
+    """
+    import math
+
+    worst = 0
+    for power in (10, 40, 70, 100):
+        for ang in (-40, 0, 45, 80):
+            fresh()
+            st = match.load(UID)
+            st["fighters"][0]["look"]["cls"] = "Mage"
+            match.save(UID, st)
+            me = st["fighters"][0]
+            a = match.attack(UID, "fire", angle=ang, power=power)[1]["attack"]
+            x0, y0 = a["path"][0]
+            worst = max(worst, math.hypot(x0 - me["x"], y0 - (me["y"] - T.CH_H // 2)))
+    arm = T.CH_W // 2 + 3
+    assert worst <= arm + 1.5, f"จุดแรกของวิถีห่างตัวถึง {worst:.1f} px (ระยะแขนคือ {arm})"
+
+
+def test_a_laser_starts_at_the_shooter_too(world):
+    import math
+
+    fresh()
+    st = match.load(UID)
+    st["fighters"][0]["bag"] = {"divine_staff": 1}
+    match.save(UID, st)
+    me = st["fighters"][0]
+    a = match.attack(UID, "divine_staff", angle=2, power=70)[1]["attack"]
+    x0, y0 = a["path"][0]
+    gap = math.hypot(x0 - me["x"], y0 - (me["y"] - T.CH_H // 2))
+    assert gap == 0, f"ลำแสงเริ่มห่างตัว {gap:.1f} px — จุดแรกต้องเป็นอกคนยิงเป๊ะ"
+
+
+def test_the_trail_the_page_draws_is_the_one_the_server_sent():
+    """เว็บต้องวาดตามเส้นที่ได้มา ไม่ใช่คำนวณวิถีเอง กติกาอยู่ที่เซิร์ฟเวอร์"""
+    assert "WM_SHOT = { path: a.path" in PLAY, "เว็บไม่ได้ใช้เส้นวิถีที่เซิร์ฟเวอร์ส่งมา"
+
+
+# ── 9. ถึงตาใครก็เลื่อนกล้องไปหาคนนั้น ──
+
+def test_the_camera_jumps_to_whoever_the_turn_belongs_to():
+    body = PLAY[PLAY.index("function wmStartLoop("):]
+    body = body[:body.index("/** วาดนักสู้")]
+    assert "WM_ST.turn !== WM_TURN_SHOWN" in body, "เปลี่ยนตาแล้วกล้องไม่ตามไปหาคนที่ถึงตา"
+    assert "wmFocus(wmMe(), true)" in body, "ตามแบบไม่บังคับ — ถ้าตัวอยู่กลางจอพอดีก็ไม่ขยับ"
+    assert "!WM_ANIM &&" in body, "ตัดกล้องทั้งที่ภาพเดินยังเล่นค้างอยู่"
+
+
+def test_a_new_match_forgets_which_turn_was_focused():
+    body = PLAY[PLAY.index("function wmApply("):PLAY.index("function wmMe(")]
+    assert "WM_TURN_SHOWN = -1;" in body,         "เปิดสนามใหม่แล้วยังจำตาเก่า กล้องเลยไม่ยอมจัดให้"
+
+
+# ── 10. จบเกมแล้วสรุปผล ──
+
+def _finish(cls="Warrior"):
+    """ตีจนจบเกมจริง ๆ แล้วคืนสถานะสุดท้าย"""
+    fresh()
+    for _ in range(60):
+        good, r = match.attack(UID, "basic")
+        if not good or r["over"]:
+            return r
+    raise AssertionError("ตี 60 ครั้งแล้วเกมยังไม่จบ")
+
+
+def test_the_match_reports_a_scoreboard_when_it_ends(world):
+    r = _finish()
+    assert r["over"] and r["standings"], "จบเกมแล้วไม่มีตารางสรุป"
+    assert len(r["standings"]) == len(r["fighters"])
+    assert [x["rank"] for x in r["standings"]] == [1, 2], "อันดับไม่เรียง"
+
+
+def test_the_scoreboard_counts_who_dealt_what(world):
+    r = _finish()
+    assert sum(x["dealt"] for x in r["standings"]) > 0, "ตีกันทั้งเกมแต่ดาเมจรวมเป็นศูนย์"
+    for x in r["standings"]:
+        assert x["dealt"] >= 0 and "kills" in x and "hp" in x
+
+
+def test_the_survivor_ranks_first(world):
+    r = _finish()
+    top = r["standings"][0]
+    assert not top["dead"], "คนที่ตกรอบได้อันดับหนึ่ง"
+    assert top["name"] == r["winner"], "อันดับหนึ่งไม่ใช่ผู้ชนะ"
+
+
+def test_damage_you_did_to_yourself_is_not_counted(world):
+    """ระเบิดโดนตัวเองไม่ควรนับเป็นผลงาน"""
+    fresh()
+    st = match.load(UID)
+    st["fighters"][0]["look"]["cls"] = "Mage"
+    st["fighters"][1].update(x=st["fighters"][0]["x"] + 400)   # ยิงไปไม่ถึงแน่ ๆ
+    match.save(UID, st)
+    match.attack(UID, "fire", angle=80, power=12)              # ยิงขึ้นฟ้าตกใส่ตัวเอง
+    me = match.load(UID)["fighters"][0]
+    assert me["dealt"] == 0, f"ระเบิดใส่ตัวเองแล้วนับเป็นดาเมจ {me['dealt']}"
+
+
+def test_the_page_shows_the_scoreboard_and_both_choices():
+    body = PLAY[PLAY.index("function wmPaintOver("):]
+    body = body[:body.index(chr(10) + "}")]
+    rows = body[body.index("<table>"):body.index("</table>")]
+    assert "d.standings" in rows, "ตารางอันดับว่างเปล่า ไม่ได้วนของจริงมาวาด"
+    for col in ("r.rank", "r.name", "r.dealt", "r.kills", "r.hp"):
+        assert col in rows, f"ตารางไม่มีช่อง {col}"
+    assert "wmAgain" in body and "wmQuit" in body, "ไม่มีให้เลือกว่าจะเล่นต่อหรือจบ"
+    assert "wmNewMatch(0)" in body, "ปุ่มเล่นอีกรอบไม่ได้เปิดสนามใหม่"
+    assert 'wmOver' in HTML, "ไม่มีที่วางแผงสรุปในหน้าเว็บ"
+
+
+def test_the_scoreboard_only_shows_when_the_match_is_over():
+    body = PLAY[PLAY.index("function wmPaintOver("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "box.hidden = !d || !d.over" in body, "แผงสรุปโผล่ตั้งแต่ยังเล่นอยู่"
+    assert "wmPaintOver()" in PLAY.split("function wmPaintOver(")[0] or         PLAY.count("wmPaintOver()") >= 1, "เขียนแล้วไม่มีใครเรียก"

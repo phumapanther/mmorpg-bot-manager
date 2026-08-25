@@ -183,7 +183,9 @@ def shoot(grid, x, y, angle_deg, power, muzzle=None):
     py = float(y) - T.CH_H // 2 - math.sin(rad) * step
     sx, sy = px, py                              # ปากกระบอก — ใช้เป็นจุดตั้งต้นของระยะปลอดภัย
 
-    path = []
+    # จุดแรกของเส้นวิถีต้องเป็นปากกระบอก ไม่ใช่ตำแหน่งหลังบินไปแล้วหนึ่งก้าว
+    # (ก้าวหนึ่งยาวได้ถึง 9 px ตอนชาร์จเต็ม บวกระยะแขนอีก 7 = กระสุนโผล่ห่างตัว 16 px)
+    path = [[int(round(px)), int(round(py))]]
     for _ in range(SHOT_FRAMES):
         vy += SHOT_GRAVITY
         px += vx
@@ -206,7 +208,7 @@ def beam(grid, x, y, angle_deg, reach=260):
     rad = math.radians(float(angle_deg))
     dx, dy = math.cos(rad), -math.sin(rad)
     px, py = float(x), float(y) - T.CH_H // 2
-    path = []
+    path = [[int(round(px)), int(round(py))]]    # เริ่มที่อกคนยิง ไม่ใช่ห่างออกไปหนึ่งก้าว
     for i in range(int(reach)):
         px += dx
         py += dy

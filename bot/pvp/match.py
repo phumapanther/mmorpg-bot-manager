@@ -103,10 +103,10 @@ def new_practice(uid, player_look, seed=0, continent=""):
         "fighters": [
             {"name": "คุณ", "bot": False, "hp": 100, "max_hp": 100, "face": 1,
              "x": spots[0][0], "y": spots[0][1], "look": look, "dead": False,
-             "buffs": {}, "cd": {}, "bag": {}},
+             "buffs": {}, "cd": {}, "bag": {}, "dealt": 0, "kills": 0},
             {"name": "🤖 บอท", "bot": True, "hp": 100, "max_hp": 100, "face": -1,
              "x": spots[1][0], "y": spots[1][1], "look": bot_look, "dead": False,
-             "buffs": {}, "cd": {}, "bag": {}},
+             "buffs": {}, "cd": {}, "bag": {}, "dealt": 0, "kills": 0},
         ],
     }
     return save(uid, st)
@@ -140,10 +140,14 @@ def _hurt(st, f, dmg, why, dodgeable=True, by=None):
         st["log"].append(f"🧊 เกล็ดน้ำแข็งสะท้อนกลับใส่ {by['name']}!")
         _hurt(st, by, back, "โดนสะท้อนกลับ", dodgeable=False)
     f["hp"] = max(0, f["hp"] - dmg)
+    if by is not None and by is not f:            # เก็บสถิติไว้โชว์ตอนจบเกม
+        by["dealt"] = int(by.get("dealt", 0)) + dmg
     st["log"].append(f"{f['name']} {why} -{dmg} HP")
     if f["hp"] <= 0:
         f["dead"] = True
         st["log"].append(f"☠️ {f['name']} ตกรอบ!")
+        if by is not None and by is not f:
+            by["kills"] = int(by.get("kills", 0)) + 1
     return dmg
 
 
@@ -632,6 +636,16 @@ def end_turn(uid, auto=False):
     return True, {"bot_moves": bot_moves} | view(uid, st)
 
 
+def standings(st):
+    """อันดับตอนจบ — รอดก่อน แล้วค่อยดูว่าใครสร้างความเสียหายได้มากกว่ากัน"""
+    order = sorted(st["fighters"],
+                   key=lambda f: (f["dead"], -int(f.get("dealt", 0)), -f["hp"]))
+    return [{"rank": i + 1, "name": f["name"], "bot": f["bot"], "dead": f["dead"],
+             "hp": max(0, f["hp"]), "max_hp": f["max_hp"],
+             "dealt": int(f.get("dealt", 0)), "kills": int(f.get("kills", 0))}
+            for i, f in enumerate(order)]
+
+
 def _check_over(st):
     alive = [f for f in st["fighters"] if not f["dead"]]
     if len(alive) <= 1:
@@ -655,6 +669,8 @@ def view(uid, st=None):
         "turn": st["turn"], "round": st["round"], "moves": st["moves"],
         "move_budget": MOVE_BUDGET, "over": st["over"], "winner": st.get("winner", ""),
         "time_left": time_left(st), "turn_seconds": TURN_SECONDS,
+        "standings": standings(st),
+        "rounds": st["round"],
         "log": st["log"][-6:],
         "fighters": [{k: v for k, v in f.items() if k != "look"} | {"look": f["look"]}
                      for f in st["fighters"]],
