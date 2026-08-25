@@ -1834,6 +1834,9 @@ def worms_match(body: WormsBody, request: Request):
                     "armor": p.get("armor") or "None", "weapon": p.get("weapon") or "",
                     "fashion": _fashion.worn(p)}
             return match.view(uid, match.new_practice(uid, look, body.seed))
+        if body.action == "quit":
+            match.drop(uid)          # ทิ้งแมตช์ทิ้งไปเลย จะได้กลับมาเจอหน้าเริ่มเกม
+            return match.view(uid)
         if body.action in ("end", "timeout"):
             # timeout = เบราว์เซอร์บอกว่านาฬิกาหมด แต่เซิร์ฟเวอร์เช็คเวลาเองอีกที
             # (ปรับนาฬิกาเครื่องตัวเองแล้วขอเทิร์นเพิ่มไม่ได้)

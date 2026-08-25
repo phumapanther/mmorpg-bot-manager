@@ -2009,7 +2009,8 @@ function wmApply(d) {
   WM_ANIM = null; WM_QUEUE = [];   // สถานะถูกแทนทั้งก้อน ภาพที่ค้างเป็นของสถานะเก่าไปแล้ว
   WM_ST = d;
   document.getElementById('v-worms').classList.toggle('wm-idle', !d.active);
-  if (!d.active) { cancelAnimationFrame(wmLoop); wmLoop = 0; return; }
+  wmPaintOver();
+  if (!d.active) { cancelAnimationFrame(wmLoop); wmLoop = 0; WM = WM_ST = null; return; }
 
   WM_DEADLINE = performance.now() + (d.time_left || 0) * 1000;
   if (fresh) {
@@ -2019,7 +2020,7 @@ function wmApply(d) {
     WM_CAM.attach(null);
     if (!cv.dataset.aimed) { cv.dataset.aimed = '1'; wmBindAim(cv); }
     WM_CAM.z = 3;
-    WM_TURN_SHOWN = -1;
+    WM_TURN_SHOWN = '';
     wmFocus(null, true);
     wmStartLoop();
   } else {
@@ -2068,8 +2069,9 @@ function wmStartLoop() {
       if (!WM_ANIM) wmPaintHud();
     }
     // ถึงตาใครก็เลื่อนกล้องไปหาคนนั้นเอง — รอให้ภาพที่ค้างเล่นจบก่อน ไม่งั้นตัดกลางคัน
-    if (!WM_ANIM && WM_ST.turn !== WM_TURN_SHOWN) {
-      WM_TURN_SHOWN = WM_ST.turn;
+    const turnKey = WM_ST.round + ':' + WM_ST.turn;
+    if (!WM_ANIM && turnKey !== WM_TURN_SHOWN) {
+      WM_TURN_SHOWN = turnKey;
       wmFocus(wmMe(), true);
     }
     wmTick();
@@ -2109,7 +2111,9 @@ function wmDrawFighter(ctx, f, active, t, walking) {
 }
 
 let WM_QUEUE = [];         // ท่อนเดินที่รอเล่นภาพ (บอทเดินหลายท่อนต่อกัน)
-let WM_TURN_SHOWN = -1;    // เลื่อนกล้องไปหาคนที่ถึงตาไปแล้วหรือยัง
+let WM_TURN_SHOWN = '';    // 'รอบ:ตา' ที่เลื่อนกล้องไปให้แล้ว
+                           // ต้องมีเลขรอบด้วย — ซ้อมกับบอทจบเทิร์นแล้ว turn กลับมาเป็น 0
+                           // เท่าเดิมทุกครั้ง เทียบแค่ turn กล้องเลยไม่เคยขยับเลย
 let wmTimingOut = false, wmNextTimeout = 0;
 
 /** นับถอยหลังบนจอ + พอหมดเวลาก็ขอจบเทิร์น (เซิร์ฟเวอร์เช็คเวลาเองอีกชั้น) */
@@ -2204,26 +2208,49 @@ function wmBindAim(cv) {
   cv.addEventListener('touchcancel', up);
 }
 
-/** 🏁 จบเกมแล้วสรุปให้ดู — ใครชนะ ใครทำดาเมจไปเท่าไหร่ อันดับใคร แล้วจะเอายังไงต่อ */
+/** แผงคลุมสนาม — ยังไม่เริ่มก็เป็นหน้าเริ่มเกม จบแล้วก็เป็นหน้าสรุปผล
+
+    เดิมกดจบเกมแล้วเด้งออกเมนู แต่แมตช์ที่จบยังค้างอยู่ในฐานข้อมูล
+    กลับเข้ามาทีไรก็เจอกระดานสรุปเดิมให้กดจบซ้ำอีก
+ */
 function wmPaintOver() {
   const box = document.getElementById('wmOver'), d = WM_ST;
   if (!box) return;
-  box.hidden = !d || !d.over;
+  const idle = !d || !d.active;
+  box.hidden = !idle && !d.over;
   if (box.hidden) return;
 
-  const me = (d.standings || []).find(r => !r.bot);
-  const won = me && !me.dead;
+  if (idle) {
+    box.innerHTML = `
+      <div>
+        <div style="font-size:40px">🪱</div>
+        <h3>สนามรบผลัดเทิร์น</h3>
+        <p class="sub">เกาะลอยที่ยิงจนพังได้ · ตัวละครของคุณลงสนามเอง<br>
+          เดินเก็บหีบ หลบกับดัก แล้วสอยคู่ต่อสู้ให้ร่วงลงทะเล</p>
+        <div class="bars"><button class="again" id="wmStart">🎲 เริ่มเกม</button></div>
+      </div>`;
+    document.getElementById('wmStart').onclick = () => { SFX.play('click'); wmNewMatch(0); };
+    return;
+  }
+
+  const rows = d.standings || [];
+  const me = rows.find(r => !r.bot);
+  const top = Math.max(1, ...rows.map(r => r.dealt));
   box.innerHTML = `
     <div>
-      <h3>${won ? '🏆 คุณชนะ!' : '☠️ คุณแพ้'}</h3>
+      <h3>${me && !me.dead ? '🏆 คุณชนะ!' : '☠️ คุณแพ้'}</h3>
       <p class="sub">${esc(d.winner || 'ไม่มีใครรอด')} เป็นฝ่ายรอดสุดท้าย · จบใน ${d.rounds || 0} รอบ</p>
-      <table><tr><th>อันดับ</th><th>ผู้เล่น</th><th>ดาเมจ</th><th>ล้ม</th><th>เลือดที่เหลือ</th></tr>
-      ${(d.standings || []).map(r => `
-        <tr class="${r.rank === 1 ? 'win' : ''} ${r.dead ? 'out' : ''}">
-          <td>${r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : '#' + r.rank}</td>
-          <td>${esc(r.name)}</td><td>${r.dealt}</td><td>${r.kills}</td>
-          <td>${r.dead ? 'ตกรอบ' : r.hp + '/' + r.max_hp}</td>
-        </tr>`).join('')}
+      <table>
+        <tr><th>อันดับ</th><th>ผู้เล่น</th><th>ความเสียหายที่สร้างได้</th><th>ล้ม</th><th>เลือด</th></tr>
+        ${rows.map(r => `
+          <tr class="${r.rank === 1 ? 'win' : ''}${r.dead ? ' out' : ''}">
+            <td>${r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : '#' + r.rank}</td>
+            <td>${esc(r.name)}${r.bot ? '' : ' <span class="you">(คุณ)</span>'}</td>
+            <td class="num">${r.dealt}
+              <i class="dmg" style="width:${Math.round(r.dealt / top * 100)}%"></i></td>
+            <td class="num">${r.kills}</td>
+            <td class="num">${r.dead ? '☠️ ตกรอบ' : r.hp + '/' + r.max_hp}</td>
+          </tr>`).join('')}
       </table>
       <div class="bars">
         <button class="again" id="wmAgain">🎲 เล่นอีกรอบ</button>
@@ -2231,8 +2258,10 @@ function wmPaintOver() {
       </div>
     </div>`;
   document.getElementById('wmAgain').onclick = () => { SFX.play('click'); wmNewMatch(0); };
-  document.getElementById('wmQuit').onclick = () => {
+  document.getElementById('wmQuit').onclick = async () => {
     SFX.play('click');
+    try { wmApply(await api('POST', '/api/web/pvp/worms/match', { action: 'quit' })); }
+    catch (e) { toast(e.message, true); }
     document.querySelector('#v-worms [data-back]')?.click();
   };
 }

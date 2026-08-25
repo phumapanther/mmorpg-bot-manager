@@ -978,12 +978,17 @@ body.bar-min .pbar .money { margin-left: auto; }
 
 /* 🏁 สรุปผลตอนจบเกม — คลุมสนามไว้ ไม่ให้กดอะไรต่อจนกว่าจะเลือก */
 .wm-over { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center;
-  background: rgba(10, 8, 16, .84); padding: 16px; text-align: center; }
+  background: rgba(10, 8, 16, .88); padding: 16px; text-align: center;
+  line-height: 1.5; overflow: auto; }   /* .wm-stage ตั้ง line-height: 0 ไว้ ตัวหนังสือเลยทับกัน */
 .wm-over[hidden] { display: none; }
 .wm-over h3 { margin: 0 0 4px; font-size: 1.25rem; color: #ffd66b; }
 .wm-over .sub { margin: 0 0 12px; color: #a99274; font-size: .82rem; }
 .wm-over table { margin: 0 auto 14px; border-collapse: collapse; font-size: .82rem;
-  min-width: min(420px, 90%); }
+  min-width: min(460px, 96%); }
+.wm-over td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.wm-over .dmg { display: block; height: 5px; margin-top: 3px; border-radius: 3px;
+  background: linear-gradient(90deg, #ff9d4a, #ff5a3c); min-width: 2px; }
+.wm-over .you { color: #8ef0b0; font-size: .7rem; }
 .wm-over th { color: #a99274; font-weight: 600; padding: 3px 9px; text-align: left; }
 .wm-over td { padding: 5px 9px; border-top: 1px solid #ffffff1a; }
 .wm-over tr.win td { color: #ffd66b; font-weight: 700; }

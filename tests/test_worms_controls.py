@@ -410,14 +410,14 @@ def test_the_trail_the_page_draws_is_the_one_the_server_sent():
 def test_the_camera_jumps_to_whoever_the_turn_belongs_to():
     body = PLAY[PLAY.index("function wmStartLoop("):]
     body = body[:body.index("/** วาดนักสู้")]
-    assert "WM_ST.turn !== WM_TURN_SHOWN" in body, "เปลี่ยนตาแล้วกล้องไม่ตามไปหาคนที่ถึงตา"
+    assert "turnKey !== WM_TURN_SHOWN" in body, "เปลี่ยนตาแล้วกล้องไม่ตามไปหาคนที่ถึงตา"
     assert "wmFocus(wmMe(), true)" in body, "ตามแบบไม่บังคับ — ถ้าตัวอยู่กลางจอพอดีก็ไม่ขยับ"
     assert "!WM_ANIM &&" in body, "ตัดกล้องทั้งที่ภาพเดินยังเล่นค้างอยู่"
 
 
 def test_a_new_match_forgets_which_turn_was_focused():
     body = PLAY[PLAY.index("function wmApply("):PLAY.index("function wmMe(")]
-    assert "WM_TURN_SHOWN = -1;" in body,         "เปิดสนามใหม่แล้วยังจำตาเก่า กล้องเลยไม่ยอมจัดให้"
+    assert "WM_TURN_SHOWN = '';" in body, "เปิดสนามใหม่แล้วยังจำตาเก่า กล้องเลยไม่ยอมจัดให้"
 
 
 # ── 10. จบเกมแล้วสรุปผล ──
@@ -469,7 +469,8 @@ def test_the_page_shows_the_scoreboard_and_both_choices():
     body = PLAY[PLAY.index("function wmPaintOver("):]
     body = body[:body.index(chr(10) + "}")]
     rows = body[body.index("<table>"):body.index("</table>")]
-    assert "d.standings" in rows, "ตารางอันดับว่างเปล่า ไม่ได้วนของจริงมาวาด"
+    assert "rows.map(r" in rows, "ตารางอันดับว่างเปล่า ไม่ได้วนของจริงมาวาด"
+    assert "d.standings" in body, "ไม่ได้ดึงตารางอันดับจากเซิร์ฟเวอร์"
     for col in ("r.rank", "r.name", "r.dealt", "r.kills", "r.hp"):
         assert col in rows, f"ตารางไม่มีช่อง {col}"
     assert "wmAgain" in body and "wmQuit" in body, "ไม่มีให้เลือกว่าจะเล่นต่อหรือจบ"
@@ -480,5 +481,96 @@ def test_the_page_shows_the_scoreboard_and_both_choices():
 def test_the_scoreboard_only_shows_when_the_match_is_over():
     body = PLAY[PLAY.index("function wmPaintOver("):]
     body = body[:body.index(chr(10) + "}")]
-    assert "box.hidden = !d || !d.over" in body, "แผงสรุปโผล่ตั้งแต่ยังเล่นอยู่"
+    assert "box.hidden = !idle && !d.over" in body, "แผงสรุปโผล่ตั้งแต่ยังเล่นอยู่"
     assert "wmPaintOver()" in PLAY.split("function wmPaintOver(")[0] or         PLAY.count("wmPaintOver()") >= 1, "เขียนแล้วไม่มีใครเรียก"
+
+
+# ── 11. หน้าเริ่มเกม + ปุ่มจบเกมที่จบจริง ──
+
+def test_quitting_really_clears_the_match(world):
+    """กดจบเกมแล้วกลับเข้ามาต้องไม่เจอกระดานสรุปเดิมค้างอยู่"""
+    fresh()
+    assert match.view(UID)["active"], "เพิ่งเปิดสนามแต่ยังไม่ active"
+    match.drop(UID)
+    assert not match.view(UID)["active"], "ทิ้งแมตช์แล้วยังโผล่มาอีก"
+
+
+def test_the_quit_action_goes_through_the_api(world, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from license_server import web_api
+
+    app = FastAPI()
+    app.include_router(web_api.router)
+    client = TestClient(app)
+    monkeypatch.setattr(web_api, "require_player", lambda r: {"uid": UID})
+
+    fresh()
+    r = client.post("/api/web/pvp/worms/match", json={"action": "quit"})
+    assert r.status_code == 200, r.text
+    assert r.json()["active"] is False, "สั่งจบเกมแล้ว API ยังบอกว่ายังเล่นอยู่"
+
+
+def test_the_page_asks_the_server_to_quit_not_just_walk_away():
+    body = PLAY[PLAY.index("function wmPaintOver("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "action: 'quit'" in body, "ปุ่มจบเกมแค่เด้งออกเมนู ไม่ได้บอกเซิร์ฟเวอร์ให้จบ"
+
+
+def test_there_is_a_start_screen_before_the_match():
+    """เจ้าของเกมสั่ง: ต้องมีหน้าก่อนเริ่มเกมสำหรับกดเริ่ม"""
+    body = PLAY[PLAY.index("function wmPaintOver("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "const idle = !d || !d.active;" in body, "ไม่ได้แยกสถานะ 'ยังไม่เริ่ม' ออกมา"
+    assert "if (idle) {" in body, "แยกสถานะไว้แต่ไม่ได้ใช้ — หน้าเริ่มเกมไม่มีวันโผล่"
+    start = body[body.index("if (idle) {"):body.index("return;", body.index("if (idle) {"))]
+    assert "เริ่มเกม" in start and "wmStart" in start, "หน้าก่อนเริ่มไม่มีปุ่มเริ่มเกม"
+    assert "wmNewMatch(0)" in start, "กดเริ่มเกมแล้วไม่ได้เปิดสนามใหม่"
+
+
+def test_the_start_screen_is_painted_even_with_no_match():
+    """wmPaintSkills ไปไม่ถึงตอนยังไม่มีแมตช์ ต้องวาดจาก wmApply โดยตรง"""
+    body = PLAY[PLAY.index("function wmApply("):PLAY.index("function wmMe(")]
+    at = body.index("wmPaintOver()")
+    assert at < body.index("if (!d.active)"), "วาดแผงหลังจากออกจากฟังก์ชันไปแล้ว"
+
+
+# ── 12. โฟกัสคนที่ถึงตาให้ได้จริง ──
+
+def test_the_focus_key_includes_the_round(world):
+    """ซ้อมกับบอท: จบเทิร์นแล้วบอทเดินจบในคำขอเดียว d.turn จึงกลับมาเป็น 0 เท่าเดิม
+    เทียบแค่ turn กล้องเลยไม่มีวันขยับ"""
+    fresh()
+    before = match.view(UID)
+    match.end_turn(UID)
+    after = match.view(UID)
+    assert after["turn"] == before["turn"], "สมมติฐานเปลี่ยน — ตากลับมาที่เดิมไม่ใช่แล้ว"
+    assert after["round"] != before["round"], "รอบไม่เดิน แล้วจะใช้อะไรรู้ว่าเปลี่ยนตา"
+    assert "WM_ST.round + ':' + WM_ST.turn" in PLAY, "กุญแจโฟกัสไม่ได้นับรอบด้วย"
+
+
+# ── 13. สถิติต้องอ่านออก ──
+
+def test_the_results_panel_is_not_crushed_by_the_stage_line_height():
+    """.wm-stage ตั้ง line-height: 0 ไว้ให้ canvas — ตัวหนังสือในแผงเลยทับกันจนอ่านไม่ออก"""
+    css = (WEB / "play.css").read_text(encoding="utf-8")
+    block = css[css.index(".wm-over {"):css.index(".wm-over[hidden]")]
+    assert "line-height" in block, "ไม่ได้คืนระยะบรรทัดให้แผงสรุป"
+
+
+def test_the_table_shows_rank_and_damage_side_by_side():
+    body = PLAY[PLAY.index("function wmPaintOver("):]
+    body = body[:body.index(chr(10) + "}")]
+    head = body[body.index("<tr><th>"):body.index("</tr>")]
+    assert "อันดับ" in head and "ความเสียหาย" in head, "หัวตารางไม่ได้บอกว่าคอลัมน์ไหนคืออะไร"
+    rows = body[body.index("${rows.map"):body.index(".join('')")]
+    for col in ("r.rank", "r.name", "r.dealt", "r.kills", "r.hp"):
+        assert col in rows, f"ตารางไม่มีช่อง {col}"
+    assert "class=\"dmg\"" in rows, "ไม่มีแท่งเทียบความเสียหายให้เห็นว่าใครมากกว่า"
+
+
+def test_you_can_tell_which_row_is_you():
+    body = PLAY[PLAY.index("function wmPaintOver("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "(คุณ)" in body, "ดูไม่ออกว่าแถวไหนคือเรา"
