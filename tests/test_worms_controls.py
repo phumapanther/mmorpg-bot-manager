@@ -711,3 +711,75 @@ def test_the_page_has_a_surrender_button():
     at = body.index("if (!confirm(")
     assert "return;" in body[at:at + 140], "ถามแล้วแต่ตอบไม่ก็ยังยอมแพ้อยู่ดี"
     assert "wmLand(s.blast)" in body, "ยอมแพ้แล้วไม่มีอนิเมชันระเบิดตัวเอง"
+
+
+# ── 18. ตกลงน้ำต้องเห็นว่าตกและจม ──
+
+def _cliff(ledge_x=200):
+    g = [[T.AIR] * T.W for _ in range(T.H)]
+    for x in range(100, ledge_x):
+        for y in range(120, 130):
+            g[y][x] = T.ROCK
+    return g
+
+
+def test_falling_off_the_edge_shows_the_whole_fall(world):
+    """เจ้าของเกมทัก: ยังไม่แตะน้ำเลยก็ตายแล้ว
+
+    เดิมเก็บแค่จุดปลาย ตัวเลยวาร์ปจากขอบผาไปโผล่ที่ผิวน้ำทีเดียว
+    """
+    r = P.walk(_cliff(), 190, 120, 1, 40)
+    ys = [pt[1] for pt in r["path"]]
+    assert r["drowned"], "เดินตกขอบแล้วไม่ได้ตกน้ำ — เทสตั้งฉากผิด"
+    gap = max(ys[i + 1] - ys[i] for i in range(len(ys) - 1))
+    assert gap <= 2, f"ร่วงทีละ {gap} px = วาร์ป ไม่ใช่ตก"
+    assert len(ys) > 60, f"เส้นทางมีแค่ {len(ys)} จุด สั้นเกินกว่าจะเห็นว่าตก"
+
+
+def test_the_body_keeps_sinking_below_the_surface(world):
+    """ต้องมีอนิเมชันจมน้ำ ไม่ใช่หยุดที่ผิวน้ำแล้วหายวับ"""
+    water = T.H - T.WATER
+    for r in (P.walk(_cliff(), 190, 120, 1, 40), P.jump(_cliff(), 198, 120, 1)):
+        assert r["drowned"]
+        deepest = max(pt[1] for pt in r["path"])
+        assert deepest > water, f"เส้นทางลึกสุดแค่ {deepest} ผิวน้ำอยู่ {water} — ไม่ได้จมเลย"
+        assert deepest - water >= 10, f"จมแค่ {deepest - water} px แป๊บเดียวก็หาย"
+        assert r["y"] == water, "ตำแหน่งจริงต้องอยู่ที่ผิวน้ำ จุดจมมีไว้เล่นภาพเท่านั้น"
+
+
+def test_jumping_into_the_sea_arcs_first(world):
+    """กระโดดออกไปต้องเห็นวิถีโค้งก่อน ไม่ใช่ตายทันทีที่พ้นขอบ"""
+    r = P.jump(_cliff(), 198, 120, 1)
+    ys = [pt[1] for pt in r["path"]]
+    assert min(ys) < 120, "กระโดดแล้วไม่ได้ลอยขึ้นเลย"
+    assert len(ys) > 25, f"วิถีมีแค่ {len(ys)} เฟรม สั้นเกินกว่าจะเห็น"
+
+
+def test_a_drowned_fighter_is_still_drawn_while_sinking():
+    body = PLAY[PLAY.index("function wmStartLoop("):PLAY.index("/** วาดนักสู้")]
+    assert "if (!f.dead || moving)" in body,         "ตายปุ๊บหยุดวาดปั๊บ — ภาพจมน้ำที่เซิร์ฟเวอร์ส่งมาไม่มีใครได้เห็น"
+
+
+def test_hitting_the_water_makes_a_splash():
+    body = PLAY[PLAY.index("function wmStartLoop("):PLAY.index("/** วาดนักสู้")]
+    assert "wmSplash(" in body, "แตะผิวน้ำแล้วเงียบสนิท"
+    assert "af.y < wl && y >= wl" in body, "ไม่ได้ผูกน้ำกระจายกับจังหวะข้ามผิวน้ำ"
+    assert "function wmSplash(" in PLAY, "เรียกแต่ไม่มีฟังก์ชัน"
+
+
+def test_the_body_fades_as_it_sinks():
+    body = PLAY[PLAY.index("function wmDrawFighter("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "const deep = f.y - (WM.h - WM.water);" in body, "ไม่ได้ดูว่าจมลึกแค่ไหน"
+    assert "1 - deep / 18" in body, "จมแล้วไม่จาง — ค้างอยู่ใต้น้ำเฉย ๆ"
+
+
+# ── 19. กดเดิน/กระโดดรัว ๆ แล้วห้ามวาป ──
+
+def test_a_second_walk_does_not_warp_the_fighter_backwards():
+    """กดค้างเดินยิงคำสั่งถี่กว่าภาพเล่นจบ ท่อนใหม่จะเริ่มจากตำแหน่งของเซิร์ฟเวอร์
+    ซึ่งอยู่ข้างหน้าตำแหน่งที่กำลังวาดอยู่ — ย้อนผิดจุดคือวาปย้อนหลังแล้ววาปกลับ"""
+    body = PLAY[PLAY.index("async function wmDo("):PLAY.index("async function wmEndTurn(")]
+    assert "WM_ANIM.path[WM_ANIM.path.length - 1]" in body,         "ยังย้อนไปที่ตำแหน่งกลางแอนิเมชันแทนปลายทางของท่อนก่อน"
+    assert "WM_ANIM.fi === mine" in body, "ไม่ได้เช็คว่าท่อนที่ค้างอยู่เป็นของคนเดียวกัน"
+    assert "const from = tail ?" in body, "ไม่ได้ใช้ปลายทางของท่อนก่อนเป็นจุดเริ่ม"

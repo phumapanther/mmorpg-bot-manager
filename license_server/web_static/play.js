@@ -2070,6 +2070,8 @@ function wmStartLoop() {
             wmDust(x, y, 12); SFX.play('walk');
           }
           WM_ANIM.air = WM_ANIM.dy > 2 || WM_ANIM.dy < -1;
+          const wl = WM.h - WM.water;                  // ผิวน้ำ
+          if (af.y < wl && y >= wl) { wmSplash(x, wl); SFX.play('lose'); }
           af.x = x; af.y = y;
         }
         if (WM_ANIM.i % 3 === 0) SFX.play('walk');
@@ -2089,7 +2091,9 @@ function wmStartLoop() {
 
     WM.draw(ctx, WM_CAM, t++);
     WM_ST.fighters.forEach((f, i) => {
-      if (!f.dead) wmDrawFighter(ctx, f, i === WM_ST.turn, t, WM_ANIM && WM_ANIM.fi === i);
+      const moving = !!(WM_ANIM && WM_ANIM.fi === i);
+      // ตายแล้วแต่ภาพร่วง/จมน้ำยังเล่นค้างอยู่ = ต้องวาดต่อ ไม่งั้นหายวับตอนหลุดขอบเกาะ
+      if (!f.dead || moving) wmDrawFighter(ctx, f, i === WM_ST.turn, t, moving);
     });
     wmDrawFx(ctx);
     wmLoop = requestAnimationFrame(tick);
@@ -2107,6 +2111,9 @@ function wmDrawFighter(ctx, f, active, t, walking) {
   const look = { ...(f.look || {}), pose: pose, flip: f.face < 0 };
   const hurt = WM_FLASH[f.name] || 0;
   if (hurt) { WM_FLASH[f.name] = hurt - 1; ctx.globalAlpha = hurt % 4 < 2 ? .35 : 1; }
+  // จมอยู่ใต้ผิวน้ำ — ยิ่งลึกยิ่งจาง ให้เห็นว่าค่อย ๆ จมหายไป ไม่ใช่หายวับ
+  const deep = f.y - (WM.h - WM.water);
+  if (deep > 0) ctx.globalAlpha = Math.max(0, 1 - deep / 18) * .8;
   if (air) {                       // ลอยอยู่ = เอียงตัวสะบัดไปมา ให้เห็นว่าไม่ได้ยืน
     ctx.save();
     ctx.translate(x, y - 11 * z);
@@ -2458,6 +2465,13 @@ function wmBuffFx(a) {
                  text: a.heal ? `${label} +${a.heal}` : label });
 }
 
+/** 💦 น้ำกระจายตอนร่างแตะผิวน้ำ — พุ่งขึ้นสูงกว่าฝุ่น แล้วค่อย ๆ ตกกลับ */
+function wmSplash(x, y) {
+  for (let i = 0; i < 22; i++)
+    WM_BITS.push({ x: x + ((i % 7) - 3), y: y, t: 0, drop: true,
+                   vx: ((i % 7) - 3) * .5, vy: -1.5 - (i % 4) * .55 });
+}
+
 /** 💨 ฝุ่นตอนตกกระแทกพื้น — ใช้ระบบสะเก็ดเดิม แค่กระจายเตี้ย ๆ ไม่พุ่งขึ้นฟ้า */
 function wmDust(x, y, n) {
   for (let i = 0; i < n; i++)
@@ -2570,7 +2584,8 @@ function wmDrawFx(ctx) {
   WM_BITS.forEach(b => {
     b.vy += b.dust ? 0.03 : 0.14; b.x += b.vx; b.y += b.vy; b.t++;
     ctx.globalAlpha = (1 - b.t / 34) * (b.dust ? .55 : 1);
-    ctx.fillStyle = b.dust ? '#d8cbb4' : b.t % 5 < 2 ? '#c89a4b' : '#6b5433';
+    ctx.fillStyle = b.drop ? (b.t % 4 < 2 ? '#bfe9ff' : '#6fb6d8')
+                  : b.dust ? '#d8cbb4' : b.t % 5 < 2 ? '#c89a4b' : '#6b5433';
     ctx.fillRect(WM_CAM.sx(b.x), WM_CAM.sy(b.y), Math.max(1, WM_CAM.z / 2),
                  Math.max(1, WM_CAM.z / 2));
     ctx.globalAlpha = 1;
@@ -2617,7 +2632,14 @@ async function wmDo(action, dir) {
     const d = await api('POST', '/api/web/pvp/worms/match',
                         { action: action, dir: dir, steps: WM_WALK_STEPS });
     const mine = WM_ST.turn;              // ตาใครตอนสั่ง — แรงหมดแล้วเซิร์ฟเวอร์สลับตาให้แล้ว
-    const from = { ...WM_ST.fighters[mine] };
+    // ⚠️ ท่อนก่อนอาจยังเล่นภาพไม่จบ (กดค้างเดินยิงคำสั่งถี่กว่าภาพเล่นจบ)
+    //    ถ้าย้อนไปที่ "ตำแหน่งที่กำลังวาดอยู่" เส้นทางใหม่จะเริ่มจากตำแหน่งของเซิร์ฟเวอร์
+    //    ซึ่งอยู่ข้างหน้าไปแล้ว — เห็นเป็นตัววาปย้อนหลังแล้ววาปกลับ
+    //    ต้องย้อนไปที่ "ปลายทางของท่อนก่อน" ซึ่งคือจุดที่เซิร์ฟเวอร์เริ่มท่อนใหม่พอดี
+    const tail = WM_ANIM && WM_ANIM.fi === mine
+      ? WM_ANIM.path[WM_ANIM.path.length - 1] : null;
+    const cur = WM_ST.fighters[mine];
+    const from = tail ? { x: tail[0], y: tail[1] } : { x: cur.x, y: cur.y };
     WM_ANIM = null; WM_QUEUE = [];
     WM_ST = { ...d };
     if (d.move && d.move.path.length) {

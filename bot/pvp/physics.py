@@ -64,6 +64,18 @@ def settle(grid, x, y, max_fall=400):
     return x, T.H - T.WATER, T.H - T.WATER - start, True      # ไม่มีพื้นเลย = ตกน้ำ
 
 
+SINK_DEPTH = 18     # จมใต้ผิวน้ำอีกเท่านี้ — มีไว้ให้เบราว์เซอร์เล่นภาพจมน้ำ
+
+
+def _drop_path(x, y0, y1):
+    """ทุกพิกเซลระหว่างทางที่ร่วงลง
+
+    ⚠️ ไม่ใส่แล้วตัวจะวาร์ปจากขอบหน้าผาไปโผล่ที่พื้น/ผิวน้ำทีเดียว
+       ผู้เล่นเห็นแค่ "หลุดขอบเกาะแล้วตาย" โดยไม่เห็นว่าตกลงไป
+    """
+    return [[x, gy] for gy in range(y0 + 1, y1)]
+
+
 BLOCKED, MOVED, DROWNED = "blocked", "moved", "drowned"
 
 
@@ -105,10 +117,13 @@ def walk(grid, x, y, direction, steps, max_drop=None):
         how, nx, ny = step(grid, cx, cy, direction, max_drop)
         if how == BLOCKED:
             break
+        if ny > cy + 1:                     # ก้าวนี้ร่วงลง — ใส่ระหว่างทางให้ครบ
+            path.extend(_drop_path(nx, cy, ny))
         cx, cy = nx, ny
         path.append([cx, cy])
         if how == DROWNED:
             drowned = True
+            path.extend(_drop_path(cx, cy, cy + SINK_DEPTH))   # จมลงไปให้เห็น
             break
     return {"path": path, "x": cx, "y": cy, "drowned": drowned,
             "fell": max(0, cy - y)}
@@ -128,8 +143,10 @@ def jump(grid, x, y, direction):
             nx = px
             ix = int(round(nx))
         if iy >= T.H - T.WATER:
-            path.append([ix, T.H - T.WATER])
-            return {"path": path, "x": ix, "y": T.H - T.WATER,
+            water = T.H - T.WATER
+            path.append([ix, water])
+            path.extend(_drop_path(ix, water, water + SINK_DEPTH))
+            return {"path": path, "x": ix, "y": water,
                     "drowned": True, "fell": 0}
         if not _clear(grid, ix, iy):            # หัวหรือตัวชน — หยุดพุ่ง แล้วตกลง
             break
@@ -141,7 +158,10 @@ def jump(grid, x, y, direction):
                     "fell": max(0, iy - top)}
 
     fx, fy, fell, drowned = settle(grid, int(round(px)), int(round(py)))
+    path.extend(_drop_path(fx, int(round(py)), fy))
     path.append([fx, fy])
+    if drowned:
+        path.extend(_drop_path(fx, fy, fy + SINK_DEPTH))
     return {"path": path, "x": fx, "y": fy, "drowned": drowned,
             "fell": max(0, fy - top)}
 
