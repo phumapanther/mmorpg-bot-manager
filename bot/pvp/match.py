@@ -259,6 +259,31 @@ def move(uid, action, direction=1, steps=1):
     return True, mine | view(uid, st)
 
 
+KNOCK_PER_DMG = 0.5     # ดาเมจหนึ่งหน่วย = กระเด็นออกไปกี่พิกเซล
+KNOCK_MAX = 34          # กระเด็นไกลสุดต่อหนึ่งหมัด
+
+
+def _knock_back(st, grid, f, from_x, dmg, dist=None):
+    """💥 โดนแล้วต้องกระเด็น — แรงตามดาเมจ ทิศออกจากจุดที่โดน
+
+    คืนเส้นทางไว้ให้เว็บเล่นภาพ (ไม่ส่งไปก็เห็นตัวเทเลพอร์ตไปโผล่)
+    ไม่ใส่เพดานความลึกให้ walk() — โดนกระแทกตกหน้าผาหรือลงทะเลได้ตามจริง
+    """
+    if f["dead"] or dmg <= 0:
+        return None
+    dist = int(min(KNOCK_MAX, dist if dist is not None else dmg * KNOCK_PER_DMG))
+    if dist < 2:
+        return None
+    d = 1 if f["x"] >= from_x else -1
+    kb = physics.walk(grid, f["x"], f["y"], d, dist)
+    f["x"], f["y"] = kb["x"], kb["y"]
+    if kb["drowned"]:
+        _drown(st, f)
+    else:
+        _fall_hurt(st, f, kb["fell"], "กระเด็นตกจากที่สูง")
+    return {"name": f["name"], "path": kb["path"]} if kb["path"] else None
+
+
 def _explode(st, grid, cx, cy, radius, dmg, crater, why, by=None):
     """💥 ระเบิด ณ จุดหนึ่ง — เจาะพื้นเป็นหลุมแล้วกระจายดาเมจตามระยะ
 
@@ -266,7 +291,7 @@ def _explode(st, grid, cx, cy, radius, dmg, crater, why, by=None):
     ระเบิดหลบไม่ได้ (dodgeable=False) — สกิลหลบมีไว้กันการฟันตรง ๆ
     """
     gone = terrain.carve(grid, cx, cy, crater) if crater else []
-    hits = []
+    hits, knocks = [], []
     for f, raw in weapons.blast_targets(cx, cy, st["fighters"], radius, dmg):
         got = _hurt(st, f, raw, why, dodgeable=False, by=by)
         if got:
@@ -274,7 +299,12 @@ def _explode(st, grid, cx, cy, radius, dmg, crater, why, by=None):
     if gone:
         st["terrain"] = terrain.encode(grid)
         _settle_everyone(st, grid)
-    return {"x": cx, "y": cy, "crater": crater, "hits": hits}
+    for h in hits:                       # ผลักหลังเจาะหลุมเสร็จ จะได้กระเด็นบนพื้นใหม่
+        f = next((x for x in st["fighters"] if x["name"] == h["name"]), None)
+        kb = _knock_back(st, grid, f, cx, h["damage"]) if f else None
+        if kb:
+            knocks.append(kb)
+    return {"x": cx, "y": cy, "crater": crater, "hits": hits, "knocks": knocks}
 
 
 def _settle_everyone(st, grid):
@@ -377,7 +407,7 @@ def _use_skill(st, grid, f, key, angle, power):
         out["from"] = [f["x"], f["y"]]
         out["face"] = f["face"]
         out["aim"] = [round(ax, 3), round(ay, 3)]
-        hits = []
+        hits, knocks = [], []
         out["times"] = s.get("times", 1)
         for t in weapons.melee_targets(f, st["fighters"], s["reach"], (ax, ay)) * s.get("times", 1):
             if t["dead"]:
@@ -389,15 +419,12 @@ def _use_skill(st, grid, f, key, angle, power):
             got = _hurt(st, t, dmg, f"โดน {s['name']}", by=f)
             hits.append({"name": t["name"], "damage": got, "x": t["x"], "y": t["y"],
                          "dodged": got == 0})
-            if s.get("knock") and not t["dead"]:               # กระแทกให้กระเด็น
-                kb = physics.walk(grid, t["x"], t["y"], f["face"], s["knock"])
-                t["x"], t["y"] = kb["x"], kb["y"]
-                out["knock"] = {"name": t["name"], "path": kb["path"]}
-                if kb["drowned"]:
-                    _drown(st, t)
-                else:
-                    _fall_hurt(st, t, kb["fell"], "กระเด็นตกจากที่สูง")
+            # ทุกหมัดที่เข้าต้องผลักให้กระเด็น ไม่ใช่แค่ท่าที่ตั้ง knock ไว้
+            kb = _knock_back(st, grid, t, f["x"], got, dist=s.get("knock"))
+            if kb:
+                knocks.append(kb)
         out["hits"] = hits
+        out["knocks"] = knocks
         if s.get("crater"):
             # เจาะที่ระดับเข่า — ต่ำพอให้กัดพื้นตรงหน้าจริง (ระดับอกอย่างเดียว
             # ยืนบนลานราบแล้วต่อยไปก็ไม่โดนอะไรเลย) แต่ยังสูงพอไม่ตัดพื้นใต้เท้าขาด

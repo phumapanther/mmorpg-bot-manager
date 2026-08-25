@@ -123,9 +123,28 @@ def test_shield_bash_knocks_the_target_away(world):
     arena("Warrior", gap=18)
     before = match.load(UID)["fighters"][1]["x"]
     a = match.attack(UID, "bash")[1]["attack"]
-    assert a.get("knock"), "ไม่มีการกระเด็นเลย"
-    assert a["knock"]["path"][-1][0] > before, "กระเด็นผิดทาง"
-    assert a["knock"]["name"], "ไม่ได้บอกว่าใครกระเด็น เว็บเล่นภาพให้ผิดคนได้"
+    assert a.get("knocks"), "ไม่มีการกระเด็นเลย"
+    kb = a["knocks"][0]
+    assert kb["path"][-1][0] > before, "กระเด็นผิดทาง"
+    assert kb["name"], "ไม่ได้บอกว่าใครกระเด็น เว็บเล่นภาพให้ผิดคนได้"
+
+
+def test_every_hit_knocks_the_target_back(world):
+    """เจ้าของเกมสั่ง: ทุกครั้งที่โดนโจมตีต้องมีการกระเด็น ไม่ใช่แค่ท่ากระแทก"""
+    for skill in ("basic", "heavy"):
+        arena("Warrior", gap=16)
+        a = match.attack(UID, skill, angle=0)[1]["attack"]
+        assert a.get("knocks"), f"{skill} ตีโดนแล้วคู่ต่อสู้ยืนนิ่งเฉย"
+
+
+def test_a_heavier_hit_throws_you_further(world):
+    """แรงกระเด็นต้องตามดาเมจ ไม่ใช่ทุกท่าผลักเท่ากันหมด"""
+    arena("Warrior", gap=16)
+    light = match.attack(UID, "basic", angle=0)[1]["attack"]["knocks"][0]
+    arena("Warrior", gap=16)
+    heavy = match.attack(UID, "heavy", angle=0)[1]["attack"]["knocks"][0]
+    assert len(heavy["path"]) > len(light["path"]), \
+        f"ตีหนัก ({len(heavy['path'])}) ผลักไม่ไกลกว่าตีปกติ ({len(light['path'])})"
 
 
 def test_a_fireball_blows_a_hole_in_the_ground(world):
@@ -459,7 +478,8 @@ def test_the_page_shows_damage_numbers_and_flashes():
     for need in ("wmPop", "WM_FLASH", "wmSwing", "wmBoom", "wmDrawAim", "wmDrawTrail"):
         assert need in PLAY, f"ไม่มีเอฟเฟกต์ {need}"
     fn = _fn("function wmShowHit(")
-    assert "wmPop(hits)" in fn, "ไม่ได้เด้งตัวเลขดาเมจ"
+    assert "wmPop(" in fn, "ไม่ได้เด้งตัวเลขดาเมจ"
+    assert "hits.map(h =>" in fn, "ไม่ได้เด้งเลขตรงที่ตัวไปหยุดหลังกระเด็น"
     assert "wmSwing(a)" in fn, "ไม่ได้วาดวงเหวี่ยงตอนฟัน"
 
 

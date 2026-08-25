@@ -659,9 +659,12 @@ def test_landing_kicks_up_dust():
 def test_being_knocked_back_is_replayed_on_the_right_fighter(world):
     body = PLAY[PLAY.index("function wmShowHit("):]
     body = body[:body.index(chr(10) + "}")]
-    assert "if (a.knock && a.knock.path && a.knock.path.length) {" in body,         "โดนกระแทกแล้วตัวเทเลพอร์ตไปเฉย ๆ ไม่เห็นว่าปลิว"
-    assert "WM_QUEUE.push({ fi: ki" in body, "ไม่ได้ต่อคิวภาพกระเด็นให้เล่น"
-    assert "f.name === a.knock.name" in body, "เล่นภาพกระเด็นให้ผิดคนได้"
+    assert "wmPlayKnocks(a)" in body, "โดนกระแทกแล้วตัวเทเลพอร์ตไปเฉย ๆ ไม่เห็นว่าปลิว"
+    kn = PLAY[PLAY.index("function wmPlayKnocks("):]
+    kn = kn[:kn.index(chr(10) + "}")]
+    assert "WM_QUEUE.push({ fi: ki" in kn, "ไม่ได้ต่อคิวภาพกระเด็นให้เล่น"
+    assert "f.name === k.name" in kn, "เล่นภาพกระเด็นให้ผิดคนได้"
+    assert "(a.blast || {}).knocks" in kn, "โดนระเบิดผลักแล้วไม่เห็นตัวปลิว"
 
 
 # ── 16. นาฬิกาต้องไม่เดินตอนดูบอทเล่น ──
@@ -757,7 +760,7 @@ def test_jumping_into_the_sea_arcs_first(world):
 
 def test_a_drowned_fighter_is_still_drawn_while_sinking():
     body = PLAY[PLAY.index("function wmStartLoop("):PLAY.index("/** วาดนักสู้")]
-    assert "if (!f.dead || moving)" in body,         "ตายปุ๊บหยุดวาดปั๊บ — ภาพจมน้ำที่เซิร์ฟเวอร์ส่งมาไม่มีใครได้เห็น"
+    assert "if (!f.dead || moving || WM_DYING[i])" in body,         "ตายปุ๊บหยุดวาดปั๊บ — ภาพจมน้ำที่เซิร์ฟเวอร์ส่งมาไม่มีใครได้เห็น"
 
 
 def test_hitting_the_water_makes_a_splash():
@@ -815,3 +818,93 @@ def test_the_result_is_painted_once_not_every_frame():
     assert "WM_OVER_SHOWN = !idle;" in PLAY, "ไม่ได้จำว่าขึ้นไปแล้ว จะวาดใหม่ทุกเฟรม"
     body = PLAY[PLAY.index("function wmApply("):PLAY.index("function wmMe(")]
     assert "if (!d || !d.over) WM_OVER_SHOWN = false;" in body,         "เริ่มสนามใหม่แล้วยังจำว่าเคยขึ้นผลไปแล้ว รอบหน้าจะไม่ขึ้นอีกเลย"
+
+
+# ── 21. กระเด็นให้จบก่อน แล้วค่อยสรุปดาเมจ/ตาย ──
+
+def test_every_hit_reports_a_knockback_path(world):
+    """เจ้าของเกมสั่ง: ทุกครั้งที่โดนโจมตีต้องมีการกระเด็นและมีอนิเมชัน"""
+    for skill in ("basic", "heavy"):
+        fresh()
+        st = match.load(UID)
+        me, foe = st["fighters"]
+        foe.update(x=me["x"] + 16, y=me["y"])
+        match.save(UID, st)
+        a = match.attack(UID, skill, angle=0)[1]["attack"]
+        assert a.get("knocks"), f"{skill} โดนแล้วไม่กระเด็น"
+        assert a["knocks"][0]["path"], "กระเด็นแต่ไม่มีเส้นทางให้เล่นภาพ"
+        assert a["knocks"][0]["name"], "ไม่บอกว่าใครกระเด็น"
+
+
+def test_a_blast_pushes_people_away_from_the_centre(world):
+    """ระเบิดต้องผลักออกจากจุดระเบิด — เรียก _explode ตรง ๆ จะได้ไม่ต้องลุ้นว่ายิงโดนไหม"""
+    fresh()
+    g = [[T.AIR] * T.W for _ in range(T.H)]
+    for x in range(T.W):
+        for y in range(200, T.H - T.WATER):
+            g[y][x] = T.ROCK
+    st = match.load(UID)
+    st["terrain"], st["props"] = T.encode(g), []
+    me, foe = st["fighters"]
+    me.update(x=300, y=200)
+    foe.update(x=330, y=200)
+    match.save(UID, st)
+
+    st = match.load(UID)
+    g = T.decode(st["terrain"])
+    blast = match._explode(st, g, 300, 190, 60, 40, 0, "ทดสอบ", by=st["fighters"][0])
+    assert blast["hits"], "ระเบิดติดตัวแล้วไม่โดนใครเลย — ฉากทดสอบเพี้ยน"
+    assert blast["knocks"], "โดนระเบิดแล้วยืนนิ่งเฉย ไม่กระเด็นเลย"
+    assert st["fighters"][1]["x"] > 330, "ระเบิดผลักเข้าหาจุดระเบิดแทนที่จะผลักออก"
+
+
+def test_the_page_waits_for_the_knockback_before_showing_damage():
+    body = PLAY[PLAY.index("function wmShowHit("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "const flying = wmPlayKnocks(a);" in body, "ไม่ได้เล่นภาพกระเด็นก่อน"
+    assert "if (flying) WM_AFTER.push(settle); else settle();" in body,         "เด้งเลขดาเมจทันทีทั้งที่ตัวยังปลิวอยู่กลางอากาศ"
+    at = body.index("const settle = () =>")
+    assert "wmCallDeaths()" in body[at:], "ไม่ได้ประกาศคนตายหลังกระเด็นจบ"
+
+
+def test_deferred_work_actually_runs_when_the_replay_drains():
+    body = PLAY[PLAY.index("function wmStartLoop("):PLAY.index("/** วาดนักสู้")]
+    assert "while (WM_AFTER.length) WM_AFTER.shift()();" in body,         "เข้าคิวไว้แล้วไม่มีใครมาสะสาง — เลขดาเมจจะไม่ขึ้นเลย"
+
+
+def test_a_death_is_announced_once_not_every_frame():
+    body = PLAY[PLAY.index("function wmCallDeaths("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "if (f.dead && !WM_DEAD_SEEN[f.name]) {" in body, "ประกาศตายซ้ำทุกเฟรม"
+    assert "WM_DEAD_SEEN[f.name] = true;" in body, "ไม่ได้ทำเครื่องหมายว่าประกาศไปแล้ว"
+    assert "wmDie(i, f)" in body, "ไม่ได้เล่นภาพตาย"
+
+
+def test_dying_has_its_own_animation():
+    body = PLAY[PLAY.index("function wmDie("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "WM_DYING[i] =" in body, "ไม่ได้กันเวลาไว้ให้ภาพตายเล่น"
+    assert "WM_BITS.push" in body and "WM_POPS.push" in body,         "ตายแล้วหายเงียบ ไม่มีสะเก็ดไม่มีป้ายบอกว่าใครตาย"
+
+
+def test_the_body_stays_on_screen_through_the_death_animation():
+    body = PLAY[PLAY.index("function wmStartLoop("):PLAY.index("/** วาดนักสู้")]
+    assert "|| WM_DYING[i]" in body, "ภาพตายเล่นอยู่แต่ตัวหายไปแล้ว"
+
+
+def test_the_result_panel_waits_for_the_death_animation_too():
+    body = PLAY[PLAY.index("function wmBusyFx("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "WM_AFTER.length" in body, "ยังมีงานค้างแต่ขึ้นแผงสรุปแล้ว"
+    assert "Object.keys(WM_DYING).length" in body, "ภาพตายยังเล่นอยู่แต่ขึ้นแผงสรุปแล้ว"
+
+
+def test_damage_numbers_pop_where_the_target_landed():
+    body = PLAY[PLAY.index("function wmShowHit("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "WM_ST.fighters.find(x => x.name === h.name)" in body,         "เลขดาเมจเด้งที่จุดเดิมตอนโดน ทั้งที่ตัวกระเด็นไปไกลแล้ว"
+
+
+def test_a_new_match_forgets_who_died():
+    body = PLAY[PLAY.index("function wmApply("):PLAY.index("function wmMe(")]
+    assert "WM_DEAD_SEEN" in body, "สนามใหม่ยังจำคนตายรอบก่อน ภาพตายจะไม่เล่นอีกเลย"

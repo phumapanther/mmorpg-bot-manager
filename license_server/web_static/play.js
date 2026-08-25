@@ -2010,6 +2010,11 @@ function wmApply(d) {
   const fresh = !WM || !WM_ST || WM_ST.seed !== d.seed;
   WM_ANIM = null; WM_QUEUE = [];   // สถานะถูกแทนทั้งก้อน ภาพที่ค้างเป็นของสถานะเก่าไปแล้ว
   if (!d || !d.over) WM_OVER_SHOWN = false;
+  if (!WM_ST || !d || WM_ST.seed !== d.seed) {      // สนามใหม่ = เริ่มนับคนตายใหม่
+    Object.keys(WM_DEAD_SEEN).forEach(k => delete WM_DEAD_SEEN[k]);
+    Object.keys(WM_DYING).forEach(k => delete WM_DYING[k]);
+    WM_AFTER = [];
+  }
   WM_ST = d;
   document.getElementById('v-worms').classList.toggle('wm-idle', !d.active);
   wmPaintOver();
@@ -2080,7 +2085,11 @@ function wmStartLoop() {
       }
     } else if (WM_ANIM) {
       WM_ANIM = WM_QUEUE.shift() || null;      // ท่อนถัดไปของบอท (ถ้ามี)
-      if (!WM_ANIM) wmPaintHud();
+      if (!WM_ANIM) {
+        // ตัวหยุดกระเด็นแล้ว ถึงค่อยสรุปว่าโดนไปเท่าไหร่ ตายหรือไม่ตาย
+        while (WM_AFTER.length) WM_AFTER.shift()();
+        wmPaintHud();
+      }
     }
     // ถึงตาใครก็เลื่อนกล้องไปหาคนนั้นเอง — รอให้ภาพที่ค้างเล่นจบก่อน ไม่งั้นตัดกลางคัน
     const turnKey = WM_ST.round + ':' + WM_ST.turn;
@@ -2093,8 +2102,9 @@ function wmStartLoop() {
     WM.draw(ctx, WM_CAM, t++);
     WM_ST.fighters.forEach((f, i) => {
       const moving = !!(WM_ANIM && WM_ANIM.fi === i);
-      // ตายแล้วแต่ภาพร่วง/จมน้ำยังเล่นค้างอยู่ = ต้องวาดต่อ ไม่งั้นหายวับตอนหลุดขอบเกาะ
-      if (!f.dead || moving) wmDrawFighter(ctx, f, i === WM_ST.turn, t, moving);
+      // ตายแล้วแต่ภาพร่วง/จมน้ำ/ภาพตายยังเล่นค้างอยู่ = ต้องวาดต่อ ไม่งั้นหายวับ
+      if (WM_DYING[i]) { if (--WM_DYING[i] <= 0) delete WM_DYING[i]; }
+      if (!f.dead || moving || WM_DYING[i]) wmDrawFighter(ctx, f, i === WM_ST.turn, t, moving);
     });
     wmDrawFx(ctx);
     wmLoop = requestAnimationFrame(tick);
@@ -2138,6 +2148,8 @@ function wmDrawFighter(ctx, f, active, t, walking) {
 }
 
 let WM_QUEUE = [];         // ท่อนเดินที่รอเล่นภาพ (บอทเดินหลายท่อนต่อกัน)
+let WM_AFTER = [];         // งานที่ต้องรอภาพเล่นจบก่อน (สรุปดาเมจ · ประกาศคนตาย)
+const WM_DYING = {};       // ลำดับ -> เฟรมที่เหลือของภาพตาย (ตายแล้วยังต้องวาดต่อ)
 let WM_OVER_SHOWN = false; // ขึ้นแผงสรุปผลไปแล้วหรือยัง (กันวาดซ้ำทุกเฟรม)
 let WM_TURN_SHOWN = '';    // 'รอบ:ตา' ที่เลื่อนกล้องไปให้แล้ว
                            // ต้องมีเลขรอบด้วย — ซ้อมกับบอทจบเทิร์นแล้ว turn กลับมาเป็น 0
@@ -2251,7 +2263,8 @@ function wmBindAim(cv) {
  */
 /** ยังมีภาพค้างเล่นอยู่ไหม — ร่วงลงน้ำ กระสุนกำลังบิน ระเบิดยังไม่จาง */
 function wmBusyFx() {
-  return !!(WM_ANIM || WM_QUEUE.length || WM_SHOT || WM_BOOMS.length);
+  return !!(WM_ANIM || WM_QUEUE.length || WM_SHOT || WM_BOOMS.length ||
+            WM_AFTER.length || Object.keys(WM_DYING).length);
 }
 
 function wmPaintOver() {
@@ -2412,14 +2425,20 @@ function wmShowHit(a, byBot) {
     return;
   }
   if (a.kind === 'melee') wmSwing(a);
-  if (a.knock && a.knock.path && a.knock.path.length) {   // โดนกระแทกต้องเห็นตัวปลิวไป
-    const ki = WM_ST.fighters.findIndex(f => f.name === a.knock.name);
-    if (ki >= 0) WM_QUEUE.push({ fi: ki, path: a.knock.path, i: 0 });
-    if (!WM_ANIM) WM_ANIM = WM_QUEUE.shift();
-  }
-  wmPop(hits);
   if (a.blast) wmLand(a.blast);
-  if (hits.some(h => !h.dodged)) SFX.play('foehit');
+  // ⚠️ ลำดับที่เจ้าของเกมสั่ง: กระเด็นให้จบก่อน แล้วค่อยสรุปว่าโดนเท่าไหร่ ตายหรือยัง
+  //    เดิมเด้งเลขดาเมจกับประกาศตายทันที ทั้งที่ตัวยังปลิวอยู่กลางอากาศ
+  const flying = wmPlayKnocks(a);
+  const settle = () => {
+    // เด้งเลขตรงที่ตัวไปหยุดจริง ไม่ใช่จุดที่ยืนตอนโดน (กระเด็นไปไกลแล้ว)
+    wmPop(hits.map(h => {
+      const f = WM_ST.fighters.find(x => x.name === h.name);
+      return f ? { ...h, x: f.x, y: f.y } : h;
+    }));
+    if (hits.some(h => !h.dodged)) SFX.play('foehit');
+    wmCallDeaths();
+  };
+  if (flying) WM_AFTER.push(settle); else settle();
   if (byBot) toast(`🤖 บอทใช้ ${a.name}`, hits.some(h => h.name === 'คุณ' && !h.dodged));
 }
 
@@ -2476,6 +2495,47 @@ function wmBuffFx(a) {
   WM_AURAS.push({ x: a.from[0], y: a.from[1], color: color, t: 0 });
   WM_POPS.push({ x: a.from[0], y: a.from[1] - 30, t: 0, buff: true,
                  text: a.heal ? `${label} +${a.heal}` : label });
+}
+
+/** เล่นภาพกระเด็นของทุกคนที่โดนหมัดนี้ — คืน true ถ้ามีใครกำลังปลิวอยู่ */
+function wmPlayKnocks(a) {
+  const all = (a.knocks || []).concat((a.blast || {}).knocks || []);
+  let any = false;
+  all.forEach(k => {
+    if (!k || !k.path || !k.path.length) return;
+    const ki = WM_ST.fighters.findIndex(f => f.name === k.name);
+    if (ki < 0) return;
+    WM_QUEUE.push({ fi: ki, path: k.path, i: 0 });
+    any = true;
+  });
+  if (any && !WM_ANIM) WM_ANIM = WM_QUEUE.shift();
+  return any;
+}
+
+/** ประกาศคนที่เพิ่งตาย — เรียกหลังทุกคนหยุดกระเด็นแล้วเท่านั้น */
+function wmCallDeaths() {
+  WM_ST.fighters.forEach((f, i) => {
+    if (f.dead && !WM_DEAD_SEEN[f.name]) {
+      WM_DEAD_SEEN[f.name] = true;
+      wmDie(i, f);
+    }
+  });
+}
+
+const WM_DEAD_SEEN = {};   // ประกาศตายไปแล้วหรือยัง (กันเล่นภาพตายซ้ำทุกเฟรม)
+
+/** ☠️ ภาพตาย — ร่างสั่นแล้วแตกเป็นสะเก็ด ค่อย ๆ จางไป
+
+    เรียกหลังการกระเด็นหยุดแล้วเท่านั้น ไม่งั้นประกาศตายตั้งแต่ยังปลิวอยู่กลางอากาศ
+ */
+function wmDie(i, f) {
+  WM_DYING[i] = 26;
+  wmDust(f.x, f.y, 10);
+  for (let k = 0; k < 14; k++)
+    WM_BITS.push({ x: f.x, y: f.y - 10, t: 0,
+                   vx: ((k % 7) - 3) * .6, vy: -1 - (k % 4) * .4 });
+  WM_POPS.push({ x: f.x, y: f.y - 34, t: 0, text: '☠️ ' + f.name });
+  SFX.play('lose');
 }
 
 /** 💦 น้ำกระจายตอนร่างแตะผิวน้ำ — พุ่งขึ้นสูงกว่าฝุ่น แล้วค่อย ๆ ตกกลับ */
@@ -2664,7 +2724,7 @@ async function wmDo(action, dir) {
     (d.sprung || []).forEach(() => { SFX.play('trap'); toast('🕳️ เหยียบกับดัก!', true); });
     (d.opened || []).forEach(o => { SFX.play('chest');
       toast('🎁 เปิดหีบได้ ' + (o.name || 'ของ') + '!'); });
-    if (d.move && d.move.drowned) SFX.play('lose');
+    if (d.move && d.move.drowned) WM_AFTER.push(wmCallDeaths);
     WM.props = d.props; WM.repaint();
     wmPaintHud();
   } catch (e) { if (!wmBackoff(e)) toast(e.message, true); }
