@@ -657,17 +657,11 @@ def test_landing_kicks_up_dust():
 
 
 def test_being_knocked_back_is_replayed_on_the_right_fighter(world):
-    body = PLAY[PLAY.index("function wmShowHit("):]
-    body = body[:body.index(chr(10) + "}")]
-    assert "wmPlayKnocks(a)" in body, "โดนกระแทกแล้วตัวเทเลพอร์ตไปเฉย ๆ ไม่เห็นว่าปลิว"
-    kn = PLAY[PLAY.index("function wmPlayKnocks("):]
-    kn = kn[:kn.index(chr(10) + "}")]
-    assert "WM_QUEUE.push({ fi: ki" in kn, "ไม่ได้ต่อคิวภาพกระเด็นให้เล่น"
-    assert "f.name === k.name" in kn, "เล่นภาพกระเด็นให้ผิดคนได้"
-    assert "(a.blast || {}).knocks" in kn, "โดนระเบิดผลักแล้วไม่เห็นตัวปลิว"
+    vic = _fn("function wmPlayVictims(")
+    assert "knocks.find(k => k.name === v.name)" in vic, "จับคู่คนกับเส้นทางกระเด็นไม่ถูก"
+    assert "wmChunk(fi, kb.path, settle)" in vic, "ไม่ได้เล่นภาพกระเด็นก่อนสรุปผล"
+    assert "(a.blast || {}).knocks" in vic, "โดนระเบิดผลักแล้วไม่เห็นตัวปลิว"
 
-
-# ── 16. นาฬิกาต้องไม่เดินตอนดูบอทเล่น ──
 
 def test_the_clock_is_frozen_while_the_bot_replay_plays():
     """หมดเวลาระหว่างนั่งดูบอทเดิน = ขอจบเทิร์นไปตัดภาพบอทกลางคัน
@@ -859,12 +853,11 @@ def test_a_blast_pushes_people_away_from_the_centre(world):
 
 
 def test_the_page_waits_for_the_knockback_before_showing_damage():
-    body = PLAY[PLAY.index("function wmShowHit("):]
-    body = body[:body.index(chr(10) + "}")]
-    assert "const flying = wmPlayKnocks(a);" in body, "ไม่ได้เล่นภาพกระเด็นก่อน"
-    assert "if (flying) WM_AFTER.push(settle); else settle();" in body,         "เด้งเลขดาเมจทันทีทั้งที่ตัวยังปลิวอยู่กลางอากาศ"
-    at = body.index("const settle = () =>")
-    assert "wmCallDeaths()" in body[at:], "ไม่ได้ประกาศคนตายหลังกระเด็นจบ"
+    """เจ้าของเกมสั่ง: กระเด็นให้จบก่อน แล้วค่อยสรุปว่าโดนเท่าไหร่ ตายหรือยัง"""
+    vic = _fn("function wmPlayVictims(")
+    at = vic.index("const settle = () =>")
+    assert vic.index("wmChunk(fi, kb.path, settle)") > at, "ไม่ได้เอาการสรุปผลไปต่อท้ายการกระเด็น"
+    assert "WM_POPS.push" in vic and "wmDie(fi, f)" in vic, "สรุปผลไม่ครบทั้งเลขดาเมจและภาพตาย"
 
 
 def test_deferred_work_actually_runs_when_the_replay_drains():
@@ -900,9 +893,11 @@ def test_the_result_panel_waits_for_the_death_animation_too():
 
 
 def test_damage_numbers_pop_where_the_target_landed():
-    body = PLAY[PLAY.index("function wmShowHit("):]
-    body = body[:body.index(chr(10) + "}")]
-    assert "WM_ST.fighters.find(x => x.name === h.name)" in body,         "เลขดาเมจเด้งที่จุดเดิมตอนโดน ทั้งที่ตัวกระเด็นไปไกลแล้ว"
+    """เด้งเลขจากตำแหน่งสด ๆ ของตัวนักสู้ ไม่ใช่จุดที่ยืนตอนโดน (กระเด็นไปไกลแล้ว)"""
+    vic = _fn("function wmPlayVictims(")
+    assert "const f = WM_ST.fighters[fi];" in vic, "ไม่ได้อ่านตำแหน่งสดตอนสรุปผล"
+    assert "wmFocus(f, true)" in vic, "ไม่ได้จับกล้องไปที่คนที่กำลังสรุปผลของเขา"
+    assert "x: f.x, y: f.y - 26" in vic, "เลขดาเมจเด้งที่จุดเดิมตอนโดน"
 
 
 def test_a_new_match_forgets_who_died():
@@ -1131,3 +1126,58 @@ def test_a_melee_swing_shows_where_the_blow_lands():
     body = body[:body.index(chr(10) + "}")]
     assert "wmFocus({" in body, "ฟันไกล ๆ แล้วไม่เห็นว่าหมัดลงตรงไหน"
     assert "a.aim" in body, "จุดที่มองไม่ได้อิงทิศที่ฟันจริง"
+
+
+# ── 26. โดนหลายคน = ไล่โฟกัสทีละคน สรุปดาเมจทีละคน ──
+
+def test_each_victim_gets_its_own_turn_on_camera():
+    """เจ้าของเกมสั่ง: โดนหลายตัวให้กล้องโฟกัสทีละตัว แล้วคำนวณดาเมจทีละคน"""
+    vic = _fn("function wmPlayVictims(")
+    assert "const next = () =>" in vic, "ไม่ได้ไล่ทีละคน"
+    assert "let n = 0;" in vic, "ตัวนับเริ่มผิด — ข้ามคนที่โดนไปหมด"
+    assert "if (n >= order.length)" in vic, "ไม่มีเงื่อนไขจบเมื่อครบทุกคน"
+    for hold in ("wmHoldOn(fi, 20, next)", "wmHoldOn(fi, 30, next)"):
+        assert hold in vic, f"ไม่ได้ค้างกล้องให้ทันดูก่อนไปคนถัดไป ({hold})"
+    assert vic.count("next") >= 4, "ลำดับไม่ได้ต่อกันไปเรื่อย ๆ จนครบ"
+
+
+def test_several_hits_on_one_person_are_summed_into_one_number():
+    """ดาบคู่แฝดฟันรัวสี่ครั้ง — ต้องขึ้นเลขรวมครั้งเดียว ไม่ใช่เด้งสี่ป้ายทับกัน"""
+    vic = _fn("function wmPlayVictims(")
+    assert "order.find(x => x.name === h.name)" in vic, "ไม่ได้ยุบหมัดหลายครั้งของคนเดียวกัน"
+    assert "v.dmg += h.damage" in vic, "ไม่ได้รวมดาเมจ"
+
+
+def test_the_death_animation_plays_at_that_persons_turn_on_camera():
+    vic = _fn("function wmPlayVictims(")
+    at = vic.index("const settle = () =>")
+    tail = vic[at:]
+    assert "wmDie(fi, f)" in tail, "ตายแล้วไม่เล่นภาพตายตอนกล้องจับอยู่ที่เขา"
+    assert "WM_DEAD_SEEN[f.name]" in tail, "ประกาศตายซ้ำได้"
+    assert tail.index("wmDie(fi, f)") < tail.index("wmHoldOn(fi, 30"),         "เล่นภาพตายหลังจากค้างกล้องไปแล้ว ผู้เล่นไม่ทันเห็น"
+
+
+def test_a_chunk_can_carry_work_to_run_when_it_ends():
+    """กลไกที่ทำให้ร้อยลำดับได้ — ท่อนจบแล้วทำงานต่อท้าย แล้วค่อยไปท่อนถัดไป"""
+    body = PLAY[PLAY.index("function wmStartLoop("):PLAY.index("/** วาดนักสู้")]
+    assert "const done = WM_ANIM.onEnd;" in body, "ท่อนไม่มีงานต่อท้าย"
+    assert "if (done) done();" in body, "มีงานต่อท้ายแต่ไม่ได้เรียก"
+    assert body.index("if (done) done();") < body.index("WM_ANIM = WM_QUEUE.shift() || null;", body.index("const done")),         "ไปท่อนถัดไปก่อนทำงานต่อท้าย — งานที่ต่อคิวเพิ่มจะถูกข้าม"
+
+
+def test_the_camera_holds_on_the_impact_point_first():
+    """พอกระทบให้โฟกัสจุดกระทบก่อน แล้วค่อยไล่ดูคนที่โดน"""
+    body = PLAY[PLAY.index("    if (WM_SHOT.i >= WM_SHOT.path.length) {"):]
+    body = body[:body.index(chr(10) + "    }")]
+    assert "wmFocus({ x: p[0], y: p[1] }, true)" in body, "กระสุนถึงเป้าแล้วกล้องไม่ค้างที่จุดกระทบ"
+    assert body.index("wmLand(shot.blast)") < body.index("wmPlayVictims("),         "ไล่ดูคนที่โดนก่อนที่ระเบิดจะขึ้น"
+
+
+def test_the_shot_carries_the_whole_attack_for_the_victim_pass():
+    body = _fn("function wmShowHit(")
+    assert "atk: a" in body, "กระสุนไม่ได้พกผลทั้งก้อนไป ตอนกระทบเลยไม่รู้ว่าใครกระเด็นบ้าง"
+
+
+def test_nobody_hit_means_no_queue():
+    vic = _fn("function wmPlayVictims(")
+    assert "if (!order.length) { if (done) done(); return false; }" in vic,         "ยิงพลาดไม่โดนใครก็ยังค้างคิวรอ"

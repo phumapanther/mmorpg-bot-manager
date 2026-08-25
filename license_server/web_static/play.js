@@ -2084,7 +2084,10 @@ function wmStartLoop() {
         wmFocus(af);              // ตามคนที่กำลังขยับ ไม่ใช่ตาปัจจุบัน จะได้เห็นบอทเดินด้วย
       }
     } else if (WM_ANIM) {
-      WM_ANIM = WM_QUEUE.shift() || null;      // ท่อนถัดไปของบอท (ถ้ามี)
+      const done = WM_ANIM.onEnd;              // งานต่อท้ายของท่อนนี้ (อาจต่อคิวเพิ่ม)
+      WM_ANIM = null;
+      if (done) done();
+      WM_ANIM = WM_QUEUE.shift() || null;
       if (!WM_ANIM) {
         // ตัวหยุดกระเด็นแล้ว ถึงค่อยสรุปว่าโดนไปเท่าไหร่ ตายหรือไม่ตาย
         while (WM_AFTER.length) WM_AFTER.shift()();
@@ -2455,7 +2458,7 @@ function wmShowHit(a, byBot) {
   if (a.path && a.path.length) {
     // 🎯 มีวิถี — วาดเส้นประตามทางที่บินไป พอถึงปลายทางค่อยระเบิด
     WM_SHOT = { path: a.path, i: 0, blast: a.blast || null, hits: hits, byBot: byBot,
-                name: a.name };
+                name: a.name, atk: a };
     return;
   }
 
@@ -2466,19 +2469,7 @@ function wmShowHit(a, byBot) {
   }
   if (a.kind === 'melee') wmSwing(a);
   if (a.blast) wmLand(a.blast);
-  // ⚠️ ลำดับที่เจ้าของเกมสั่ง: กระเด็นให้จบก่อน แล้วค่อยสรุปว่าโดนเท่าไหร่ ตายหรือยัง
-  //    เดิมเด้งเลขดาเมจกับประกาศตายทันที ทั้งที่ตัวยังปลิวอยู่กลางอากาศ
-  const flying = wmPlayKnocks(a);
-  const settle = () => {
-    // เด้งเลขตรงที่ตัวไปหยุดจริง ไม่ใช่จุดที่ยืนตอนโดน (กระเด็นไปไกลแล้ว)
-    wmPop(hits.map(h => {
-      const f = WM_ST.fighters.find(x => x.name === h.name);
-      return f ? { ...h, x: f.x, y: f.y } : h;
-    }));
-    if (hits.some(h => !h.dodged)) SFX.play('foehit');
-    wmCallDeaths();
-  };
-  if (flying) WM_AFTER.push(settle); else settle();
+  wmPlayVictims(a, () => WM_AFTER.push(wmCallDeaths));   // เก็บตกคนที่ตายจากลูกหลง
   if (byBot) toast(`🤖 บอทใช้ ${a.name}`, hits.some(h => h.name === 'คุณ' && !h.dodged));
 }
 
@@ -2537,19 +2528,67 @@ function wmBuffFx(a) {
                  text: a.heal ? `${label} +${a.heal}` : label });
 }
 
-/** เล่นภาพกระเด็นของทุกคนที่โดนหมัดนี้ — คืน true ถ้ามีใครกำลังปลิวอยู่ */
-function wmPlayKnocks(a) {
-  const all = (a.knocks || []).concat((a.blast || {}).knocks || []);
-  let any = false;
-  all.forEach(k => {
-    if (!k || !k.path || !k.path.length) return;
-    const ki = WM_ST.fighters.findIndex(f => f.name === k.name);
-    if (ki < 0) return;
-    WM_QUEUE.push({ fi: ki, path: k.path, i: 0 });
-    any = true;
+/** ต่อคิวภาพหนึ่งท่อน พร้อมงานที่ต้องทำตอนท่อนนั้นจบ */
+function wmChunk(fi, path, onEnd) {
+  WM_QUEUE.push({ fi: fi, path: path, i: 0, onEnd: onEnd });
+  if (!WM_ANIM) WM_ANIM = WM_QUEUE.shift();
+}
+
+/** ค้างกล้องไว้ที่คนคนนี้สักพัก — ให้ทันอ่านเลขดาเมจ/ดูภาพตายก่อนไปคนถัดไป */
+function wmHoldOn(fi, frames, onEnd) {
+  const f = WM_ST.fighters[fi];
+  if (!f) { if (onEnd) onEnd(); return; }
+  wmChunk(fi, Array.from({ length: frames }, () => [f.x, f.y]), onEnd);
+}
+
+/** 🎬 เล่นผลของหมัดหนึ่ง "ทีละคน" ตามที่เจ้าของเกมสั่ง
+
+    กระสุนกระทบ → กล้องไปที่คนที่โดนคนแรก → เห็นเขากระเด็นจนหยุด
+    → ขึ้นเลขดาเมจของเขา → ตายก็เล่นภาพตาย → แล้วค่อยไปคนถัดไปจนครบ
+    คืน true ถ้ามีคิวให้เล่น (ผู้เรียกจะได้รู้ว่าต้องรอ)
+ */
+function wmPlayVictims(a, done) {
+  const hits = (a.hits || []).concat((a.blast || {}).hits || []);
+  const knocks = (a.knocks || []).concat((a.blast || {}).knocks || []);
+
+  // ยุบหลายหมัดของคนเดียวกันให้เหลือรายการเดียว (ดาบคู่แฝดฟันรัวสี่ครั้ง)
+  const order = [];
+  hits.forEach(h => {
+    let v = order.find(x => x.name === h.name);
+    if (!v) order.push(v = { name: h.name, dmg: 0, dodged: true });
+    v.dmg += h.damage || 0;
+    v.dodged = v.dodged && !!h.dodged;
   });
-  if (any && !WM_ANIM) WM_ANIM = WM_QUEUE.shift();
-  return any;
+  if (!order.length) { if (done) done(); return false; }
+
+  let n = 0;
+  const next = () => {
+    if (n >= order.length) { if (done) done(); return; }
+    const v = order[n++];
+    const fi = WM_ST.fighters.findIndex(f => f.name === v.name);
+    if (fi < 0) { next(); return; }
+
+    const settle = () => {
+      const f = WM_ST.fighters[fi];
+      wmFocus(f, true);                       // จอจับอยู่ที่คนนี้ตอนสรุปผลของเขา
+      WM_POPS.push({ x: f.x, y: f.y - 26, t: 0, miss: v.dodged,
+                     text: v.dodged ? 'หลบ!' : '-' + v.dmg });
+      if (!v.dodged) { WM_FLASH[f.name] = 10; SFX.play('foehit'); }
+      if (f.dead && !WM_DEAD_SEEN[f.name]) {  // ตายค่อยเล่นภาพตายตรงนี้
+        WM_DEAD_SEEN[f.name] = true;
+        wmDie(fi, f);
+        wmHoldOn(fi, 30, next);
+      } else {
+        wmHoldOn(fi, 20, next);
+      }
+    };
+
+    const kb = knocks.find(k => k.name === v.name);
+    if (kb && kb.path && kb.path.length) wmChunk(fi, kb.path, settle);
+    else settle();
+  };
+  next();
+  return true;
 }
 
 /** ประกาศคนที่เพิ่งตาย — เรียกหลังทุกคนหยุดกระเด็นแล้วเท่านั้น */
@@ -2690,14 +2729,16 @@ function wmDrawFx(ctx) {
     ctx.fillStyle = '#ffb45a';
     ctx.fillRect(hx - 1, hy - 1, 3, 3);
     if (WM_SHOT.i >= WM_SHOT.path.length) {
-      // ถึงปลายทางแล้ว — ตอนนี้ค่อยเจาะพื้นกับเด้งตัวเลขดาเมจ
-      WM_TRAIL = { path: WM_SHOT.path, t: 0 };
-      wmLand(WM_SHOT.blast);
-      wmPop(WM_SHOT.hits);
-      if (WM_SHOT.hits.some(h => !h.dodged)) SFX.play('foehit');
-      if (WM_SHOT.byBot) toast(`🤖 บอทใช้ ${WM_SHOT.name}`,
-                               WM_SHOT.hits.some(h => h.name === 'คุณ' && !h.dodged));
+      // ถึงปลายทางแล้ว — เจาะพื้น ระเบิด แล้วค่อยไล่ดูคนที่โดนทีละคน
+      const shot = WM_SHOT;
       WM_SHOT = null;
+      WM_TRAIL = { path: shot.path, t: 0 };
+      wmFocus({ x: p[0], y: p[1] }, true);      // ค้างที่จุดกระทบก่อน
+      wmLand(shot.blast);
+      wmPlayVictims(shot.atk || { hits: shot.hits, blast: shot.blast },
+                    () => WM_AFTER.push(wmCallDeaths));
+      if (shot.byBot) toast(`🤖 บอทใช้ ${shot.name}`,
+                            shot.hits.some(h => h.name === 'คุณ' && !h.dodged));
     }
   }
   // เส้นประค้างไว้อีกครู่หลังระเบิด จะได้ดูทันว่ากระสุนวิ่งไปทางไหน

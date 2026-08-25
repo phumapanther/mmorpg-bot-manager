@@ -478,8 +478,10 @@ def test_the_page_shows_damage_numbers_and_flashes():
     for need in ("wmPop", "WM_FLASH", "wmSwing", "wmBoom", "wmDrawAim", "wmDrawTrail"):
         assert need in PLAY, f"ไม่มีเอฟเฟกต์ {need}"
     fn = _fn("function wmShowHit(")
-    assert "wmPop(" in fn, "ไม่ได้เด้งตัวเลขดาเมจ"
-    assert "hits.map(h =>" in fn, "ไม่ได้เด้งเลขตรงที่ตัวไปหยุดหลังกระเด็น"
+    assert "wmPlayVictims(a," in fn, "ไม่ได้ไล่สรุปผลคนที่โดนทีละคน"
+    vic = _fn("function wmPlayVictims(")
+    assert "WM_POPS.push" in vic, "ไม่ได้เด้งตัวเลขดาเมจ"
+    assert "wmFocus(f, true)" in vic, "ไม่ได้จับกล้องไปที่คนที่กำลังสรุปผล"
     assert "wmSwing(a)" in fn, "ไม่ได้วาดวงเหวี่ยงตอนฟัน"
 
 
@@ -505,7 +507,7 @@ def test_the_crater_appears_only_when_the_shot_lands():
     # การเจาะพื้นต้องอยู่ใน wmLand() ที่ถูกเรียกตอนกระสุนถึงเป้าเท่านั้น
     # ไม่ใช่ที่ wmShowHit() ซึ่งทำงานทันทีที่ได้ผลกลับมาจากเซิร์ฟเวอร์
     assert "WM.carve" not in _fn("function wmShowHit("),         "เจาะหลุมตั้งแต่ยังไม่ได้ยิง"
-    assert "wmLand(WM_SHOT.blast)" in _fn("function wmDrawFx("), \
+    assert "wmLand(shot.blast)" in _fn("function wmDrawFx("), \
         "กระสุนถึงเป้าแล้วไม่ได้เจาะพื้น"
 
 
