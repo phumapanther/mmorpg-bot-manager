@@ -783,3 +783,35 @@ def test_a_second_walk_does_not_warp_the_fighter_backwards():
     assert "WM_ANIM.path[WM_ANIM.path.length - 1]" in body,         "ยังย้อนไปที่ตำแหน่งกลางแอนิเมชันแทนปลายทางของท่อนก่อน"
     assert "WM_ANIM.fi === mine" in body, "ไม่ได้เช็คว่าท่อนที่ค้างอยู่เป็นของคนเดียวกัน"
     assert "const from = tail ?" in body, "ไม่ได้ใช้ปลายทางของท่อนก่อนเป็นจุดเริ่ม"
+
+
+# ── 20. อย่าเฉลยผลก่อนภาพจะเล่นจบ ──
+
+def test_the_result_waits_for_the_animation_to_finish():
+    """เจ้าของเกมทัก: ขึ้น "คุณแพ้" ก่อนตัวจะร่วงลงน้ำเสียอีก
+
+    เซิร์ฟเวอร์รู้ผลตั้งแต่วินาทีที่สั่ง แต่ผู้เล่นยังไม่เห็นตัวเองตกด้วยซ้ำ
+    """
+    body = PLAY[PLAY.index("function wmPaintOver("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "if (!idle && wmBusyFx()) { box.hidden = true; return; }" in body,         "ยังขึ้นแผงสรุปทับทันทีที่เซิร์ฟเวอร์บอกว่าจบ"
+
+
+def test_busy_covers_every_kind_of_animation():
+    body = PLAY[PLAY.index("function wmBusyFx("):]
+    body = body[:body.index(chr(10) + "}")]
+    for fx, why in [("WM_ANIM", "ตัวกำลังเดิน/ร่วง"), ("WM_QUEUE.length", "ยังมีท่อนรอเล่น"),
+                    ("WM_SHOT", "กระสุนกำลังบิน"), ("WM_BOOMS.length", "ระเบิดยังไม่จาง")]:
+        assert fx in body, f"ไม่ได้นับ {fx} ({why}) ว่าเป็นภาพที่ยังเล่นค้างอยู่"
+
+
+def test_the_result_does_appear_once_nothing_is_animating():
+    body = PLAY[PLAY.index("function wmTick("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "WM_ST.over && !WM_OVER_SHOWN && !wmBusyFx()" in body,         "รอแล้วไม่มีใครมาเปิดแผงให้ — จบเกมแล้วจอค้างเปล่า ๆ"
+
+
+def test_the_result_is_painted_once_not_every_frame():
+    assert "WM_OVER_SHOWN = !idle;" in PLAY, "ไม่ได้จำว่าขึ้นไปแล้ว จะวาดใหม่ทุกเฟรม"
+    body = PLAY[PLAY.index("function wmApply("):PLAY.index("function wmMe(")]
+    assert "if (!d || !d.over) WM_OVER_SHOWN = false;" in body,         "เริ่มสนามใหม่แล้วยังจำว่าเคยขึ้นผลไปแล้ว รอบหน้าจะไม่ขึ้นอีกเลย"

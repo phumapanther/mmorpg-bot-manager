@@ -2009,6 +2009,7 @@ async function wmNewMatch(seed) {
 function wmApply(d) {
   const fresh = !WM || !WM_ST || WM_ST.seed !== d.seed;
   WM_ANIM = null; WM_QUEUE = [];   // สถานะถูกแทนทั้งก้อน ภาพที่ค้างเป็นของสถานะเก่าไปแล้ว
+  if (!d || !d.over) WM_OVER_SHOWN = false;
   WM_ST = d;
   document.getElementById('v-worms').classList.toggle('wm-idle', !d.active);
   wmPaintOver();
@@ -2137,6 +2138,7 @@ function wmDrawFighter(ctx, f, active, t, walking) {
 }
 
 let WM_QUEUE = [];         // ท่อนเดินที่รอเล่นภาพ (บอทเดินหลายท่อนต่อกัน)
+let WM_OVER_SHOWN = false; // ขึ้นแผงสรุปผลไปแล้วหรือยัง (กันวาดซ้ำทุกเฟรม)
 let WM_TURN_SHOWN = '';    // 'รอบ:ตา' ที่เลื่อนกล้องไปให้แล้ว
                            // ต้องมีเลขรอบด้วย — ซ้อมกับบอทจบเทิร์นแล้ว turn กลับมาเป็น 0
                            // เท่าเดิมทุกครั้ง เทียบแค่ turn กล้องเลยไม่เคยขยับเลย
@@ -2148,6 +2150,8 @@ function wmTick() {
   //    ปล่อยให้นับต่อไปจะกลายเป็นหมดเวลาระหว่างนั่งดูบอทเดิน แล้วขอจบเทิร์น
   //    ไปตัดภาพบอทกลางคันด้วย — เลื่อนเส้นตายหนีไปเรื่อย ๆ จนกว่าภาพจะเล่นจบ
   if (WM_ANIM || WM_QUEUE.length) WM_DEADLINE = performance.now() + WM_TIME_LEFT * 1000;
+  // ภาพเล่นจบแล้วค่อยเฉลยว่าใครแพ้ใครชนะ (วาดครั้งเดียว ไม่ใช่ทุกเฟรม)
+  if (WM_ST.over && !WM_OVER_SHOWN && !wmBusyFx()) wmPaintOver();
   if (WM_AIM) WM_AIM.pow = Math.min(100, 10 + (performance.now() - WM_AIM.t0) * 90 / WM_CHARGE_MS);
   const el = document.getElementById('wmClock');
   if (!el || !WM_ST || !WM_ST.active) return;
@@ -2245,12 +2249,21 @@ function wmBindAim(cv) {
     เดิมกดจบเกมแล้วเด้งออกเมนู แต่แมตช์ที่จบยังค้างอยู่ในฐานข้อมูล
     กลับเข้ามาทีไรก็เจอกระดานสรุปเดิมให้กดจบซ้ำอีก
  */
+/** ยังมีภาพค้างเล่นอยู่ไหม — ร่วงลงน้ำ กระสุนกำลังบิน ระเบิดยังไม่จาง */
+function wmBusyFx() {
+  return !!(WM_ANIM || WM_QUEUE.length || WM_SHOT || WM_BOOMS.length);
+}
+
 function wmPaintOver() {
   const box = document.getElementById('wmOver'), d = WM_ST;
   if (!box) return;
   const idle = !d || !d.active;
+  // ⚠️ เซิร์ฟเวอร์รู้ผลตั้งแต่วินาทีที่สั่ง แต่ผู้เล่นยังไม่เห็นตัวเองร่วงลงน้ำด้วยซ้ำ
+  //    ขึ้น "คุณแพ้" ทับตอนนี้คือสปอยล์ตอนจบก่อนภาพจะเล่น — รอให้ภาพเล่นจบก่อน
+  if (!idle && wmBusyFx()) { box.hidden = true; return; }
   box.hidden = !idle && !d.over;
   if (box.hidden) return;
+  WM_OVER_SHOWN = !idle;
 
   if (idle) {
     box.innerHTML = `
@@ -2668,6 +2681,7 @@ async function wmGiveUp() {
     wmApply(d);
     SFX.play('lose');
     if (s.blast) wmLand(s.blast);                 // ระเบิดตรงจุดที่ยืน + เจาะพื้นจริง
+    wmPaintOver();                                // ระเบิดยังไม่จาง = แผงจะรอไปก่อนเอง
     WM_POPS.push({ x: s.x, y: s.y - 30, t: 0, buff: true, text: '🏳️ ยอมแพ้' });
   } catch (e) { if (!wmBackoff(e)) toast(e.message, true); }
 }
