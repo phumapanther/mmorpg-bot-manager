@@ -2291,8 +2291,15 @@ function wmPaintOver() {
     return;
   }
 
-  const rows = d.standings || [];
-  const me = rows.find(r => !r.bot);
+  // ⚠️ อย่าพึ่ง standings อย่างเดียว — ถ้ามันหายไปด้วยเหตุใดก็ตาม
+  //    หัวข้อจะกลายเป็น "คุณแพ้" ทั้งที่ชนะ และตารางจะว่างเปล่าไม่มีชื่อใครเลย
+  //    ตัวนักสู้มีเลขดาเมจ/จำนวนที่ล้มติดมาอยู่แล้ว ใช้เป็นตัวสำรองได้ตรง ๆ
+  const fighters = d.fighters || [];
+  const rows = (d.standings && d.standings.length) ? d.standings
+    : fighters.map((f, i) => ({ rank: i + 1, name: f.name, bot: f.bot, dead: f.dead,
+                                hp: Math.max(0, f.hp), max_hp: f.max_hp,
+                                dealt: f.dealt || 0, kills: f.kills || 0 }));
+  const me = fighters.find(f => !f.bot) || rows.find(r => !r.bot);
   const top = Math.max(1, ...rows.map(r => r.dealt));
   box.innerHTML = `
     <div>
@@ -2524,6 +2531,16 @@ function wmCallDeaths() {
 
 const WM_DEAD_SEEN = {};   // ประกาศตายไปแล้วหรือยัง (กันเล่นภาพตายซ้ำทุกเฟรม)
 
+/** 🧱 กระโดดหัวชนกำแพง — ดาวหมุนกับเศษปูนตรงจุดที่ชน แล้วร่วงลง */
+function wmBump(x, y) {
+  SFX.play('hit');
+  wmDust(x, y, 6);
+  for (let i = 0; i < 8; i++)
+    WM_BITS.push({ x: x, y: y, t: 0,
+                   vx: ((i % 5) - 2) * .7, vy: -0.4 - (i % 3) * .35 });
+  WM_POPS.push({ x: x, y: y - 10, t: 0, buff: true, text: '💫' });
+}
+
 /** ☠️ ภาพตาย — ร่างสั่นแล้วแตกเป็นสะเก็ด ค่อย ๆ จางไป
 
     เรียกหลังการกระเด็นหยุดแล้วเท่านั้น ไม่งั้นประกาศตายตั้งแต่ยังปลิวอยู่กลางอากาศ
@@ -2724,6 +2741,7 @@ async function wmDo(action, dir) {
     (d.sprung || []).forEach(() => { SFX.play('trap'); toast('🕳️ เหยียบกับดัก!', true); });
     (d.opened || []).forEach(o => { SFX.play('chest');
       toast('🎁 เปิดหีบได้ ' + (o.name || 'ของ') + '!'); });
+    if (d.move && d.move.bump) wmBump(d.move.bump[0], d.move.bump[1]);
     if (d.move && d.move.drowned) WM_AFTER.push(wmCallDeaths);
     WM.props = d.props; WM.repaint();
     wmPaintHud();

@@ -133,7 +133,7 @@ def jump(grid, x, y, direction):
     """กระโดด — จำลองวิถีจริงทีละเฟรม คืนเส้นทางทั้งเส้นให้เบราว์เซอร์เล่นภาพ"""
     px, py = float(x), float(y)
     vx, vy = JUMP_VX * direction, JUMP_VY
-    path, top = [], y
+    path, top, bump = [], y, None
     for _ in range(200):
         vy += GRAVITY
         nx, ny = px + vx, py + vy
@@ -147,22 +147,23 @@ def jump(grid, x, y, direction):
             path.append([ix, water])
             path.extend(_drop_path(ix, water, water + SINK_DEPTH))
             return {"path": path, "x": ix, "y": water,
-                    "drowned": True, "fell": 0}
+                    "drowned": True, "fell": 0, "bump": None}
         if not _clear(grid, ix, iy):            # หัวหรือตัวชน — หยุดพุ่ง แล้วตกลง
+            bump = [ix, iy]                     # บอกเว็บด้วยว่าชนตรงไหน จะได้เล่นภาพกระแทก
             break
         px, py = nx, ny
         top = min(top, iy)
         path.append([ix, iy])
         if vy > 0 and standable(grid, ix, iy):
             return {"path": path, "x": ix, "y": iy, "drowned": False,
-                    "fell": max(0, iy - top)}
+                    "fell": max(0, iy - top), "bump": None}
 
     fx, fy, fell, drowned = settle(grid, int(round(px)), int(round(py)))
     path.extend(_drop_path(fx, int(round(py)), fy))
     path.append([fx, fy])
     if drowned:
         path.extend(_drop_path(fx, fy, fy + SINK_DEPTH))
-    return {"path": path, "x": fx, "y": fy, "drowned": drowned,
+    return {"path": path, "x": fx, "y": fy, "drowned": drowned, "bump": bump,
             "fell": max(0, fy - top)}
 
 
@@ -231,7 +232,7 @@ def shoot(grid, x, y, angle_deg, power, muzzle=None):
             "out": True}
 
 
-def beam(grid, x, y, angle_deg, reach=260):
+def beam(grid, x, y, angle_deg, reach=520):
     """ยิงเป็นเส้นตรง — ทะลุอากาศจนกว่าจะชนพื้น (เลเซอร์ ลูกธนู ฯลฯ)"""
     rad = math.radians(float(angle_deg))
     dx, dy = math.cos(rad), -math.sin(rad)

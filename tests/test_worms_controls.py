@@ -908,3 +908,134 @@ def test_damage_numbers_pop_where_the_target_landed():
 def test_a_new_match_forgets_who_died():
     body = PLAY[PLAY.index("function wmApply("):PLAY.index("function wmMe(")]
     assert "WM_DEAD_SEEN" in body, "สนามใหม่ยังจำคนตายรอบก่อน ภาพตายจะไม่เล่นอีกเลย"
+
+
+# ── 22. แผงสรุปผลต้องแสดงชื่อกับดาเมจจริง ──
+
+def _render_over(payload):
+    """เรนเดอร์แผงสรุปผลจริง ๆ ด้วย node แล้วคืน HTML ที่ได้
+
+    เทสที่ไล่ดูแต่ซอร์สจับไม่ได้ว่า "ขึ้นว่าแพ้ทั้งที่ชนะ" หรือ "ตารางว่างเปล่า"
+    ต้องรันฟังก์ชันจริงกับข้อมูลจริงถึงจะเห็น
+    """
+    import json
+    import shutil
+    import subprocess
+    import tempfile
+
+    if not shutil.which("node"):
+        pytest.skip("เครื่องนี้ไม่มี node")
+    with tempfile.TemporaryDirectory() as tmp:
+        f = pathlib.Path(tmp) / "state.json"
+        f.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        r = subprocess.run(["node", "tests/render_over.js", str(f)],
+                           capture_output=True, text=True, encoding="utf-8")
+        assert r.returncode == 0, r.stderr
+        return r.stdout
+
+
+def _finished(world_seed=7):
+    """เล่นจนจบจริง แล้วคืนสถานะสุดท้ายแบบที่เว็บได้รับ"""
+    fresh(world_seed)
+    st = match.load(UID)
+    st["fighters"][1].update(hp=8, x=st["fighters"][0]["x"] + 16, y=st["fighters"][0]["y"])
+    match.save(UID, st)
+    return match.attack(UID, "basic", angle=0)[1]
+
+
+def test_winning_says_you_won(world):
+    """เจ้าของเกมทัก: ฆ่าบอทได้ก็ยังขึ้นว่าคุณแพ้"""
+    d = _finished()
+    assert not d["fighters"][0]["dead"] and d["over"], "ฉากทดสอบเพี้ยน — ไม่ได้ชนะจริง"
+    html = _render_over(d)
+    assert "คุณชนะ" in html, "ชนะแล้วยังขึ้นว่าแพ้:" + chr(10) + html
+
+
+def test_the_table_really_lists_names_and_damage(world):
+    """เจ้าของเกมทัก: อันดับไม่แสดงชื่อผู้เล่นหรือบอทและคะแนนความเสียหายเลย"""
+    d = _finished()
+    html = _render_over(d)
+    for f in d["fighters"]:
+        assert f["name"] in html, f"ตารางไม่มีชื่อ {f['name']}"
+    dealt = max(f.get("dealt", 0) for f in d["fighters"])
+    assert dealt > 0, "ฉากทดสอบเพี้ยน — ไม่มีใครทำดาเมจเลย"
+    assert f">{dealt}" in html, f"ตารางไม่มีตัวเลขความเสียหาย {dealt}"
+    assert "ความเสียหาย" in html, "ไม่มีหัวคอลัมน์ความเสียหาย"
+
+
+def test_the_panel_survives_a_payload_without_standings(world):
+    """standings หายไปด้วยเหตุใดก็ตาม ต้องไม่กลายเป็น 'คุณแพ้' + ตารางว่าง"""
+    d = _finished()
+    d.pop("standings", None)
+    html = _render_over(d)
+    assert "คุณชนะ" in html, "ไม่มี standings แล้วตัดสินว่าแพ้ทันที"
+    assert d["fighters"][1]["name"] in html, "ไม่มี standings แล้วตารางว่างเปล่า"
+
+
+def test_the_verdict_comes_from_the_fighters_not_the_table(world):
+    """standings เป็นแค่ตารางสรุป ความจริงว่าใครรอดอยู่ที่ตัวนักสู้
+
+    ถ้าไปตัดสินจากตาราง พอตารางเพี้ยนหรือหายไปก็ประกาศผลผิดทันที
+    """
+    d = _finished()
+    for row in d["standings"]:                  # ตารางบอกว่าตายหมดทุกคน
+        row["dead"] = True
+    html = _render_over(d)
+    assert "คุณชนะ" in html, "เชื่อตารางมากกว่าตัวนักสู้ — ตารางเพี้ยนแล้วประกาศผลผิด"
+
+
+def test_losing_still_says_you_lost(world):
+    """กันแก้เกินจนขึ้นว่าชนะตลอด"""
+    d = _finished()
+    d["fighters"][0]["dead"] = True
+    d["standings"][0]["dead"] = True
+    html = _render_over(d)
+    assert "คุณแพ้" in html, "ตายแล้วยังขึ้นว่าชนะ"
+
+
+# ── 23. ระยะประชิดไกลขึ้นเท่าตัว + กระโดดชนกำแพง ──
+
+def test_melee_reach_was_doubled():
+    """เจ้าของเกมสั่ง: เพิ่มระยะการโจมตีปกติและสกิลออกเท่าตัว"""
+    was = {"basic": 26, "bash": 30, "heavy": 26, "stab": 24, "twin_blades": 30}
+    for key, before in was.items():
+        assert W.ALL[key]["reach"] == before * 2,             f"{key} ระยะ {W.ALL[key]['reach']} ไม่ใช่สองเท่าของ {before}"
+
+
+def test_the_bot_still_walks_close_enough_to_swing():
+    """ระยะฟันไกลขึ้นแล้วบอทต้องยังเข้าถึงตัวได้ ไม่ใช่ยืนห่างแล้วฟันลม"""
+    shortest = min(a["reach"] for a in W.ALL.values() if a.get("kind") == "melee")
+    assert match.BOT_REACH < shortest,         f"บอทหยุดที่ {match.BOT_REACH} แต่ท่าสั้นสุดฟันได้ {shortest}"
+
+
+def test_you_can_hit_from_twice_as_far(world):
+    fresh()
+    st = match.load(UID)
+    me, foe = st["fighters"]
+    foe.update(x=me["x"] + 40, y=me["y"])       # ไกลกว่าระยะเดิม (26) แต่ในระยะใหม่ (52)
+    me["face"] = 1
+    match.save(UID, st)
+    a = match.attack(UID, "basic", angle=0)[1]["attack"]
+    assert [h for h in a["hits"] if h["name"] != "คุณ"], "ห่าง 40 px ยังฟันไม่ถึง"
+
+
+def test_a_jump_into_a_wall_reports_where_it_hit():
+    g = [[T.AIR] * T.W for _ in range(T.H)]
+    for x in range(T.W):
+        for y in range(200, T.H - T.WATER):
+            g[y][x] = T.ROCK
+    for x in range(214, 224):
+        for y in range(150, 200):
+            g[y][x] = T.BRICK
+    hit = P.jump(g, 210, 200, 1)
+    assert hit["bump"], "กระโดดชนกำแพงแล้วไม่บอกว่าชนตรงไหน"
+    assert 205 < hit["bump"][0] < 230, f"จุดชนอยู่ที่ {hit['bump']} ซึ่งไม่ใช่ตรงกำแพง"
+    clear = P.jump(g, 100, 200, 1)
+    assert clear["bump"] is None, "กระโดดโล่ง ๆ ก็ยังบอกว่าชน"
+
+
+def test_the_page_plays_a_bump_when_you_hit_a_wall():
+    assert "if (d.move && d.move.bump) wmBump(" in PLAY,         "เซิร์ฟเวอร์บอกว่าชนแล้วเว็บไม่เล่นภาพ"
+    body = PLAY[PLAY.index("function wmBump("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "WM_BITS.push" in body and "wmDust(" in body, "ชนกำแพงแล้วเงียบสนิท"
