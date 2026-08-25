@@ -55,6 +55,17 @@ class WormsMap {
     this.repaint();
   }
 
+  /** โหลดพื้นใหม่ทั้งผืนจากที่เซิร์ฟเวอร์ส่งมา
+
+      ⚠️ จำเป็น: เดิมถอดรหัสพื้นครั้งเดียวตอนเปิดสนาม หลังจากนั้นพื้นฝั่งเว็บ
+         เปลี่ยนได้จาก carve() ที่เราสั่งเองเท่านั้น พลาดครั้งเดียวก็เพี้ยนถาวร
+         อาการคือ "บนจอยังเห็นพื้น แต่เดินแล้วตัวจมลงเหมือนเป็นทางลาด"
+   */
+  reload(terrain) {
+    this.g = decodeTerrain(terrain, this.w, this.h);
+    this.repaint();
+  }
+
   at(x, y) {
     x |= 0; y |= 0;
     return (x >= 0 && x < this.w && y >= 0 && y < this.h) ? this.g[y * this.w + x] : AIR;
@@ -96,6 +107,15 @@ class WormsMap {
 
   /** 🎁 หีบสมบัติบนแผนที่ (กับดักไม่วาด — เซิร์ฟเวอร์ไม่ส่งมาจนกว่าจะเหยียบโดน) */
   _prop(ctx, p) {
+    if (p.kind === 'ferry') {                 // 🎈 เรือเหาะ — ขึ้นแล้วข้ามไปอีกเกาะ
+      const bx = p.x - 5, by = p.y - 16;
+      ctx.fillStyle = '#c8452f'; ctx.fillRect(bx + 1, by, 9, 7);
+      ctx.fillStyle = '#ff8a6a'; ctx.fillRect(bx + 2, by + 1, 3, 4);
+      ctx.fillStyle = '#6b4a24'; ctx.fillRect(bx + 3, by + 8, 5, 1);
+      ctx.fillStyle = '#8a5a24'; ctx.fillRect(bx + 2, by + 9, 7, 5);
+      ctx.fillStyle = '#c89a3a'; ctx.fillRect(bx + 2, by + 9, 7, 1);
+      return;
+    }
     if (p.kind !== 'chest') return;
     const x = p.x - 4, y = p.y - 7;
     ctx.fillStyle = '#3a2410'; ctx.fillRect(x, y + 2, 9, 6);
@@ -153,11 +173,38 @@ class WormsCam {
     this.cv = cv; this.map = map;
     this.vw = cv.width; this.vh = cv.height;
     this.z = 1; this.x = 0; this.y = 0;
+    this.tx = 0; this.ty = 0;      // เป้าที่กล้องกำลังไถลเข้าหา
+    this.ease = 0.10;              // ยิ่งน้อยยิ่งนุ่ม (ต่อเฟรม)
+    this.maxStep = 18;             // เลื่อนได้มากสุดกี่พิกเซลบนจอต่อเฟรม
     this.fit();
   }
 
   /** ซูมออกสุดจนเห็นทั้งแผนที่ */
-  fit() { this.z = 1; this.x = 0; this.y = 0; this.clamp(); }
+  fit() { this.z = 1; this.x = 0; this.y = 0; this.clamp(); this.hold(); }
+
+  /** เลื่อนไปถึงเป้าแล้วหรือยัง — ตัวจับเวลาต่าง ๆ ต้องรอให้ถึงก่อนค่อยเริ่มนับ */
+  arrived() { return Math.abs(this.tx - this.x) < 0.6 && Math.abs(this.ty - this.y) < 0.6; }
+
+  /** ตรึงเป้าไว้ที่ตำแหน่งปัจจุบัน — ใช้หลังลาก/ซูม ไม่งั้นกล้องจะไถลกลับเอง */
+  hold() { this.tx = this.x; this.ty = this.y; }
+
+  /** ขยับเข้าหาเป้าทีละนิดทุกเฟรม — หัวใจของ "จอไม่วาป"
+
+      ⚠️ เดิม center() ย้ายกล้องทันที ทุกครั้งที่เปลี่ยนจุดสนใจจอเลยกระโดด
+         ทั้งตอนสลับตา ตามลูกกระสุน และไล่ดูคนที่โดน — เล่นนาน ๆ แล้วมึนหัว
+   */
+  glide() {
+    const dx = this.tx - this.x, dy = this.ty - this.y;
+    if (Math.abs(dx) < 0.35 && Math.abs(dy) < 0.35) { this.x = this.tx; this.y = this.ty; return; }
+    let sx = dx * this.ease, sy = dy * this.ease;
+    // ⚠️ ขยับทีละ 10% ของระยะที่เหลือ — ระยะไกล ๆ เฟรมแรกจึงกระโดดทีเดียวหลายสิบพิกเซล
+    //    ยังเห็นเป็น "จอวาป" อยู่ดี ต้องคุมความเร็วสูงสุดต่อเฟรมด้วย
+    const max = this.maxStep / this.z, len = Math.hypot(sx, sy);
+    if (len > max) { sx = sx / len * max; sy = sy / len * max; }
+    this.x += sx;
+    this.y += sy;
+    this.clamp();
+  }
 
   clamp() {
     this.z = Math.max(1, Math.min(ZOOM_MAX, Math.round(this.z)));
@@ -174,19 +221,22 @@ class WormsCam {
     if (this.z === before) return;
     this.x = mx - (mx - this.x) * (before / this.z);
     this.y = my - (my - this.y) * (before / this.z);
-    this.clamp();
+    this.clamp(); this.hold();
   }
 
   /** เลื่อนกล้องเป็นพิกเซลบนหน้าจอ (ตอนลากนิ้ว/เมาส์) */
   pan(dxScreen, dyScreen) {
-    this.x -= dxScreen / this.z; this.y -= dyScreen / this.z; this.clamp();
+    this.x -= dxScreen / this.z; this.y -= dyScreen / this.z; this.clamp(); this.hold();
   }
 
   /** จับใครสักคนไว้กลางจอ — ใช้ตอนกดดูผู้เล่นคนอื่น */
-  center(mx, my) {
-    this.x = mx - this.vw / this.z / 2;
-    this.y = my - this.vh / this.z / 2;
-    this.clamp();
+  center(mx, my, instant) {
+    this.tx = mx - this.vw / this.z / 2;
+    this.ty = my - this.vh / this.z / 2;
+    const w = this.map.w - this.vw / this.z, h = this.map.h - this.vh / this.z;
+    this.tx = this.map.w <= this.vw / this.z ? 0 : Math.max(0, Math.min(w, this.tx));
+    this.ty = this.map.h <= this.vh / this.z ? 0 : Math.max(0, Math.min(h, this.ty));
+    if (instant) { this.x = this.tx; this.y = this.ty; this.clamp(); }
   }
 
   /** พิกัดแผนที่ → พิกัดบนผ้าใบ */

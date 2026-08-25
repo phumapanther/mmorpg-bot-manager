@@ -34,7 +34,7 @@ AIR, GRASS, DIRT, ROCK, WOOD, BRICK, TRUNK, LEAF = range(8)
 GRASS_DEPTH, DIRT_DEPTH = 3, 10
 
 # 💎 ของบนแผนที่ · น้ำหนักคือโอกาสถูกสุ่มวางเมื่อเทียบกัน
-PROPS = {"chest": 3, "trap": 4}
+PROPS = {"chest": 3, "trap": 4, "ferry": 1}
 
 
 def _noise(rng, n, octaves=3):
@@ -252,13 +252,16 @@ def generate(seed, continent="main"):
         cx = int(slot * i + slot / 2 + rng.uniform(-slot * .22, slot * .22))
         cy = rng.randint(60, H - WATER - 55)
         half = int(rng.uniform(.28, .46) * slot)
-        _island(rng, g, cx, cy, half, rng.randint(18, 38))
+        # หนาพอให้ทนหลุมใหญ่สุดในเกม (ลูกไฟรัศมี 26) — เดิม 18-38 ทำให้
+        # ยิงนัดเดียวทะลุเกาะ คนที่ยืนอยู่ร่วงลงทะเลตายโดยไม่ทันรู้ตัว
+        # วัดแล้ว: ยืนเฉย ๆ 40 เมล็ด จบเกมด้วยการตกน้ำ 27 ครั้ง
+        _island(rng, g, cx, cy, half, rng.randint(34, 56))
         if rng.random() < .45:
             _arch(rng, g, cx + rng.randint(-half // 2, half // 2), cy, max(4, half // 4))
 
     # เกาะพื้นล่างเสมอ — ลอยหมดทั้งจอแล้วพลาดตกน้ำง่ายเกินจนไม่สนุก
     _island(rng, g, rng.randint(int(W * .25), int(W * .75)),
-            H - WATER - rng.randint(24, 40), int(W * rng.uniform(.16, .26)), 52)
+            H - WATER - rng.randint(24, 40), int(W * rng.uniform(.16, .26)), 68)
 
     _skin(g)                 # ทาหญ้า/ดิน/หิน ก่อนปลูกของ ไม่งั้นหลังคาบ้านกลายเป็นหญ้า
     _decorate(rng, g)

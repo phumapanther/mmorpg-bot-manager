@@ -182,6 +182,28 @@ def _spring_traps(st, f):
     return hit
 
 
+def _ride_ferry(st, grid, f):
+    """🎈 เดินทับเรือเหาะ = ลอยข้ามไปอีกเกาะ
+
+    เลือกจุดลงที่ "เดินจากตรงนี้ไปไม่ถึง" เท่านั้น — ไม่งั้นก็แค่วาร์ปข้ามฝั่งเกาะเดิม
+    ซึ่งไม่ได้แก้ปัญหาที่เจ้าของเกมทักมาว่าเดินข้ามเกาะแทบเป็นไปไม่ได้
+    """
+    for p in list(st["props"]):
+        if p["kind"] != "ferry" or abs(p["x"] - f["x"]) > 8 or abs(p["y"] - f["y"]) > 12:
+            continue
+        here = physics.walk_group(grid, (f["x"], f["y"]))
+        rng = random.Random(st["seed"] ^ (p["x"] * 6997))
+        far = [xy for xy in terrain._open_spots(grid) if xy not in here]
+        if not far:
+            continue                       # ไม่มีเกาะอื่นให้ไป ก็เก็บเรือไว้ก่อน
+        st["props"].remove(p)
+        x, y = rng.choice(far)
+        f["x"], f["y"] = x, y
+        st["log"].append(f"🎈 {f['name']} ขึ้นเรือเหาะข้ามไปอีกเกาะ!")
+        return {"x": x, "y": y, "from": [p["x"], p["y"]]}
+    return None
+
+
 def _open_chests(st, f):
     """เดินทับหีบ = เปิดเลย ได้อาร์ติแฟกต์หนึ่งชิ้น
 
@@ -246,9 +268,10 @@ def move(uid, action, direction=1, steps=1):
 
     traps = [] if f["dead"] else _spring_traps(st, f)     # กับดักที่เพิ่งเหยียบโดน
     chests = [] if f["dead"] else _open_chests(st, f)     # หีบที่เพิ่งเปิด
+    ferry = None if f["dead"] else _ride_ferry(st, grid, f)
     _check_over(st)
     save(uid, st)
-    mine = {"move": r, "sprung": traps, "opened": chests}
+    mine = {"move": r, "sprung": traps, "opened": chests, "ferry": ferry}
 
     # แรงเดินหมด = จบเทิร์นให้เลย ไม่ต้องให้ผู้เล่นมากดเอง
     # (ใช้สกิลก็จบเทิร์นอยู่แล้ว เดินจนหมดแรงจึงเท่ากับเลือกทางเดินแทนทางยิง)
@@ -276,6 +299,11 @@ def _knock_back(st, grid, f, from_x, dmg, dist=None):
         return None
     d = 1 if f["x"] >= from_x else -1
     kb = physics.walk(grid, f["x"], f["y"], d, dist)
+    if kb["drowned"]:
+        # ⚠️ กระเด็นตกหน้าผาได้ (นั่นคือเสน่ห์ของท่ากระแทก) แต่ห้ามปลิวลงทะเลตายเอง
+        #    วัดแล้ว: ยืนเฉย ๆ ไม่ทำอะไร 40 เมล็ด ตกทะเลตายไป 30 — จบเกมเฉลี่ย 5 เทิร์น
+        #    ผู้เล่นเห็นเป็น "อยู่ ๆ ก็ตกรอบแพ้เอง" เพราะโดนหมัดธรรมดาก็ปลิวลงน้ำแล้ว
+        kb = physics.walk(grid, f["x"], f["y"], d, dist, physics.SAFE_DROP)
     f["x"], f["y"] = kb["x"], kb["y"]
     if kb["drowned"]:
         _drown(st, f)
@@ -307,6 +335,24 @@ def _explode(st, grid, cx, cy, radius, dmg, crater, why, by=None):
     return {"x": cx, "y": cy, "crater": crater, "hits": hits, "knocks": knocks}
 
 
+SCRAMBLE = 46           # พื้นหายแล้วไถลไปเกาะขอบได้ไกลสุดเท่านี้
+
+
+def _scramble(grid, x, y):
+    """หาที่ยืนใกล้ ๆ ตอนพื้นใต้เท้าหายไป — คืน None ถ้าไม่มีจริง ๆ
+
+    ⚠️ ไม่มีข้อนี้แล้วเกมพัง: ยิงทะลุเกาะทีเดียวคนที่ยืนอยู่ร่วงลงทะเลตายทันที
+       วัดแล้ว ผู้เล่นยืนเฉย ๆ 40 เมล็ด จบเกมด้วยการตกน้ำ 22 ครั้ง
+       ผู้เล่นเห็นเป็น "อยู่ ๆ ก็ตกรอบแพ้เอง" เพราะไม่ได้ทำอะไรผิดเลย
+    """
+    for d in range(1, SCRAMBLE + 1):
+        for nx in (x - d, x + d):
+            for ny in range(y - physics.CLIMB, y + SCRAMBLE):
+                if physics.standable(grid, nx, ny):
+                    return nx, ny
+    return None
+
+
 def _settle_everyone(st, grid):
     """พื้นใต้เท้าหายไปแล้วต้องร่วงลง ไม่ใช่ยืนลอยอยู่กลางอากาศ"""
     for f in st["fighters"]:
@@ -315,6 +361,12 @@ def _settle_everyone(st, grid):
         if physics.standable(grid, f["x"], f["y"]):
             continue
         x, y, fell, drowned = physics.settle(grid, f["x"], f["y"])
+        if drowned:
+            spot = _scramble(grid, f["x"], f["y"])       # ตะกายขึ้นขอบที่ใกล้ที่สุดก่อน
+            if spot:
+                x, y = spot
+                fell, drowned = max(0, y - f["y"]), False
+                st["log"].append(f"🧗 {f['name']} คว้าขอบไว้ทัน!")
         f["x"], f["y"] = x, y
         if drowned:
             _drown(st, f)
@@ -482,6 +534,51 @@ def time_left(st):
     return max(0, int(TURN_SECONDS - (time.time() - st.get("turn_started", 0))))
 
 
+DROP_EVERY = 1          # ครบกี่รอบถึงเติมของใหม่ลงสนาม
+DROP_MAX = 14           # ของบนแผนที่พร้อมกันได้มากสุดเท่านี้
+
+
+def _supply_drop(st):
+    """📦 ครบหนึ่งรอบ (ทุกคนเล่นครบ) = เติมของใหม่ลงสนาม
+
+    ⚠️ จำเป็นจริง ๆ ไม่ใช่ของแถม: แผนที่เป็นเกาะลอย เดินข้ามเกาะแทบไม่ได้เลย
+       เกมเลยกลายเป็นยืนยิงกันข้ามน้ำอย่างเดียว
+       เรือเหาะให้ข้ามเกาะได้ · หีบให้ของโจมตี · กับดักให้ต้องระวังทางเดิน
+    """
+    grid = _grid(st)
+    rng = random.Random(st["seed"] ^ (st["round"] * 104729))
+    taken = [p["x"] for p in st["props"]] + [f["x"] for f in st["fighters"]]
+    room = DROP_MAX - len(st["props"])
+    if room <= 0:
+        return []
+    # ⚠️ ยิ่งของเยอะ ที่ว่างยิ่งหายาก ถ้ายืนกรานระยะห่างเดียวการเติมของจะหยุดเงียบ ๆ
+    #    ตั้งแต่รอบสาม (วัดแล้ว: 13 รอบเติมได้แค่ครั้งเดียว) — ผ่อนลงจนหาที่วางได้
+    spots = terrain._open_spots(grid)
+    for gap in (24, 16, 10):
+        pool = [xy for xy in spots if all(abs(xy[0] - t) >= gap for t in taken)]
+        if pool:
+            break
+    if not pool:
+        return []
+    rng.shuffle(pool)
+    kinds = ["ferry", "chest", "chest", "trap"]
+    fresh = []
+    for x, y in pool:
+        if len(fresh) >= min(room, len(kinds)):
+            break
+        if any(abs(x - u["x"]) < 24 for u in fresh):
+            continue
+        fresh.append({"kind": kinds[len(fresh)], "x": x, "y": y})
+    st["props"].extend(fresh)
+    if fresh:
+        st["log"].append(f"📦 ของใหม่ลงสนาม {len(fresh)} จุด (รอบ {st['round']})")
+    # 🔒 กับดักห้ามหลุดไปฝั่งเบราว์เซอร์เด็ดขาด — ตัดทิ้งตั้งแต่ตรงนี้
+    #    (รายการนี้ถูกส่งขึ้นเว็บจริงเพื่อพากล้องไปดูของใหม่ทีละชิ้น)
+    st["drops"] = [{"kind": p["kind"], "x": p["x"], "y": p["y"]}
+                   for p in fresh if p["kind"] != "trap"]
+    return st["drops"]
+
+
 def _pass_turn(st):
     """สลับไปคนถัดไปที่ยังไม่ตาย แล้วรีเซ็ตแรงเดินกับนาฬิกา"""
     if not [f for f in st["fighters"] if not f["dead"]]:
@@ -493,6 +590,9 @@ def _pass_turn(st):
             break
     if st["turn"] == 0:
         st["round"] += 1
+        st["drops"] = []
+        if st["round"] % DROP_EVERY == 0:
+            _supply_drop(st)
     f = _fighter(st)
     for d, key in ((f.setdefault("buffs", {}), "buffs"), (f.setdefault("cd", {}), "cd")):
         for k in list(d):
@@ -725,6 +825,7 @@ def view(uid, st=None):
         "move_budget": MOVE_BUDGET, "over": st["over"], "winner": st.get("winner", ""),
         "time_left": time_left(st), "turn_seconds": TURN_SECONDS,
         "standings": standings(st),
+        "drops": st.get("drops", []),
         "rounds": st["round"],
         "log": st["log"][-6:],
         "fighters": [{k: v for k, v in f.items() if k != "look"} | {"look": f["look"]}

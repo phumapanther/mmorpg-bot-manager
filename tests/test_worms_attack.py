@@ -520,9 +520,10 @@ def test_the_impact_throws_debris():
 
 def test_the_bot_turn_is_animated_too():
     """ใช้ตัวเล่นเอฟเฟกต์ตัวเดียวกันทั้งของเราและของบอท จะได้ไม่ลืมอันใดอันหนึ่ง"""
-    fn = PLAY[PLAY.index("function wmPlayAttack("):]
-    fn = fn[:fn.index("\n}\n")]
-    assert "wmShowHit(a, true)" in fn, "ไม่ได้เล่นเอฟเฟกต์การโจมตีของบอท"
+    assert "wmShowHit(shots[0], true)" in _fn("function wmPlayBotShots("), \
+        "ไม่ได้เล่นเอฟเฟกต์การโจมตีของบอท"
+    assert "wmPlayBotShots(shots)" in _fn("function wmQueueBot("), \
+        "เขียนตัวเล่นภาพบอทไว้แต่ไม่มีใครเรียก"
 
 
 # ── 🔥 ยิงแล้วต้องไม่ระเบิดใส่ตัวเอง ──

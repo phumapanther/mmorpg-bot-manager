@@ -2010,6 +2010,10 @@ function wmApply(d) {
   const fresh = !WM || !WM_ST || WM_ST.seed !== d.seed;
   WM_ANIM = null; WM_QUEUE = [];   // สถานะถูกแทนทั้งก้อน ภาพที่ค้างเป็นของสถานะเก่าไปแล้ว
   if (!d || !d.over) WM_OVER_SHOWN = false;
+  if (d && (d.drops || []).length && d.round !== WM_TOUR_ROUND) {
+    WM_TOUR_ROUND = d.round;               // ของรอบนี้พาไปดูแล้ว ไม่พาซ้ำ
+    WM_TOUR = { list: d.drops, i: 0, t: 0 };
+  }
   if (!WM_ST || !d || WM_ST.seed !== d.seed) {      // สนามใหม่ = เริ่มนับคนตายใหม่
     Object.keys(WM_DEAD_SEEN).forEach(k => delete WM_DEAD_SEEN[k]);
     Object.keys(WM_DYING).forEach(k => delete WM_DYING[k]);
@@ -2029,7 +2033,10 @@ function wmApply(d) {
     WM_CAM.attach(null);
     if (!cv.dataset.aimed) { cv.dataset.aimed = '1'; wmBindAim(cv); }
     WM_CAM.z = 3;
+    WM_CAM.center(WM_ST.fighters[WM_ST.turn].x,
+                  WM_ST.fighters[WM_ST.turn].y - 10, true);   // ครั้งแรกจัดให้ทันที
     WM_TURN_SHOWN = '';
+    WM_GROUND = d.terrain;
     wmFocus(null, true);
     wmStartLoop();
   } else {
@@ -2064,7 +2071,8 @@ function wmStartLoop() {
     if (WM_ANIM && WM_ANIM.i < WM_ANIM.path.length) {
       // ก้าวสั้น ๆ ค้างจุดละหลายเฟรม จะได้เดินเตาะแตะทีละก้าวให้เห็น ไม่ใช่วืดไปทีเดียว
       // ส่วนท่อนยาว (ตาบอททั้งเทิร์น) เล่นรวดเดียว ไม่งั้นนั่งดูบอทเดินนาน
-      const hold = WM_ANIM.path.length <= 12 ? 5 : 1;
+      // สามชั้น: ก้าวสั้นของเราเอง / ท่อนกลาง ๆ อย่างการกระเด็น / ท่อนยาวอย่างตาบอทเดิน
+      const hold = WM_ANIM.path.length <= 12 ? 5 : WM_ANIM.path.length <= 60 ? 3 : 1;
       if ((WM_ANIM.w = (WM_ANIM.w || 0) + 1) >= hold) {
         WM_ANIM.w = 0;
         const [x, y] = WM_ANIM.path[WM_ANIM.i++];
@@ -2103,6 +2111,7 @@ function wmStartLoop() {
     }
     wmTick();
 
+    WM_CAM.glide();        // เลื่อนเข้าหาเป้าทีละนิด — จอไม่กระโดด
     WM.draw(ctx, WM_CAM, t++);
     WM_ST.fighters.forEach((f, i) => {
       const moving = !!(WM_ANIM && WM_ANIM.fi === i);
@@ -2155,6 +2164,11 @@ let WM_QUEUE = [];         // ท่อนเดินที่รอเล่�
 let WM_AFTER = [];         // งานที่ต้องรอภาพเล่นจบก่อน (สรุปดาเมจ · ประกาศคนตาย)
 const WM_DYING = {};       // ลำดับ -> เฟรมที่เหลือของภาพตาย (ตายแล้วยังต้องวาดต่อ)
 let WM_OVER_SHOWN = false; // ขึ้นแผงสรุปผลไปแล้วหรือยัง (กันวาดซ้ำทุกเฟรม)
+let WM_TOUR = null;        // พากล้องไปดูของที่เพิ่งลงสนามทีละชิ้น
+let WM_TOUR_ROUND = 0;     // พาไปดูของรอบไหนแล้ว
+const WM_TOUR_HOLD = 180;  // ค้างที่ของแต่ละชิ้น 3 วินาที — เริ่มนับ "หลัง" กล้องเลื่อนไปถึงแล้ว
+const WM_SPAWN_LIFE = 110; // เอฟเฟกต์ของที่ลงสนามอยู่ได้กี่เฟรม
+let WM_GROUND = '';        // พื้นผืนที่ฝั่งเว็บใช้อยู่ตอนนี้ (ไว้เทียบกับของเซิร์ฟเวอร์)
 let WM_TURN_SHOWN = '';    // 'รอบ:ตา' ที่เลื่อนกล้องไปให้แล้ว
                            // ต้องมีเลขรอบด้วย — ซ้อมกับบอทจบเทิร์นแล้ว turn กลับมาเป็น 0
                            // เท่าเดิมทุกครั้ง เทียบแค่ turn กล้องเลยไม่เคยขยับเลย
@@ -2166,6 +2180,23 @@ function wmTick() {
   //    ปล่อยให้นับต่อไปจะกลายเป็นหมดเวลาระหว่างนั่งดูบอทเดิน แล้วขอจบเทิร์น
   //    ไปตัดภาพบอทกลางคันด้วย — เลื่อนเส้นตายหนีไปเรื่อย ๆ จนกว่าภาพจะเล่นจบ
   if (WM_ANIM || WM_QUEUE.length) WM_DEADLINE = performance.now() + WM_TIME_LEFT * 1000;
+  // ⚠️ งานที่ค้างต้องสะสางแม้ไม่มีภาพเล่นอยู่ ไม่ใช่รอจังหวะที่ภาพเพิ่งเล่นจบอย่างเดียว
+  //    ยิงพลาดไม่โดนใคร = งานถูกเข้าคิวทั้งที่ไม่มีอะไรเล่น แล้วไม่มีใครมาสะสาง
+  //    ผลคือ wmWaiting() ค้างเป็น true ตลอดกาล กดอะไรไม่ได้อีกเลยทั้งเกม
+  if (!WM_ANIM && WM_AFTER.length) {
+    while (WM_AFTER.length) WM_AFTER.shift()();
+    wmPaintHud();
+  }
+  // 🧭 ภาพเล่นจบหมดแล้วค่อยเทียบพื้นกับของเซิร์ฟเวอร์ — เจอต่างเมื่อไหร่โหลดใหม่ทั้งผืน
+  //    (เทียบตอนภาพยังเล่นไม่ได้ หลุมจะโผล่ก่อนกระสุนจะบินถึง)
+  if (WM && WM_ST && WM_ST.terrain && !wmBusyFx() && WM_ST.terrain !== WM_GROUND) {
+    WM_GROUND = WM_ST.terrain;
+    WM.reload(WM_ST.terrain);
+  }
+  wmTickTour();
+  // 🔒 ระหว่างกล้องแพนอัตโนมัติ ห้ามลากจอ — ลากสวนทางแล้วจะเห็นเป็นจอกระตุก/วาป
+  //    (เจ้าของเกมสั่ง: ช่วงแพนออโต้ ทุกคนทำอะไรไม่ได้เลยแม้แต่เลื่อนจอ)
+  if (WM_CAM) WM_CAM.locked = !!WM_AIM || wmWaiting() || !WM_CAM.arrived();
   wmSyncLock();
   // ภาพเล่นจบแล้วค่อยเฉลยว่าใครแพ้ใครชนะ (วาดครั้งเดียว ไม่ใช่ทุกเฟรม)
   if (WM_ST.over && !WM_OVER_SHOWN && !wmBusyFx()) wmPaintOver();
@@ -2279,7 +2310,7 @@ function wmWaiting() {
   if (wmMe().bot) return true;
   const isBot = fi => !!(WM_ST.fighters[fi] && WM_ST.fighters[fi].bot);
   return !!((WM_ANIM && isBot(WM_ANIM.fi)) || WM_QUEUE.some(q => isBot(q.fi)) ||
-            WM_SHOT || WM_BOOMS.length || WM_AFTER.length ||
+            WM_SHOT || WM_BOOMS.length || WM_AFTER.length || WM_TOUR ||
             Object.keys(WM_DYING).length);
 }
 
@@ -2294,13 +2325,77 @@ function wmSyncLock() {
   const give = document.getElementById('wmGiveUp');
   if (give) give.disabled = wait;
   document.getElementById('v-worms').classList.toggle('wm-wait', wait);
-  if (wait) { WM_SKILL = null; WM_AIM = null; wmHoldStop(); if (WM_CAM) WM_CAM.locked = false; }
+  if (wait) { WM_SKILL = null; WM_AIM = null; wmHoldStop(); }
   if (WM_ST && WM_ST.active) wmPaintSkills();
+}
+
+const WM_SPAWN_FALL = 34;   // กี่เฟรมกว่าของจะร่วงจากบนจอถึงพื้น
+let WM_SPAWNS = [];
+
+/** ✨ ของกำลังร่วงลงสนาม — ลำแสงจากฟ้า + ตัวของค่อย ๆ ตกลงมา + วงกระเพื่อมตอนถึงพื้น
+
+    จงใจให้ช้า (ราวครึ่งวินาทีกว่าจะถึงพื้น) เพราะกล้องต้องมีเวลาเลื่อนมาถึงก่อน
+ */
+function wmDrawSpawns(ctx) {
+  WM_SPAWNS = WM_SPAWNS.filter(v => v.t < WM_SPAWN_LIFE);
+  WM_SPAWNS.forEach(v => {
+    const z = WM_CAM.z, k = Math.min(1, v.t / WM_SPAWN_FALL);
+    const gx = WM_CAM.sx(v.x), gy = WM_CAM.sy(v.y);
+    ctx.globalAlpha = .30 * (1 - v.t / WM_SPAWN_LIFE);   // ลำแสงจากฟ้าลงมาที่จุดนั้น
+    ctx.fillStyle = v.color;
+    ctx.fillRect(gx - 5 * z / 2, 0, 5 * z, gy);
+    ctx.globalAlpha = 1;
+    if (k < 1) {                                          // ตัวของกำลังร่วงลงมา
+      const fy = gy - (1 - k) * 90 * z;
+      ctx.fillStyle = v.color;
+      ctx.fillRect(gx - 3 * z / 2, fy - 3 * z, 3 * z, 3 * z);
+      ctx.globalAlpha = .5;
+      ctx.fillRect(gx - z / 2, fy - 9 * z, z, 5 * z);     // หางไฟตามหลัง
+      ctx.globalAlpha = 1;
+    } else {                                              // ถึงพื้นแล้ว — วงกระเพื่อม
+      const r = (v.t - WM_SPAWN_FALL) / (WM_SPAWN_LIFE - WM_SPAWN_FALL);
+      ctx.strokeStyle = v.color; ctx.globalAlpha = 1 - r;
+      ctx.lineWidth = Math.max(1.5, z * .7);
+      ctx.beginPath();
+      ctx.arc(gx, gy - 4 * z, (4 + r * 26) * z, 0, 7);
+      ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    v.t++;
+  });
+}
+
+/** 📦 ครบรอบแล้วมีของลงสนาม — พากล้องไปดูทีละชิ้นก่อนเริ่มตาคนแรก
+
+    ระหว่างทัวร์ถือว่า "ยังไม่ถึงตาใคร" กดอะไรไม่ได้ (wmBusyFx นับตัวนี้ด้วย)
+ */
+function wmTickTour() {
+  if (!WM_TOUR || !WM_CAM) return;
+  const d = WM_TOUR.list[WM_TOUR.i];
+  if (!WM_TOUR.aimed) {                     // ① ตั้งเป้าแล้วปล่อยให้กล้องค่อย ๆ เลื่อนไป
+    WM_TOUR.aimed = true;
+    wmFocus({ x: d.x, y: d.y }, true);
+  }
+  // ② ยังเลื่อนไปไม่ถึง — ยังไม่เริ่มนับเวลา ไม่งั้น 3 วินาทีถูกกินไปกับการเดินทาง
+  if (!WM_CAM.arrived()) return;
+  if (WM_TOUR.t === 0) {                    // ③ ถึงแล้วค่อยปล่อยของลงมา
+    SFX.play('chest');
+    WM_SPAWNS.push({ x: d.x, y: d.y, t: 0,
+                     color: d.kind === 'ferry' ? '#ff8a6a' : '#ffd66b' });
+    WM_POPS.push({ x: d.x, y: d.y - 30, t: 0, buff: true,
+                   text: d.kind === 'ferry' ? '🎈 เรือเหาะมาแล้ว!' : '🎁 หีบสมบัติมาแล้ว!' });
+  }
+  if (WM_TOUR.t === WM_SPAWN_FALL) { wmDust(d.x, d.y, 12); SFX.play('trap'); }
+  if (++WM_TOUR.t < WM_TOUR_HOLD) return;   // ④ ค้างครบ 3 วินาทีแล้วค่อยไปชิ้นถัดไป
+  WM_TOUR.t = 0;
+  WM_TOUR.aimed = false;
+  if (++WM_TOUR.i < WM_TOUR.list.length) return;
+  WM_TOUR = null;
+  WM_TURN_SHOWN = '';        // ทัวร์จบหมดแล้วค่อยพากล้องกลับไปหาคนที่ถึงตา
 }
 
 function wmBusyFx() {
   return !!(WM_ANIM || WM_QUEUE.length || WM_SHOT || WM_BOOMS.length ||
-            WM_AFTER.length || Object.keys(WM_DYING).length);
+            WM_AFTER.length || WM_TOUR || Object.keys(WM_DYING).length);
 }
 
 function wmPaintOver() {
@@ -2441,8 +2536,13 @@ function wmPlayAttack(d) {
   wmApply(d);
   // ตาบอทต่อทันที — ต้องเห็นด้วยว่าบอททำอะไรเรา ไม่งั้นเลือดลดแล้วนึกว่าตีตัวเอง
   wmQueueBot(d);
-  const shots = (d.bot_moves || []).filter(m => m.attack).map(m => m.attack);
-  if (shots.length) setTimeout(() => shots.forEach(a => wmShowHit(a, true)), 420);
+}
+
+/** เล่นภาพการโจมตีของบอททีละนัด — นัดถัดไปรอให้นัดก่อนเล่นจบก่อน */
+function wmPlayBotShots(shots) {
+  if (!shots.length) return;
+  wmShowHit(shots[0], true);
+  if (shots.length > 1) WM_AFTER.push(() => wmPlayBotShots(shots.slice(1)));
 }
 
 /** เล่นเอฟเฟกต์ของการโจมตีหนึ่งครั้ง — ใช้ร่วมกันทั้งของเราและของบอท
@@ -2487,6 +2587,7 @@ function wmLand(b) {
   }
 }
 
+const WM_SHOT_STEP = 0.34;   // กระสุนเดินกี่จุดต่อเฟรม (น้อย = ช้าและลื่นกว่า)
 let WM_SHOT = null, WM_BOOMS = [], WM_POPS = [], WM_SWINGS = [];
 let WM_TRAIL = null, WM_BITS = [];    // เส้นประของวิถีที่ผ่านมาแล้ว · สะเก็ดจากหลุม
 const WM_FLASH = {};       // ชื่อ -> เฟรมที่เหลือของการกระพริบตอนโดนตี
@@ -2577,9 +2678,9 @@ function wmPlayVictims(a, done) {
       if (f.dead && !WM_DEAD_SEEN[f.name]) {  // ตายค่อยเล่นภาพตายตรงนี้
         WM_DEAD_SEEN[f.name] = true;
         wmDie(fi, f);
-        wmHoldOn(fi, 30, next);
+        wmHoldOn(fi, 78, next);
       } else {
-        wmHoldOn(fi, 20, next);
+        wmHoldOn(fi, 46, next);
       }
     };
 
@@ -2618,7 +2719,7 @@ function wmBump(x, y) {
     เรียกหลังการกระเด็นหยุดแล้วเท่านั้น ไม่งั้นประกาศตายตั้งแต่ยังปลิวอยู่กลางอากาศ
  */
 function wmDie(i, f) {
-  WM_DYING[i] = 26;
+  WM_DYING[i] = 60;
   wmDust(f.x, f.y, 10);
   for (let k = 0; k < 14; k++)
     WM_BITS.push({ x: f.x, y: f.y - 10, t: 0,
@@ -2696,6 +2797,7 @@ function wmDrawAim(ctx) {
 /** วาดกระสุนที่กำลังบิน + ลูกไฟระเบิด + ตัวเลขดาเมจ + วงเหวี่ยงฟัน */
 function wmDrawFx(ctx) {
   wmDrawAim(ctx);
+  wmDrawSpawns(ctx);
   // ✨ วงแหวนบัฟ — ขยายออกจากตัวคนใช้แล้วจางหาย
   WM_AURAS = WM_AURAS.filter(v => v.t < 26);
   WM_AURAS.forEach(v => {
@@ -2718,10 +2820,17 @@ function wmDrawFx(ctx) {
   });
   // 🌠 กระสุนที่กำลังบิน — ลากเส้นประไว้ข้างหลังให้เห็นว่าโค้งไปยังไง
   if (WM_SHOT) {
-    for (let k = 0; k < 3 && WM_SHOT.i < WM_SHOT.path.length; k++) WM_SHOT.i++;
-    const seen = WM_SHOT.path.slice(0, WM_SHOT.i);
+    // ⚠️ จุดในเส้นวิถีห่างกันได้ถึง 9 px ตอนชาร์จเต็ม เดินทีละจุดจึงยังกระตุก
+    //    เดินทีละเศษส่วนแล้วเกลี่ยตำแหน่งระหว่างจุด = ลื่นและช้าลงพอให้กล้องตามทัน
+    const last = WM_SHOT.path.length - 1;
+    WM_SHOT.i = Math.min(WM_SHOT.path.length, WM_SHOT.i + WM_SHOT_STEP);
+    const at = Math.floor(WM_SHOT.i);
+    const seen = WM_SHOT.path.slice(0, Math.min(at + 1, WM_SHOT.path.length));
     wmDrawTrail(ctx, seen, 1);
-    const p = WM_SHOT.path[Math.min(WM_SHOT.i, WM_SHOT.path.length - 1)];
+    const pa = WM_SHOT.path[Math.min(at, last)];
+    const pb = WM_SHOT.path[Math.min(at + 1, last)];
+    const mix = WM_SHOT.i - at;
+    const p = [pa[0] + (pb[0] - pa[0]) * mix, pa[1] + (pb[1] - pa[1]) * mix];
     wmFocus({ x: p[0], y: p[1] });      // เกาะลูกกระสุนไปจนกว่าจะกระทบเป้า
     const hx = WM_CAM.sx(p[0]), hy = WM_CAM.sy(p[1]);
     ctx.fillStyle = '#fff6d8';
@@ -2748,19 +2857,19 @@ function wmDrawFx(ctx) {
     if (WM_TRAIL.t > 70) WM_TRAIL = null;
   }
   // 🪨 สะเก็ดจากหลุมที่เพิ่งเจาะ
-  WM_BITS = WM_BITS.filter(b => b.t < 34);
+  WM_BITS = WM_BITS.filter(b => b.t < 52);
   WM_BITS.forEach(b => {
     b.vy += b.dust ? 0.03 : 0.14; b.x += b.vx; b.y += b.vy; b.t++;
-    ctx.globalAlpha = (1 - b.t / 34) * (b.dust ? .55 : 1);
+    ctx.globalAlpha = (1 - b.t / 52) * (b.dust ? .55 : 1);
     ctx.fillStyle = b.drop ? (b.t % 4 < 2 ? '#bfe9ff' : '#6fb6d8')
                   : b.dust ? '#d8cbb4' : b.t % 5 < 2 ? '#c89a4b' : '#6b5433';
     ctx.fillRect(WM_CAM.sx(b.x), WM_CAM.sy(b.y), Math.max(1, WM_CAM.z / 2),
                  Math.max(1, WM_CAM.z / 2));
     ctx.globalAlpha = 1;
   });
-  WM_BOOMS = WM_BOOMS.filter(b => b.t < 14);
+  WM_BOOMS = WM_BOOMS.filter(b => b.t < 30);      // ระเบิดค้างให้ดูทัน
   WM_BOOMS.forEach(b => {
-    const k = b.t++ / 14, r = b.r * (0.4 + k) * WM_CAM.z;
+    const k = b.t++ / 30, r = b.r * (0.4 + k) * WM_CAM.z;
     ctx.globalAlpha = 1 - k;
     ctx.fillStyle = k < .4 ? '#fff6d8' : k < .7 ? '#ffb45a' : '#8f2317';
     ctx.beginPath(); ctx.arc(WM_CAM.sx(b.x), WM_CAM.sy(b.y), r, 0, 6.29); ctx.fill();
@@ -2768,9 +2877,9 @@ function wmDrawFx(ctx) {
   });
 
   // ตัวเลขดาเมจลอยขึ้นตรงตัวคนที่โดน — เห็นชัดว่าใครโดนเท่าไหร่ ตรงไหน
-  WM_POPS = WM_POPS.filter(p => p.t < 46);
+  WM_POPS = WM_POPS.filter(p => p.t < 78);        // เลขดาเมจค้างให้อ่านทัน
   WM_POPS.forEach(p => {
-    const k = p.t++ / 46;
+    const k = p.t++ / 78;
     ctx.globalAlpha = k < .75 ? 1 : (1 - k) * 4;
     ctx.font = `bold ${Math.max(10, 8 * WM_CAM.z)}px ` + getComputedStyle(document.body).fontFamily;
     ctx.textAlign = 'center';
@@ -2819,6 +2928,16 @@ async function wmDo(action, dir) {
     (d.sprung || []).forEach(() => { SFX.play('trap'); toast('🕳️ เหยียบกับดัก!', true); });
     (d.opened || []).forEach(o => { SFX.play('chest');
       toast('🎁 เปิดหีบได้ ' + (o.name || 'ของ') + '!'); });
+    if (d.ferry) {                        // 🎈 ข้ามเกาะแล้ว — พากล้องไปที่จุดลงด้วย
+      SFX.play('skill');
+      toast('🎈 ขึ้นเรือเหาะข้ามไปอีกเกาะ!');
+      wmDust(d.ferry.from[0], d.ferry.from[1], 10);
+      wmDust(d.ferry.x, d.ferry.y, 10);
+      WM_ST.fighters[mine].x = d.ferry.x;
+      WM_ST.fighters[mine].y = d.ferry.y;
+      WM_ANIM = null; WM_QUEUE = [];
+      wmFocus(WM_ST.fighters[mine], true);
+    }
     if (d.move && d.move.bump) wmBump(d.move.bump[0], d.move.bump[1]);
     if (d.move && d.move.drowned) WM_AFTER.push(wmCallDeaths);
     WM.props = d.props; WM.repaint();
@@ -2858,12 +2977,22 @@ async function wmEndTurn(how) {
 function wmQueueBot(d) {
   const bi = WM_ST.fighters.findIndex(f => f.bot);
   const moves = (d.bot_moves || []).filter(m => (m.path || []).length);
-  if (bi < 0 || !moves.length) return;
+  const shots = (d.bot_moves || []).filter(m => m.attack).map(m => m.attack);
+  if (bi < 0) return;
+  if (!moves.length) {
+    // ⚠️ บอทยืนยิงอยู่กับที่ ถ้าไม่เล่นภาพตรงนี้ หลุมที่เซิร์ฟเวอร์เจาะไปแล้ว
+    //    จะไม่ถูกลบบนจอเลย = เห็นพื้นอยู่แต่เหยียบแล้วร่วงทะลุ
+    wmPlayBotShots(shots);
+    return;
+  }
   if (!WM_ANIM || WM_ANIM.fi !== bi) {
     WM_ST.fighters[bi].x = moves[0].path[0][0];
     WM_ST.fighters[bi].y = moves[0].path[0][1];
   }
-  moves.forEach(m => WM_QUEUE.push({ fi: bi, path: m.path, i: 0 }));
+  moves.forEach((m, i) => WM_QUEUE.push({
+    fi: bi, path: m.path, i: 0,
+    onEnd: i === moves.length - 1 ? () => wmPlayBotShots(shots) : null,
+  }));
   if (!WM_ANIM) WM_ANIM = WM_QUEUE.shift();
   wmFocus(WM_ST.fighters[bi], true);      // จับกล้องไปที่บอทตั้งแต่ต้นตา
 }

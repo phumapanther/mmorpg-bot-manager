@@ -209,10 +209,13 @@ def test_one_press_is_a_small_shuffle_not_a_sprint():
 
 def test_a_short_walk_is_played_out_step_by_step():
     """ก้าวสั้นต้องค้างจุดละหลายเฟรม ไม่งั้นเดิน 6 ก้าวจบใน 0.1 วิ เห็นเป็นวาร์ป"""
-    m = re.search(r"const hold = WM_ANIM\.path\.length <= \d+ \? (\d+) : (\d+);", PLAY)
+    m = re.search(r"const hold = WM_ANIM\.path\.length <= \d+ \? (\d+) : "
+                 r"WM_ANIM\.path\.length <= \d+ \? (\d+) : (\d+);", PLAY)
     assert m, "ไม่ได้หน่วงการเล่นภาพเดินเลย"
-    assert int(m.group(1)) > 1, "ก้าวสั้นยังเล่นรวดเดียว"
-    assert int(m.group(2)) == 1, "ท่อนยาวก็หน่วงด้วย — ตาบอทจะนานเป็นชาติ"
+    short, mid, long = (int(g) for g in m.groups())
+    assert short > 1, "ก้าวสั้นยังเล่นรวดเดียว"
+    assert mid > 1, "ท่อนกลาง (การกระเด็น) เล่นรวดเดียว ดูไม่ทัน"
+    assert long == 1, "ท่อนยาวก็หน่วงด้วย — ตาบอทจะนานเป็นชาติ"
 
 
 # ── 5. เดินแล้วขาต้องขยับ พื้นต้องไม่ลื่น ──
@@ -423,10 +426,20 @@ def test_a_new_match_forgets_which_turn_was_focused():
 # ── 10. จบเกมแล้วสรุปผล ──
 
 def _finish(cls="Warrior"):
-    """ตีจนจบเกมจริง ๆ แล้วคืนสถานะสุดท้าย"""
+    """ตีจนจบเกมจริง ๆ แล้วคืนสถานะสุดท้าย
+
+    ต้องลากคู่ต่อสู้กลับมาชิดทุกครั้ง เพราะตอนนี้ทุกหมัดผลักให้กระเด็น
+    ปล่อยไว้เฉย ๆ หมัดที่สองก็ไปไม่ถึงแล้ว
+    """
     fresh()
     for _ in range(60):
-        good, r = match.attack(UID, "basic")
+        st = match.load(UID)
+        if st["over"]:
+            return match.view(UID, st)
+        me, foe = st["fighters"]
+        foe.update(x=me["x"] + 16, y=me["y"])
+        match.save(UID, st)
+        good, r = match.attack(UID, "basic", angle=0)
         if not good or r["over"]:
             return r
     raise AssertionError("ตี 60 ครั้งแล้วเกมยังไม่จบ")
@@ -1136,7 +1149,7 @@ def test_each_victim_gets_its_own_turn_on_camera():
     assert "const next = () =>" in vic, "ไม่ได้ไล่ทีละคน"
     assert "let n = 0;" in vic, "ตัวนับเริ่มผิด — ข้ามคนที่โดนไปหมด"
     assert "if (n >= order.length)" in vic, "ไม่มีเงื่อนไขจบเมื่อครบทุกคน"
-    for hold in ("wmHoldOn(fi, 20, next)", "wmHoldOn(fi, 30, next)"):
+    for hold in ("wmHoldOn(fi, 46, next)", "wmHoldOn(fi, 78, next)"):
         assert hold in vic, f"ไม่ได้ค้างกล้องให้ทันดูก่อนไปคนถัดไป ({hold})"
     assert vic.count("next") >= 4, "ลำดับไม่ได้ต่อกันไปเรื่อย ๆ จนครบ"
 
@@ -1154,7 +1167,7 @@ def test_the_death_animation_plays_at_that_persons_turn_on_camera():
     tail = vic[at:]
     assert "wmDie(fi, f)" in tail, "ตายแล้วไม่เล่นภาพตายตอนกล้องจับอยู่ที่เขา"
     assert "WM_DEAD_SEEN[f.name]" in tail, "ประกาศตายซ้ำได้"
-    assert tail.index("wmDie(fi, f)") < tail.index("wmHoldOn(fi, 30"),         "เล่นภาพตายหลังจากค้างกล้องไปแล้ว ผู้เล่นไม่ทันเห็น"
+    assert tail.index("wmDie(fi, f)") < tail.index("wmHoldOn(fi, 78"),         "เล่นภาพตายหลังจากค้างกล้องไปแล้ว ผู้เล่นไม่ทันเห็น"
 
 
 def test_a_chunk_can_carry_work_to_run_when_it_ends():
@@ -1181,3 +1194,233 @@ def test_the_shot_carries_the_whole_attack_for_the_victim_pass():
 def test_nobody_hit_means_no_queue():
     vic = _fn("function wmPlayVictims(")
     assert "if (!order.length) { if (done) done(); return false; }" in vic,         "ยิงพลาดไม่โดนใครก็ยังค้างคิวรอ"
+
+
+# ── 27. ห้าม "อยู่ ๆ ก็ตกรอบ" จากพื้นหายใต้เท้า ──
+
+def test_you_do_not_lose_by_standing_still(world):
+    """เจ้าของเกมทัก: อยู่ ๆ ฉันก็ตกรอบ แพ้เอง
+
+    วัดแล้ว: ผู้เล่นยืนเฉย ๆ ไม่ทำอะไรเลย 40 เมล็ด จบเกมด้วยการตกน้ำ 27 ครั้ง
+    เพราะบอทยิงทะลุเกาะแล้ว _settle_everyone ปล่อยให้ร่วงลงทะเลทันที
+    """
+    import collections
+
+    why = collections.Counter()
+    for seed in range(1, 26):
+        fresh(seed)
+        for _ in range(30):
+            st = match.load(UID)
+            st["turn_started"] = 0
+            match.save(UID, st)
+            good, r = match.end_turn(UID, auto=True)
+            if not good:
+                break
+            me = r["fighters"][0]
+            if me["dead"] or r["over"]:
+                log = " ".join(r["log"][-8:])
+                why["ตกน้ำ" if "ตกน้ำ" in log else "อื่น ๆ"] += 1
+                break
+    assert why["ตกน้ำ"] <= 3, f"ยืนเฉย ๆ แล้วตกน้ำตาย {why['ตกน้ำ']}/25 เมล็ด — ยังเยอะเกินไป"
+
+
+def test_the_ground_giving_way_lets_you_grab_a_ledge(world):
+    """พื้นใต้เท้าหายแล้วต้องคว้าขอบใกล้ ๆ ก่อน ไม่ใช่ร่วงลงทะเลทันที"""
+    fresh()
+    g = [[T.AIR] * T.W for _ in range(T.H)]
+    for x in range(300, 360):                       # แผ่นดินเล็ก ๆ ลอยเหนือน้ำ
+        for y in range(200, 214):
+            g[y][x] = T.ROCK
+    st = match.load(UID)
+    st["terrain"], st["props"] = T.encode(g), []
+    st["fighters"][0].update(x=310, y=200)
+    st["fighters"][1].update(x=350, y=200)
+    match.save(UID, st)
+
+    st = match.load(UID)
+    grid = T.decode(st["terrain"])
+    for y in range(200, 214):                       # เจาะพื้นใต้เท้าคนแรกให้หายเกลี้ยง
+        for x in range(304, 318):
+            grid[y][x] = T.AIR
+    st["terrain"] = T.encode(grid)
+    match._settle_everyone(st, grid)
+    me = st["fighters"][0]
+    assert not me["dead"], "พื้นหายแล้วร่วงลงทะเลตายทันที ทั้งที่มีขอบให้เกาะข้าง ๆ"
+    assert P.standable(grid, me["x"], me["y"]), "รอดแต่ลอยอยู่กลางอากาศ"
+    assert any("คว้าขอบ" in line for line in st["log"]), "ไม่ได้บอกผู้เล่นว่าเกิดอะไรขึ้น"
+
+
+def test_with_nothing_to_grab_you_still_drown(world):
+    """กันแก้เกินจนตกน้ำไม่ได้อีกเลย"""
+    fresh()
+    g = [[T.AIR] * T.W for _ in range(T.H)]
+    for x in range(600, 660):            # มีแผ่นดินอยู่ แต่ไกลเกินกว่าจะคว้าถึง
+        for y in range(200, 214):
+            g[y][x] = T.ROCK
+    st = match.load(UID)
+    st["terrain"], st["props"] = T.encode(g), []
+    st["fighters"][0].update(x=300, y=200)
+    match.save(UID, st)
+    st = match.load(UID)
+    match._settle_everyone(st, T.decode(st["terrain"]))
+    assert st["fighters"][0]["dead"], "ไม่มีอะไรให้เกาะเลยก็ยังไม่ตกน้ำ"
+
+
+def test_the_islands_are_thick_enough_to_take_a_fireball(world):
+    """เกาะบางกว่าหลุมไฟ = ยิงนัดเดียวทะลุ คนที่ยืนอยู่ร่วงทันที"""
+    import statistics
+
+    th = []
+    for seed in range(1, 16):
+        fresh(seed)
+        st = match.load(UID)
+        g = T.decode(st["terrain"])
+        for f in st["fighters"]:
+            n = 0
+            for gy in range(f["y"], T.H - T.WATER):
+                if not T.solid(g, f["x"], gy):
+                    break
+                n += 1
+            th.append(n)
+    assert statistics.median(th) >= 20,         f"พื้นใต้จุดเกิดหนากลาง ๆ แค่ {statistics.median(th):.0f} px"
+
+
+# ── 28. เล่นภาพช้าลงให้ตามทัน ──
+
+def test_the_shell_moves_a_fraction_of_a_step_per_frame():
+    """เจ้าของเกมสั่ง: กระสุนต้องช้าและลื่น กล้องจะได้ตามทัน
+
+    จุดในเส้นวิถีห่างกันได้ถึง 9 px ตอนชาร์จเต็ม เดินทีละจุดจึงยังกระตุก
+    """
+    import re as _re
+
+    body = PLAY[PLAY.index("  if (WM_SHOT) {"):]
+    body = body[:body.index(chr(10) + "  }")]
+    assert "WM_SHOT.i + WM_SHOT_STEP" in body, "ยังเดินทีละจุดเต็ม ๆ"
+    assert "k < 3 && WM_SHOT.i" not in body, "ยังข้ามทีละ 3 จุดอยู่"
+    m = _re.search(r"WM_SHOT_STEP = ([\d.]+)", PLAY)
+    assert m, "ไม่ได้ตั้งความเร็วกระสุน"
+    assert float(m.group(1)) <= 0.5, f"เดินทีละ {m.group(1)} จุด เร็วเกินกว่ากล้องจะตามทัน"
+
+
+def test_the_shell_position_is_smoothed_between_path_points():
+    body = PLAY[PLAY.index("  if (WM_SHOT) {"):]
+    body = body[:body.index(chr(10) + "  }")]
+    assert "const mix = WM_SHOT.i - at;" in body, "ไม่ได้เกลี่ยตำแหน่งระหว่างจุด"
+    assert "pa[0] + (pb[0] - pa[0]) * mix" in body, "ตำแหน่งที่วาดยังกระโดดทีละจุด"
+
+
+def test_the_effects_linger_long_enough_to_read():
+    import re as _re
+
+    for pat, least, what in [(r"WM_BOOMS\.filter\(b => b\.t < (\d+)\)", 24, "ลูกไฟระเบิด"),
+                             (r"WM_POPS\.filter\(p => p\.t < (\d+)\)", 60, "เลขดาเมจ"),
+                             (r"WM_DYING\[i\] = (\d+);", 45, "ภาพตาย")]:
+        m = _re.search(pat, PLAY)
+        assert m, f"หาอายุของ{what}ไม่เจอ"
+        assert int(m.group(1)) >= least, f"{what} อยู่แค่ {m.group(1)} เฟรม ดูไม่ทัน"
+
+
+def test_the_fade_matches_the_lifetime():
+    """จางเร็วกว่าที่อยู่จริง = หายไปก่อนถึงเวลา · ช้ากว่า = ดับวับตอนจบ"""
+    import re as _re
+
+    for life, fade, what in [(r"WM_BOOMS\.filter\(b => b\.t < (\d+)\)", r"b\.t\+\+ / (\d+), r =", "ลูกไฟ"),
+                             (r"WM_POPS\.filter\(p => p\.t < (\d+)\)", r"const k = p\.t\+\+ / (\d+);", "เลขดาเมจ"),
+                             (r"WM_BITS\.filter\(b => b\.t < (\d+)\)", r"\(1 - b\.t / (\d+)\)", "สะเก็ด")]:
+        a, b = _re.search(life, PLAY), _re.search(fade, PLAY)
+        assert a and b, f"หาอายุ/การจางของ{what}ไม่เจอ"
+        assert a.group(1) == b.group(1),             f"{what} อยู่ {a.group(1)} เฟรม แต่จางตาม {b.group(1)} เฟรม"
+
+
+def test_deferred_work_drains_even_with_nothing_animating():
+    """เจ้าของเกมทัก: พอถึงตาของฉัน ฉันขยับไม่ได้ ทำอะไรไม่ได้
+
+    ยิงพลาดไม่โดนใคร = งานถูกเข้าคิวทั้งที่ไม่มีภาพเล่นอยู่
+    เดิมสะสางเฉพาะจังหวะที่ภาพเพิ่งเล่นจบ คิวเลยค้างตลอดกาล
+    wmWaiting() ค้างเป็น true = ปุ่มทุกปุ่มถูกล็อกไปทั้งเกม
+    """
+    body = _fn("function wmTick(")
+    assert "if (!WM_ANIM && WM_AFTER.length) {" in body,         "ไม่มีใครสะสางคิวงานตอนไม่มีภาพเล่นอยู่ — ล็อกค้างทั้งเกม"
+    assert "while (WM_AFTER.length) WM_AFTER.shift()();" in body, "เช็คแล้วแต่ไม่ได้สะสาง"
+
+
+# ── 29. ครบรอบแล้วเติมของ + เรือเหาะข้ามเกาะ ──
+
+def _round_up(seed=7, rounds=6):
+    """เล่นให้ครบหลายรอบแล้วคืนสถานะ"""
+    fresh(seed)
+    for _ in range(rounds * 2):
+        st = match.load(UID)
+        st["turn_started"] = 0
+        match.save(UID, st)
+        good, r = match.end_turn(UID, auto=True)
+        if not good or r["over"]:
+            break
+    return match.load(UID)
+
+
+def test_new_things_drop_in_as_rounds_go_by(world):
+    """เจ้าของเกมสั่ง: ครบ 1 รอบ (ทุกคนเล่นครบ) ให้สปอนของใหม่"""
+    fresh()
+    before = len(match.load(UID)["props"])
+    st = _round_up(rounds=6)
+    assert st["round"] > 1, "เล่นไม่ครบรอบ — เทสตั้งฉากผิด"
+    assert len(st["props"]) > before, f"ผ่านไป {st['round']} รอบแล้วของบนแผนที่ยังเท่าเดิม"
+    assert any("ของใหม่" in line for line in st["log"]), "ไม่ได้บอกผู้เล่นว่ามีของลงสนาม"
+
+
+def test_the_field_does_not_fill_up_forever(world):
+    st = _round_up(rounds=14)
+    assert match.DROP_MAX <= 20, f"เพดาน {match.DROP_MAX} ไม่ได้จำกัดอะไรเลย"
+    assert len(st["props"]) <= match.DROP_MAX,         f"ของล้นสนาม {len(st['props'])} ชิ้น (เพดาน {match.DROP_MAX})"
+
+
+def test_a_ferry_shows_up_to_cross_islands(world):
+    """แผนที่เป็นเกาะลอย เดินข้ามแทบไม่ได้ — ต้องมีพาหนะให้"""
+    assert "ferry" in T.PROPS, "ไม่มีเรือเหาะในรายการของบนแผนที่"
+    seen = 0
+    for seed in range(1, 9):
+        st = _round_up(seed, rounds=5)
+        seen += sum(1 for p in st["props"] if p["kind"] == "ferry")
+    assert seen >= 4, f"เล่น 8 เมล็ดแล้วเจอเรือเหาะแค่ {seen} ลำ"
+
+
+def test_riding_the_ferry_takes_you_somewhere_you_could_not_walk(world):
+    """วาร์ปไปจุดที่เดินถึงอยู่แล้วก็ไม่ได้แก้ปัญหาข้ามเกาะ"""
+    for seed in range(1, 12):
+        st = _round_up(seed, rounds=5)
+        fer = next((p for p in st["props"] if p["kind"] == "ferry"), None)
+        if not fer:
+            continue
+        g = T.decode(st["terrain"])
+        me = st["fighters"][0]
+        me["dead"] = False
+        start = (fer["x"], fer["y"])
+        me["x"], me["y"] = start
+        reach = P.walk_group(g, start)
+        got = match._ride_ferry(st, g, me)
+        if not got:
+            continue                      # เมล็ดนี้ไม่มีเกาะอื่นให้ไป
+        assert (me["x"], me["y"]) not in reach,             "เรือเหาะพาไปจุดที่เดินถึงอยู่แล้ว ไม่ได้ข้ามเกาะจริง"
+        assert P.standable(g, me["x"], me["y"]), "ลงเรือแล้วลอยอยู่กลางอากาศ"
+        assert not any(p["kind"] == "ferry" and p["x"] == start[0] for p in st["props"]),             "ขึ้นแล้วเรือยังอยู่ที่เดิม — ใช้ซ้ำได้ไม่จำกัด"
+        assert any("เรือเหาะ" in line for line in st["log"])
+        return
+    pytest.skip("ไม่เจอเรือเหาะในเมล็ดที่ลอง")
+
+
+def test_supply_drops_never_reveal_where_traps_are(world):
+    """กติกาเหล็กของหมวดนี้ — ตำแหน่งกับดักห้ามหลุดไปฝั่งเบราว์เซอร์"""
+    st = _round_up(rounds=6)
+    view = match.view(UID, st)
+    assert all(p["kind"] != "trap" for p in view["props"]), "ส่งตำแหน่งกับดักไปให้เบราว์เซอร์"
+    assert view["traps"] >= 0
+
+
+def test_the_page_draws_the_ferry_and_the_ride():
+    worms = (WEB / "worms.js").read_text(encoding="utf-8")
+    assert "p.kind === 'ferry'" in worms, "เรือเหาะไม่ถูกวาดบนแผนที่"
+    assert "d.ferry" in PLAY, "ขึ้นเรือแล้วเว็บไม่รู้เรื่อง"
+    body = PLAY[PLAY.index("async function wmDo("):PLAY.index("async function wmEndTurn(")]
+    assert "wmFocus(WM_ST.fighters[mine], true)" in body, "ข้ามเกาะแล้วกล้องไม่ตามไป"
