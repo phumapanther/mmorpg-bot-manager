@@ -88,10 +88,10 @@ def test_both_paths_into_the_bot_turn_use_the_same_replay():
 
 def test_walking_until_the_energy_runs_out_ends_the_turn(world):
     fresh()
-    for _ in range(8):
-        good, r = match.move(UID, "walk", 1, 40)
-        if not good:
-            pytest.fail("เดินไม่ได้: " + r["error"])
+    for i in range(20):
+        good, r = match.move(UID, "walk", 1 if i % 2 else -1, 40)   # กลับไปกลับมา
+        if not good:                                               # เดินทางเดียวชนขอบเหว
+            pytest.fail("เดินไม่ได้: " + r["error"])               # แล้วแรงจะไม่มีวันหมด
         if r.get("auto_ended"):
             assert r["moves"] == match.MOVE_BUDGET, "จบเทิร์นแล้วแต่แรงไม่รีเซ็ต"
             return
@@ -109,8 +109,8 @@ def test_the_auto_ended_turn_still_reports_the_walk_that_caused_it(world):
     """ไม่งั้นเว็บได้แต่ผลลัพธ์ ไม่รู้ว่าเดินไปทางไหน เลยเล่นภาพไม่ได้"""
     fresh()
     r = None
-    for _ in range(8):
-        good, r = match.move(UID, "walk", 1, 40)
+    for i in range(20):
+        good, r = match.move(UID, "walk", 1 if i % 2 else -1, 40)
         if good and r.get("auto_ended"):
             break
     assert r.get("auto_ended") and r.get("move", {}).get("path"), \
@@ -574,3 +574,140 @@ def test_you_can_tell_which_row_is_you():
     body = PLAY[PLAY.index("function wmPaintOver("):]
     body = body[:body.index(chr(10) + "}")]
     assert "(คุณ)" in body, "ดูไม่ออกว่าแถวไหนคือเรา"
+
+
+# ── 14. เดินแล้วห้ามตกทะเลเอง ──
+
+def test_walking_never_marches_you_into_the_sea(world):
+    """เจ้าของเทสวัดแล้ว: เดินอย่างเดียว 20 เมล็ด ตายไป 12 เพราะเดินตกขอบเกาะ
+
+    step() ปล่อยให้ก้าวลงลึกเท่าไหร่ก็ได้ กดค้างเดินจึงเดินตรงลงทะเลไปเฉย ๆ
+    """
+    dead = []
+    for seed in range(1, 21):
+        fresh(seed)
+        st = match.load(UID)
+        g = T.decode(st["terrain"])
+        x, y = st["fighters"][0]["x"], st["fighters"][0]["y"]
+        for _ in range(120):
+            r = P.walk(g, x, y, 1, 6, P.SAFE_DROP)
+            if r["drowned"]:
+                dead.append(seed)
+                break
+            if not r["path"]:
+                break
+            x, y = r["x"], r["y"]
+    assert not dead, f"เดินอย่างเดียวแล้วตกทะเลในเมล็ด {dead}"
+
+
+def test_a_walk_stops_at_the_edge_of_a_big_drop():
+    """หิ้งสูงเหนือเหว — เดินถึงขอบต้องหยุด ไม่ใช่ก้าวลอยลงไป"""
+    g = [[T.AIR] * T.W for _ in range(T.H)]
+    for x in range(100, 200):
+        for y in range(120, 130):
+            g[y][x] = T.ROCK
+    for x in range(200, 300):                    # พื้นล่างห่างลงไป 80 px
+        for y in range(200, 210):
+            g[y][x] = T.ROCK
+    r = P.walk(g, 190, 120, 1, 40, P.SAFE_DROP)   # เริ่มใกล้ขอบ ให้ 40 ก้าวเดินถึงจริง
+    assert r["y"] == 120, f"เดินตกหน้าผาไปที่ y={r['y']} ทั้งที่ควรหยุดตรงขอบ"
+    assert not r["drowned"]
+    far = P.walk(g, 190, 120, 1, 40)             # ไม่ใส่เพดาน = ตกได้ตามเดิม
+    assert far["y"] > 120, "ไม่ใส่เพดานแล้วยังไม่ยอมตก — แรงกระแทกจะผลักใครตกไม่ได้เลย"
+
+
+def test_a_small_step_down_is_still_fine():
+    """ห้ามเข้มจนเดินลงเนินเตี้ย ๆ ไม่ได้"""
+    g = [[T.AIR] * T.W for _ in range(T.H)]
+    for x in range(100, 200):
+        for y in range(120, 220):
+            g[y][x] = T.ROCK
+    for x in range(200, 300):                    # ต่ำลงแค่ 10 px
+        for y in range(130, 220):
+            g[y][x] = T.ROCK
+    r = P.walk(g, 190, 120, 1, 30, P.SAFE_DROP)
+    assert r["x"] >= 215, f"ลงเนินเตี้ยแค่ 10 px ก็ยังไม่ยอมเดินผ่าน (หยุดที่ x={r['x']})"
+    assert r["y"] == 130, f"ลงเนินแล้วไม่ได้อยู่บนพื้นชั้นล่าง (y={r['y']})"
+
+
+def test_the_player_walk_always_passes_the_cap():
+    body = pathlib.Path("bot/pvp/match.py").read_text(encoding="utf-8")
+    assert "physics.SAFE_DROP" in body, "move() ไม่ได้ส่งเพดานความลึกให้ physics.walk"
+
+
+# ── 15. ตก/กระเด็น ต้องมีภาพให้เห็น ──
+
+def test_falling_looks_different_from_walking():
+    body = PLAY[PLAY.index("function wmDrawFighter("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "WM_ANIM.air" in body, "ตกกับเดินวาดเหมือนกันหมด"
+    assert "ctx.rotate(" in body, "ลอยกลางอากาศแล้วตัวยังตั้งตรงเป๊ะเหมือนยืน"
+
+
+def test_the_replay_knows_when_a_fighter_is_airborne():
+    body = PLAY[PLAY.index("function wmStartLoop("):PLAY.index("/** วาดนักสู้")]
+    assert "WM_ANIM.dy = y - af.y;" in body, "ไม่ได้ดูว่ากำลังขึ้นหรือลง"
+    assert "WM_ANIM.air =" in body, "ไม่ได้จำว่าลอยอยู่หรือยืนอยู่"
+
+
+def test_landing_kicks_up_dust():
+    body = PLAY[PLAY.index("function wmStartLoop("):PLAY.index("/** วาดนักสู้")]
+    assert "wmDust(" in body, "ตกถึงพื้นแล้วเงียบสนิท ไม่มีอะไรบอกว่ากระแทกพื้น"
+    assert "WM_ANIM.air && WM_ANIM.dy <= 0" in body, "ฝุ่นไม่ได้ผูกกับจังหวะแตะพื้น"
+
+
+def test_being_knocked_back_is_replayed_on_the_right_fighter(world):
+    body = PLAY[PLAY.index("function wmShowHit("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "if (a.knock && a.knock.path && a.knock.path.length) {" in body,         "โดนกระแทกแล้วตัวเทเลพอร์ตไปเฉย ๆ ไม่เห็นว่าปลิว"
+    assert "WM_QUEUE.push({ fi: ki" in body, "ไม่ได้ต่อคิวภาพกระเด็นให้เล่น"
+    assert "f.name === a.knock.name" in body, "เล่นภาพกระเด็นให้ผิดคนได้"
+
+
+# ── 16. นาฬิกาต้องไม่เดินตอนดูบอทเล่น ──
+
+def test_the_clock_is_frozen_while_the_bot_replay_plays():
+    """หมดเวลาระหว่างนั่งดูบอทเดิน = ขอจบเทิร์นไปตัดภาพบอทกลางคัน
+    แล้วเทิร์นเราก็โผล่มาโดยไม่ได้ดูว่าบอททำอะไร"""
+    body = PLAY[PLAY.index("function wmTick("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "if (WM_ANIM || WM_QUEUE.length) WM_DEADLINE" in body,         "นาฬิกายังเดินตอนภาพตาบอทเล่นค้างอยู่"
+
+
+# ── 17. ปุ่มยอมแพ้ ──
+
+def test_surrendering_blows_yourself_up_and_ends_it(world):
+    fresh()
+    good, r = match.surrender(UID)
+    assert good, r.get("error")
+    assert r["over"], "ยอมแพ้แล้วเกมยังไม่จบ"
+    assert r["fighters"][0]["dead"], "ยอมแพ้แล้วยังไม่ตาย"
+    assert r["surrender"]["blast"]["crater"] > 0, "ไม่มีระเบิดให้เห็น"
+    assert any("ยอมแพ้" in line for line in r["log"]), "ไม่ได้บันทึกว่ายอมแพ้"
+
+
+def test_surrendering_does_not_hurt_the_opponent(world):
+    fresh()
+    st = match.load(UID)
+    st["fighters"][1].update(x=st["fighters"][0]["x"] + 10, y=st["fighters"][0]["y"])
+    match.save(UID, st)
+    r = match.surrender(UID)[1]
+    assert r["fighters"][1]["hp"] == 100, "ระเบิดยอมแพ้ไปโดนคู่ต่อสู้ด้วย"
+
+
+def test_you_cannot_surrender_twice(world):
+    fresh()
+    match.surrender(UID)
+    good, r = match.surrender(UID)
+    assert not good and "จบ" in r["error"]
+
+
+def test_the_page_has_a_surrender_button():
+    assert 'id="wmGiveUp"' in HTML, "ไม่มีปุ่มยอมแพ้บนหน้าเว็บ"
+    body = PLAY[PLAY.index("async function wmGiveUp("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "action: 'surrender'" in body, "ปุ่มยอมแพ้ไม่ได้บอกเซิร์ฟเวอร์"
+    assert "if (!confirm(" in body, "กดพลาดทีเดียวจบเกมเลย ต้องถามก่อน"
+    at = body.index("if (!confirm(")
+    assert "return;" in body[at:at + 140], "ถามแล้วแต่ตอบไม่ก็ยังยอมแพ้อยู่ดี"
+    assert "wmLand(s.blast)" in body, "ยอมแพ้แล้วไม่มีอนิเมชันระเบิดตัวเอง"

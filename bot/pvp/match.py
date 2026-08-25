@@ -233,7 +233,7 @@ def move(uid, action, direction=1, steps=1):
         steps = max(1, min(int(steps), st["moves"]))
         if st["moves"] <= 0:
             return False, {"error": "แรงเดินหมดแล้ว — จบเทิร์นได้เลย"}
-        r = physics.walk(grid, f["x"], f["y"], direction, steps)
+        r = physics.walk(grid, f["x"], f["y"], direction, steps, physics.SAFE_DROP)
         st["moves"] -= max(len(r["path"]), 1)
     else:
         return False, {"error": "ไม่รู้จักท่านี้"}
@@ -392,7 +392,7 @@ def _use_skill(st, grid, f, key, angle, power):
             if s.get("knock") and not t["dead"]:               # กระแทกให้กระเด็น
                 kb = physics.walk(grid, t["x"], t["y"], f["face"], s["knock"])
                 t["x"], t["y"] = kb["x"], kb["y"]
-                out["knock"] = kb["path"]
+                out["knock"] = {"name": t["name"], "path": kb["path"]}
                 if kb["drowned"]:
                     _drown(st, t)
                 else:
@@ -634,6 +634,32 @@ def end_turn(uid, auto=False):
         _pass_turn(st)
     save(uid, st)
     return True, {"bot_moves": bot_moves} | view(uid, st)
+
+
+SURRENDER_CRATER = 26
+
+
+def surrender(uid):
+    """🏳️ ยอมแพ้ — ระเบิดตัวเองทิ้งตามธรรมเนียมเกมแนวนี้ แล้วจบแมตช์
+
+    ไม่ทำดาเมจใส่คู่ต่อสู้ (radius 0) แค่เจาะหลุมกับเก็บตัวเองออกจากสนาม
+    """
+    st = load(uid)
+    if not st:
+        return False, {"error": "ยังไม่ได้เริ่มแมตช์"}
+    if st["over"]:
+        return False, {"error": "แมตช์นี้จบแล้ว"}
+    me = next((f for f in st["fighters"] if not f["bot"]), None)
+    if not me or me["dead"]:
+        return False, {"error": "ตัวละครของคุณตกรอบไปแล้ว"}
+
+    st["log"].append(f"🏳️ {me['name']} ยอมแพ้ — ระเบิดตัวเองทิ้ง!")
+    blast = _explode(st, _grid(st), me["x"], me["y"] - terrain.CH_H // 2,
+                     0, 0, SURRENDER_CRATER, "")
+    me["hp"], me["dead"] = 0, True
+    _check_over(st)
+    save(uid, st)
+    return True, {"surrender": {"x": me["x"], "y": me["y"], "blast": blast}} | view(uid, st)
 
 
 def standings(st):

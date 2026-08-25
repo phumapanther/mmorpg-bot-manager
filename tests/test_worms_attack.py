@@ -124,7 +124,8 @@ def test_shield_bash_knocks_the_target_away(world):
     before = match.load(UID)["fighters"][1]["x"]
     a = match.attack(UID, "bash")[1]["attack"]
     assert a.get("knock"), "ไม่มีการกระเด็นเลย"
-    assert a["knock"][-1][0] > before, "กระเด็นผิดทาง"
+    assert a["knock"]["path"][-1][0] > before, "กระเด็นผิดทาง"
+    assert a["knock"]["name"], "ไม่ได้บอกว่าใครกระเด็น เว็บเล่นภาพให้ผิดคนได้"
 
 
 def test_a_fireball_blows_a_hole_in_the_ground(world):

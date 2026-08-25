@@ -16,6 +16,7 @@ STEP_MAX = 40       # กันเบราว์เซอร์ขอเดิ�
 GRAVITY = 0.30
 JUMP_VX, JUMP_VY = 1.7, -3.6
 FALL_HURT_FROM = 40         # ตกสูงเกินนี้เริ่มเจ็บ
+SAFE_DROP = 24              # เดินลงเองได้ลึกสุดเท่านี้ ลึกกว่านี้ต้องกระโดดลง
 FALL_DMG_PER_PX = 0.8
 
 
@@ -66,12 +67,16 @@ def settle(grid, x, y, max_fall=400):
 BLOCKED, MOVED, DROWNED = "blocked", "moved", "drowned"
 
 
-def step(grid, x, y, direction):
+def step(grid, x, y, direction, max_drop=None):
     """ก้าวหนึ่งก้าว — คืน (สถานะ, x, y)
 
     ⚠️ ต้องแยก "ชนกำแพง" กับ "เดินตกน้ำ" ออกจากกันให้ชัด
        เคยพลาด: คืน None เหมือนกันทั้งสองกรณี พอชนกำแพงเลยถูกนับเป็นจมน้ำตายทันที
-    ก้าวขึ้นได้ไม่เกิน CLIMB (ปีนขั้นบันได) · ก้าวลงได้ไม่จำกัด (ตกลงไปเฉย ๆ)
+    ก้าวขึ้นได้ไม่เกิน CLIMB (ปีนขั้นบันได)
+
+    max_drop = ยอมให้ก้าวลงลึกสุดกี่พิกเซล · None = ไม่จำกัด (ใช้ตอนโดนกระแทก)
+    ⚠️ ตอนผู้เล่นเดินเองต้องใส่ค่าไว้เสมอ ไม่งั้นกดค้างเดินแล้วตัวเดินตกขอบเกาะ
+       ลงทะเลตายทันทีโดยไม่มีทางห้าม — วัดแล้วเดินเฉย ๆ 20 เมล็ด ตายไป 12
     """
     nx = x + direction
     if not 0 <= nx < T.W:
@@ -81,20 +86,23 @@ def step(grid, x, y, direction):
             return MOVED, nx, ny
     if not _clear(grid, nx, y):                 # ตัวชนกำแพง = ไปต่อไม่ได้ (ยังไม่ตาย)
         return BLOCKED, x, y
-    nx, ny, _, drowned = settle(grid, nx, y)    # ไม่มีพื้นข้างหน้า = เดินตกลงไป
-    return (DROWNED if drowned else MOVED), nx, ny
+    fx, fy, fell, drowned = settle(grid, nx, y)   # ไม่มีพื้นข้างหน้า = ตกลงไป
+    if max_drop is not None and (drowned or fell > max_drop):
+        return BLOCKED, x, y                      # ขอบเหว — หยุดตรงขอบ ไม่เดินตกเอง
+    return (DROWNED if drowned else MOVED), fx, fy
 
 
-def walk(grid, x, y, direction, steps):
+def walk(grid, x, y, direction, steps, max_drop=None):
     """เดินหลายก้าว — คืน {path, x, y, drowned, fell}
 
-    หยุดเองเมื่อชนกำแพงหรือตกน้ำ ไม่ต้องให้เบราว์เซอร์คอยเช็ค
+    หยุดเองเมื่อชนกำแพง ถึงขอบเหว หรือตกน้ำ ไม่ต้องให้เบราว์เซอร์คอยเช็ค
+    max_drop ส่งต่อไปที่ step() — ผู้เล่นเดินเองต้องใส่ ส่วนแรงกระแทกไม่ต้อง
     """
     steps = max(0, min(int(steps), STEP_MAX))
     path, cx, cy = [], x, y
     drowned = False
     for _ in range(steps):
-        how, nx, ny = step(grid, cx, cy, direction)
+        how, nx, ny = step(grid, cx, cy, direction, max_drop)
         if how == BLOCKED:
             break
         cx, cy = nx, ny

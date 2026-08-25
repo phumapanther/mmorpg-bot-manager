@@ -998,3 +998,7 @@ body.bar-min .pbar .money { margin-left: auto; }
   font: inherit; font-weight: 700; }
 .wm-over .again { background: #c8452f; color: #fff; }
 .wm-over .quit { background: #3a3048; color: #e8dccb; }
+
+/* 🏳️ ปุ่มยอมแพ้ — สีต่างจากปุ่มอื่นชัด ๆ กันกดพลาด */
+.wm-giveup { background: #4a2230; color: #ff9d84; border: 1px solid #7a3a4a; }
+.wm-giveup:hover:not(:disabled) { background: #6a2c3e; }

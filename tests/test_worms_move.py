@@ -472,8 +472,9 @@ def test_the_browser_cannot_skip_a_turn_by_lying_about_time(world):
 
 def test_the_countdown_on_screen_comes_from_the_server(world):
     """นาฬิกาบนจอเป็นแค่การแสดงผล ความจริงอยู่ที่ time_left ของเซิร์ฟเวอร์"""
-    assert "WM_DEADLINE = performance.now() + (d.time_left || 0) * 1000" in PLAY, \
-        "หน้าเว็บนับเวลาเองโดยไม่อิงเซิร์ฟเวอร์"
+    assert "WM_TIME_LEFT = d.time_left || 0;" in PLAY, "หน้าเว็บนับเวลาเองโดยไม่อิงเซิร์ฟเวอร์"
+    assert "WM_DEADLINE = performance.now() + WM_TIME_LEFT * 1000" in PLAY, \
+        "ไม่ได้ตั้งเส้นตายจากเวลาที่เซิร์ฟเวอร์บอก"
     assert "wmClock" in HTML and "'timeout'" in PLAY, "ไม่มีนาฬิกาบนจอ / ไม่ขอจบเมื่อหมดเวลา"
 
 

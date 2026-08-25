@@ -97,6 +97,7 @@ document.getElementById('wmSame')?.addEventListener('click', () => {
   const seed = prompt('วางรหัสแผนที่ที่อยากเปิด', document.getElementById('wmSeed').textContent);
   if (seed && /^\d+$/.test(seed.trim())) wmNewMatch(seed.trim());
 });
+document.getElementById('wmGiveUp')?.addEventListener('click', wmGiveUp);
 document.getElementById('wmIn')?.addEventListener('click', () => wmZoom(1));
 document.getElementById('wmOut')?.addEventListener('click', () => wmZoom(-1));
 document.getElementById('wmFit')?.addEventListener('click', () => {
@@ -1981,6 +1982,7 @@ async function fashOff(slot) {
 // แผนที่มาจากเซิร์ฟเวอร์ทั้งใบ ที่นี่แค่วาด + คุมกล้อง (ซูม/เลื่อน/กระโดดไปดูคนอื่น)
 let WM = null, WM_CAM = null, WM_ST = null;
 let wmLoop = 0, wmHold = 0, wmBusy = false;
+let WM_TIME_LEFT = 0;
 let WM_DEADLINE = 0;       // เวลาหมดเทิร์น (เทียบจาก time_left ที่เซิร์ฟเวอร์ส่งมา)
 let WM_ANIM = null;        // เส้นทางที่เซิร์ฟเวอร์ส่งมา กำลังเล่นภาพอยู่
 
@@ -2012,7 +2014,8 @@ function wmApply(d) {
   wmPaintOver();
   if (!d.active) { cancelAnimationFrame(wmLoop); wmLoop = 0; WM = WM_ST = null; return; }
 
-  WM_DEADLINE = performance.now() + (d.time_left || 0) * 1000;
+  WM_TIME_LEFT = d.time_left || 0;
+  WM_DEADLINE = performance.now() + WM_TIME_LEFT * 1000;
   if (fresh) {
     WM = new WormsMap(d);
     const cv = document.getElementById('wmCanvas');
@@ -2060,7 +2063,15 @@ function wmStartLoop() {
         WM_ANIM.w = 0;
         const [x, y] = WM_ANIM.path[WM_ANIM.i++];
         const af = WM_ST.fighters[WM_ANIM.fi];    // อ่านสดทุกเฟรม สถานะอาจถูกแทนไปแล้ว
-        if (af) { af.x = x; af.y = y; }
+        if (af) {
+          WM_ANIM.dy = y - af.y;                  // ลบ = ลอยขึ้น · บวกเยอะ = กำลังตก
+          if (WM_ANIM.dy > 2) wmDust(af.x, af.y, 2);        // ฝุ่นตามตัวตอนดิ่ง
+          if (WM_ANIM.air && WM_ANIM.dy <= 0) {   // เพิ่งแตะพื้น = ฝุ่นฟุ้งตรงจุดลง
+            wmDust(x, y, 12); SFX.play('walk');
+          }
+          WM_ANIM.air = WM_ANIM.dy > 2 || WM_ANIM.dy < -1;
+          af.x = x; af.y = y;
+        }
         if (WM_ANIM.i % 3 === 0) SFX.play('walk');
         wmFocus(af);              // ตามคนที่กำลังขยับ ไม่ใช่ตาปัจจุบัน จะได้เห็นบอทเดินด้วย
       }
@@ -2091,12 +2102,20 @@ function wmDrawFighter(ctx, f, active, t, walking) {
   const z = WM_CAM.z, x = WM_CAM.sx(f.x), y = WM_CAM.sy(f.y);
   if (x < -60 || x > WM_CAM.vw + 60) return;
   // เดินอยู่ก็สลับท่าขาตามก้าวจริง ไม่ใช่ยืนท่าเดิมแล้วเลื่อนตัวไป (เห็นเป็นลื่นไถล)
-  const pose = walking ? (WM_ANIM.i % 2 ? 'run1' : 'run2') : 'idle';
+  const air = walking && WM_ANIM.air;
+  const pose = !walking ? 'idle' : air ? 'run1' : (WM_ANIM.i % 2 ? 'run1' : 'run2');
   const look = { ...(f.look || {}), pose: pose, flip: f.face < 0 };
   const hurt = WM_FLASH[f.name] || 0;
   if (hurt) { WM_FLASH[f.name] = hurt - 1; ctx.globalAlpha = hurt % 4 < 2 ? .35 : 1; }
+  if (air) {                       // ลอยอยู่ = เอียงตัวสะบัดไปมา ให้เห็นว่าไม่ได้ยืน
+    ctx.save();
+    ctx.translate(x, y - 11 * z);
+    ctx.rotate(Math.sin(t / 2.5) * 0.28 * (WM_ANIM.dy > 0 ? 1 : -1));
+    ctx.translate(-x, -(y - 11 * z));
+  }
   if (z >= 2) drawCharacter(ctx, x - 8 * z, y - 21 * z, z, look);
   else { ctx.fillStyle = f.bot ? '#ff9d84' : '#8fd0a0'; ctx.fillRect(x - 3, y - 10, 6, 10); }
+  if (air) ctx.restore();
   ctx.globalAlpha = 1;
 
   const bw = Math.max(16, 14 * z / 2), by = y - 22 * z - 8;
@@ -2118,6 +2137,10 @@ let wmTimingOut = false, wmNextTimeout = 0;
 
 /** นับถอยหลังบนจอ + พอหมดเวลาก็ขอจบเทิร์น (เซิร์ฟเวอร์เช็คเวลาเองอีกชั้น) */
 function wmTick() {
+  // ⏱️ ภาพตาบอทยังเล่นค้างอยู่ = เทิร์นเรายังไม่ได้เริ่มจริงในสายตาผู้เล่น
+  //    ปล่อยให้นับต่อไปจะกลายเป็นหมดเวลาระหว่างนั่งดูบอทเดิน แล้วขอจบเทิร์น
+  //    ไปตัดภาพบอทกลางคันด้วย — เลื่อนเส้นตายหนีไปเรื่อย ๆ จนกว่าภาพจะเล่นจบ
+  if (WM_ANIM || WM_QUEUE.length) WM_DEADLINE = performance.now() + WM_TIME_LEFT * 1000;
   if (WM_AIM) WM_AIM.pow = Math.min(100, 10 + (performance.now() - WM_AIM.t0) * 90 / WM_CHARGE_MS);
   const el = document.getElementById('wmClock');
   if (!el || !WM_ST || !WM_ST.active) return;
@@ -2156,6 +2179,8 @@ function wmPaintHud() {
                         WM_CAM.center(f.x, f.y - 10); SFX.play('click'); });
   document.getElementById('wmLog').innerHTML = (d.log || []).map(l => '<div>' + esc(l) + '</div>').join('');
   document.querySelectorAll('[data-wm]').forEach(b => b.disabled = d.over || !!wmMe().bot);
+  const give = document.getElementById('wmGiveUp');
+  if (give) give.disabled = d.over;      // ยอมแพ้ได้แม้ยังไม่ถึงตา แต่จบแล้วก็จบ
   wmPaintSkills();
 }
 
@@ -2367,6 +2392,11 @@ function wmShowHit(a, byBot) {
     return;
   }
   if (a.kind === 'melee') wmSwing(a);
+  if (a.knock && a.knock.path && a.knock.path.length) {   // โดนกระแทกต้องเห็นตัวปลิวไป
+    const ki = WM_ST.fighters.findIndex(f => f.name === a.knock.name);
+    if (ki >= 0) WM_QUEUE.push({ fi: ki, path: a.knock.path, i: 0 });
+    if (!WM_ANIM) WM_ANIM = WM_QUEUE.shift();
+  }
   wmPop(hits);
   if (a.blast) wmLand(a.blast);
   if (hits.some(h => !h.dodged)) SFX.play('foehit');
@@ -2426,6 +2456,13 @@ function wmBuffFx(a) {
   WM_AURAS.push({ x: a.from[0], y: a.from[1], color: color, t: 0 });
   WM_POPS.push({ x: a.from[0], y: a.from[1] - 30, t: 0, buff: true,
                  text: a.heal ? `${label} +${a.heal}` : label });
+}
+
+/** 💨 ฝุ่นตอนตกกระแทกพื้น — ใช้ระบบสะเก็ดเดิม แค่กระจายเตี้ย ๆ ไม่พุ่งขึ้นฟ้า */
+function wmDust(x, y, n) {
+  for (let i = 0; i < n; i++)
+    WM_BITS.push({ x: x, y: y, t: 0, dust: true,
+                   vx: ((i % 5) - 2) * .45, vy: -0.25 - (i % 3) * .2 });
 }
 
 function wmBoom(b) { WM_BOOMS.push({ x: b.x, y: b.y, r: (b.crater || 8) * 1.6, t: 0 }); }
@@ -2531,9 +2568,9 @@ function wmDrawFx(ctx) {
   // 🪨 สะเก็ดจากหลุมที่เพิ่งเจาะ
   WM_BITS = WM_BITS.filter(b => b.t < 34);
   WM_BITS.forEach(b => {
-    b.vy += 0.14; b.x += b.vx; b.y += b.vy; b.t++;
-    ctx.globalAlpha = 1 - b.t / 34;
-    ctx.fillStyle = b.t % 5 < 2 ? '#c89a4b' : '#6b5433';
+    b.vy += b.dust ? 0.03 : 0.14; b.x += b.vx; b.y += b.vy; b.t++;
+    ctx.globalAlpha = (1 - b.t / 34) * (b.dust ? .55 : 1);
+    ctx.fillStyle = b.dust ? '#d8cbb4' : b.t % 5 < 2 ? '#c89a4b' : '#6b5433';
     ctx.fillRect(WM_CAM.sx(b.x), WM_CAM.sy(b.y), Math.max(1, WM_CAM.z / 2),
                  Math.max(1, WM_CAM.z / 2));
     ctx.globalAlpha = 1;
@@ -2597,6 +2634,20 @@ async function wmDo(action, dir) {
     wmPaintHud();
   } catch (e) { if (!wmBackoff(e)) toast(e.message, true); }
   finally { wmBusy = false; }
+}
+
+/** 🏳️ ยอมแพ้ — ระเบิดตัวเองทิ้งแล้วจบแมตช์ (ถามก่อน กดพลาดแล้วเสียใจ) */
+async function wmGiveUp() {
+  if (!WM_ST || !WM_ST.active || WM_ST.over) return;
+  if (!confirm('ยอมแพ้เลยไหม? ตัวละครจะระเบิดตัวเองทิ้งแล้วจบแมตช์ทันที')) return;
+  try {
+    const d = await api('POST', '/api/web/pvp/worms/match', { action: 'surrender' });
+    const s = d.surrender || {};
+    wmApply(d);
+    SFX.play('lose');
+    if (s.blast) wmLand(s.blast);                 // ระเบิดตรงจุดที่ยืน + เจาะพื้นจริง
+    WM_POPS.push({ x: s.x, y: s.y - 30, t: 0, buff: true, text: '🏳️ ยอมแพ้' });
+  } catch (e) { if (!wmBackoff(e)) toast(e.message, true); }
 }
 
 async function wmEndTurn(how) {
