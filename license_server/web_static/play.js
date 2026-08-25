@@ -2093,7 +2093,8 @@ function wmStartLoop() {
     }
     // ถึงตาใครก็เลื่อนกล้องไปหาคนนั้นเอง — รอให้ภาพที่ค้างเล่นจบก่อน ไม่งั้นตัดกลางคัน
     const turnKey = WM_ST.round + ':' + WM_ST.turn;
-    if (!WM_ANIM && turnKey !== WM_TURN_SHOWN) {
+    // ⚠️ ต้องรอกระสุนถึงเป้าก่อน ไม่งั้นยิงปุ๊บกล้องดีดกลับมาที่ตัวเรา ไม่เห็นว่าโดนอะไร
+    if (!WM_ANIM && !WM_SHOT && turnKey !== WM_TURN_SHOWN) {
       WM_TURN_SHOWN = turnKey;
       wmFocus(wmMe(), true);
     }
@@ -2162,6 +2163,7 @@ function wmTick() {
   //    ปล่อยให้นับต่อไปจะกลายเป็นหมดเวลาระหว่างนั่งดูบอทเดิน แล้วขอจบเทิร์น
   //    ไปตัดภาพบอทกลางคันด้วย — เลื่อนเส้นตายหนีไปเรื่อย ๆ จนกว่าภาพจะเล่นจบ
   if (WM_ANIM || WM_QUEUE.length) WM_DEADLINE = performance.now() + WM_TIME_LEFT * 1000;
+  wmSyncLock();
   // ภาพเล่นจบแล้วค่อยเฉลยว่าใครแพ้ใครชนะ (วาดครั้งเดียว ไม่ใช่ทุกเฟรม)
   if (WM_ST.over && !WM_OVER_SHOWN && !wmBusyFx()) wmPaintOver();
   if (WM_AIM) WM_AIM.pow = Math.min(100, 10 + (performance.now() - WM_AIM.t0) * 90 / WM_CHARGE_MS);
@@ -2188,9 +2190,12 @@ function wmPaintHud() {
   document.getElementById('wmWhere').innerHTML =
     '🗺️ ' + esc(d.continent_label) + ' · 🎁 ' + d.props.length + ' หีบ · 🕳️ ' +
     d.traps + ' กับดัก (ซ่อนอยู่)';
+  // ตาใคร = ดูจากภาพที่กำลังเล่น ไม่ใช่ d.turn (บอทเดินจบไปแล้วฝั่งเซิร์ฟเวอร์)
+  const acting = WM_ANIM && d.fighters[WM_ANIM.fi] ? d.fighters[WM_ANIM.fi] : wmMe();
   document.getElementById('wmTurn').innerHTML = d.over
     ? '🏁 <b>จบแล้ว</b> — ' + (d.winner ? esc(d.winner) + ' ชนะ!' : 'เสมอ')
-    : 'รอบ ' + d.round + ' · ตาของ <b>' + esc(wmMe().name) + '</b>';
+    : 'รอบ ' + d.round + ' · ตาของ <b>' + esc(acting.name) + '</b>'
+      + (acting.bot ? ' <i class="wm-hold">รอก่อน…</i>' : '');
   const pct = Math.round(d.moves * 100 / d.move_budget);
   document.getElementById('wmMoves').style.width = pct + '%';
   document.getElementById('wmMovesTxt').textContent = d.moves + '/' + d.move_budget;
@@ -2201,9 +2206,7 @@ function wmPaintHud() {
     b.onclick = () => { const f = d.fighters[+b.dataset.look];
                         WM_CAM.center(f.x, f.y - 10); SFX.play('click'); });
   document.getElementById('wmLog').innerHTML = (d.log || []).map(l => '<div>' + esc(l) + '</div>').join('');
-  document.querySelectorAll('[data-wm]').forEach(b => b.disabled = d.over || !!wmMe().bot);
-  const give = document.getElementById('wmGiveUp');
-  if (give) give.disabled = d.over;      // ยอมแพ้ได้แม้ยังไม่ถึงตา แต่จบแล้วก็จบ
+  WM_LOCK_SHOWN = null; wmSyncLock();      // ล็อก/ปลดล็อกที่เดียว จะได้ไม่ขัดกันเอง
   wmPaintSkills();
 }
 
@@ -2225,7 +2228,7 @@ function wmBindAim(cv) {
              y: (t.clientY - r.top) * cv.height / r.height };
   };
   const down = e => {
-    if (!WM_SKILL || wmBusy || !WM_ST || !WM_ST.active || WM_ST.over || wmMe().bot) return;
+    if (!WM_SKILL || wmBusy || wmWaiting()) return;
     const p = at(e), sp = wmSpec(WM_SKILL);
     if (!sp) return;
     WM_AIM = { t0: performance.now(), y0: p.y, pow: 10, kind: sp.kind,
@@ -2262,6 +2265,36 @@ function wmBindAim(cv) {
     กลับเข้ามาทีไรก็เจอกระดานสรุปเดิมให้กดจบซ้ำอีก
  */
 /** ยังมีภาพค้างเล่นอยู่ไหม — ร่วงลงน้ำ กระสุนกำลังบิน ระเบิดยังไม่จาง */
+/** ยังไม่ถึงตาเราจริง ๆ หรือเปล่า — ระหว่างนี้ห้ามกดอะไรทั้งนั้น
+
+    ⚠️ ซ้อมกับบอท: เซิร์ฟเวอร์เดินตาบอทจบในคำขอเดียว d.turn จึงกลับมาเป็นเราทันที
+       เช็คแค่ wmMe().bot เลยไม่มีวันเป็นจริง ผู้เล่นกดสั่งได้ทั้งที่บอทยังเดินอยู่บนจอ
+       ต้องดูว่า "ภาพของใครกำลังเล่นอยู่" ไม่ใช่ดูแค่ตาใครในสถานะ
+ */
+function wmWaiting() {
+  if (!WM_ST || !WM_ST.active || WM_ST.over) return true;
+  if (wmMe().bot) return true;
+  const isBot = fi => !!(WM_ST.fighters[fi] && WM_ST.fighters[fi].bot);
+  return !!((WM_ANIM && isBot(WM_ANIM.fi)) || WM_QUEUE.some(q => isBot(q.fi)) ||
+            WM_SHOT || WM_BOOMS.length || WM_AFTER.length ||
+            Object.keys(WM_DYING).length);
+}
+
+let WM_LOCK_SHOWN = null;
+
+/** เปิด/ปิดการควบคุมตามว่าถึงตาเราหรือยัง — แตะ DOM เฉพาะตอนสถานะเปลี่ยนจริง */
+function wmSyncLock() {
+  const wait = wmWaiting();
+  if (wait === WM_LOCK_SHOWN) return;
+  WM_LOCK_SHOWN = wait;
+  document.querySelectorAll('[data-wm]').forEach(b => b.disabled = wait);
+  const give = document.getElementById('wmGiveUp');
+  if (give) give.disabled = wait;
+  document.getElementById('v-worms').classList.toggle('wm-wait', wait);
+  if (wait) { WM_SKILL = null; WM_AIM = null; wmHoldStop(); if (WM_CAM) WM_CAM.locked = false; }
+  if (WM_ST && WM_ST.active) wmPaintSkills();
+}
+
 function wmBusyFx() {
   return !!(WM_ANIM || WM_QUEUE.length || WM_SHOT || WM_BOOMS.length ||
             WM_AFTER.length || Object.keys(WM_DYING).length);
@@ -2335,7 +2368,7 @@ function wmPaintSkills() {
   const box = document.getElementById('wmSkills');
   const d = WM_ST;
   if (!box || !d || !d.active) return;
-  const locked = d.over || wmMe().bot;
+  const locked = wmWaiting();
   box.innerHTML = (d.skills || []).map(s => `
     <button data-skill="${esc(s.key)}" ${locked || s.ready_in ? 'disabled' : ''}
             class="${WM_SKILL === s.key ? 'on' : ''}">
@@ -2387,7 +2420,7 @@ function wmShowAim() {
 }
 
 async function wmAttack(key, ang, pow, dir) {
-  if (wmBusy || performance.now() < WM_BACKOFF) return;
+  if (wmBusy || wmWaiting() || performance.now() < WM_BACKOFF) return;
   wmBusy = true;
   try {
     const d = await api('POST', '/api/web/pvp/worms/match', {
@@ -2587,6 +2620,9 @@ function wmDrawTrail(ctx, path, alpha) {
 /** วงเหวี่ยงของสกิลประชิด — บอกให้เห็นว่าฟันไปถึงตรงไหน */
 function wmSwing(a) {
   if (!a.from) return;
+  const [dx, dy] = a.aim || [a.face || 1, 0];
+  wmFocus({ x: a.from[0] + dx * (a.reach || 24) / 2,
+            y: a.from[1] + dy * (a.reach || 24) / 2 });   // ให้เห็นจุดที่หมัดลง
   const [ax, ay] = a.aim || [a.face || 1, 0];       // ฟันได้รอบตัว วงเหวี่ยงต้องหันตาม
   WM_SWINGS.push({ x: a.from[0], y: a.from[1], r: a.reach || 24, t: 0,
                    mid: Math.atan2(ay, ax) });
@@ -2647,6 +2683,7 @@ function wmDrawFx(ctx) {
     const seen = WM_SHOT.path.slice(0, WM_SHOT.i);
     wmDrawTrail(ctx, seen, 1);
     const p = WM_SHOT.path[Math.min(WM_SHOT.i, WM_SHOT.path.length - 1)];
+    wmFocus({ x: p[0], y: p[1] });      // เกาะลูกกระสุนไปจนกว่าจะกระทบเป้า
     const hx = WM_CAM.sx(p[0]), hy = WM_CAM.sy(p[1]);
     ctx.fillStyle = '#fff6d8';
     ctx.fillRect(hx - 2, hy - 2, 5, 5);
@@ -2715,7 +2752,7 @@ function wmBackoff(e) {
 }
 
 async function wmDo(action, dir) {
-  if (wmBusy || !WM_ST || !WM_ST.active || WM_ST.over) return;
+  if (wmBusy || wmWaiting()) return;
   if (performance.now() < WM_BACKOFF) return;
   wmBusy = true;
   try {
@@ -2751,7 +2788,7 @@ async function wmDo(action, dir) {
 
 /** 🏳️ ยอมแพ้ — ระเบิดตัวเองทิ้งแล้วจบแมตช์ (ถามก่อน กดพลาดแล้วเสียใจ) */
 async function wmGiveUp() {
-  if (!WM_ST || !WM_ST.active || WM_ST.over) return;
+  if (wmWaiting()) return;
   if (!confirm('ยอมแพ้เลยไหม? ตัวละครจะระเบิดตัวเองทิ้งแล้วจบแมตช์ทันที')) return;
   try {
     const d = await api('POST', '/api/web/pvp/worms/match', { action: 'surrender' });
@@ -2787,10 +2824,12 @@ function wmQueueBot(d) {
   }
   moves.forEach(m => WM_QUEUE.push({ fi: bi, path: m.path, i: 0 }));
   if (!WM_ANIM) WM_ANIM = WM_QUEUE.shift();
+  wmFocus(WM_ST.fighters[bi], true);      // จับกล้องไปที่บอทตั้งแต่ต้นตา
 }
 
 /** กดค้าง = เดินต่อเนื่อง (ยิงเป็นก้อนละ 5 ก้าว ไม่ใช่ยิงทุกก้าว) */
 function wmHoldStart(action, dir) {
+  if (wmWaiting()) return;
   wmDo(action, dir);
   if (action !== 'walk') return;
   clearInterval(wmHold);

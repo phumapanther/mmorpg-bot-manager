@@ -1002,3 +1002,11 @@ body.bar-min .pbar .money { margin-left: auto; }
 /* 🏳️ ปุ่มยอมแพ้ — สีต่างจากปุ่มอื่นชัด ๆ กันกดพลาด */
 .wm-giveup { background: #4a2230; color: #ff9d84; border: 1px solid #7a3a4a; }
 .wm-giveup:hover:not(:disabled) { background: #6a2c3e; }
+
+/* ⏳ ยังไม่ถึงตาเรา — หรี่แผงสกิล/ไอเทมแล้วกันการกดไว้ทั้งชุด
+   (ปุ่มถูก disabled อยู่แล้ว ตรงนี้คือให้ "เห็น" ว่ากดไม่ได้ ไม่ใช่กดแล้วเงียบ) */
+.wm-wait .wm-skills, .wm-wait .wm-items, .wm-wait .wm-pad {
+  opacity: .4; pointer-events: none; filter: grayscale(.6); }
+.wm-wait .wm-stage canvas { cursor: default; }
+.wm-hold { color: #ffd66b; font-style: normal; font-size: .78rem;
+  background: #00000055; border-radius: 6px; padding: 1px 7px; margin-left: 6px; }

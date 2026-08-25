@@ -1039,3 +1039,95 @@ def test_the_page_plays_a_bump_when_you_hit_a_wall():
     body = PLAY[PLAY.index("function wmBump("):]
     body = body[:body.index(chr(10) + "}")]
     assert "WM_BITS.push" in body and "wmDust(" in body, "ชนกำแพงแล้วเงียบสนิท"
+
+
+# ── 24. ห้ามกดอะไรจนกว่าจะถึงตาเรา ──
+
+def _fn(head):
+    body = PLAY[PLAY.index(head):]
+    return body[:body.index(chr(10) + "}")]
+
+
+def test_waiting_covers_the_bot_replay_not_just_the_turn_number():
+    """ซ้อมกับบอท: เซิร์ฟเวอร์เดินตาบอทจบในคำขอเดียว d.turn จึงกลับมาเป็นเราทันที
+    เช็คแค่ wmMe().bot เลยไม่มีวันเป็นจริง — กดสั่งได้ทั้งที่บอทยังเดินอยู่บนจอ"""
+    body = _fn("function wmWaiting(")
+    assert "WM_ANIM && isBot(WM_ANIM.fi)" in body, "ไม่ได้ดูว่าภาพที่เล่นอยู่เป็นของบอท"
+    assert "WM_QUEUE.some(q => isBot(q.fi))" in body, "ไม่ได้ดูท่อนที่รอเล่นของบอท"
+    assert "wmMe().bot" in body, "ตาบอทจริง ๆ ก็ต้องล็อกด้วย"
+    assert "WM_ST.over" in body, "จบเกมแล้วยังกดได้"
+
+
+def test_your_own_walk_does_not_lock_you_out():
+    """ล็อกเหมารวมทุกแอนิเมชัน = กดค้างเดินไม่ได้เลย เพราะภาพเดินของเราเองก็ค้างอยู่"""
+    body = _fn("function wmWaiting(")
+    assert "isBot(" in body, "ล็อกโดยไม่ดูว่าเป็นภาพของใคร — เดินเองก็จะโดนล็อก"
+    assert "WM_ANIM ||" not in body, "ล็อกทุกแอนิเมชันรวมของตัวเองด้วย"
+
+
+def test_every_way_in_is_guarded():
+    """ปุ่มถูกปิดแล้วก็จริง แต่คีย์บอร์ดกับการแตะจอยังเข้ามาได้"""
+    for head, why in [("async function wmDo(", "เดิน/กระโดด"),
+                      ("async function wmAttack(", "โจมตี"),
+                      ("async function wmGiveUp(", "ยอมแพ้"),
+                      ("function wmHoldStart(", "กดค้างเดิน")]:
+        assert "wmWaiting()" in _fn(head), f"{why} ยังสั่งได้ตอนไม่ถึงตา"
+    down = PLAY[PLAY.index("  const down = e => {"):]
+    assert "wmWaiting()" in down[:down.index(chr(10) + "  };")], "เล็งได้ตอนไม่ถึงตา"
+
+
+def test_the_buttons_are_actually_disabled_while_waiting():
+    body = _fn("function wmSyncLock(")
+    assert "b.disabled = wait" in body, "ไม่ได้ปิดปุ่มบนแผงบังคับ"
+    assert "wmGiveUp" in body, "ปุ่มยอมแพ้ยังกดได้ตอนบอทเดิน"
+    assert "classList.toggle('wm-wait', wait)" in body, "ไม่มีสัญญาณให้เห็นว่ากดไม่ได้"
+    assert "wmHoldStop()" in body, "กดค้างอยู่แล้วถึงตาบอท มือยังค้างสั่งต่อ"
+
+
+def test_the_lock_is_rechecked_every_frame():
+    """เรียกแค่ตอนสถานะเปลี่ยนไม่พอ — ตาบอทเริ่มหลัง wmApply ไปแล้วหนึ่งจังหวะ"""
+    body = _fn("function wmTick(")
+    assert "wmSyncLock();" in body, "ไม่ได้เช็คสถานะล็อกทุกเฟรม"
+
+
+def test_the_lock_only_touches_the_dom_when_it_changes():
+    body = _fn("function wmSyncLock(")
+    assert "if (wait === WM_LOCK_SHOWN) return;" in body,         "แตะ DOM ทุกเฟรม 60 ครั้งต่อวินาที"
+
+
+def test_the_skill_panel_uses_the_same_lock():
+    assert "const locked = wmWaiting();" in PLAY, "แผงสกิลใช้เงื่อนไขคนละชุดกับปุ่มอื่น"
+
+
+def test_the_hud_names_whoever_is_acting_right_now():
+    """d.turn บอกว่าเป็นตาเราแล้ว ทั้งที่จอยังเล่นภาพบอทเดินอยู่"""
+    body = _fn("function wmPaintHud(")
+    assert "WM_ANIM && d.fighters[WM_ANIM.fi]" in body, "บอกชื่อจาก d.turn ซึ่งสวนกับภาพบนจอ"
+    assert "รอก่อน" in body, "ไม่ได้บอกผู้เล่นว่าต้องรอ"
+
+
+def test_the_camera_snaps_to_the_bot_when_its_turn_starts():
+    body = _fn("function wmQueueBot(")
+    assert "wmFocus(WM_ST.fighters[bi], true)" in body,         "ตาบอทเริ่มแล้วกล้องยังค้างอยู่ที่เรา ไม่เห็นว่าบอททำอะไร"
+
+
+# ── 25. ยิงแล้วกล้องต้องเกาะลูกกระสุน ──
+
+def test_the_camera_follows_the_shell_in_flight():
+    """เจ้าของเกมสั่ง: ยิงแล้วให้โฟกัสลูกกระสุนจนกว่าจะกระทบเป้า"""
+    body = PLAY[PLAY.index("  if (WM_SHOT) {"):]
+    body = body[:body.index(chr(10) + "  }")]
+    assert "wmFocus({ x: p[0], y: p[1] })" in body, "ยิงแล้วกล้องไม่ตามลูกกระสุน"
+
+
+def test_the_camera_is_not_yanked_back_while_the_shell_flies():
+    """ยิงแล้วเทิร์นเปลี่ยนทันที ถ้าไม่กัน กล้องจะดีดกลับมาที่ตัวเราตั้งแต่กระสุนยังไม่ถึง"""
+    body = PLAY[PLAY.index("function wmStartLoop("):PLAY.index("/** วาดนักสู้")]
+    assert "!WM_ANIM && !WM_SHOT && turnKey !== WM_TURN_SHOWN" in body,         "กระสุนยังบินอยู่แต่กล้องดีดกลับไปหาคนที่ถึงตาแล้ว"
+
+
+def test_a_melee_swing_shows_where_the_blow_lands():
+    body = PLAY[PLAY.index("function wmSwing("):]
+    body = body[:body.index(chr(10) + "}")]
+    assert "wmFocus({" in body, "ฟันไกล ๆ แล้วไม่เห็นว่าหมัดลงตรงไหน"
+    assert "a.aim" in body, "จุดที่มองไม่ได้อิงทิศที่ฟันจริง"
