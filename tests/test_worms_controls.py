@@ -826,7 +826,8 @@ def test_the_result_waits_for_the_animation_to_finish():
     """
     body = PLAY[PLAY.index("function wmPaintOver("):]
     body = body[:body.index(chr(10) + "}")]
-    assert "if (!idle && wmBusyFx()) { box.hidden = true; return; }" in body,         "ยังขึ้นแผงสรุปทับทันทีที่เซิร์ฟเวอร์บอกว่าจบ"
+    assert "if (!idle && wmBusyFx()) { box.hidden = true;" in body, \
+        "ยังขึ้นแผงสรุปทับทันทีที่เซิร์ฟเวอร์บอกว่าจบ"
 
 
 def test_busy_covers_every_kind_of_animation():
@@ -1485,3 +1486,21 @@ def test_settling_no_longer_replays_the_knockback():
     one = _fn("function wmSettleVictim(")
     assert "wmChunk(" not in one, "ขั้นสรุปผลยังเล่นภาพกระเด็นซ้ำ"
     assert "WM_POPS.push" in one, "ขั้นสรุปผลไม่ได้เด้งเลขดาเมจ"
+
+
+def test_hiding_the_result_panel_lets_it_come_back():
+    """เจ้าของเกมเจอ: กดยอมแพ้ ตัวระเบิด สถานะขึ้น "จบแล้ว" แต่ผลแพ้ชนะไม่ขึ้น
+
+    wmApply เรียก wmPaintOver ก่อนที่ระเบิดจะถูกต่อคิว ตอนนั้นยังว่าง
+    แผงเลยโชว์แล้วติดธง "โชว์แล้ว" · พอระเบิดมาถึง แผงถูกซ่อน
+    แล้วธงกันโชว์ซ้ำทำให้ไม่มีวันกลับมาโชว์อีก
+    """
+    body = _fn("function wmPaintOver(")
+    assert "box.hidden = true; WM_OVER_SHOWN = false; return;" in body,         "ซ่อนแผงเพราะยังมีภาพเล่นอยู่ แต่ไม่ได้ล้างธง — แผงจะไม่กลับมาอีกเลย"
+
+
+def test_the_result_panel_still_paints_only_once_when_it_shows():
+    """กันแก้เกินจนวาดใหม่ทุกเฟรม"""
+    body = _fn("function wmPaintOver(")
+    assert "WM_OVER_SHOWN = !idle;" in body, "โชว์แล้วไม่ได้ติดธง จะวาดซ้ำทุกเฟรม"
+    assert body.index("WM_OVER_SHOWN = false; return;") < body.index("WM_OVER_SHOWN = !idle;"),         "ลำดับสลับกัน — ธงจะถูกล้างหลังติด"
