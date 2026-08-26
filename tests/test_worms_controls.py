@@ -225,7 +225,7 @@ def test_a_walking_fighter_uses_a_walking_pose():
     body = PLAY[PLAY.index("function wmDrawFighter("):]
     body = body[:body.index(chr(10) + "}")]
     assert "'run1'" in body and "'run2'" in body, "เดินแล้วยังใช้ท่ายืนเฉย ๆ"
-    assert "WM_ANIM.i % 2" in body, "สลับขาไม่ตามก้าวจริง"
+    assert "Math.floor(WM_ANIM.i) % 2" in body, "สลับขาไม่ตามก้าวจริง"
 
 
 def test_the_camera_only_follows_near_the_edge():
@@ -415,7 +415,7 @@ def test_the_camera_jumps_to_whoever_the_turn_belongs_to():
     body = body[:body.index("/** วาดนักสู้")]
     assert "turnKey !== WM_TURN_SHOWN" in body, "เปลี่ยนตาแล้วกล้องไม่ตามไปหาคนที่ถึงตา"
     assert "wmFocus(wmMe(), true)" in body, "ตามแบบไม่บังคับ — ถ้าตัวอยู่กลางจอพอดีก็ไม่ขยับ"
-    assert "!WM_ANIM &&" in body, "ตัดกล้องทั้งที่ภาพเดินยังเล่นค้างอยู่"
+    assert "!wmBusyFx() &&" in body, "ตัดกล้องทั้งที่ภาพเดินยังเล่นค้างอยู่"
 
 
 def test_a_new_match_forgets_which_turn_was_focused():
@@ -661,7 +661,7 @@ def test_falling_looks_different_from_walking():
 
 def test_the_replay_knows_when_a_fighter_is_airborne():
     body = PLAY[PLAY.index("function wmStartLoop("):PLAY.index("/** วาดนักสู้")]
-    assert "WM_ANIM.dy = y - af.y;" in body, "ไม่ได้ดูว่ากำลังขึ้นหรือลง"
+    assert "WM_ANIM.dy = pb[1] - pa[1];" in body, "ไม่ได้ดูว่ากำลังขึ้นหรือลง"
     assert "WM_ANIM.air =" in body, "ไม่ได้จำว่าลอยอยู่หรือยืนอยู่"
 
 
@@ -1133,7 +1133,7 @@ def test_the_camera_follows_the_shell_in_flight():
 def test_the_camera_is_not_yanked_back_while_the_shell_flies():
     """ยิงแล้วเทิร์นเปลี่ยนทันที ถ้าไม่กัน กล้องจะดีดกลับมาที่ตัวเราตั้งแต่กระสุนยังไม่ถึง"""
     body = PLAY[PLAY.index("function wmStartLoop("):PLAY.index("/** วาดนักสู้")]
-    assert "!WM_ANIM && !WM_SHOT && turnKey !== WM_TURN_SHOWN" in body,         "กระสุนยังบินอยู่แต่กล้องดีดกลับไปหาคนที่ถึงตาแล้ว"
+    assert "!wmBusyFx() && turnKey !== WM_TURN_SHOWN" in body,         "กระสุนยังบินอยู่แต่กล้องดีดกลับไปหาคนที่ถึงตาแล้ว"
 
 
 def test_a_melee_swing_shows_where_the_blow_lands():

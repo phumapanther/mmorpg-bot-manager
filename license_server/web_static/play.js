@@ -2076,12 +2076,21 @@ function wmStartLoop() {
       // ส่วนท่อนยาว (ตาบอททั้งเทิร์น) เล่นรวดเดียว ไม่งั้นนั่งดูบอทเดินนาน
       // สามชั้น: ก้าวสั้นของเราเอง / ท่อนกลาง ๆ อย่างการกระเด็น / ท่อนยาวอย่างตาบอทเดิน
       const hold = WM_ANIM.path.length <= 12 ? 5 : WM_ANIM.path.length <= 60 ? 3 : 1;
-      if ((WM_ANIM.w = (WM_ANIM.w || 0) + 1) >= hold) {
-        WM_ANIM.w = 0;
-        const [x, y] = WM_ANIM.path[WM_ANIM.i++];
+      // ⚠️ เดินหน้าทีละ 1/hold จุดแล้วเกลี่ยตำแหน่งระหว่างจุด — ไม่ใช่ค้าง hold เฟรม
+      //    แล้วกระโดดทีเดียว จุดในวิถีกระโดดห่างกันได้ 3-4 px ค้างแล้วกระโดดจึงเห็นเป็นวาป
+      const before = Math.floor(WM_ANIM.i);
+      WM_ANIM.i = Math.min(WM_ANIM.path.length, WM_ANIM.i + 1 / hold);
+      {
+        const last = WM_ANIM.path.length - 1;
+        const at = Math.min(Math.floor(WM_ANIM.i), last);
+        const pa = WM_ANIM.path[at], pb = WM_ANIM.path[Math.min(at + 1, last)];
+        const mix = Math.min(1, WM_ANIM.i - at);
+        const x = pa[0] + (pb[0] - pa[0]) * mix;
+        const y = pa[1] + (pb[1] - pa[1]) * mix;
+        const stepped = Math.floor(WM_ANIM.i) !== before;   // ข้ามจุดใหม่หรือยัง
         const af = WM_ST.fighters[WM_ANIM.fi];    // อ่านสดทุกเฟรม สถานะอาจถูกแทนไปแล้ว
         if (af) {
-          WM_ANIM.dy = y - af.y;                  // ลบ = ลอยขึ้น · บวกเยอะ = กำลังตก
+          if (stepped) WM_ANIM.dy = pb[1] - pa[1];   // ลบ = ลอยขึ้น · บวกเยอะ = กำลังตก
           if (WM_ANIM.dy > 2) wmDust(af.x, af.y, 2);        // ฝุ่นตามตัวตอนดิ่ง
           if (WM_ANIM.air && WM_ANIM.dy <= 0) {   // เพิ่งแตะพื้น = ฝุ่นฟุ้งตรงจุดลง
             wmDust(x, y, 12); SFX.play('walk');
@@ -2091,7 +2100,7 @@ function wmStartLoop() {
           if (af.y < wl && y >= wl) { wmSplash(x, wl); SFX.play('lose'); }
           af.x = x; af.y = y;
         }
-        if (af && WM_ANIM.i % 3 === 0) SFX.play('walk');
+        if (af && stepped && Math.floor(WM_ANIM.i) % 3 === 0) SFX.play('walk');
         // ตามคนที่กำลังขยับ ไม่ใช่ตาปัจจุบัน จะได้เห็นบอทเดินด้วย
         // ท่อนที่ fi < 0 คือ "ค้างกล้องไว้ตรงจุดหนึ่ง" (เช่นดูร่างระเบิด) ไม่มีตัวใครให้ตาม
         wmFocus(af || { x: x, y: y });
@@ -2109,8 +2118,10 @@ function wmStartLoop() {
     }
     // ถึงตาใครก็เลื่อนกล้องไปหาคนนั้นเอง — รอให้ภาพที่ค้างเล่นจบก่อน ไม่งั้นตัดกลางคัน
     const turnKey = WM_ST.round + ':' + WM_ST.turn;
-    // ⚠️ ต้องรอกระสุนถึงเป้าก่อน ไม่งั้นยิงปุ๊บกล้องดีดกลับมาที่ตัวเรา ไม่เห็นว่าโดนอะไร
-    if (!WM_ANIM && !WM_SHOT && turnKey !== WM_TURN_SHOWN) {
+    // ⚠️ ต้องรอ "ทุกอย่าง" ที่ถือกล้องอยู่เล่นจบก่อน ไม่ใช่แค่ท่อนเดินกับกระสุน
+    //    เดิมเช็คแค่ WM_ANIM/WM_SHOT — ตอนพากล้องไปดูของที่ลงสนาม (WM_TOUR) สองอย่างนั้นว่าง
+    //    บรรทัดนี้เลยแย่งกล้องกลับมาที่ตัวเราทุกเฟรม สลับไปมากับทัวร์จนดูเหมือนกล้องสับสน
+    if (!wmBusyFx() && turnKey !== WM_TURN_SHOWN) {
       WM_TURN_SHOWN = turnKey;
       wmFocus(wmMe(), true);
     }
@@ -2136,7 +2147,8 @@ function wmDrawFighter(ctx, f, active, t, walking) {
   if (x < -60 || x > WM_CAM.vw + 60) return;
   // เดินอยู่ก็สลับท่าขาตามก้าวจริง ไม่ใช่ยืนท่าเดิมแล้วเลื่อนตัวไป (เห็นเป็นลื่นไถล)
   const air = walking && WM_ANIM.air;
-  const pose = !walking ? 'idle' : air ? 'run1' : (WM_ANIM.i % 2 ? 'run1' : 'run2');
+  const pose = !walking ? 'idle' : air ? 'run1'
+              : (Math.floor(WM_ANIM.i) % 2 ? 'run1' : 'run2');
   const look = { ...(f.look || {}), pose: pose, flip: f.face < 0 };
   const hurt = WM_FLASH[f.name] || 0;
   if (hurt) { WM_FLASH[f.name] = hurt - 1; ctx.globalAlpha = hurt % 4 < 2 ? .35 : 1; }

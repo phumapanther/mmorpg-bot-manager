@@ -205,3 +205,65 @@ def test_dragging_is_blocked_while_the_camera_pans_itself():
 def test_the_lock_is_not_undone_while_waiting():
     body = _fn("function wmSyncLock(")
     assert "WM_CAM.locked = false" not in body,         "ตอนรอเทิร์นกลับปลดล็อกกล้องให้ลากได้ — สวนกับการแพนอัตโนมัติ"
+
+
+# ── กล้องต้องมีเจ้าของเดียว ──
+
+def test_only_one_thing_owns_the_camera_at_a_time():
+    """เจ้าของเกมทัก: บางทีกล้องเลื่อนสลับไปมาแบบไม่รู้จะโฟกัสอะไร
+
+    ตอนพากล้องไปดูของที่ลงสนาม (WM_TOUR) ทั้ง WM_ANIM และ WM_SHOT ว่าง
+    เงื่อนไขเดิมเลยแย่งกล้องกลับมาที่คนที่ถึงตาทุกเฟรม สลับกับทัวร์จนดูสับสน
+    """
+    body = PLAY[PLAY.index("function wmStartLoop("):PLAY.index("/** วาดนักสู้")]
+    assert "if (!wmBusyFx() && turnKey !== WM_TURN_SHOWN)" in body,         "ยังเช็คแค่บางอย่าง — อันอื่นที่ถือกล้องอยู่จะโดนแย่ง"
+    assert "!WM_ANIM && !WM_SHOT && turnKey" not in body, "ยังใช้เงื่อนไขเดิมที่ครอบไม่ครบ"
+
+
+def test_the_tour_counts_in_both_guards():
+    """WM_TOUR ต้องอยู่ทั้งใน wmWaiting (ห้ามกด) และ wmBusyFx (ห้ามแย่งกล้อง)
+
+    เขียนไว้ที่เดียวไม่พอ — สองอันนี้ตอบคนละคำถามและมีคนเรียกคนละที่
+    """
+    for fn in ("function wmWaiting(", "function wmBusyFx("):
+        assert "WM_TOUR" in _fn(fn), f"{fn} ไม่ได้นับช่วงทัวร์ของที่ลงสนาม"
+
+
+def test_the_busy_check_covers_every_camera_owner():
+    body = _fn("function wmBusyFx(")
+    for fx, why in [("WM_ANIM", "ท่อนที่กำลังเล่น"), ("WM_QUEUE.length", "ท่อนที่รอเล่น"),
+                    ("WM_SHOT", "กระสุน"), ("WM_BOOMS.length", "ระเบิด"),
+                    ("WM_AFTER.length", "งานสรุปผลที่ค้าง"), ("WM_TOUR", "ทัวร์ของที่ลงสนาม"),
+                    ("WM_DYING", "ภาพตาย")]:
+        assert fx in body, f"ไม่ได้นับ {fx} ({why}) ว่ากำลังถือกล้องอยู่"
+
+
+# ── ตัวละครต้องเคลื่อนที่ลื่น ไม่ค้างแล้วกระโดด ──
+
+def test_the_fighter_is_interpolated_between_path_points():
+    """เจ้าของเกมทัก: เวลากระโดดตัวละครวาป
+
+    จุดในวิถีกระโดดห่างกันได้ 3-4 px · เดิมค้าง hold เฟรมแล้วกระโดดทีเดียว
+    """
+    body = PLAY[PLAY.index("function wmStartLoop("):PLAY.index("/** วาดนักสู้")]
+    assert "WM_ANIM.i + 1 / hold" in body, "ยังเดินทีละจุดเต็ม ๆ แล้วค้างรอ"
+    assert "const mix = Math.min(1, WM_ANIM.i - at);" in body,         "ไม่ได้คิดสัดส่วนระหว่างจุดจากตัวนับจริง"
+    assert "pa[0] + (pb[0] - pa[0]) * mix" in body, "ไม่ได้เกลี่ยตำแหน่งระหว่างจุด"
+    assert "WM_ANIM.w" not in body, "ยังมีตัวนับค้างเฟรมแบบเดิมหลงเหลืออยู่"
+
+
+def test_footsteps_only_fire_when_a_real_step_is_taken():
+    """เกลี่ยตำแหน่งแล้วถ้าไม่ระวัง เสียงฝีเท้าจะดังทุกเฟรม"""
+    body = PLAY[PLAY.index("function wmStartLoop("):PLAY.index("/** วาดนักสู้")]
+    assert "const stepped = Math.floor(WM_ANIM.i) !== before;" in body,         "ไม่ได้ดูว่าข้ามไปจุดใหม่แล้วหรือยัง"
+    assert "stepped && Math.floor(WM_ANIM.i) % 3 === 0" in body, "เสียงฝีเท้าไม่ได้ผูกกับก้าวจริง"
+
+
+def test_the_walk_pace_did_not_change():
+    """เกลี่ยตำแหน่งแล้วความเร็วรวมต้องเท่าเดิม ไม่งั้นชนเพดานยิงคำสั่ง"""
+    m = re.search(r"const hold = WM_ANIM\.path\.length <= \d+ \? (\d+) :", PLAY)
+    assert m, "หาค่าหน่วงไม่เจอ"
+    steps = int(re.search(r"const WM_WALK_STEPS = (\d+)", PLAY).group(1))
+    ms = int(re.search(r"const WM_HOLD_MS = (\d+)", PLAY).group(1))
+    played = steps * int(m.group(1)) / 60 * 1000
+    assert played >= ms * 0.85, f"เล่นภาพจบใน {played:.0f}ms แต่คำสั่งถัดไปมาที่ {ms}ms"
