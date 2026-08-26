@@ -183,27 +183,16 @@ def test_walking_onto_a_ferry_through_the_real_move_call(world):
 
 # ── กล้องพาไปดูของที่เพิ่งลง ──
 
-def test_the_camera_tours_each_new_drop():
-    body = _fn("function wmTickTour(")
-    assert "wmFocus({ x: d.x, y: d.y }, true)" in body, "ไม่ได้พากล้องไปที่ของ"
-    assert "WM_TOUR.i < WM_TOUR.list.length" in body, "ไม่ได้ไล่ทีละชิ้น"
-    assert "WM_TURN_SHOWN = '';" in body, "ทัวร์จบแล้วไม่ได้พากล้องกลับไปหาคนที่ถึงตา"
-
-
 def test_the_tour_is_started_when_drops_arrive():
     body = PLAY[body_at("function wmApply("):body_at("function wmMe(")]
     assert "d.drops" in body, "ได้รายการของใหม่มาแล้วไม่ทำอะไรเลย"
     assert "d.round !== WM_TOUR_ROUND" in body, "พาไปดูของรอบเดิมซ้ำทุกครั้งที่สถานะอัปเดต"
-    assert "WM_TOUR = {" in body, "ไม่ได้เริ่มทัวร์"
-
-
-def test_the_tour_is_driven_every_frame():
-    assert "wmTickTour();" in _fn("function wmTick("), "เขียนตัวเดินทัวร์ไว้แต่ไม่มีใครเรียก"
+    assert "wmStartTour(d.drops)" in body, "ไม่ได้เริ่มทัวร์"
 
 
 def test_you_cannot_act_during_the_tour():
     for fn, why in [("function wmBusyFx(", "แผงสรุปผล"), ("function wmWaiting(", "ปุ่มบังคับ")]:
-        assert "WM_TOUR" in _fn(fn), f"{why} ไม่ได้นับช่วงทัวร์ว่ายังไม่ถึงตาใคร"
+        assert "wmStepsBusy()" in _fn(fn), f"{why} ไม่ได้นับช่วงที่มีขั้นตอนค้างอยู่"
 
 
 def test_the_spawn_effect_is_slow_enough_to_follow():
@@ -214,15 +203,15 @@ def test_the_spawn_effect_is_slow_enough_to_follow():
     assert m, "ไม่ได้ตั้งว่าค้างที่ของแต่ละชิ้นกี่เฟรม"
     assert int(m.group(1)) >= 170, \
         f"ค้างแค่ {m.group(1)} เฟรม (~{int(m.group(1)) / 60:.1f} วิ) ไม่ถึง 3 วินาที"
-    assert "if (!WM_CAM.arrived()) return;" in _fn("function wmTickTour("), \
+    assert "WM_CAM.arrived()" in _fn("function wmStartTour("), \
         "เริ่มนับเวลาตั้งแต่ยังเลื่อนไม่ถึง"
 
 
 def test_the_drop_has_a_spawn_effect():
-    body = _fn("function wmTickTour(")
-    assert "wmDust(" in body, "ของโผล่มาเฉย ๆ ไม่มีเอฟเฟกต์เลย"
+    body = _fn("function wmStartTour(")
     assert "WM_POPS.push" in body, "ไม่มีป้ายบอกว่าของอะไรลงมา"
-    assert "WM_SPAWNS.push" in body or "wmSpawnFx(" in body, "ไม่มีเอฟเฟกต์ตอนของลงจอ"
+    assert "WM_SPAWNS.push" in body, "ไม่มีเอฟเฟกต์ตอนของลงจอ"
+    assert "wmDust(" in _fn("function wmDrawSpawns("), "ของแตะพื้นแล้วไม่มีฝุ่น"
 
 
 def test_the_page_draws_the_ferry():

@@ -117,13 +117,14 @@ def test_a_new_match_remembers_the_ground_it_started_with():
 
 def test_both_ways_into_the_bot_turn_replay_its_shots():
     body = _fn("function wmQueueBot(")
-    stay = body[body.index("if (!moves.length) {"):body.index("if (!WM_ANIM || WM_ANIM.fi !== bi)")]
-    assert "wmPlayBotShots(shots)" in stay,         "บอทยืนยิงอยู่กับที่ (ไม่ได้เดิน) แล้วไม่มีใครเล่นภาพ — หลุมจะไม่ถูกลบบนจอ"
-    assert "onEnd: i === moves.length - 1" in body, "บอทเดินยังไม่จบก็ยิงทับเลย"
+    stay = body[body.index("if (!moves.length) {"):body.index("// เดินเป็นขั้นหนึ่ง")]
+    assert "wmPlayBotShots(shots)" in stay, "บอทยืนยิงอยู่กับที่แล้วไม่มีใครเล่นภาพ"
+    assert "wmStep(() => {" in body, "ตาบอทไม่ได้เข้าคิวขั้นตอน"
+    assert body.index("wmStep(() => {") < body.index("wmPlayBotShots(shots);", body.index("// เดินเป็นขั้นหนึ่ง")), "บอทเดินยังไม่จบก็ยิงทับเลย"
 
 
 def test_the_bot_shots_no_longer_guess_the_timing():
     assert "setTimeout" not in _fn("function wmPlayAttack("), \
         "ยังใช้ setTimeout เดาเวลาแทนที่จะรอภาพเล่นจบจริง"
     body = _fn("function wmPlayBotShots(")
-    assert "WM_AFTER.push" in body, "ยิงหลายนัดจะทับกันเอง ไม่ได้รอนัดก่อนเล่นจบ"
+    assert "wmStep(() => wmShowHit(a, true), wmFxIdle)" in body, "ยิงหลายนัดจะทับกันเอง ไม่ได้เข้าคิวทีละนัด"

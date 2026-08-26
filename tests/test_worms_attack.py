@@ -479,9 +479,9 @@ def test_the_page_shows_damage_numbers_and_flashes():
         assert need in PLAY, f"ไม่มีเอฟเฟกต์ {need}"
     fn = _fn("function wmShowHit(")
     assert "wmPlayVictims(a," in fn, "ไม่ได้ไล่สรุปผลคนที่โดนทีละคน"
-    vic = _fn("function wmPlayVictims(")
-    assert "WM_POPS.push" in vic, "ไม่ได้เด้งตัวเลขดาเมจ"
-    assert "wmFocus(f, true)" in vic, "ไม่ได้จับกล้องไปที่คนที่กำลังสรุปผล"
+    one = _fn("function wmOneVictim(")
+    assert "WM_POPS.push" in one, "ไม่ได้เด้งตัวเลขดาเมจ"
+    assert "wmFocus(f, true)" in one, "ไม่ได้จับกล้องไปที่คนที่กำลังสรุปผล"
     assert "wmSwing(a)" in fn, "ไม่ได้วาดวงเหวี่ยงตอนฟัน"
 
 
@@ -520,7 +520,7 @@ def test_the_impact_throws_debris():
 
 def test_the_bot_turn_is_animated_too():
     """ใช้ตัวเล่นเอฟเฟกต์ตัวเดียวกันทั้งของเราและของบอท จะได้ไม่ลืมอันใดอันหนึ่ง"""
-    assert "wmShowHit(shots[0], true)" in _fn("function wmPlayBotShots("), \
+    assert "wmShowHit(a, true)" in _fn("function wmPlayBotShots("), \
         "ไม่ได้เล่นเอฟเฟกต์การโจมตีของบอท"
     assert "wmPlayBotShots(shots)" in _fn("function wmQueueBot("), \
         "เขียนตัวเล่นภาพบอทไว้แต่ไม่มีใครเรียก"

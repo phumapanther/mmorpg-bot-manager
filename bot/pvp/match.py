@@ -255,7 +255,7 @@ def move(uid, action, direction=1, steps=1, jump_power=1.0, lean=0.0):
         steps = max(1, min(int(steps), st["moves"]))
         if st["moves"] <= 0:
             return False, {"error": "แรงเดินหมดแล้ว — จบเทิร์นได้เลย"}
-        r = physics.walk(grid, f["x"], f["y"], direction, steps, physics.SAFE_DROP)
+        r = physics.walk(grid, f["x"], f["y"], direction, steps, no_drown=True)
         st["moves"] -= max(len(r["path"]), 1)
     else:
         return False, {"error": "ไม่รู้จักท่านี้"}
@@ -309,7 +309,7 @@ def _knock_back(st, grid, f, from_x, dmg, dist=None):
         # ⚠️ กระเด็นตกหน้าผาได้ (นั่นคือเสน่ห์ของท่ากระแทก) แต่ห้ามปลิวลงทะเลตายเอง
         #    วัดแล้ว: ยืนเฉย ๆ ไม่ทำอะไร 40 เมล็ด ตกทะเลตายไป 30 — จบเกมเฉลี่ย 5 เทิร์น
         #    ผู้เล่นเห็นเป็น "อยู่ ๆ ก็ตกรอบแพ้เอง" เพราะโดนหมัดธรรมดาก็ปลิวลงน้ำแล้ว
-        kb = physics.walk(grid, f["x"], f["y"], d, dist, physics.SAFE_DROP)
+        kb = physics.walk(grid, f["x"], f["y"], d, dist, no_drown=True)
     f["x"], f["y"] = kb["x"], kb["y"]
     if kb["drowned"]:
         _drown(st, f)

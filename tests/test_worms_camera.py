@@ -139,7 +139,7 @@ def test_you_can_walk_out_of_any_crater():
         x, y, _, _ = P.settle(g, 360, 180)
         out = False
         for _ in range(30):                       # เดินอย่างเดียว ไม่กระโดดช่วย
-            w = P.walk(g, x, y, 1, 12, P.SAFE_DROP)
+            w = P.walk(g, x, y, 1, 12, no_drown=True)
             if not w["path"]:
                 break
             x, y = w["x"], w["y"]
@@ -162,7 +162,7 @@ def test_a_wall_as_tall_as_you_still_blocks():
     for x in range(400, 410):
         for y in range(180 - T.CH_H, 180):
             g[y][x] = T.BRICK
-    w = P.walk(g, 390, 180, 1, 30, P.SAFE_DROP)
+    w = P.walk(g, 390, 180, 1, 30, no_drown=True)
     assert w["x"] <= 400, f"ปีนกำแพงสูง {T.CH_H} px ขึ้นไปได้ (ไปถึง x={w['x']})"
 
 
@@ -176,24 +176,28 @@ def test_arrived_really_measures_the_distance_left():
     assert "true ||" not in body and "false ||" not in body, "มีทางลัดให้ตอบตายตัว"
 
 
-def test_the_tour_waits_for_the_camera_to_arrive():
-    """เจ้าของเกมสั่ง: ต้องรอจอเลื่อนไปอยู่ตรงของก่อน แล้วค่อยรอ 3 วินาที"""
-    body = _fn("function wmTickTour(")
-    assert "if (!WM_CAM.arrived()) return;" in body,         "เริ่มนับเวลาตั้งแต่ยังเลื่อนไม่ถึง — 3 วินาทีถูกกินไปกับการเดินทาง"
-    assert body.index("WM_TOUR.aimed = true;") < body.index("WM_CAM.arrived()"),         "ยังไม่ได้ตั้งเป้าก็เช็คว่าถึงหรือยัง"
+def test_the_tour_is_made_of_steps_like_everything_else():
+    """เจ้าของเกมเจอ: ดึงจอไปดูกล่องแล้วค้างไปเลย ไม่เลื่อนจอ ไม่ทำอะไรต่อ
+
+    ทัวร์เคยเดินด้วยตัวจับเวลาของตัวเอง ขนานไปกับคิวขั้นตอน
+    ขั้นหนึ่งของทัวร์คือ "รอกล้องเลื่อนไปถึง" แต่ลูปเล่นภาพตั้งเป้ากล้องไปที่ตัวที่ขยับ
+    ทุกเฟรม กล้องเลยไม่มีวันถึง = ทัวร์ค้างตลอดกาล = ทั้งเกมค้างตาม
+    """
+    assert "function wmTickTour(" not in PLAY, "ยังมีตัวจับเวลาทัวร์แยกอยู่"
+    body = _fn("function wmStartTour(")
+    assert "wmStep(() => wmFocus({ x: d.x, y: d.y }, true)" in body, "ไม่ได้ทำขั้นเลื่อนกล้อง"
+    assert "WM_CAM.arrived()" in body, "ขั้นเลื่อนกล้องไม่ได้รอให้ถึงจริง"
+    assert "wmHoldAt(d.x, d.y, WM_TOUR_HOLD" in body, "ไม่ได้ค้างดูของจนครบ"
+    assert "WM_TURN_SHOWN = ''" in body, "ทัวร์จบแล้วไม่ได้คืนกล้องให้คนที่ถึงตา"
 
 
-def test_the_tour_holds_three_seconds_at_each_drop():
-    m = re.search(r"WM_TOUR_HOLD = (\d+)", PLAY)
-    assert m, "ไม่ได้ตั้งเวลาค้างที่ของแต่ละชิ้น"
-    frames = int(m.group(1))
-    assert frames >= 170, f"ค้างแค่ {frames} เฟรม (~{frames / 60:.1f} วิ) ไม่ถึง 3 วินาที"
-    assert "WM_TOUR.t < WM_TOUR_HOLD" in _fn("function wmTickTour("), "ตั้งค่าไว้แต่ไม่ได้ใช้"
-
-
-def test_each_drop_resets_the_arrival_flag():
-    body = _fn("function wmTickTour(")
-    assert "WM_TOUR.aimed = false;" in body,         "ชิ้นถัดไปจะไม่ตั้งเป้าใหม่ กล้องค้างอยู่ที่ชิ้นเดิมแล้วนับเวลาไปเรื่อย"
+def test_a_step_cannot_hang_the_game_forever():
+    """กันเหตุการณ์เดิมซ้ำ — ขั้นที่ done() ไม่ยอมเป็นจริง ต้องถูกข้ามไป ไม่ใช่ค้างตาย"""
+    body = _fn("function wmRunSteps(")
+    assert "WM_STEP.age" in body, "ไม่ได้จับเวลาว่าขั้นนี้ค้างมานานแค่ไหน"
+    assert "++WM_STEP.age < WM_STEP_MAX" in body, "ไม่มีเพดานเวลาต่อขั้น"
+    m = re.search(r"WM_STEP_MAX = (\d+)", PLAY)
+    assert m and int(m.group(1)) <= 1200, "เพดานสูงเกินไป ค้างเป็นนาทีกว่าจะหลุด"
 
 
 def test_dragging_is_blocked_while_the_camera_pans_itself():
@@ -220,20 +224,11 @@ def test_only_one_thing_owns_the_camera_at_a_time():
     assert "!WM_ANIM && !WM_SHOT && turnKey" not in body, "ยังใช้เงื่อนไขเดิมที่ครอบไม่ครบ"
 
 
-def test_the_tour_counts_in_both_guards():
-    """WM_TOUR ต้องอยู่ทั้งใน wmWaiting (ห้ามกด) และ wmBusyFx (ห้ามแย่งกล้อง)
-
-    เขียนไว้ที่เดียวไม่พอ — สองอันนี้ตอบคนละคำถามและมีคนเรียกคนละที่
-    """
-    for fn in ("function wmWaiting(", "function wmBusyFx("):
-        assert "WM_TOUR" in _fn(fn), f"{fn} ไม่ได้นับช่วงทัวร์ของที่ลงสนาม"
-
-
 def test_the_busy_check_covers_every_camera_owner():
     body = _fn("function wmBusyFx(")
     for fx, why in [("WM_ANIM", "ท่อนที่กำลังเล่น"), ("WM_QUEUE.length", "ท่อนที่รอเล่น"),
                     ("WM_SHOT", "กระสุน"), ("WM_BOOMS.length", "ระเบิด"),
-                    ("WM_AFTER.length", "งานสรุปผลที่ค้าง"), ("WM_TOUR", "ทัวร์ของที่ลงสนาม"),
+                    ("WM_AFTER.length", "งานสรุปผลที่ค้าง"), ("wmStepsBusy()", "ขั้นตอนที่ค้างอยู่"),
                     ("WM_DYING", "ภาพตาย")]:
         assert fx in body, f"ไม่ได้นับ {fx} ({why}) ว่ากำลังถือกล้องอยู่"
 
@@ -267,3 +262,53 @@ def test_the_walk_pace_did_not_change():
     ms = int(re.search(r"const WM_HOLD_MS = (\d+)", PLAY).group(1))
     played = steps * int(m.group(1)) / 60 * 1000
     assert played >= ms * 0.85, f"เล่นภาพจบใน {played:.0f}ms แต่คำสั่งถัดไปมาที่ {ms}ms"
+
+
+# ── 🎬 ตัวคุมลำดับ: ทำทีละขั้น เว้นจังหวะ ไม่แย่งกัน ──
+
+def test_there_is_one_central_step_queue():
+    """เจ้าของเกมสั่ง: ทำสิ่งหนึ่งให้เสร็จก่อนเสมอ ระบบไม่ควรแย่งกันทำงาน"""
+    body = _fn("function wmRunSteps(")
+    assert "if (WM_WAIT > 0) { WM_WAIT--; return; }" in body, "ไม่มีช่วงเว้นจังหวะ"
+    assert "WM_STEP = WM_STEPS.shift();" in body, "ไม่ได้ดึงขั้นถัดไปมาทำ"
+    assert "if (!WM_STEP.on) { WM_STEP.on = true; WM_STEP.age = 0; WM_STEP.run(); return; }" in body,         "ไม่ได้เริ่มขั้นแค่ครั้งเดียว"
+    assert "!WM_STEP.done()) return;" in body, "ไม่ได้รอให้ขั้นนั้นเสร็จจริงก่อนไปต่อ"
+
+
+def test_the_gaps_are_what_the_owner_asked_for():
+    """2 วิหลังเสร็จ · 1 วิก่อนเริ่มขั้นถัดไป"""
+    after = int(re.search(r"WM_GAP_AFTER = (\d+)", PLAY).group(1))
+    before = int(re.search(r"WM_GAP_BEFORE = (\d+)", PLAY).group(1))
+    assert after >= 110, f"เว้นหลังเสร็จแค่ {after} เฟรม (~{after / 60:.1f} วิ) ไม่ถึง 2 วินาที"
+    assert before >= 55, f"เว้นก่อนเริ่มแค่ {before} เฟรม (~{before / 60:.1f} วิ) ไม่ถึง 1 วินาที"
+
+
+def test_the_queue_runs_every_frame():
+    body = _fn("function wmTick(")
+    assert "wmRunSteps();" in body, "เขียนคิวไว้แต่ไม่มีใครเดินคิว"
+
+
+def test_a_step_waits_for_its_animation_to_finish():
+    """done() ที่ตอบ true ทันที = ขั้นถัดไปเริ่มทับขั้นก่อนหน้า"""
+    body = _fn("function wmFxIdle(")
+    for fx in ("WM_ANIM", "WM_QUEUE.length", "WM_SHOT", "WM_BOOMS.length", "WM_DYING"):
+        assert fx in body, f"ไม่ได้นับ {fx} ว่าขั้นนั้นยังทำงานอยู่"
+
+
+def test_every_beat_goes_through_the_queue():
+    """ตาบอท · บอทยิง · คนที่โดนแต่ละคน · ร่างระเบิดแต่ละร่าง ต้องเป็นขั้นทั้งหมด"""
+    for fn, why in [("function wmQueueBot(", "ตาบอทเดิน"),
+                    ("function wmPlayBotShots(", "บอทยิง"),
+                    ("function wmPlayVictims(", "คนที่โดน"),
+                    ("function wmPlayDeaths(", "ร่างระเบิด")]:
+        assert "wmStep(" in _fn(fn), f"{why} ไม่ได้เข้าคิวขั้นตอน — จะไปทับขั้นอื่น"
+
+
+def test_nothing_can_act_while_a_step_is_running():
+    for fn, why in [("function wmWaiting(", "ปุ่มบังคับ"), ("function wmBusyFx(", "แผงสรุปผล/กล้อง")]:
+        assert "wmStepsBusy()" in _fn(fn), f"{why} ไม่ได้นับช่วงที่มีขั้นค้างอยู่"
+
+
+def test_a_new_match_clears_the_queue():
+    body = PLAY[PLAY.index("function wmApply("):PLAY.index("function wmMe(")]
+    assert "wmStepsClear();" in body, "เปิดสนามใหม่แล้วขั้นของสนามเก่ายังค้างอยู่ในคิว"

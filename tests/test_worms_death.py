@@ -194,7 +194,8 @@ def test_the_page_plays_each_corpse_blast_in_turn():
     assert "wmFocus({ x: d.x, y: d.y }, true)" in body, "ไม่ได้พากล้องไปดูร่างที่ระเบิด"
     assert "wmLand(d.blast)" in body, "ไม่ได้เจาะพื้น/เล่นลูกไฟ"
     assert "wmHoldAt(d.x, d.y, WM_DEATH_HOLD" in body, "ไม่ได้ค้างดูระเบิดก่อนไปต่อ"
-    assert "wmPlayVictims(d.blast, next)" in body, "ไม่ได้ไล่ดูคนที่โดนลูกหลง"
+    assert "wmPlayVictims(d.blast, null)" in body, "ไม่ได้ไล่ดูคนที่โดนลูกหลง"
+    assert "wmStep(" in body, "ร่างระเบิดไม่ได้เข้าคิวขั้นตอน — จะไปทับขั้นอื่น"
 
 
 def test_the_result_waits_for_the_corpse_blast():

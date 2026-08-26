@@ -17,6 +17,7 @@ const ctx = {
   console, Math, JSON, Object, Array, String, Number,
   WM_ANIM: null, WM_QUEUE: [], WM_SHOT: null, WM_BOOMS: [],
   WM_AFTER: [], WM_DYING: {}, WM_OVER_SHOWN: false, WM_TOUR: null,
+  wmStepsBusy: () => false,
   WM_ST: JSON.parse(fs.readFileSync(process.argv[2], 'utf8')),
 };
 vm.createContext(ctx);

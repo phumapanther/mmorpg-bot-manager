@@ -605,7 +605,7 @@ def test_walking_never_marches_you_into_the_sea(world):
         g = T.decode(st["terrain"])
         x, y = st["fighters"][0]["x"], st["fighters"][0]["y"]
         for _ in range(120):
-            r = P.walk(g, x, y, 1, 6, P.SAFE_DROP)
+            r = P.walk(g, x, y, 1, 6, no_drown=True)
             if r["drowned"]:
                 dead.append(seed)
                 break
@@ -615,20 +615,38 @@ def test_walking_never_marches_you_into_the_sea(world):
     assert not dead, f"เดินอย่างเดียวแล้วตกทะเลในเมล็ด {dead}"
 
 
-def test_a_walk_stops_at_the_edge_of_a_big_drop():
-    """หิ้งสูงเหนือเหว — เดินถึงขอบต้องหยุด ไม่ใช่ก้าวลอยลงไป"""
+def test_a_walk_stops_at_the_edge_of_the_water(world):
+    """เจ้าของเกมสั่ง: เดินลงจากผาได้ — ห้ามเฉพาะเดินลงทะเลเท่านั้น
+
+    เดิมห้ามก้าวลงลึกเกิน 24 px ด้วย ผู้เล่นเลยเดินลงผาไม่ได้เลย
+    เหมือนมีกำแพงล่องหนกั้นอยู่ตรงขอบ
+    """
+    # ① ผาสูง 70 px แต่ข้างล่างมีพื้น — ต้องเดินลงได้
     g = [[T.AIR] * T.W for _ in range(T.H)]
     for x in range(100, 200):
-        for y in range(120, 130):
+        for y in range(120, 190):
             g[y][x] = T.ROCK
-    for x in range(200, 300):                    # พื้นล่างห่างลงไป 80 px
-        for y in range(200, 210):
+    for x in range(200, 400):
+        for y in range(190, 240):
             g[y][x] = T.ROCK
-    r = P.walk(g, 190, 120, 1, 40, P.SAFE_DROP)   # เริ่มใกล้ขอบ ให้ 40 ก้าวเดินถึงจริง
-    assert r["y"] == 120, f"เดินตกหน้าผาไปที่ y={r['y']} ทั้งที่ควรหยุดตรงขอบ"
-    assert not r["drowned"]
-    far = P.walk(g, 190, 120, 1, 40)             # ไม่ใส่เพดาน = ตกได้ตามเดิม
-    assert far["y"] > 120, "ไม่ใส่เพดานแล้วยังไม่ยอมตก — แรงกระแทกจะผลักใครตกไม่ได้เลย"
+    down = P.walk(g, 190, 120, 1, 40, no_drown=True)
+    assert down["x"] > 205, f"เดินลงผาไม่ได้ ติดอยู่ที่ x={down['x']}"
+    assert down["y"] == 190, f"ลงผาแล้วไม่ได้อยู่บนพื้นข้างล่าง (y={down['y']})"
+    assert down["fell"] >= 60, "ตกลงมาแล้วแต่ไม่นับว่าตก — จะไม่เจ็บจากการตก"
+    assert not down["drowned"]
+
+    # ② ขอบเกาะที่ข้างล่างเป็นน้ำ — ต้องหยุดตรงขอบ
+    sea = [[T.AIR] * T.W for _ in range(T.H)]
+    for x in range(100, 200):
+        for y in range(120, 190):
+            sea[y][x] = T.ROCK
+    edge = P.walk(sea, 190, 120, 1, 40, no_drown=True)
+    assert not edge["drowned"], "เดินลงทะเลเอง"
+    assert edge["y"] == 120, f"หลุดขอบไปแล้ว (y={edge['y']})"
+
+    # ③ ไม่ใส่ธง (แรงกระแทก) ยังผลักตกทะเลได้ตามเดิม
+    blown = P.walk(sea, 190, 120, 1, 40)
+    assert blown["drowned"], "แรงกระแทกผลักใครตกทะเลไม่ได้เลย"
 
 
 def test_a_small_step_down_is_still_fine():
@@ -640,14 +658,15 @@ def test_a_small_step_down_is_still_fine():
     for x in range(200, 300):                    # ต่ำลงแค่ 10 px
         for y in range(130, 220):
             g[y][x] = T.ROCK
-    r = P.walk(g, 190, 120, 1, 30, P.SAFE_DROP)
+    r = P.walk(g, 190, 120, 1, 30, no_drown=True)
     assert r["x"] >= 215, f"ลงเนินเตี้ยแค่ 10 px ก็ยังไม่ยอมเดินผ่าน (หยุดที่ x={r['x']})"
     assert r["y"] == 130, f"ลงเนินแล้วไม่ได้อยู่บนพื้นชั้นล่าง (y={r['y']})"
 
 
-def test_the_player_walk_always_passes_the_cap():
+def test_the_player_walk_always_blocks_walking_into_the_sea():
     body = pathlib.Path("bot/pvp/match.py").read_text(encoding="utf-8")
-    assert "physics.SAFE_DROP" in body, "move() ไม่ได้ส่งเพดานความลึกให้ physics.walk"
+    assert "no_drown=True" in body, "move() ไม่ได้ห้ามเดินลงทะเล"
+    assert body.count("no_drown=True") >= 2, "แรงกระแทกหรือการเดินอย่างใดอย่างหนึ่งยังไม่ได้ห้าม"
 
 
 # ── 15. ตก/กระเด็น ต้องมีภาพให้เห็น ──
@@ -672,10 +691,11 @@ def test_landing_kicks_up_dust():
 
 
 def test_being_knocked_back_is_replayed_on_the_right_fighter(world):
-    vic = _fn("function wmPlayVictims(")
-    assert "knocks.find(k => k.name === v.name)" in vic, "จับคู่คนกับเส้นทางกระเด็นไม่ถูก"
-    assert "wmChunk(fi, kb.path, settle)" in vic, "ไม่ได้เล่นภาพกระเด็นก่อนสรุปผล"
-    assert "(a.blast || {}).knocks" in vic, "โดนระเบิดผลักแล้วไม่เห็นตัวปลิว"
+    one = _fn("function wmOneVictim(")
+    assert "knocks.find(k => k.name === v.name)" in one, "จับคู่คนกับเส้นทางกระเด็นไม่ถูก"
+    assert "wmChunk(fi, kb.path, settle)" in one, "ไม่ได้เล่นภาพกระเด็นก่อนสรุปผล"
+    assert "(a.blast || {}).knocks" in _fn("function wmPlayVictims("), \
+        "โดนระเบิดผลักแล้วไม่เห็นตัวปลิว"
 
 
 def test_the_clock_is_frozen_while_the_bot_replay_plays():
@@ -869,10 +889,12 @@ def test_a_blast_pushes_people_away_from_the_centre(world):
 
 def test_the_page_waits_for_the_knockback_before_showing_damage():
     """เจ้าของเกมสั่ง: กระเด็นให้จบก่อน แล้วค่อยสรุปว่าโดนเท่าไหร่ ตายหรือยัง"""
-    vic = _fn("function wmPlayVictims(")
-    at = vic.index("const settle = () =>")
-    assert vic.index("wmChunk(fi, kb.path, settle)") > at, "ไม่ได้เอาการสรุปผลไปต่อท้ายการกระเด็น"
-    assert "WM_POPS.push" in vic and "wmDie(fi, f)" in vic, "สรุปผลไม่ครบทั้งเลขดาเมจและภาพตาย"
+    one = _fn("function wmOneVictim(")
+    at = one.index("const settle = () =>")
+    assert one.index("wmChunk(fi, kb.path, settle)") > at, "ไม่ได้เอาการสรุปผลไปต่อท้ายการกระเด็น"
+    assert "WM_POPS.push" in one and "wmDie(fi, f)" in one, "สรุปผลไม่ครบทั้งเลขดาเมจและภาพตาย"
+    assert "wmStep(() => wmOneVictim(v, knocks), wmFxIdle)" in _fn("function wmPlayVictims("), \
+        "คนที่โดนแต่ละคนไม่ได้เป็นขั้นแยกกัน — จะเล่นทับกัน"
 
 
 def test_deferred_work_actually_runs_when_the_replay_drains():
@@ -909,10 +931,10 @@ def test_the_result_panel_waits_for_the_death_animation_too():
 
 def test_damage_numbers_pop_where_the_target_landed():
     """เด้งเลขจากตำแหน่งสด ๆ ของตัวนักสู้ ไม่ใช่จุดที่ยืนตอนโดน (กระเด็นไปไกลแล้ว)"""
-    vic = _fn("function wmPlayVictims(")
-    assert "const f = WM_ST.fighters[fi];" in vic, "ไม่ได้อ่านตำแหน่งสดตอนสรุปผล"
-    assert "wmFocus(f, true)" in vic, "ไม่ได้จับกล้องไปที่คนที่กำลังสรุปผลของเขา"
-    assert "x: f.x, y: f.y - 26" in vic, "เลขดาเมจเด้งที่จุดเดิมตอนโดน"
+    one = _fn("function wmOneVictim(")
+    assert "const f = WM_ST.fighters[fi];" in one, "ไม่ได้อ่านตำแหน่งสดตอนสรุปผล"
+    assert "wmFocus(f, true)" in one, "ไม่ได้จับกล้องไปที่คนที่กำลังสรุปผลของเขา"
+    assert "x: f.x, y: f.y - 26" in one, "เลขดาเมจเด้งที่จุดเดิมตอนโดน"
 
 
 def test_a_new_match_forgets_who_died():
@@ -1148,12 +1170,11 @@ def test_a_melee_swing_shows_where_the_blow_lands():
 def test_each_victim_gets_its_own_turn_on_camera():
     """เจ้าของเกมสั่ง: โดนหลายตัวให้กล้องโฟกัสทีละตัว แล้วคำนวณดาเมจทีละคน"""
     vic = _fn("function wmPlayVictims(")
-    assert "const next = () =>" in vic, "ไม่ได้ไล่ทีละคน"
-    assert "let n = 0;" in vic, "ตัวนับเริ่มผิด — ข้ามคนที่โดนไปหมด"
-    assert "if (n >= order.length)" in vic, "ไม่มีเงื่อนไขจบเมื่อครบทุกคน"
-    for hold in ("wmHoldOn(fi, 46, next)", "wmHoldOn(fi, 78, next)"):
-        assert hold in vic, f"ไม่ได้ค้างกล้องให้ทันดูก่อนไปคนถัดไป ({hold})"
-    assert vic.count("next") >= 4, "ลำดับไม่ได้ต่อกันไปเรื่อย ๆ จนครบ"
+    assert "order.forEach(v => wmStep(" in vic, "คนที่โดนแต่ละคนไม่ได้เป็นขั้นแยกกัน"
+    assert "wmFxIdle" in vic, "ไม่ได้รอให้ขั้นก่อนหน้าเล่นจบก่อนไปคนถัดไป"
+    one = _fn("function wmOneVictim(")
+    for hold in ("wmHoldOn(fi, 46, null)", "wmHoldOn(fi, 78, null)"):
+        assert hold in one, f"ไม่ได้ค้างกล้องให้ทันดู ({hold})"
 
 
 def test_several_hits_on_one_person_are_summed_into_one_number():
@@ -1164,7 +1185,7 @@ def test_several_hits_on_one_person_are_summed_into_one_number():
 
 
 def test_the_death_animation_plays_at_that_persons_turn_on_camera():
-    vic = _fn("function wmPlayVictims(")
+    vic = _fn("function wmOneVictim(")
     at = vic.index("const settle = () =>")
     tail = vic[at:]
     assert "wmDie(fi, f)" in tail, "ตายแล้วไม่เล่นภาพตายตอนกล้องจับอยู่ที่เขา"

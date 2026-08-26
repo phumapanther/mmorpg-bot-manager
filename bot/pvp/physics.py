@@ -30,7 +30,7 @@ AIR_MAX = 3.0         # ความเร็วแนวนอนกลาง�
 #    (โควตาสนาม 200 ครั้ง/นาที) — คำสั่งที่สองมาถึงก็ลงพื้นไปแล้ว
 #    จึงให้ "เลือกทิศ + แรง + การเอนตัว" ตั้งแต่ตอนกระโดดแทน แล้วเอนค้างตลอดวิถี
 FALL_HURT_FROM = 40         # ตกสูงเกินนี้เริ่มเจ็บ
-SAFE_DROP = 24              # เดินลงเองได้ลึกสุดเท่านี้ ลึกกว่านี้ต้องกระโดดลง
+SAFE_DROP = True            # (คงชื่อไว้เพื่อความเข้ากันได้) = ห้ามเดินลงทะเลเอง
 FALL_DMG_PER_PX = 0.8
 
 
@@ -93,16 +93,16 @@ def _drop_path(x, y0, y1):
 BLOCKED, MOVED, DROWNED = "blocked", "moved", "drowned"
 
 
-def step(grid, x, y, direction, max_drop=None):
+def step(grid, x, y, direction, no_drown=False):
     """ก้าวหนึ่งก้าว — คืน (สถานะ, x, y)
 
     ⚠️ ต้องแยก "ชนกำแพง" กับ "เดินตกน้ำ" ออกจากกันให้ชัด
        เคยพลาด: คืน None เหมือนกันทั้งสองกรณี พอชนกำแพงเลยถูกนับเป็นจมน้ำตายทันที
     ก้าวขึ้นได้ไม่เกิน CLIMB (ปีนขั้นบันได)
 
-    max_drop = ยอมให้ก้าวลงลึกสุดกี่พิกเซล · None = ไม่จำกัด (ใช้ตอนโดนกระแทก)
-    ⚠️ ตอนผู้เล่นเดินเองต้องใส่ค่าไว้เสมอ ไม่งั้นกดค้างเดินแล้วตัวเดินตกขอบเกาะ
-       ลงทะเลตายทันทีโดยไม่มีทางห้าม — วัดแล้วเดินเฉย ๆ 20 เมล็ด ตายไป 12
+    no_drown = ห้ามก้าวลงทะเล (ผู้เล่นเดินเองต้องใส่เสมอ · แรงกระแทกไม่ต้อง)
+    ⚠️ ไม่ใส่แล้วกดค้างเดินจะเดินตกขอบเกาะลงทะเลตายทันทีโดยไม่มีทางห้าม
+       วัดแล้วเดินเฉย ๆ 20 เมล็ด ตายไป 12 — แต่ตกหน้าผาลงพื้นข้างล่างยังเดินได้ปกติ
     """
     nx = x + direction
     if not 0 <= nx < T.W:
@@ -113,22 +113,25 @@ def step(grid, x, y, direction, max_drop=None):
     if not _clear(grid, nx, y):                 # ตัวชนกำแพง = ไปต่อไม่ได้ (ยังไม่ตาย)
         return BLOCKED, x, y
     fx, fy, fell, drowned = settle(grid, nx, y)   # ไม่มีพื้นข้างหน้า = ตกลงไป
-    if max_drop is not None and (drowned or fell > max_drop):
-        return BLOCKED, x, y                      # ขอบเหว — หยุดตรงขอบ ไม่เดินตกเอง
+    # ⚠️ ห้ามเฉพาะ "เดินลงทะเล" เท่านั้น — ตกหน้าผาลงพื้นข้างล่างเดินได้ตามปกติ
+    #    (เจ็บจากการตกก็เจ็บไป นั่นคือกติกา) เดิมห้ามตกลึกเกิน 24 px ด้วย
+    #    ผู้เล่นเลยเดินลงผาไม่ได้เลย เหมือนมีกำแพงล่องหนกั้นอยู่ตรงขอบ
+    if no_drown and drowned:
+        return BLOCKED, x, y                      # ขอบน้ำ — หยุดตรงขอบ
     return (DROWNED if drowned else MOVED), fx, fy
 
 
-def walk(grid, x, y, direction, steps, max_drop=None):
+def walk(grid, x, y, direction, steps, no_drown=False):
     """เดินหลายก้าว — คืน {path, x, y, drowned, fell}
 
-    หยุดเองเมื่อชนกำแพง ถึงขอบเหว หรือตกน้ำ ไม่ต้องให้เบราว์เซอร์คอยเช็ค
-    max_drop ส่งต่อไปที่ step() — ผู้เล่นเดินเองต้องใส่ ส่วนแรงกระแทกไม่ต้อง
+    หยุดเองเมื่อชนกำแพงหรือถึงขอบน้ำ ไม่ต้องให้เบราว์เซอร์คอยเช็ค
+    no_drown ส่งต่อไปที่ step() — ผู้เล่นเดินเองต้องใส่ ส่วนแรงกระแทกไม่ต้อง
     """
     steps = max(0, min(int(steps), STEP_MAX))
     path, cx, cy = [], x, y
     drowned = False
     for _ in range(steps):
-        how, nx, ny = step(grid, cx, cy, direction, max_drop)
+        how, nx, ny = step(grid, cx, cy, direction, no_drown)
         if how == BLOCKED:
             break
         if ny > cy + 1:                     # ก้าวนี้ร่วงลง — ใส่ระหว่างทางให้ครบ
@@ -149,11 +152,11 @@ def jump(grid, x, y, direction, power=1.0, lean=0.0):
     power = 0..1 กดค้างนานยิ่งกระโดดสูง/ไกล
     lean  = -1..1 เอนตัวกลางอากาศค้างตลอดวิถี (แทนการบังคับซ้ายขวาแบบเรียลไทม์)
     """
-    power = max(0.35, min(1.0, float(power)))
+    power = max(0.0, min(1.0, float(power)))
     lean = max(-1.0, min(1.0, float(lean)))
     px, py = float(x), float(y)
-    vx = JUMP_VX * direction * (0.55 + 0.45 * power)
-    vy = JUMP_VY * (0.55 + 0.45 * power)
+    vx = JUMP_VX * direction * (0.22 + 0.78 * power)
+    vy = JUMP_VY * (0.42 + 0.58 * power)
     path, top, bump = [], y, None
     for _ in range(200):
         vy += JUMP_GRAVITY
