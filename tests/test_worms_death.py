@@ -252,8 +252,16 @@ def test_the_jump_arc_is_long_enough_to_read():
         for y in range(200, T.H - T.WATER):
             g[y][x] = T.ROCK
     frames = len(P.jump(g, 300, 200, 1, 1.0, 0)["path"])
-    assert frames >= 30, f"ลอยอยู่แค่ {frames} เฟรม ({frames / 60:.2f} วิ) สั้นเกินกว่าจะดูออก"
-    assert P.JUMP_GRAVITY < P.GRAVITY, "แรงโน้มถ่วงตอนกระโดดไม่ได้เบากว่าตอนร่วง"
+    assert frames >= 18, f"วิถีมีแค่ {frames} จุด สั้นเกินกว่าจะเป็นกระโดดจริง"
+    # ฝั่งเว็บเล่นภาพช้ากว่าเวลาฟิสิกส์ — ค้างจุดละหลายเฟรมแล้วเกลี่ยตำแหน่งระหว่างจุด
+    # เวลาฟิสิกส์ 0.38 วิ จึงกลายเป็นภาพที่ดูได้สบายราวหนึ่งวินาที
+    import re
+
+    hold = int(re.search(r"path\.length <= \d+ \? \d+ : "
+                         r"WM_ANIM\.path\.length <= \d+ \? (\d+)", PLAY).group(1))
+    played = frames * hold / 60
+    assert played >= 0.8, f"เล่นภาพกระโดดจบใน {played:.2f} วิ เร็วเกินกว่าจะดูออก"
+    assert "JUMP_GRAVITY" not in pathlib.Path("bot/pvp/physics.py").read_text(encoding="utf-8"),         "ยังมีแรงโน้มถ่วงแยกสำหรับการกระโดด — แรงโน้มถ่วงควรมีค่าเดียว"
 
 
 def test_the_jump_values_are_clamped(world):
@@ -308,3 +316,37 @@ def test_releasing_one_key_does_not_release_everything():
     """ปล่อยลูกศรระหว่างชาร์จ = แค่เลิกเอน ไม่ใช่กระโดดทันที"""
     assert "wmHoldStop(a[0])" in PLAY, "คีย์บอร์ดยังปล่อยหมดทุกปุ่มพร้อมกัน"
     assert "() => wmHoldStop(a[0])" in PLAY, "ปุ่มบนจอยังปล่อยหมดทุกปุ่มพร้อมกัน"
+
+
+def test_a_tap_is_a_hop_not_a_leap():
+    """เจ้าของเกมทัก: กระโดดจึ๊กหนึ่งยังไกลไป
+
+    เดิมแรงชาร์จเป็นสัดส่วนตรง แตะ 60 ms ก็ได้แรง 0.13 แล้ว = ไป 9 px
+    ตอนนี้ใส่โค้ง (ยกกำลัง) แรงช่วงต้นจึงขึ้นช้ากว่าเวลาที่กด
+    """
+    g = [[T.AIR] * T.W for _ in range(T.H)]
+    for x in range(T.W):
+        for y in range(200, T.H - T.WATER):
+            g[y][x] = T.ROCK
+    tap = P.jump(g, 300, 200, 1, min(1.0, 0.02 + 60 / 620), 0)
+    assert tap["x"] - 300 <= 4, f"แตะจึ๊กเดียวยังไป {tap['x'] - 300} px (ตัวกว้าง 9 px)"
+    assert P.JUMP_CURVE > 1, "ไม่ได้ใส่โค้งให้แรงช่วงต้นขึ้นช้า"
+
+
+def test_a_full_charge_is_about_your_own_height():
+    """สมจริง: กระโดดสุดแรง ≈ สูงเท่าตัวเอง ไม่ใช่ลอยข้ามบ้าน"""
+    g = [[T.AIR] * T.W for _ in range(T.H)]
+    for x in range(T.W):
+        for y in range(200, T.H - T.WATER):
+            g[y][x] = T.ROCK
+    full = P.jump(g, 300, 200, 1, 1.0, 0)
+    high = 200 - min(q[1] for q in full["path"])
+    assert T.CH_H * 0.7 <= high <= T.CH_H * 1.3,         f"กระโดดสุดแรงสูง {high} px แต่ตัวสูง {T.CH_H} px — ไม่สมส่วน"
+
+
+def test_gravity_is_the_same_going_up_and_coming_down():
+    """แรงโน้มถ่วงมีค่าเดียวในโลกนี้ — เคยแยกให้ตอนกระโดดเบากว่าเพื่อความลอย"""
+    src = pathlib.Path("bot/pvp/physics.py").read_text(encoding="utf-8")
+    jump = src[src.index("def jump("):src.index("def blast_damage(")]
+    assert "vy += GRAVITY" in jump, "ลูปกระโดดไม่ได้ใช้แรงโน้มถ่วงตัวเดียวกับตอนร่วง"
+    assert "JUMP_GRAVITY" not in src, "ยังมีแรงโน้มถ่วงแยกสำหรับการกระโดดอยู่"

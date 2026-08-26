@@ -21,7 +21,11 @@ CLIMB = 8           # ปีนขั้นสูงได้ไม่เกิ�
 STEP_MAX = 40       # กันเบราว์เซอร์ขอเดินรวดเดียวข้ามทั้งแผนที่
 GRAVITY = 0.30
 JUMP_VX, JUMP_VY = 1.7, -3.6
-JUMP_GRAVITY = 0.20   # แรงโน้มถ่วงตอนกระโดดเบากว่าตอนร่วง — วิถีลอยนานขึ้น อ่านทางง่ายขึ้น
+JUMP_CURVE = 1.3      # กดค้างสั้น ๆ ให้ได้แรงน้อยกว่าสัดส่วนตรง (แตะจึ๊กเดียว = กระโดดจึ๊กเดียว)
+#
+# กระโดดใช้ GRAVITY ตัวเดียวกับตอนร่วง — แรงโน้มถ่วงมีค่าเดียวในโลกนี้
+# (เคยแยกให้เบากว่าเพื่อให้ลอยนาน อ่านทางง่าย แต่มันดูไม่สมจริง)
+# ชาร์จเต็มได้สูง 20 px ≈ ความสูงตัวเอง (21) และไกล 39 px ≈ 4 เท่าความกว้างตัว
 AIR_ACCEL = 0.075     # เอนตัวกลางอากาศได้แค่ไหนต่อเฟรม
 AIR_MAX = 3.0         # ความเร็วแนวนอนกลางอากาศสูงสุด
 #
@@ -149,17 +153,17 @@ def walk(grid, x, y, direction, steps, no_drown=False):
 def jump(grid, x, y, direction, power=1.0, lean=0.0):
     """กระโดด — จำลองวิถีจริงทีละเฟรม คืนเส้นทางทั้งเส้นให้เบราว์เซอร์เล่นภาพ
 
-    power = 0..1 กดค้างนานยิ่งกระโดดสูง/ไกล
+    power = 0..1 กดค้างนานยิ่งกระโดดสูง/ไกล (ผ่านโค้ง JUMP_CURVE ก่อน)
     lean  = -1..1 เอนตัวกลางอากาศค้างตลอดวิถี (แทนการบังคับซ้ายขวาแบบเรียลไทม์)
     """
-    power = max(0.0, min(1.0, float(power)))
+    power = max(0.0, min(1.0, float(power))) ** JUMP_CURVE
     lean = max(-1.0, min(1.0, float(lean)))
     px, py = float(x), float(y)
-    vx = JUMP_VX * direction * (0.22 + 0.78 * power)
-    vy = JUMP_VY * (0.42 + 0.58 * power)
+    vx = JUMP_VX * direction * (0.10 + 0.90 * power)
+    vy = JUMP_VY * (0.28 + 0.72 * power)
     path, top, bump = [], y, None
     for _ in range(200):
-        vy += JUMP_GRAVITY
+        vy += GRAVITY
         vx = max(-AIR_MAX, min(AIR_MAX, vx + AIR_ACCEL * lean))
         nx, ny = px + vx, py + vy
         ix, iy = int(round(nx)), int(round(ny))
