@@ -238,7 +238,7 @@ def test_the_camera_only_follows_near_the_edge():
 
 def test_the_camera_follows_whoever_is_moving():
     """ตอนบอทเดิน กล้องเกาะตัวเราอยู่ก็ไม่เห็นว่าบอททำอะไร"""
-    assert "wmFocus(af)" in PLAY, "กล้องไม่ตามคนที่กำลังขยับ"
+    assert "wmFocus(af || { x: x, y: y })" in PLAY, "กล้องไม่ตามคนที่กำลังขยับ"
 
 
 # ── 6. ฟันได้รอบตัว 360° ──
@@ -437,7 +437,9 @@ def _finish(cls="Warrior"):
         if st["over"]:
             return match.view(UID, st)
         me, foe = st["fighters"]
-        foe.update(x=me["x"] + 16, y=me["y"])
+        # ยืนไกลกว่ารัศมีระเบิดของร่าง (36) แต่ยังอยู่ในระยะฟัน (52)
+        # ไม่งั้นฆ่าบอทแล้วร่างมันระเบิดใส่เราตายตามไปด้วย = ไม่มีผู้รอด
+        foe.update(x=me["x"] + 45, y=me["y"])
         match.save(UID, st)
         good, r = match.attack(UID, "basic", angle=0)
         if not good or r["over"]:

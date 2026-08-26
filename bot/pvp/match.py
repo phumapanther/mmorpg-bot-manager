@@ -225,7 +225,7 @@ def _open_chests(st, f):
     return got
 
 
-def move(uid, action, direction=1, steps=1):
+def move(uid, action, direction=1, steps=1, jump_power=1.0, lean=0.0):
     """เดิน/กระโดด — คืน (ok, ผล) · ตำแหน่งใหม่ตัดสินที่นี่เท่านั้น"""
     st = load(uid)
     if not st:
@@ -250,7 +250,7 @@ def move(uid, action, direction=1, steps=1):
         if st["moves"] < 6:
             return False, {"error": "แรงเดินหมดแล้ว — จบเทิร์นได้เลย"}
         st["moves"] -= 6
-        r = physics.jump(grid, f["x"], f["y"], direction)
+        r = physics.jump(grid, f["x"], f["y"], direction, jump_power, lean)
     elif action == "walk":
         steps = max(1, min(int(steps), st["moves"]))
         if st["moves"] <= 0:
@@ -260,6 +260,7 @@ def move(uid, action, direction=1, steps=1):
     else:
         return False, {"error": "ไม่รู้จักท่านี้"}
 
+    hp_before = f["hp"]
     f["x"], f["y"] = r["x"], r["y"]
     if r["drowned"]:
         _drown(st, f)
@@ -271,11 +272,16 @@ def move(uid, action, direction=1, steps=1):
     ferry = None if f["dead"] else _ride_ferry(st, grid, f)
     _check_over(st)
     save(uid, st)
-    mine = {"move": r, "sprung": traps, "opened": chests, "ferry": ferry}
+    deaths = _death_blasts(st, _grid(st))
+    _check_over(st)
+    mine = {"move": r, "sprung": traps, "opened": chests, "ferry": ferry,
+            "deaths": deaths}
 
+    # 🩸 เจ็บเมื่อไหร่จบเทิร์นทันที (เจ้าของเกมสั่ง) — ตกจากที่สูง เหยียบกับดัก
+    #    ระเบิดใส่ตัวเอง หรือโดนลูกหลง ล้วนจบเทิร์นเหมือนกันหมด
     # แรงเดินหมด = จบเทิร์นให้เลย ไม่ต้องให้ผู้เล่นมากดเอง
     # (ใช้สกิลก็จบเทิร์นอยู่แล้ว เดินจนหมดแรงจึงเท่ากับเลือกทางเดินแทนทางยิง)
-    if not st["over"] and st["moves"] <= 0:
+    if not st["over"] and (st["moves"] <= 0 or f["hp"] < hp_before):
         ok, after = end_turn(uid)
         if ok:
             return True, mine | {"auto_ended": True} | after
@@ -353,6 +359,29 @@ def _scramble(grid, x, y):
     return None
 
 
+DEATH_RADIUS, DEATH_DMG, DEATH_CRATER = 36, 24, 20
+
+
+def _death_blasts(st, grid):
+    """💀 ใครตายก็ระเบิดทิ้งตัวเอง ทำดาเมจรอบด้าน
+
+    วนจนไม่มีใครตายเพิ่ม — ระเบิดของคนหนึ่งฆ่าอีกคนได้ คนนั้นก็ต้องระเบิดต่อ
+    คืนรายการไว้ให้เว็บเล่นภาพทีละลูก แล้วค่อยสรุปผลตอนภาพจบ
+    """
+    out = []
+    for _ in range(len(st["fighters"]) + 1):
+        pending = [f for f in st["fighters"] if f["dead"] and not f.get("boomed")]
+        if not pending:
+            break
+        for f in pending:
+            f["boomed"] = True
+            st["log"].append(f"💥 ร่างของ {f['name']} ระเบิด!")
+            blast = _explode(st, grid, f["x"], f["y"] - terrain.CH_H // 2,
+                             DEATH_RADIUS, DEATH_DMG, DEATH_CRATER, "โดนแรงระเบิดจากร่าง")
+            out.append({"name": f["name"], "x": f["x"], "y": f["y"], "blast": blast})
+    return out
+
+
 def _settle_everyone(st, grid):
     """พื้นใต้เท้าหายไปแล้วต้องร่วงลง ไม่ใช่ยืนลอยอยู่กลางอากาศ"""
     for f in st["fighters"]:
@@ -420,9 +449,11 @@ def attack(uid, skill, angle=None, power=70, direction=None):
     if cd:
         f["cd"][key] = cd + 1        # +1 เพราะจะถูกลบหนึ่งตอนขึ้นเทิร์นของตัวเอง
 
+    deaths = _death_blasts(st, grid)   # ตายจากหมัดนี้ก็ระเบิดต่อ (ลูกโซ่ได้)
+    _check_over(st)
     save(uid, st)
     ok, after = end_turn(uid)        # ใช้สกิลแล้วจบเทิร์นทันที
-    return True, {"attack": r} | (after if ok else view(uid))
+    return True, {"attack": r, "deaths": deaths} | (after if ok else view(uid))
 
 
 def _use_skill(st, grid, f, key, angle, power):
@@ -561,6 +592,12 @@ def _supply_drop(st):
     if not pool:
         return []
     rng.shuffle(pool)
+    # 🎈 เกาะละลำเดียวพอ — วางซ้ำเกาะเดิมก็แค่วาร์ปวนอยู่แถวเดิม ไม่ได้ช่วยข้ามเกาะ
+    taken_isles = set()
+    for p in st["props"]:
+        if p["kind"] == "ferry":
+            taken_isles |= physics.walk_group(grid, (p["x"], p["y"]))
+
     kinds = ["ferry", "chest", "chest", "trap"]
     fresh = []
     for x, y in pool:
@@ -568,7 +605,12 @@ def _supply_drop(st):
             break
         if any(abs(x - u["x"]) < 24 for u in fresh):
             continue
-        fresh.append({"kind": kinds[len(fresh)], "x": x, "y": y})
+        kind = kinds[len(fresh)]
+        if kind == "ferry":
+            if (x, y) in taken_isles:
+                continue                       # เกาะนี้มีเรืออยู่แล้ว ข้ามไปหาที่อื่น
+            taken_isles |= physics.walk_group(grid, (x, y))
+        fresh.append({"kind": kind, "x": x, "y": y})
     st["props"].extend(fresh)
     if fresh:
         st["log"].append(f"📦 ของใหม่ลงสนาม {len(fresh)} จุด (รอบ {st['round']})")

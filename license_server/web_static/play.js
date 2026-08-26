@@ -111,7 +111,7 @@ document.querySelectorAll('[data-wm]').forEach(b => {
   if (!a) { b.addEventListener('click', () => wmEndTurn()); return; }
   b.addEventListener('pointerdown', e => { e.preventDefault(); wmHoldStart(a[0], a[1]); });
   ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev =>
-    b.addEventListener(ev, wmHoldStop));
+    b.addEventListener(ev, () => wmHoldStop(a[0])));
 });
 
 // คีย์บอร์ด (คอม) — ทำงานเฉพาะตอนอยู่หน้าสนามรบ
@@ -127,7 +127,10 @@ document.addEventListener('keydown', e => {
   wmHoldStart(a[0], e.key === 'ArrowUp' || e.key === ' '
               ? (WM_ST && wmMe().face < 0 ? -1 : 1) : a[1]);
 });
-document.addEventListener('keyup', wmHoldStop);
+document.addEventListener('keyup', e => {
+  const a = WM_KEY[e.key];
+  if (a) wmHoldStop(a[0]);              // ปล่อยเฉพาะปุ่มนั้น ไม่ใช่ปล่อยหมดทุกอย่าง
+});
 document.getElementById('wmSame')?.addEventListener('click', async () => {
   const seed = prompt('วางรหัสแผนที่ที่อยากเปิด', document.getElementById('wmSeed').textContent);
   if (seed && /^\d+$/.test(seed.trim())) wormsReroll(seed.trim());
@@ -2088,8 +2091,10 @@ function wmStartLoop() {
           if (af.y < wl && y >= wl) { wmSplash(x, wl); SFX.play('lose'); }
           af.x = x; af.y = y;
         }
-        if (WM_ANIM.i % 3 === 0) SFX.play('walk');
-        wmFocus(af);              // ตามคนที่กำลังขยับ ไม่ใช่ตาปัจจุบัน จะได้เห็นบอทเดินด้วย
+        if (af && WM_ANIM.i % 3 === 0) SFX.play('walk');
+        // ตามคนที่กำลังขยับ ไม่ใช่ตาปัจจุบัน จะได้เห็นบอทเดินด้วย
+        // ท่อนที่ fi < 0 คือ "ค้างกล้องไว้ตรงจุดหนึ่ง" (เช่นดูร่างระเบิด) ไม่มีตัวใครให้ตาม
+        wmFocus(af || { x: x, y: y });
       }
     } else if (WM_ANIM) {
       const done = WM_ANIM.onEnd;              // งานต่อท้ายของท่อนนี้ (อาจต่อคิวเพิ่ม)
@@ -2162,6 +2167,7 @@ function wmDrawFighter(ctx, f, active, t, walking) {
 
 let WM_QUEUE = [];         // ท่อนเดินที่รอเล่นภาพ (บอทเดินหลายท่อนต่อกัน)
 let WM_AFTER = [];         // งานที่ต้องรอภาพเล่นจบก่อน (สรุปดาเมจ · ประกาศคนตาย)
+let WM_DEATHS = [];        // ร่างที่รอระเบิด — เล่นหลังสรุปดาเมจของหมัดนั้นเสร็จ
 const WM_DYING = {};       // ลำดับ -> เฟรมที่เหลือของภาพตาย (ตายแล้วยังต้องวาดต่อ)
 let WM_OVER_SHOWN = false; // ขึ้นแผงสรุปผลไปแล้วหรือยัง (กันวาดซ้ำทุกเฟรม)
 let WM_TOUR = null;        // พากล้องไปดูของที่เพิ่งลงสนามทีละชิ้น
@@ -2532,6 +2538,7 @@ async function wmAttack(key, ang, pow, dir) {
 
 /** เล่นภาพผลการโจมตี แล้วต่อด้วยตาบอท (ผลทั้งหมดเซิร์ฟเวอร์ตัดสินไปแล้ว) */
 function wmPlayAttack(d) {
+  WM_DEATHS = d.deaths || [];
   wmShowHit(d.attack || {});
   wmApply(d);
   // ตาบอทต่อทันที — ต้องเห็นด้วยว่าบอททำอะไรเรา ไม่งั้นเลือดลดแล้วนึกว่าตีตัวเอง
@@ -2569,7 +2576,8 @@ function wmShowHit(a, byBot) {
   }
   if (a.kind === 'melee') wmSwing(a);
   if (a.blast) wmLand(a.blast);
-  wmPlayVictims(a, () => WM_AFTER.push(wmCallDeaths));   // เก็บตกคนที่ตายจากลูกหลง
+  const boom = WM_DEATHS; WM_DEATHS = [];
+  wmPlayVictims(a, () => wmPlayDeaths(boom, () => WM_AFTER.push(wmCallDeaths)));
   if (byBot) toast(`🤖 บอทใช้ ${a.name}`, hits.some(h => h.name === 'คุณ' && !h.dodged));
 }
 
@@ -2633,6 +2641,33 @@ function wmBuffFx(a) {
 function wmChunk(fi, path, onEnd) {
   WM_QUEUE.push({ fi: fi, path: path, i: 0, onEnd: onEnd });
   if (!WM_ANIM) WM_ANIM = WM_QUEUE.shift();
+}
+
+/** ค้างกล้องไว้ที่ "จุดหนึ่ง" สักพัก — ไม่ผูกกับตัวใคร (ใช้ตอนดูร่างระเบิด) */
+function wmHoldAt(x, y, frames, onEnd) {
+  wmChunk(-1, Array.from({ length: frames }, () => [x, y]), onEnd);
+}
+
+const WM_DEATH_HOLD = 66;   // ค้างดูร่างระเบิดกี่เฟรมก่อนไล่ดูคนที่โดนลูกหลง
+
+/** 💀 ร่างคนตายระเบิด — ทีละร่าง แล้วค่อยไล่ดูคนที่โดนลูกหลงของร่างนั้น
+
+    เจ้าของเกมสั่ง: ต้องรอเอฟเฟกต์จบก่อน ถึงจะสรุปว่าใครโดนอะไรและใครแพ้ชนะ
+ */
+function wmPlayDeaths(list, done) {
+  const all = (list || []).filter(d => d && d.blast);
+  if (!all.length) { if (done) done(); return false; }
+  let n = 0;
+  const next = () => {
+    if (n >= all.length) { if (done) done(); return; }
+    const d = all[n++];
+    wmFocus({ x: d.x, y: d.y }, true);
+    SFX.play('lose');
+    wmLand(d.blast);                       // เจาะพื้นจริง + ลูกไฟ + สะเก็ด
+    wmHoldAt(d.x, d.y, WM_DEATH_HOLD, () => wmPlayVictims(d.blast, next));
+  };
+  next();
+  return true;
 }
 
 /** ค้างกล้องไว้ที่คนคนนี้สักพัก — ให้ทันอ่านเลขดาเมจ/ดูภาพตายก่อนไปคนถัดไป */
@@ -2770,6 +2805,20 @@ function wmSwing(a) {
 
 /** เส้นเล็ง — บอกทิศ/มุม/แรงที่เลือกไว้ (ไม่ใช่การทำนายวิถี กติกาอยู่ที่เซิร์ฟเวอร์) */
 function wmDrawAim(ctx) {
+  if (WM_JUMP && WM_ST && WM_CAM) {                // 🦘 แถบชาร์จกระโดดเหนือหัว
+    const f = wmMe(), z = WM_CAM.z, pw = wmJumpPower();
+    const x0 = WM_CAM.sx(f.x), y0 = WM_CAM.sy(f.y) - 11 * z;
+    const bw = 40, bx = x0 - bw / 2, by = y0 - 30;
+    ctx.fillStyle = '#000000aa'; ctx.fillRect(bx - 1, by - 1, bw + 2, 7);
+    ctx.fillStyle = '#8fd0ff';
+    ctx.fillRect(bx, by, bw * pw, 5);
+    const lean = wmLean();
+    if (lean) {                                    // ลูกศรบอกว่าจะเอนไปทางไหน
+      ctx.fillStyle = '#ffd66b';
+      for (let i = 0; i < 3; i++)
+        ctx.fillRect(x0 + (10 + i * 6) * lean - 2, y0 - 20, 4, 4);
+    }
+  }
   if (!WM_AIM || !WM_ST || !WM_CAM) return;
   const f = wmMe(), z = WM_CAM.z, pw = WM_AIM.pow;
   const x0 = WM_CAM.sx(f.x), y0 = WM_CAM.sy(f.y) - 11 * z;
@@ -2844,8 +2893,9 @@ function wmDrawFx(ctx) {
       WM_TRAIL = { path: shot.path, t: 0 };
       wmFocus({ x: p[0], y: p[1] }, true);      // ค้างที่จุดกระทบก่อน
       wmLand(shot.blast);
+      const boom = WM_DEATHS; WM_DEATHS = [];
       wmPlayVictims(shot.atk || { hits: shot.hits, blast: shot.blast },
-                    () => WM_AFTER.push(wmCallDeaths));
+                    () => wmPlayDeaths(boom, () => WM_AFTER.push(wmCallDeaths)));
       if (shot.byBot) toast(`🤖 บอทใช้ ${shot.name}`,
                             shot.hits.some(h => h.name === 'คุณ' && !h.dodged));
     }
@@ -2901,13 +2951,13 @@ function wmBackoff(e) {
   return true;
 }
 
-async function wmDo(action, dir) {
+async function wmDo(action, dir, extra) {
   if (wmBusy || wmWaiting()) return;
   if (performance.now() < WM_BACKOFF) return;
   wmBusy = true;
   try {
     const d = await api('POST', '/api/web/pvp/worms/match',
-                        { action: action, dir: dir, steps: WM_WALK_STEPS });
+                        { action: action, dir: dir, steps: WM_WALK_STEPS, ...(extra || {}) });
     const mine = WM_ST.turn;              // ตาใครตอนสั่ง — แรงหมดแล้วเซิร์ฟเวอร์สลับตาให้แล้ว
     // ⚠️ ท่อนก่อนอาจยังเล่นภาพไม่จบ (กดค้างเดินยิงคำสั่งถี่กว่าภาพเล่นจบ)
     //    ถ้าย้อนไปที่ "ตำแหน่งที่กำลังวาดอยู่" เส้นทางใหม่จะเริ่มจากตำแหน่งของเซิร์ฟเวอร์
@@ -2939,6 +2989,8 @@ async function wmDo(action, dir) {
       wmFocus(WM_ST.fighters[mine], true);
     }
     if (d.move && d.move.bump) wmBump(d.move.bump[0], d.move.bump[1]);
+    if ((d.deaths || []).length)          // ตกตาย/เหยียบกับดักตาย ร่างก็ระเบิดเหมือนกัน
+      WM_AFTER.push(() => wmPlayDeaths(d.deaths, () => WM_AFTER.push(wmCallDeaths)));
     if (d.move && d.move.drowned) WM_AFTER.push(wmCallDeaths);
     WM.props = d.props; WM.repaint();
     wmPaintHud();
@@ -2998,14 +3050,52 @@ function wmQueueBot(d) {
 }
 
 /** กดค้าง = เดินต่อเนื่อง (ยิงเป็นก้อนละ 5 ก้าว ไม่ใช่ยิงทุกก้าว) */
+/** 🦘 กระโดด: กดค้างเพื่อชาร์จแรง · กดลูกศรค้างไว้ด้วยเพื่อเอนตัวกลางอากาศ
+
+    ⚠️ ทำไมไม่บังคับซ้ายขวากลางอากาศแบบเกมแพลตฟอร์ม:
+       กระโดดหนึ่งครั้งลอยอยู่ 0.4-0.6 วิ แต่ยิงคำสั่งได้เร็วสุดราว 2 ครั้ง/วินาที
+       คำสั่งที่สองมาถึงก็ลงพื้นไปแล้ว จึงเลือกทิศ/แรง/การเอนตัวตั้งแต่ตอนกระโดดแทน
+ */
+let WM_JUMP = null;             // {dir, t0} ระหว่างกดค้างชาร์จกระโดด
+const WM_JUMP_MS = 620;         // กดค้างนานเท่านี้แรงเต็ม
+const WM_KEYS = {};             // ปุ่มลูกศรที่กดค้างอยู่ตอนนี้ (ใช้หาทิศเอนตัว)
+
+function wmJumpPower() {
+  return WM_JUMP ? Math.min(1, 0.35 + (performance.now() - WM_JUMP.t0) / WM_JUMP_MS) : 1;
+}
+
+function wmLean() {
+  return (WM_KEYS.right ? 1 : 0) - (WM_KEYS.left ? 1 : 0);
+}
+
 function wmHoldStart(action, dir) {
   if (wmWaiting()) return;
+  if (action === 'jump') {                 // ชาร์จก่อน ปล่อยแล้วค่อยกระโดดจริง
+    WM_JUMP = { dir: dir, t0: performance.now() };
+    return;
+  }
+  WM_KEYS[dir > 0 ? 'right' : 'left'] = true;
+  if (WM_JUMP) return;                     // กำลังชาร์จกระโดดอยู่ — ลูกศรคือ "เอนตัว" ไม่ใช่เดิน
   wmDo(action, dir);
-  if (action !== 'walk') return;
   clearInterval(wmHold);
   wmHold = setInterval(() => wmDo('walk', dir), WM_HOLD_MS);
 }
-function wmHoldStop() { clearInterval(wmHold); wmHold = 0; }
+
+/** ปล่อยปุ่ม — what = 'walk' | 'jump' | undefined (ปล่อยทุกอย่าง)
+
+    ⚠️ ต้องแยกให้ชัด ไม่งั้นปล่อยลูกศรระหว่างชาร์จกระโดด = กระโดดออกไปก่อนเวลา
+ */
+function wmHoldStop(what) {
+  if (what !== 'jump') {
+    clearInterval(wmHold); wmHold = 0;
+    WM_KEYS.left = WM_KEYS.right = false;
+  }
+  if (what === 'walk') return;
+  if (WM_JUMP) {                           // ปล่อยปุ่มกระโดด = ออกตัวจริง
+    const j = WM_JUMP; WM_JUMP = null;
+    wmDo('jump', j.dir, { jump_power: wmJumpPower(), lean: wmLean() });
+  }
+}
 
 function wmZoom(dz) {
   if (!WM_CAM) return;

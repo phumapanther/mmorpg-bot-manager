@@ -1818,6 +1818,8 @@ class WormsBody(BaseModel):
     skill: str = ""            # สกิลที่ใช้ (ตอน attack)
     angle: float | None = None   # มุมเล็ง องศา · ไม่ส่งมาก็ใช้ค่าตั้งต้นตามชนิดท่า
     power: float = 70          # แรงยิง 10-100
+    jump_power: float = 1      # แรงกระโดด 0-1 (กดค้างนานยิ่งไกล)
+    lean: float = 0            # เอนตัวกลางอากาศ -1..1
 
 
 @router.post("/pvp/worms/match")
@@ -1849,7 +1851,8 @@ def worms_match(body: WormsBody, request: Request):
         elif body.action == "attack":
             ok, r = match.attack(uid, body.skill, body.angle, body.power, body.dir)
         elif body.action in ("walk", "jump"):
-            ok, r = match.move(uid, body.action, body.dir, body.steps)
+            ok, r = match.move(uid, body.action, body.dir, body.steps,
+                               body.jump_power, body.lean)
         else:
             raise HTTPException(400, "ไม่รู้จักคำสั่งนี้")
     if not ok:
