@@ -2750,36 +2750,47 @@ function wmPlayVictims(a, done) {
   });
   if (!order.length) { if (done) done(); return false; }
 
-  // 🎬 คนที่โดนหนึ่งคน = หนึ่งขั้น — กระเด็นจนหยุด สรุปดาเมจ ตายก็เล่นภาพตาย
-  //    แล้วเว้นจังหวะก่อนไปคนถัดไป ไม่ใช่ไล่รัวจนดูไม่ทัน
-  order.forEach(v => wmStep(() => wmOneVictim(v, knocks), wmFxIdle));
+  // ① 💥 โดนปุ๊บกระเด็นปั๊บ — ทุกคนที่โดนหมัดนี้ปลิวทันที ไม่ต้องรอคิว
+  //    (เจ้าของเกมสั่ง: กระเด็นเลย แต่อย่าเพิ่งคิดค่าเสียหาย)
+  const flying = wmPlayKnocks(knocks);
+  // ② รอให้ทุกคนปลิวจนตกถึงพื้นก่อน แล้วค่อยเริ่มสรุปผล
+  if (flying) wmStep(() => {}, wmFxIdle);
+  // ③ 🎬 ค่อยไล่คิดค่าเสียหายทีละคน กล้องจับทีละคน เว้นจังหวะระหว่างคน
+  order.forEach(v => wmStep(() => wmSettleVictim(v), wmFxIdle));
   if (done) wmStep(done, () => true);
   return true;
 }
 
-/** เล่นผลของหมัดนี้ให้คนคนเดียว — กระเด็นจนหยุด → เลขดาเมจ → ตายก็เล่นภาพตาย */
-function wmOneVictim(v, knocks) {
+/** 💥 ปล่อยให้ทุกคนที่โดนหมัดนี้กระเด็นพร้อมกันทันที — ยังไม่คิดดาเมจ */
+function wmPlayKnocks(knocks) {
+  let any = false;
+  (knocks || []).forEach(k => {
+    if (!k || !k.path || !k.path.length) return;
+    const fi = WM_ST.fighters.findIndex(f => f.name === k.name);
+    if (fi < 0) return;
+    wmChunk(fi, k.path, null);
+    any = true;
+  });
+  return any;
+}
+
+/** สรุปผลของคนคนเดียว — เลขดาเมจ → ตายก็เล่นภาพตาย (กระเด็นจบไปแล้วก่อนหน้านี้) */
+function wmSettleVictim(v) {
   const fi = WM_ST.fighters.findIndex(f => f.name === v.name);
   if (fi < 0) return;
 
-  const settle = () => {
-    const f = WM_ST.fighters[fi];
-    wmFocus(f, true);                       // จอจับอยู่ที่คนนี้ตอนสรุปผลของเขา
-    WM_POPS.push({ x: f.x, y: f.y - 26, t: 0, miss: v.dodged,
-                   text: v.dodged ? 'หลบ!' : '-' + v.dmg });
-    if (!v.dodged) { WM_FLASH[f.name] = 10; SFX.play('foehit'); }
-    if (f.dead && !WM_DEAD_SEEN[f.name]) {  // ตายค่อยเล่นภาพตายตรงนี้
-      WM_DEAD_SEEN[f.name] = true;
-      wmDie(fi, f);
-      wmHoldOn(fi, 78, null);
-    } else {
-      wmHoldOn(fi, 46, null);
-    }
-  };
-
-  const kb = knocks.find(k => k.name === v.name);
-  if (kb && kb.path && kb.path.length) wmChunk(fi, kb.path, settle);
-  else settle();
+  const f = WM_ST.fighters[fi];
+  wmFocus(f, true);                       // จอจับอยู่ที่คนนี้ตอนสรุปผลของเขา
+  WM_POPS.push({ x: f.x, y: f.y - 26, t: 0, miss: v.dodged,
+                 text: v.dodged ? 'หลบ!' : '-' + v.dmg });
+  if (!v.dodged) { WM_FLASH[f.name] = 10; SFX.play('foehit'); }
+  if (f.dead && !WM_DEAD_SEEN[f.name]) {  // ตายค่อยเล่นภาพตายตรงนี้
+    WM_DEAD_SEEN[f.name] = true;
+    wmDie(fi, f);
+    wmHoldOn(fi, 78, null);
+  } else {
+    wmHoldOn(fi, 46, null);
+  }
 }
 
 /** ประกาศคนที่เพิ่งตาย — เรียกหลังทุกคนหยุดกระเด็นแล้วเท่านั้น */

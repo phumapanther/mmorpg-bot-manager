@@ -479,7 +479,7 @@ def test_the_page_shows_damage_numbers_and_flashes():
         assert need in PLAY, f"ไม่มีเอฟเฟกต์ {need}"
     fn = _fn("function wmShowHit(")
     assert "wmPlayVictims(a," in fn, "ไม่ได้ไล่สรุปผลคนที่โดนทีละคน"
-    one = _fn("function wmOneVictim(")
+    one = _fn("function wmSettleVictim(")
     assert "WM_POPS.push" in one, "ไม่ได้เด้งตัวเลขดาเมจ"
     assert "wmFocus(f, true)" in one, "ไม่ได้จับกล้องไปที่คนที่กำลังสรุปผล"
     assert "wmSwing(a)" in fn, "ไม่ได้วาดวงเหวี่ยงตอนฟัน"

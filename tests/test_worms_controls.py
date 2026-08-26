@@ -691,9 +691,9 @@ def test_landing_kicks_up_dust():
 
 
 def test_being_knocked_back_is_replayed_on_the_right_fighter(world):
-    one = _fn("function wmOneVictim(")
-    assert "knocks.find(k => k.name === v.name)" in one, "จับคู่คนกับเส้นทางกระเด็นไม่ถูก"
-    assert "wmChunk(fi, kb.path, settle)" in one, "ไม่ได้เล่นภาพกระเด็นก่อนสรุปผล"
+    kn = _fn("function wmPlayKnocks(")
+    assert "f.name === k.name" in kn, "จับคู่คนกับเส้นทางกระเด็นไม่ถูก"
+    assert "wmChunk(fi, k.path, null)" in kn, "ไม่ได้เล่นภาพกระเด็น"
     assert "(a.blast || {}).knocks" in _fn("function wmPlayVictims("), \
         "โดนระเบิดผลักแล้วไม่เห็นตัวปลิว"
 
@@ -889,11 +889,12 @@ def test_a_blast_pushes_people_away_from_the_centre(world):
 
 def test_the_page_waits_for_the_knockback_before_showing_damage():
     """เจ้าของเกมสั่ง: กระเด็นให้จบก่อน แล้วค่อยสรุปว่าโดนเท่าไหร่ ตายหรือยัง"""
-    one = _fn("function wmOneVictim(")
-    at = one.index("const settle = () =>")
-    assert one.index("wmChunk(fi, kb.path, settle)") > at, "ไม่ได้เอาการสรุปผลไปต่อท้ายการกระเด็น"
+    vic = _fn("function wmPlayVictims(")
+    assert vic.index("wmPlayKnocks(knocks)") < vic.index("wmSettleVictim(v)"),         "ยังไม่ได้ให้กระเด็นก่อนแล้วค่อยสรุปผล"
+    assert "if (flying) wmStep(() => {}, wmFxIdle);" in vic,         "ไม่ได้รอให้ทุกคนตกถึงพื้นก่อนเริ่มสรุปผล"
+    one = _fn("function wmSettleVictim(")
     assert "WM_POPS.push" in one and "wmDie(fi, f)" in one, "สรุปผลไม่ครบทั้งเลขดาเมจและภาพตาย"
-    assert "wmStep(() => wmOneVictim(v, knocks), wmFxIdle)" in _fn("function wmPlayVictims("), \
+    assert "wmStep(() => wmSettleVictim(v), wmFxIdle)" in _fn("function wmPlayVictims("), \
         "คนที่โดนแต่ละคนไม่ได้เป็นขั้นแยกกัน — จะเล่นทับกัน"
 
 
@@ -931,7 +932,7 @@ def test_the_result_panel_waits_for_the_death_animation_too():
 
 def test_damage_numbers_pop_where_the_target_landed():
     """เด้งเลขจากตำแหน่งสด ๆ ของตัวนักสู้ ไม่ใช่จุดที่ยืนตอนโดน (กระเด็นไปไกลแล้ว)"""
-    one = _fn("function wmOneVictim(")
+    one = _fn("function wmSettleVictim(")
     assert "const f = WM_ST.fighters[fi];" in one, "ไม่ได้อ่านตำแหน่งสดตอนสรุปผล"
     assert "wmFocus(f, true)" in one, "ไม่ได้จับกล้องไปที่คนที่กำลังสรุปผลของเขา"
     assert "x: f.x, y: f.y - 26" in one, "เลขดาเมจเด้งที่จุดเดิมตอนโดน"
@@ -1172,7 +1173,7 @@ def test_each_victim_gets_its_own_turn_on_camera():
     vic = _fn("function wmPlayVictims(")
     assert "order.forEach(v => wmStep(" in vic, "คนที่โดนแต่ละคนไม่ได้เป็นขั้นแยกกัน"
     assert "wmFxIdle" in vic, "ไม่ได้รอให้ขั้นก่อนหน้าเล่นจบก่อนไปคนถัดไป"
-    one = _fn("function wmOneVictim(")
+    one = _fn("function wmSettleVictim(")
     for hold in ("wmHoldOn(fi, 46, null)", "wmHoldOn(fi, 78, null)"):
         assert hold in one, f"ไม่ได้ค้างกล้องให้ทันดู ({hold})"
 
@@ -1185,9 +1186,7 @@ def test_several_hits_on_one_person_are_summed_into_one_number():
 
 
 def test_the_death_animation_plays_at_that_persons_turn_on_camera():
-    vic = _fn("function wmOneVictim(")
-    at = vic.index("const settle = () =>")
-    tail = vic[at:]
+    tail = _fn("function wmSettleVictim(")
     assert "wmDie(fi, f)" in tail, "ตายแล้วไม่เล่นภาพตายตอนกล้องจับอยู่ที่เขา"
     assert "WM_DEAD_SEEN[f.name]" in tail, "ประกาศตายซ้ำได้"
     assert tail.index("wmDie(fi, f)") < tail.index("wmHoldOn(fi, 78"),         "เล่นภาพตายหลังจากค้างกล้องไปแล้ว ผู้เล่นไม่ทันเห็น"
@@ -1447,3 +1446,42 @@ def test_the_page_draws_the_ferry_and_the_ride():
     assert "d.ferry" in PLAY, "ขึ้นเรือแล้วเว็บไม่รู้เรื่อง"
     body = PLAY[PLAY.index("async function wmDo("):PLAY.index("async function wmEndTurn(")]
     assert "wmFocus(WM_ST.fighters[mine], true)" in body, "ข้ามเกาะแล้วกล้องไม่ตามไป"
+
+
+# ── 32. โดนตีกระเด็นทันที แต่ยังไม่คิดค่าเสียหาย ──
+
+def test_the_knockback_starts_the_moment_the_hit_lands():
+    """เจ้าของเกมสั่ง: เวลาโดนตีให้กระเด็นเลย แต่อย่าเพิ่งคิดค่าเสียหาย"""
+    vic = _fn("function wmPlayVictims(")
+    assert "const flying = wmPlayKnocks(knocks);" in vic, "ไม่ได้ปล่อยให้กระเด็นทันที"
+    assert vic.index("wmPlayKnocks(knocks)") < vic.index("wmSettleVictim(v)"),         "คิดค่าเสียหายก่อนกระเด็น"
+
+
+def test_the_knockback_is_not_queued_behind_a_gap():
+    """กระเด็นต้องเริ่มตอนหมัดลง ไม่ใช่รอคิวเว้นจังหวะ 1 วิก่อน"""
+    vic = _fn("function wmPlayVictims(")
+    at = vic.index("const flying = wmPlayKnocks(knocks);")
+    assert "wmStep(" not in vic[:at], "การกระเด็นถูกเอาไปต่อคิวข้างหลังขั้นอื่น"
+    kn = _fn("function wmPlayKnocks(")
+    assert "wmChunk(fi, k.path, null)" in kn, "ไม่ได้เล่นภาพกระเด็นเลย"
+    assert "wmStep(" not in kn, "การกระเด็นยังต้องรอคิวขั้นตอนอยู่"
+
+
+def test_everyone_hit_flies_at_once():
+    """โดนระเบิดพร้อมกันหลายคนก็ต้องปลิวพร้อมกัน ไม่ใช่ปลิวทีละคน"""
+    kn = _fn("function wmPlayKnocks(")
+    assert "(knocks || []).forEach" in kn, "ไม่ได้ปล่อยกระเด็นทุกคนที่โดน"
+
+
+def test_the_damage_waits_until_everyone_has_landed():
+    vic = _fn("function wmPlayVictims(")
+    assert "if (flying) wmStep(() => {}, wmFxIdle);" in vic,         "ไม่ได้รอให้ทุกคนตกถึงพื้นก่อนเริ่มคิดค่าเสียหาย"
+    at = vic.index("if (flying) wmStep(() => {}, wmFxIdle);")
+    assert vic.index("wmSettleVictim(v)") > at, "คิดค่าเสียหายตั้งแต่ยังปลิวอยู่กลางอากาศ"
+
+
+def test_settling_no_longer_replays_the_knockback():
+    """แยกกันแล้ว — ขั้นสรุปผลต้องไม่เล่นภาพกระเด็นซ้ำอีกรอบ"""
+    one = _fn("function wmSettleVictim(")
+    assert "wmChunk(" not in one, "ขั้นสรุปผลยังเล่นภาพกระเด็นซ้ำ"
+    assert "WM_POPS.push" in one, "ขั้นสรุปผลไม่ได้เด้งเลขดาเมจ"
