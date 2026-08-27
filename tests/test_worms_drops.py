@@ -66,14 +66,24 @@ def test_new_things_drop_in_as_rounds_go_by(world):
 
 def test_the_server_tells_the_page_what_dropped(world):
     """เว็บจะพากล้องไปดูของใหม่ได้ ก็ต่อเมื่อรู้ว่าอะไรลงตรงไหน"""
+    # ⚠️ ต้องดูทุกรอบระหว่างเล่น ไม่ใช่ดูแค่สถานะสุดท้าย — รายการถูกล้างทุกต้นรอบ
+    #    รอบสุดท้ายอาจไม่มีของลงพอดี (เคยพังตอนบอทเล็งเก่งขึ้นแล้วจบเกมเร็วกว่าเดิม)
     for seed in (11, 7, 3, 19):
-        st = _round_up(seed, rounds=5)
-        view = match.view(UID, st)
-        assert "drops" in view, "ไม่ได้บอกเว็บว่าอะไรลงสนามบ้าง"
-        if view["drops"]:
-            for x in view["drops"]:
-                assert {"kind", "x", "y"} <= set(x), f"ของที่ลงบอกไม่ครบ: {x}"
-            return
+        match.new_practice(UID, {"race": "Human", "cls": "Warrior",
+                                 "armor": "None", "weapon": ""}, seed=seed)
+        for _ in range(10):
+            st = match.load(UID)
+            st["turn_started"] = 0
+            match.save(UID, st)
+            good, r = match.end_turn(UID, auto=True)
+            if not good or r["over"]:
+                break
+            view = match.view(UID)
+            assert "drops" in view, "ไม่ได้บอกเว็บว่าอะไรลงสนามบ้าง"
+            if view["drops"]:
+                for x in view["drops"]:
+                    assert {"kind", "x", "y"} <= set(x), f"ของที่ลงบอกไม่ครบ: {x}"
+                return
     pytest.fail("เล่นครบรอบหลายเมล็ดแล้วไม่มีของลงสนามเลยสักชิ้น")
 
 

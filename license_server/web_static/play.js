@@ -2245,8 +2245,9 @@ function wmPaintHud() {
   if (!d || !d.active) return;
   document.getElementById('wmSeed').textContent = d.seed;
   document.getElementById('wmWhere').innerHTML =
-    '🗺️ ' + esc(d.continent_label) + ' · 🎁 ' + d.props.length + ' หีบ · 🕳️ ' +
-    d.traps + ' กับดัก (ซ่อนอยู่)';
+    '🗺️ ' + esc(d.continent_label) + ' · 🎁 ' + d.props.length + ' ชิ้น · 🕳️ ' +
+    d.traps + ' กับดัก';
+  wmPaintWind(d.wind || 0);
   // ตาใคร = ดูจากภาพที่กำลังเล่น ไม่ใช่ d.turn (บอทเดินจบไปแล้วฝั่งเซิร์ฟเวอร์)
   const acting = WM_ANIM && d.fighters[WM_ANIM.fi] ? d.fighters[WM_ANIM.fi] : wmMe();
   document.getElementById('wmTurn').innerHTML = d.over
@@ -2265,6 +2266,22 @@ function wmPaintHud() {
   document.getElementById('wmLog').innerHTML = (d.log || []).map(l => '<div>' + esc(l) + '</div>').join('');
   WM_LOCK_SHOWN = null; wmSyncLock();      // ล็อก/ปลดล็อกที่เดียว จะได้ไม่ขัดกันเอง
   wmPaintSkills();
+}
+
+/** 🌬️ แถบลม — ยืมกติกามาจาก hedgewars: ลมเปลี่ยนทุกเทิร์น เป่ากระสุนวิถีโค้งให้เบน
+
+    เซิร์ฟเวอร์ส่งมาเป็น -100 (พัดไปทางซ้ายสุด) ถึง 100 (ขวาสุด) ไม่ใช่ค่าฟิสิกส์จริง
+    วาดจากกลางแถบยื่นออกไปตามทางที่ลมพัด ยาวตามความแรง
+ */
+function wmPaintWind(w) {
+  const bar = document.getElementById('wmWind');
+  const txt = document.getElementById('wmWindTxt');
+  if (!bar || !txt) return;
+  const size = Math.min(50, Math.abs(w) / 2);       // ครึ่งแถบ = ลมเต็มแรง
+  bar.style.width = size + '%';
+  bar.style.left = w >= 0 ? '50%' : (50 - size) + '%';
+  txt.textContent = (w > 4 ? '🌬️→ ' : w < -4 ? '←🌬️ ' : '🌬️ นิ่ง ') +
+                    (Math.abs(w) > 4 ? Math.abs(w) : '');
 }
 
 let WM_SKILL = null;       // สกิลที่เลือกไว้ (ที่ต้องเล็งจะรอกดยิงอีกที)
@@ -2383,7 +2400,7 @@ function wmDrawSpawns(ctx) {
       ctx.arc(gx, gy - 4 * z, (4 + r * 26) * z, 0, 7);
       ctx.stroke(); ctx.globalAlpha = 1;
     }
-    if (v.t === WM_SPAWN_FALL) { wmDust(v.x, v.y, 12); SFX.play('trap'); }
+    if (v.t === WM_SPAWN_FALL) { wmDust(v.x, v.y, 12); SFX.play('boom'); }   // ของกระแทกพื้น
     v.t++;
   });
 }
@@ -2665,7 +2682,7 @@ function wmLand(b) {
   if (!b) return;
   WM.carve(b.x, b.y, b.crater || 6);
   wmBoom(b);
-  SFX.play('trap');
+  SFX.play('boom');                    // ระเบิดมีเสียงของตัวเอง ไม่ใช่ยืมเสียงกับดักมาใช้
   const n = Math.min(26, 6 + (b.crater || 6));
   for (let i = 0; i < n; i++) {
     const ang = Math.PI * (1 + i / n) + (i % 3) * 0.11;   // กระจายขึ้นด้านบนเป็นหลัก
@@ -3137,7 +3154,7 @@ async function wmDo(action, dir, extra) {
         wmDust(o.x, o.y, 10);
         toast('🎁 เปิดหีบได้ ' + (o.name || 'ของ') + '!'); });
       if (d.ferry) {                      // 🎈 ข้ามเกาะแล้ว — พากล้องไปที่จุดลงด้วย
-        SFX.play('skill');
+        SFX.play('ferry');
         toast('🎈 ขึ้นเรือเหาะข้ามไปอีกเกาะ!');
         wmDust(d.ferry.from[0], d.ferry.from[1], 10);
         wmDust(d.ferry.x, d.ferry.y, 10);
@@ -3157,7 +3174,7 @@ async function wmDo(action, dir, extra) {
     if (d.move && d.move.path.length) {
       WM_ST.fighters[mine].x = from.x; WM_ST.fighters[mine].y = from.y;
       WM_ANIM = { fi: mine, path: d.move.path, i: 0, onEnd: after };
-      if (action === 'jump') SFX.play('skill');
+      if (action === 'jump') SFX.play('jump');
     } else {
       after();                            // ไม่มีภาพให้เล่น (ชนกำแพง) ก็สรุปได้เลย
     }

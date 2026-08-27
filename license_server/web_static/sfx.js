@@ -36,6 +36,14 @@ const SFX = (() => {
 
   function out(chan) { return chan === 'mus' ? musicBus() : master; }
 
+  // 🎲 แปรผันทีละนิดทุกครั้งที่เล่น — ยืมแนวคิด mutate() ของ jsfxr
+  //    เสียงเดิมเป๊ะทุกครั้งฟังเป็นหุ่นยนต์ โดยเฉพาะเสียงที่ดังรัว ๆ อย่างฝีเท้ากับเสียงโดนตี
+  //    ขยับแค่ ±5-7% พอให้รู้สึกว่าไม่ซ้ำ แต่ยังเป็นเสียงเดิมอยู่ (มากกว่านี้จะเพี้ยน)
+  const VARY = .06;
+  function jit(v, amount) {
+    return v * (1 + (Math.random() * 2 - 1) * (amount === undefined ? VARY : amount));
+  }
+
   /** โน้ตเดียว — type: sine/square/triangle/sawtooth */
   function tone({ freq = 440, dur = .12, type = 'square', vol = 1, slide = 0, delay = 0, chan }) {
     const c = ensure();
@@ -43,6 +51,9 @@ const SFX = (() => {
     const dest = out(chan);
     if (!dest) return;
     const t0 = c.currentTime + delay;
+    if (chan !== 'mus') {                       // เพลงคลอห้ามเพี้ยนคีย์ แปรผันเฉพาะเอฟเฟกต์
+      freq = jit(freq); dur = jit(dur); vol = jit(vol, .08);
+    }
     const osc = c.createOscillator();
     const g = c.createGain();
     osc.type = type;
@@ -56,12 +67,13 @@ const SFX = (() => {
   }
 
   /** เสียงซ่า ๆ ใช้ทำเสียงฟาด/ระเบิด */
-  function noise({ dur = .18, vol = .6, delay = 0, hp = 800, chan }) {
+  function noise({ dur = .18, vol = .6, delay = 0, hp = 800, punch = 0, chan }) {
     const c = ensure();
     if (!c || !on) return;
     const dest = out(chan);
     if (!dest) return;
     const t0 = c.currentTime + delay;
+    if (chan !== 'mus') { dur = jit(dur); vol = jit(vol, .08); hp = jit(hp, .12); }
     const len = Math.floor(c.sampleRate * dur);
     const buf = c.createBuffer(1, len, c.sampleRate);
     const data = buf.getChannelData(0);
@@ -71,7 +83,10 @@ const SFX = (() => {
     const f = c.createBiquadFilter();
     f.type = 'highpass'; f.frequency.value = hp;
     const g = c.createGain();
-    g.gain.setValueAtTime(vol, t0);
+    // 💥 punch = ดังกระแทกตอนต้นแล้วยุบลงทันที (p_env_punch ของ jsfxr)
+    //    ไม่มีตัวนี้ เสียงระเบิดจะฟังเป็น "ซ่า" เฉย ๆ ไม่ใช่ "ตูม"
+    g.gain.setValueAtTime(vol * (1 + punch), t0);
+    if (punch) g.gain.exponentialRampToValueAtTime(vol, t0 + Math.min(.03, dur / 4));
     g.gain.exponentialRampToValueAtTime(.001, t0 + dur);
     src.connect(f); f.connect(g); g.connect(dest);
     src.start(t0);
@@ -179,6 +194,18 @@ const SFX = (() => {
                      [523, 659, 784, 1047, 1319].forEach((f, i) =>
                        tone({ freq: f, dur: .45, type: 'sine', vol: .38, delay: .35 + i * .1 }));
                      noise({ dur: .35, vol: .18, delay: .35, hp: 2600 }); },
+
+    // ── สนามรบผลัดเทิร์น (Worms) ──
+    // 💥 ระเบิด — เดิมยืมเสียงกับดักมาใช้ ทุกอย่างเลยดังเหมือนกันหมด
+    //    รูปเสียงตามพรีเซ็ต explosion ของ jsfxr: ซ่าล้วน + กระแทกตอนต้น + ลากความถี่ลง
+    boom:    () => { noise({ dur: .42, vol: .8, hp: 120, punch: 1.1 });
+                     noise({ dur: .7, vol: .3, hp: 60, delay: .04 });      // หางเสียงก้องต่ำ
+                     tone({ freq: 90, dur: .5, type: 'square', vol: .5, slide: -55 }); },
+    // 🦘 กระโดด — พรีเซ็ต jump ของ jsfxr: คลื่นเหลี่ยม ลากความถี่ "ขึ้น" สั้น ๆ
+    jump:    () => tone({ freq: 300, dur: .13, type: 'square', vol: .4, slide: 260 }),
+    // 🎈 ขึ้นเรือเหาะข้ามเกาะ
+    ferry:   () => { tone({ freq: 220, dur: .5, type: 'triangle', vol: .4, slide: 520 });
+                     noise({ dur: .3, vol: .2, delay: .1, hp: 1800 }); },
 
     // ── กับดัก/หนีไม่รอด ──
     trap:    () => { noise({ dur: .3, vol: .75, hp: 200 });          // ตูมทึบ ๆ แล้วลากต่ำลง

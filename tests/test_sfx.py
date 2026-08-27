@@ -19,11 +19,13 @@ PLAY = (WEB / "play.js").read_text(encoding="utf-8")
 # เบราว์เซอร์จำลองแบบบางที่สุดที่ sfx.js ต้องใช้ — นับว่ามีการจองเสียงกี่ครั้ง
 HARNESS = r"""
 let scheduled = 0, oscs = 0, srcs = 0;
+let freqs = [], gains = [];            // ค่าที่ถูกจองจริง — ใช้ตรวจการแปรผันและแรงกระแทก
 const node = () => ({
   connect() {}, disconnect() {},
-  gain: { value: 0, setValueAtTime() {}, linearRampToValueAtTime() {},
+  gain: { value: 0, setValueAtTime(v) { gains.push(v); }, linearRampToValueAtTime() {},
           exponentialRampToValueAtTime() {} },
-  frequency: { value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {} },
+  frequency: { value: 0, setValueAtTime(v) { freqs.push(v); },
+               exponentialRampToValueAtTime() {} },
   type: '',
 });
 class FakeCtx {
@@ -104,6 +106,22 @@ SFX.music(null); SFX.toggleMusic();
 const s4 = scheduled; SFX.music(cur); const musOff = scheduled === s4;
 SFX.play('click'); report.bgmOffKeepsSfx = musOff && scheduled > s4;
 
+// 🎲 เสียงเดิมเล่นซ้ำต้องไม่เหมือนเดิมเป๊ะ (mutate ของ jsfxr)
+freqs = [];
+for (let i = 0; i < 20; i++) SFX.play('hit');
+report.repeatVaries = new Set(freqs.map(f => f.toFixed(4))).size;
+
+// แต่เพลงคลอห้ามเพี้ยนคีย์ — เปิดเพลงเดิมสองรอบต้องได้โน้ตชุดเดิมเป๊ะ
+if (!SFX.musicEnabled) SFX.toggleMusic();     // ด้านบนปิดเพลงค้างไว้ ต้องเปิดคืนก่อน
+SFX.music(null); freqs = []; SFX.music(cur); const bar1 = freqs.slice();
+report.musicBarNotes = bar1.length;
+SFX.music(null); freqs = []; SFX.music(cur);
+report.musicStaysInTune = JSON.stringify(bar1) === JSON.stringify(freqs);
+
+// 💥 punch = ดังทะลุระดับปกติตอนต้น (p_env_punch ของ jsfxr)
+gains = []; SFX.play('boom');  report.boomPeak = Math.max(...gains);
+gains = []; SFX.play('hit');   report.plainPeak = Math.max(...gains);
+
 console.log(JSON.stringify(report));
 """
 
@@ -163,6 +181,48 @@ def test_the_new_sounds_the_player_asked_for_are_there(report):
     assert want <= set(report["names"]), f"ยังขาดเสียง: {sorted(want - set(report['names']))}"
     assert want <= _played_names(), \
         f"มีเสียงแต่ไม่มีใครเรียกใช้: {sorted(want - _played_names())}"
+
+
+def test_the_same_sound_never_plays_exactly_the_same_twice(report):
+    """ยืมแนวคิด mutate() ของ jsfxr — เสียงเดิมเป๊ะทุกครั้งฟังเป็นหุ่นยนต์
+
+    ในสนามรบ เสียงโดนตี/ฝีเท้า/ระเบิด ดังกันนับสิบครั้งต่อแมตช์
+    ถ้าเหมือนกันเป๊ะทุกใบ หูจับได้ทันทีว่าเป็นเสียงอัดซ้ำ
+    """
+    assert report["repeatVaries"] > 10,         f"เล่นเสียงเดิม 20 ครั้งได้ความถี่ต่างกันแค่ {report['repeatVaries']} ค่า"
+
+
+def test_the_background_music_never_goes_out_of_tune(report):
+    """แปรผันได้เฉพาะเอฟเฟกต์ — เพลงคลอเพี้ยนคีย์คือฟังไม่ได้เลย"""
+    assert report["musicBarNotes"] > 4,         f"เทสนี้วัดอะไรไม่ได้เลย — เปิดเพลงแล้วได้โน้ตแค่ {report['musicBarNotes']} ตัว"
+    assert report["musicStaysInTune"], "เพลงพื้นหลังโดนสุ่มความถี่ไปด้วย คีย์เพี้ยน"
+
+
+def test_the_explosion_hits_harder_than_a_normal_sound(report):
+    """punch ของ jsfxr — ดังทะลุระดับปกติตอนต้นแล้วยุบทันที
+
+    ไม่มีตัวนี้ เสียงระเบิดจะเป็น "ซ่า" เฉย ๆ ไม่ใช่ "ตูม"
+    """
+    assert report["boomPeak"] > 1, f"เสียงระเบิดไม่มีแรงกระแทก (ยอด {report['boomPeak']})"
+    assert report["plainPeak"] <= 1,         f"เสียงธรรมดาก็ดังทะลุเพดาน ({report['plainPeak']}) — punch ไปโดนทุกเสียง"
+
+
+def test_the_arena_stopped_borrowing_the_trap_sound_for_everything(report):
+    """เดิมระเบิด/ของสปอน/กระโดด/ขึ้นเรือ ยืมเสียงกับดักกับเสียงสกิลมาใช้หมด
+    ฟังแล้วแยกไม่ออกว่าเกิดอะไรขึ้นถ้าไม่มองจอ
+    """
+    for name in ("boom", "jump", "ferry"):
+        assert name in report["names"], f"ยังไม่มีเสียง {name}"
+        assert report["sounds"][name] > 0, f"เสียง {name} มีชื่อแต่เรียกแล้วเงียบ"
+    # ต้องดูในตัวฟังก์ชันที่เกี่ยวข้องจริง ไม่ใช่ค้นทั้งไฟล์ — ไม่งั้นมีที่อื่นเรียกอยู่ก็ผ่าน
+    nl = chr(10)
+    def body(head):
+        a = PLAY.index(head)
+        return PLAY[a:PLAY.index(nl + "}" + nl, a)]
+
+    assert "SFX.play('boom')" in body("function wmLand("), "ระเบิดยังไม่ได้ใช้เสียงระเบิด"
+    assert "SFX.play('jump')" in body("async function wmDo("), "กระโดดยังไม่ได้ใช้เสียงกระโดด"
+    assert "SFX.play('ferry')" in body("async function wmDo("), "ขึ้นเรือเหาะยังไม่ได้ใช้เสียงเรือเหาะ"
 
 
 def test_every_event_you_can_run_into_has_its_own_sound(report):

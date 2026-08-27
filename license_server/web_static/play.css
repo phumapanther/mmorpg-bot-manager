@@ -909,6 +909,15 @@ body.bar-min .pbar .money { margin-left: auto; }
   background: #0d0906; border: 1px solid var(--g-line); overflow: hidden; }
 .wm-mv i b { display: block; height: 100%; background: linear-gradient(90deg,#6fd07a,#e8b04b); }
 .wm-mv small { font-family: var(--g-num); color: var(--g-muted); }
+/* 🌬️ แถบลม — ขีดกลางคือลมนิ่ง แท่งยื่นไปทางที่ลมพัด ยาวตามความแรง */
+.wm-wind { display: flex; align-items: center; gap: 7px; }
+.wm-wind i { position: relative; display: block; width: 78px; height: 7px;
+  border-radius: 999px; background: #0d0906; border: 1px solid var(--g-line); }
+.wm-wind i::before { content: ""; position: absolute; left: 50%; top: -2px;
+  width: 1px; height: calc(100% + 4px); background: var(--g-line); }
+.wm-wind i b { position: absolute; top: 0; height: 100%; background: #7fb8e8;
+  border-radius: 999px; }
+.wm-wind small { font-family: var(--g-num); color: var(--g-muted); }
 .wm-pad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
 .wm-pad button { min-height: 58px; border-radius: 14px; border: 1px solid var(--g-line);
   background: var(--g-hi); color: var(--g-ink); font-size: 22px; font-family: inherit;

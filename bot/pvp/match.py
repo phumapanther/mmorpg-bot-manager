@@ -109,6 +109,7 @@ def new_practice(uid, player_look, seed=0, continent=""):
              "buffs": {}, "cd": {}, "bag": {}, "dealt": 0, "kills": 0},
         ],
     }
+    _roll_wind(st)                     # ตาแรกก็ต้องมีลมแล้ว ไม่ใช่รอเปลี่ยนตาก่อน
     return save(uid, st)
 
 
@@ -528,8 +529,10 @@ def _use_skill(st, grid, f, key, angle, power):
     if f["face"] < 0:
         aim = 180 - angle
     out["angle"], out["power"] = angle, power
+    # 🌬️ ลมเป่าเฉพาะลูกที่ลอยเป็นวิถีโค้ง — ลำแสงเป็นเส้นตรงทันที ลมไม่ทัน
     shot = (physics.beam(grid, f["x"], f["y"], aim) if s["kind"] == "beam"
-            else physics.shoot(grid, f["x"], f["y"], aim, power))
+            else physics.shoot(grid, f["x"], f["y"], aim, power,
+                               wind=st.get("wind", 0)))
     out["path"] = shot["path"]
 
     if s["kind"] == "beam":
@@ -646,7 +649,23 @@ def _pass_turn(st):
                 d.pop(k)
     st["moves"] = MOVE_BUDGET // 2 if f.get("buffs", {}).get("slow") else MOVE_BUDGET
     st["turn_started"] = time.time()
+    _roll_wind(st)
     _check_over(st)
+
+
+def _roll_wind(st):
+    """🌬️ สุ่มลมใหม่ทุกเทิร์น (ยืมกติกาจาก hedgewars: ลมเปลี่ยนทุกตา ไม่ใช่คงที่ทั้งเกม)
+
+    สุ่มจากเมล็ดของแมตช์ + รอบ + ตา — เล่นซ้ำเมล็ดเดิมได้ลมชุดเดิม เทสจึงเชื่อผลได้
+    เก็บเป็นความเร่ง (พิกเซล/เฟรม²) ตรง ๆ ฝั่งเว็บได้แค่ตัวเลข -100..100 ไว้วาดแถบลม
+    """
+    rng = random.Random(st["seed"] ^ (st["round"] * 7919) ^ (st["turn"] * 104729))
+    st["wind"] = round(rng.uniform(-physics.WIND_MAX, physics.WIND_MAX), 5)
+
+
+def wind_bar(st):
+    """ลมแรงแค่ไหนในหน่วยที่คนอ่านรู้เรื่อง: -100 (ซ้ายสุด) ถึง 100 (ขวาสุด)"""
+    return int(round(st.get("wind", 0) / physics.WIND_MAX * 100))
 
 
 BOT_MAX_FALL = 30        # บอทยอมกระโดดลงได้สูงสุดเท่านี้ ลึกกว่านี้ไม่เอา
@@ -714,7 +733,7 @@ def _bot_turn(st):
     return out
 
 
-def _bot_aim(grid, me, target):
+def _bot_aim(grid, me, target, wind=0.0):
     """หามุมกับแรงที่ยิงแล้วตกใกล้เป้าที่สุด — ลองยิงจริงหลายชุดแล้วเลือกอันที่ดีที่สุด
 
     ใช้ฟิสิกส์ตัวเดียวกับผู้เล่น ไม่ได้คำนวณสูตรวิถีแยก บอทจึงพลาดได้เหมือนคนจริง
@@ -724,7 +743,7 @@ def _bot_aim(grid, me, target):
     for ang in (25, 35, 45, 55, 65):
         for pw in (35, 50, 65, 80, 95):
             aim = ang if d > 0 else 180 - ang
-            r = physics.shoot(grid, me["x"], me["y"], aim, pw)
+            r = physics.shoot(grid, me["x"], me["y"], aim, pw, wind=wind)
             if not r["hit"]:
                 continue
             miss = abs(r["x"] - target["x"]) + abs(r["y"] - target["y"]) * .5
@@ -760,7 +779,7 @@ def _bot_attack(st, grid, me, target):
             pick, aim = max(melee, key=lambda k: weapons.spec(k)["dmg"]
                             * weapons.spec(k).get("times", 1)), None
         elif shots:
-            aim = _bot_aim(grid, me, target)
+            aim = _bot_aim(grid, me, target, st.get("wind", 0))
             if not aim:
                 return None
             pick = max(shots, key=lambda k: weapons.spec(k)["dmg"])
@@ -868,6 +887,7 @@ def view(uid, st=None):
         #    (เดิมซ่อนไว้ให้เซอร์ไพรส์ แต่เหยียบโดนแล้วรู้สึกโดนโกงมากกว่าสนุก)
         "props": st["props"],
         "traps": sum(1 for p in st["props"] if p["kind"] == "trap"),
+        "wind": wind_bar(st),          # -100..100 ไว้วาดแถบลม (ไม่ใช่ค่าฟิสิกส์จริง)
         "turn": st["turn"], "round": st["round"], "moves": st["moves"],
         "move_budget": MOVE_BUDGET, "over": st["over"], "winner": st.get("winner", ""),
         "time_left": time_left(st), "turn_seconds": TURN_SECONDS,

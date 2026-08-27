@@ -206,6 +206,11 @@ def fall_damage(fell):
 SHOT_GRAVITY = 0.16      # เบากว่าตอนกระโดด กระสุนจะได้ลอยไปไกลกว่า
 SHOT_SPEED = 0.09        # แรง 100 = ความเร็วต้น 9 พิกเซล/เฟรม
 SHOT_FRAMES = 900        # เพดานเวลาบิน กันกระสุนลอยวนไม่จบ
+WIND_MAX = 0.025         # ลมแรงสุด (พิกเซล/เฟรม²) สุ่มใหม่ทุกเทิร์น
+                         # ตามแบบ hedgewars: ลมบวกเข้าความเร็วแนวนอนทุกเฟรม
+                         # ยิ่งลอยนานยิ่งเบนเยอะ (เบนตามเวลาบินยกกำลังสอง)
+                         # วัดแล้วที่ลมเต็มแรง: 45° แรง 70 เบน 43 px (ตัวกว้าง 12)
+                         # โยนสูงสุด 60° แรง 100 เบน 124 px — ต้องเล็งชดเชยจริงจัง
 
 # 🔒 ระยะปลอดภัยก่อนกระสุนจะระเบิดได้ — ต้องพ้นตัวคนยิงไปก่อน
 #
@@ -226,7 +231,7 @@ def _blocks(grid, x, y):
     return T.material(grid, x, y) not in PASSES
 
 
-def shoot(grid, x, y, angle_deg, power, muzzle=None):
+def shoot(grid, x, y, angle_deg, power, muzzle=None, wind=0.0):
     """ยิงกระสุนแบบวิถีโค้ง — คืน {path, hit, x, y, out}
 
     เริ่มจากปากกระบอกที่เลื่อนออกจากตัวเล็กน้อย ไม่งั้นระเบิดใส่ตัวเองทุกนัด
@@ -246,6 +251,7 @@ def shoot(grid, x, y, angle_deg, power, muzzle=None):
     path = [[int(round(px)), int(round(py))]]
     for _ in range(SHOT_FRAMES):
         vy += SHOT_GRAVITY
+        vx += float(wind)              # 🌬️ ลมเป่าทุกเฟรม ยิ่งลอยนาน ยิ่งเบนเยอะ
         px += vx
         py += vy
         ix, iy = int(round(px)), int(round(py))
