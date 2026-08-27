@@ -201,13 +201,17 @@ class WormsCam {
       ⚠️ เดิม center() ย้ายกล้องทันที ทุกครั้งที่เปลี่ยนจุดสนใจจอเลยกระโดด
          ทั้งตอนสลับตา ตามลูกกระสุน และไล่ดูคนที่โดน — เล่นนาน ๆ แล้วมึนหัว
    */
-  glide() {
+  glide(dt) {
+    dt = dt || 1;                       // เฟรมมาตรฐานที่ผ่านไป (จอเร็ว = น้อยกว่า 1)
     const dx = this.tx - this.x, dy = this.ty - this.y;
     if (Math.abs(dx) < 0.35 && Math.abs(dy) < 0.35) { this.x = this.tx; this.y = this.ty; return; }
-    let sx = dx * this.ease, sy = dy * this.ease;
+    // ผ่อนเข้าหาเป้าแบบเดิมคือ "เหลือ 90% ทุกเฟรม" — จอ 144 Hz วาดถี่กว่าจึงถึงเร็วกว่า
+    // ยกกำลังตามเวลาจริงแล้วได้ความเร็วเท่ากันทุกจอ
+    const ease = 1 - Math.pow(1 - this.ease, dt);
+    let sx = dx * ease, sy = dy * ease;
     // ⚠️ ขยับทีละ 10% ของระยะที่เหลือ — ระยะไกล ๆ เฟรมแรกจึงกระโดดทีเดียวหลายสิบพิกเซล
     //    ยังเห็นเป็น "จอวาป" อยู่ดี ต้องคุมความเร็วสูงสุดต่อเฟรมด้วย
-    const max = this.maxStep / this.z, len = Math.hypot(sx, sy);
+    const max = this.maxStep * dt / this.z, len = Math.hypot(sx, sy);
     if (len > max) { sx = sx / len * max; sy = sy / len * max; }
     this.x += sx;
     this.y += sy;

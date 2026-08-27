@@ -2069,9 +2069,10 @@ function wmFocus(f, force) {
 function wmStartLoop() {
   const cv = document.getElementById('wmCanvas'), ctx = cv.getContext('2d');
   cancelAnimationFrame(wmLoop);
-  let t = 0;
-  const tick = () => {
+  let t = 0, last = 0;
+  const tick = (now) => {
     if (!document.getElementById('v-worms').classList.contains('on')) { wmLoop = 0; return; }
+    wmClock(now);
     // เล่นภาพเส้นทางที่เซิร์ฟเวอร์ส่งมาทีละเฟรม (ตำแหน่งจริงเซิร์ฟเวอร์ตัดสินไปแล้ว)
     if (WM_ANIM && WM_ANIM.i < WM_ANIM.path.length) {
       // ก้าวสั้น ๆ ค้างจุดละหลายเฟรม จะได้เดินเตาะแตะทีละก้าวให้เห็น ไม่ใช่วืดไปทีเดียว
@@ -2081,7 +2082,7 @@ function wmStartLoop() {
       // ⚠️ เดินหน้าทีละ 1/hold จุดแล้วเกลี่ยตำแหน่งระหว่างจุด — ไม่ใช่ค้าง hold เฟรม
       //    แล้วกระโดดทีเดียว จุดในวิถีกระโดดห่างกันได้ 3-4 px ค้างแล้วกระโดดจึงเห็นเป็นวาป
       const before = Math.floor(WM_ANIM.i);
-      WM_ANIM.i = Math.min(WM_ANIM.path.length, WM_ANIM.i + 1 / hold);
+      WM_ANIM.i = Math.min(WM_ANIM.path.length, WM_ANIM.i + WM_DT / hold);
       {
         const last = WM_ANIM.path.length - 1;
         const at = Math.min(Math.floor(WM_ANIM.i), last);
@@ -2129,12 +2130,12 @@ function wmStartLoop() {
     }
     wmTick();
 
-    WM_CAM.glide();        // เลื่อนเข้าหาเป้าทีละนิด — จอไม่กระโดด
+    WM_CAM.glide(WM_DT);   // เลื่อนเข้าหาเป้าทีละนิด — จอไม่กระโดด
     WM.draw(ctx, WM_CAM, t++);
     WM_ST.fighters.forEach((f, i) => {
       const moving = !!(WM_ANIM && WM_ANIM.fi === i);
       // ตายแล้วแต่ภาพร่วง/จมน้ำ/ภาพตายยังเล่นค้างอยู่ = ต้องวาดต่อ ไม่งั้นหายวับ
-      if (WM_DYING[i]) { if (--WM_DYING[i] <= 0) delete WM_DYING[i]; }
+      if (WM_DYING[i]) { if ((WM_DYING[i] -= WM_DT) <= 0) delete WM_DYING[i]; }
       if (!f.dead || moving || WM_DYING[i]) wmDrawFighter(ctx, f, i === WM_ST.turn, t, moving);
     });
     wmDrawFx(ctx);
@@ -2400,8 +2401,10 @@ function wmDrawSpawns(ctx) {
       ctx.arc(gx, gy - 4 * z, (4 + r * 26) * z, 0, 7);
       ctx.stroke(); ctx.globalAlpha = 1;
     }
-    if (v.t === WM_SPAWN_FALL) { wmDust(v.x, v.y, 12); SFX.play('boom'); }   // ของกระแทกพื้น
-    v.t++;
+    if (v.t < WM_SPAWN_FALL && v.t + WM_DT >= WM_SPAWN_FALL) {
+      wmDust(v.x, v.y, 12); SFX.play('boom');       // ของกระแทกพื้น
+    }
+    v.t += WM_DT;
   });
 }
 
@@ -2691,7 +2694,30 @@ function wmLand(b) {
   }
 }
 
-const WM_SHOT_STEP = 0.34;   // กระสุนเดินกี่จุดต่อเฟรม (น้อย = ช้าและลื่นกว่า)
+// ⏱️ ทุกอย่างในสนามเดินตาม "เวลาจริง" ไม่ใช่ "จำนวนเฟรมที่จอวาด"
+//
+//    เดิมทุกตัวนับบวกทีละ 1 ต่อการวาดหนึ่งครั้ง จอ 144 Hz จึงเดินเร็วกว่าจอ 60 Hz
+//    2.4 เท่า — กระสุนที่อุตส่าห์ปรับให้ช้ากลับมาเร็ว ค้างดูของ 3 วิเหลือ 1.2 วิ
+//    ตัวกันค้าง (WM_STEP_MAX) ก็ตัดเร็วกว่าที่ตั้งไว้
+//    LittleJS แก้ด้วยตัวสะสมเวลาแบบคงที่ (engine.js:222) เรายืมแนวคิดเดียวกัน
+//    แต่ทำเป็น "ตัวคูณ" แทน จะได้ไม่ต้องแยกอัปเดตกับวาดออกจากกันทั้งไฟล์
+//
+//    WM_DT = เฟรมมาตรฐาน (1/60 วิ) ที่ผ่านไปนับจากการวาดครั้งก่อน
+//    จอ 60 Hz ได้ 1 · จอ 144 Hz ได้ ~0.42 · จอ 30 Hz ได้ 2
+let WM_DT = 1, WM_LAST_MS = 0;
+const WM_FPS = 60;
+
+/** อัปเดตนาฬิกากลางหนึ่งครั้งต่อการวาดหนึ่งครั้ง — เรียกที่หัวลูปเท่านั้น */
+function wmClock(now) {
+  const ms = now || 0;
+  const gap = WM_LAST_MS ? ms - WM_LAST_MS : 1000 / WM_FPS;
+  WM_LAST_MS = ms;
+  // เพดานบน: สลับแท็บกลับมาแล้วเวลาโดดไปหลายวินาที ห้ามให้ภาพกระโดดตามทีเดียว
+  // เพดานล่าง: กันหารศูนย์ตอนเบราว์เซอร์ยิงสองเฟรมในมิลลิวินาทีเดียว
+  WM_DT = Math.max(0.2, Math.min(3, gap * WM_FPS / 1000));
+}
+
+const WM_SHOT_STEP = 0.34;   // กระสุนเดินกี่จุดต่อเฟรมมาตรฐาน (น้อย = ช้าและลื่นกว่า)
 let WM_SHOT = null, WM_BOOMS = [], WM_POPS = [], WM_SWINGS = [];
 let WM_TRAIL = null, WM_BITS = [];    // เส้นประของวิถีที่ผ่านมาแล้ว · สะเก็ดจากหลุม
 const WM_FLASH = {};       // ชื่อ -> เฟรมที่เหลือของการกระพริบตอนโดนตี
@@ -2761,7 +2787,7 @@ function wmStepsClear() { WM_STEPS = []; WM_STEP = null; WM_WAIT = 0; }
 
 /** เดินคิวทีละเฟรม — หัวใจของ "ทำทีละอย่าง ไม่แย่งกัน" */
 function wmRunSteps() {
-  if (WM_WAIT > 0) { WM_WAIT--; return; }
+  if (WM_WAIT > 0) { WM_WAIT -= WM_DT; return; }
   if (!WM_STEP) {
     if (!WM_STEPS.length) return;
     WM_STEP = WM_STEPS.shift();
@@ -2771,7 +2797,7 @@ function wmRunSteps() {
   if (!WM_STEP.on) { WM_STEP.on = true; WM_STEP.age = 0; WM_STEP.run(); return; }
   // ⏱️ กันค้าง: done() ไม่ยอมเป็นจริงภายในเวลาที่กำหนด ให้ข้ามไป ยอมข้ามดีกว่าค้างตาย
   //    เคยเจอ — ขั้นที่รอ 'กล้องเลื่อนไปถึง' ค้างเพราะมีคนอื่นแย่งตั้งเป้ากล้องทุกเฟรม
-  if (++WM_STEP.age < WM_STEP_MAX && !WM_STEP.done()) return;
+  if ((WM_STEP.age += WM_DT) < WM_STEP_MAX && !WM_STEP.done()) return;
   const fin = WM_STEP.then;
   WM_STEP = null;
   if (fin) fin();                     // ต่อคิวของถัดไป "หลัง" คิวที่ขั้นนี้เพิ่งแตกออกมา
@@ -3022,7 +3048,7 @@ function wmDrawFx(ctx) {
   // ✨ วงแหวนบัฟ — ขยายออกจากตัวคนใช้แล้วจางหาย
   WM_AURAS = WM_AURAS.filter(v => v.t < 26);
   WM_AURAS.forEach(v => {
-    const k = v.t++ / 26, z = WM_CAM.z;
+    const k = (v.t += WM_DT) / 26, z = WM_CAM.z;
     ctx.strokeStyle = v.color; ctx.globalAlpha = (1 - k) * .9;
     ctx.lineWidth = Math.max(1.5, z * .8);
     ctx.beginPath();
@@ -3031,7 +3057,7 @@ function wmDrawFx(ctx) {
   });
   WM_SWINGS = WM_SWINGS.filter(s => s.t < 10);
   WM_SWINGS.forEach(s => {
-    const k = s.t++ / 10, z = WM_CAM.z;
+    const k = (s.t += WM_DT) / 10, z = WM_CAM.z;
     ctx.strokeStyle = '#fff6d8'; ctx.globalAlpha = 1 - k;
     ctx.lineWidth = Math.max(2, z);
     ctx.beginPath();
@@ -3044,7 +3070,7 @@ function wmDrawFx(ctx) {
     // ⚠️ จุดในเส้นวิถีห่างกันได้ถึง 9 px ตอนชาร์จเต็ม เดินทีละจุดจึงยังกระตุก
     //    เดินทีละเศษส่วนแล้วเกลี่ยตำแหน่งระหว่างจุด = ลื่นและช้าลงพอให้กล้องตามทัน
     const last = WM_SHOT.path.length - 1;
-    WM_SHOT.i = Math.min(WM_SHOT.path.length, WM_SHOT.i + WM_SHOT_STEP);
+    WM_SHOT.i = Math.min(WM_SHOT.path.length, WM_SHOT.i + WM_SHOT_STEP * WM_DT);
     const at = Math.floor(WM_SHOT.i);
     const seen = WM_SHOT.path.slice(0, Math.min(at + 1, WM_SHOT.path.length));
     wmDrawTrail(ctx, seen, 1);
@@ -3074,14 +3100,15 @@ function wmDrawFx(ctx) {
   }
   // เส้นประค้างไว้อีกครู่หลังระเบิด จะได้ดูทันว่ากระสุนวิ่งไปทางไหน
   if (WM_TRAIL) {
-    WM_TRAIL.t++;
+    WM_TRAIL.t += WM_DT;
     wmDrawTrail(ctx, WM_TRAIL.path, Math.max(0, 1 - WM_TRAIL.t / 70));
     if (WM_TRAIL.t > 70) WM_TRAIL = null;
   }
   // 🪨 สะเก็ดจากหลุมที่เพิ่งเจาะ
   WM_BITS = WM_BITS.filter(b => b.t < 52);
   WM_BITS.forEach(b => {
-    b.vy += b.dust ? 0.03 : 0.14; b.x += b.vx; b.y += b.vy; b.t++;
+    b.vy += (b.dust ? 0.03 : 0.14) * WM_DT;
+    b.x += b.vx * WM_DT; b.y += b.vy * WM_DT; b.t += WM_DT;
     ctx.globalAlpha = (1 - b.t / 52) * (b.dust ? .55 : 1);
     ctx.fillStyle = b.drop ? (b.t % 4 < 2 ? '#bfe9ff' : '#6fb6d8')
                   : b.dust ? '#d8cbb4' : b.t % 5 < 2 ? '#c89a4b' : '#6b5433';
@@ -3091,7 +3118,7 @@ function wmDrawFx(ctx) {
   });
   WM_BOOMS = WM_BOOMS.filter(b => b.t < 30);      // ระเบิดค้างให้ดูทัน
   WM_BOOMS.forEach(b => {
-    const k = b.t++ / 30, r = b.r * (0.4 + k) * WM_CAM.z;
+    const k = (b.t += WM_DT) / 30, r = b.r * (0.4 + k) * WM_CAM.z;
     ctx.globalAlpha = 1 - k;
     ctx.fillStyle = k < .4 ? '#fff6d8' : k < .7 ? '#ffb45a' : '#8f2317';
     ctx.beginPath(); ctx.arc(WM_CAM.sx(b.x), WM_CAM.sy(b.y), r, 0, 6.29); ctx.fill();
@@ -3101,7 +3128,7 @@ function wmDrawFx(ctx) {
   // ตัวเลขดาเมจลอยขึ้นตรงตัวคนที่โดน — เห็นชัดว่าใครโดนเท่าไหร่ ตรงไหน
   WM_POPS = WM_POPS.filter(p => p.t < 78);        // เลขดาเมจค้างให้อ่านทัน
   WM_POPS.forEach(p => {
-    const k = p.t++ / 78;
+    const k = (p.t += WM_DT) / 78;
     ctx.globalAlpha = k < .75 ? 1 : (1 - k) * 4;
     ctx.font = `bold ${Math.max(10, 8 * WM_CAM.z)}px ` + getComputedStyle(document.body).fontFamily;
     ctx.textAlign = 'center';

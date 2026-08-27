@@ -9,6 +9,8 @@
 import pathlib
 import re
 
+import pytest
+
 WEB = pathlib.Path("license_server/web_static")
 PLAY = (WEB / "play.js").read_text(encoding="utf-8")
 WORMS = (WEB / "worms.js").read_text(encoding="utf-8")
@@ -28,8 +30,8 @@ def _fn(head):
 
 def test_the_camera_has_a_target_it_eases_toward():
     assert "this.tx" in WORMS and "this.ty" in WORMS, "กล้องไม่มีเป้าให้ไถลเข้าหา"
-    body = _method("glide()")
-    assert "let sx = dx * this.ease, sy = dy * this.ease;" in body, \
+    body = _method("glide(dt)")
+    assert "let sx = dx * ease, sy = dy * ease;" in body, \
         "ไม่ได้ขยับเข้าหาเป้าทีละนิดตามสัดส่วนระยะที่เหลือ"
     assert "this.x += sx;" in body and "this.y += sy;" in body, "ขยับแค่แกนเดียว"
 
@@ -55,8 +57,8 @@ def test_there_is_still_a_way_to_snap_instantly():
 
 def test_the_glide_runs_every_frame():
     body = PLAY[PLAY.index("function wmStartLoop("):PLAY.index("/** วาดนักสู้")]
-    assert "WM_CAM.glide();" in body, "ตั้งเป้าไว้แต่ไม่มีใครขยับกล้องเข้าหา"
-    assert body.index("WM_CAM.glide();") < body.index("WM.draw(ctx, WM_CAM"), \
+    assert "WM_CAM.glide(WM_DT)" in body, "ตั้งเป้าไว้แต่ไม่มีใครขยับกล้องเข้าหา"
+    assert body.index("WM_CAM.glide(WM_DT)") < body.index("WM.draw(ctx, WM_CAM"), \
         "ขยับกล้องหลังวาดไปแล้ว — ภาพจะช้ากว่ากล้องหนึ่งเฟรม"
 
 
@@ -93,15 +95,15 @@ def test_the_shell_still_lands_exactly_at_the_end():
     """เดินทีละเศษส่วนแล้วต้องไม่เลยปลายทางหรือค้างไม่ถึง"""
     body = PLAY[PLAY.index("  if (WM_SHOT) {"):]
     body = body[:body.index(chr(10) + "  }")]
-    assert "Math.min(WM_SHOT.path.length, WM_SHOT.i + WM_SHOT_STEP)" in body, \
+    assert "Math.min(WM_SHOT.path.length, WM_SHOT.i + WM_SHOT_STEP * WM_DT)" in body, \
         "ไม่ได้กันไม่ให้เดินเลยปลายเส้นวิถี"
     assert "WM_SHOT.i >= WM_SHOT.path.length" in body, "ไม่มีเงื่อนไขว่ากระสุนถึงเป้าแล้ว"
 
 
 def test_a_long_jump_is_capped_so_it_never_snaps():
     """ขยับ 10% ของระยะที่เหลือ ระยะไกล ๆ เฟรมแรกก็ยังกระโดดหลายสิบพิกเซล"""
-    body = _method("glide()")
-    assert "this.maxStep / this.z" in body, "ไม่ได้จำกัดความเร็วสูงสุดต่อเฟรม"
+    body = _method("glide(dt)")
+    assert "this.maxStep * dt / this.z" in body, "ไม่ได้จำกัดความเร็วสูงสุดต่อเฟรม"
     assert "sx = sx / len * max" in body, "จำกัดแล้วแต่ไม่ได้ย่อทั้งสองแกนตามสัดส่วน"
     m = re.search(r"this\.maxStep = (\d+)", WORMS)
     assert m and int(m.group(1)) <= 24,         f"ปล่อยให้เลื่อนได้ {m.group(1) if m else '?'} px ต่อเฟรม ยังเห็นเป็นวาปอยู่"
@@ -195,7 +197,7 @@ def test_a_step_cannot_hang_the_game_forever():
     """กันเหตุการณ์เดิมซ้ำ — ขั้นที่ done() ไม่ยอมเป็นจริง ต้องถูกข้ามไป ไม่ใช่ค้างตาย"""
     body = _fn("function wmRunSteps(")
     assert "WM_STEP.age" in body, "ไม่ได้จับเวลาว่าขั้นนี้ค้างมานานแค่ไหน"
-    assert "++WM_STEP.age < WM_STEP_MAX" in body, "ไม่มีเพดานเวลาต่อขั้น"
+    assert "(WM_STEP.age += WM_DT) < WM_STEP_MAX" in body, "ไม่มีเพดานเวลาต่อขั้น"
     m = re.search(r"WM_STEP_MAX = (\d+)", PLAY)
     assert m and int(m.group(1)) <= 1200, "เพดานสูงเกินไป ค้างเป็นนาทีกว่าจะหลุด"
 
@@ -241,7 +243,7 @@ def test_the_fighter_is_interpolated_between_path_points():
     จุดในวิถีกระโดดห่างกันได้ 3-4 px · เดิมค้าง hold เฟรมแล้วกระโดดทีเดียว
     """
     body = PLAY[PLAY.index("function wmStartLoop("):PLAY.index("/** วาดนักสู้")]
-    assert "WM_ANIM.i + 1 / hold" in body, "ยังเดินทีละจุดเต็ม ๆ แล้วค้างรอ"
+    assert "WM_ANIM.i + WM_DT / hold" in body, "ยังเดินทีละจุดเต็ม ๆ แล้วค้างรอ"
     assert "const mix = Math.min(1, WM_ANIM.i - at);" in body,         "ไม่ได้คิดสัดส่วนระหว่างจุดจากตัวนับจริง"
     assert "pa[0] + (pb[0] - pa[0]) * mix" in body, "ไม่ได้เกลี่ยตำแหน่งระหว่างจุด"
     assert "WM_ANIM.w" not in body, "ยังมีตัวนับค้างเฟรมแบบเดิมหลงเหลืออยู่"
@@ -269,7 +271,7 @@ def test_the_walk_pace_did_not_change():
 def test_there_is_one_central_step_queue():
     """เจ้าของเกมสั่ง: ทำสิ่งหนึ่งให้เสร็จก่อนเสมอ ระบบไม่ควรแย่งกันทำงาน"""
     body = _fn("function wmRunSteps(")
-    assert "if (WM_WAIT > 0) { WM_WAIT--; return; }" in body, "ไม่มีช่วงเว้นจังหวะ"
+    assert "if (WM_WAIT > 0) { WM_WAIT -= WM_DT; return; }" in body, "ไม่มีช่วงเว้นจังหวะ"
     assert "WM_STEP = WM_STEPS.shift();" in body, "ไม่ได้ดึงขั้นถัดไปมาทำ"
     assert "if (!WM_STEP.on) { WM_STEP.on = true; WM_STEP.age = 0; WM_STEP.run(); return; }" in body,         "ไม่ได้เริ่มขั้นแค่ครั้งเดียว"
     assert "!WM_STEP.done()) return;" in body, "ไม่ได้รอให้ขั้นนั้นเสร็จจริงก่อนไปต่อ"
@@ -312,3 +314,84 @@ def test_nothing_can_act_while_a_step_is_running():
 def test_a_new_match_clears_the_queue():
     body = PLAY[PLAY.index("function wmApply("):PLAY.index("function wmMe(")]
     assert "wmStepsClear();" in body, "เปิดสนามใหม่แล้วขั้นของสนามเก่ายังค้างอยู่ในคิว"
+
+# ── ⏱️ นาฬิกาต้องเดินตามเวลาจริง ไม่ใช่ตามจำนวนเฟรมที่จอวาด ──
+
+def _clock_runs():
+    """รันนาฬิกาของจริง 1 วินาที บนจอหลายความถี่ แล้วดูว่าอะไรเดินไปเท่าไหร่"""
+    import json
+    import shutil
+    import subprocess
+
+    if not shutil.which("node"):
+        pytest.skip("เครื่องนี้ไม่มี node")
+    r = subprocess.run(["node", "tests/frame_clock.js"],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stderr
+    return {row["hz"]: row for row in json.loads(r.stdout.strip().splitlines()[-1])}
+
+
+def test_a_second_of_play_is_the_same_second_on_every_monitor():
+    """เดิมทุกตัวนับบวกทีละ 1 ต่อการวาดหนึ่งครั้ง = จอเร็วเกมก็เร็วตาม
+
+    คิดเลขจากของเดิม: ใน 1 วินาที กระสุนเดิน 30 Hz = 10.2 จุด · 240 Hz = 81.9 จุด
+    ต่างกัน 8 เท่า — งานที่ปรับให้กระสุนช้าลงหายไปหมดบนจอเกมมิ่ง
+    """
+    runs = _clock_runs()
+    shots = [r["shot"] for r in runs.values()]
+    spread = (max(shots) - min(shots)) / min(shots)
+    assert spread < .12, (
+        "กระสุนเดินไม่เท่ากันในเวลาเท่ากัน: "
+        + " · ".join(f"{r['hz']}Hz={r['shot']}" for r in runs.values()))
+
+
+def test_the_camera_takes_the_same_time_to_arrive_on_every_monitor():
+    """ผ่อนเข้าหาเป้าแบบ 'เหลือ 90% ทุกเฟรม' จอวาดถี่กว่าก็ถึงเร็วกว่า
+    ต้องยกกำลังตามเวลาจริงถึงจะได้ความเร็วเท่ากันทุกจอ
+    """
+    runs = _clock_runs()
+    xs = [r["camX"] for r in runs.values()]
+    assert max(xs) - min(xs) < 6, (
+        "กล้องเลื่อนได้ไม่เท่ากันในเวลาเท่ากัน: "
+        + " · ".join(f"{r['hz']}Hz={r['camX']}" for r in runs.values()))
+
+
+def test_a_slow_monitor_does_not_make_the_game_crawl():
+    """จอ 30 Hz ต้องเดินได้ใกล้เคียงกับ 60 Hz ไม่ใช่ช้าลงครึ่งหนึ่ง"""
+    runs = _clock_runs()
+    assert runs[30]["dtSum"] > 55, f"จอ 30 Hz หนึ่งวินาทีเดินไปแค่ {runs[30]['dtSum']} เฟรม"
+
+
+def test_coming_back_from_another_tab_does_not_fast_forward():
+    """สลับแท็บทิ้งไว้แล้วกลับมา เวลาโดดไปหลายวินาที ห้ามให้ภาพกระโดดตามทีเดียว"""
+    body = _fn("function wmClock(")
+    assert "Math.min(3" in body, "ไม่มีเพดานบน — กลับจากแท็บอื่นแล้วภาพจะกระโดดรวดเดียว"
+    assert "Math.max(0.2" in body, "ไม่มีเพดานล่าง — สองเฟรมในมิลลิวินาทีเดียวจะได้ 0"
+
+
+def test_the_draw_loop_winds_the_clock_every_frame():
+    """ไม่มีใครเดินนาฬิกา = WM_DT ค้างที่ 1 ตลอด กลับไปเร็วตามจอเหมือนเดิมเงียบ ๆ"""
+    body = _fn("function wmStartLoop(")
+    assert "const tick = (now) =>" in body, "ลูปวาดไม่ได้รับเวลาจากเบราว์เซอร์"
+    assert "wmClock(now);" in body, "รับเวลามาแล้วแต่ไม่ได้เอาไปเดินนาฬิกากลาง"
+
+
+def test_everything_that_counts_frames_follows_the_clock():
+    """ตัวนับที่ยังบวกทีละ 1 อยู่ = ตัวนั้นจะยังเร็วตามจอ
+
+    ไล่ทุกตัวที่เคยเป็น `t++` ต่อการวาดหนึ่งครั้ง
+    """
+    for who, needle in (
+        ("ตัวละครเดินตามเส้นทาง", "WM_ANIM.i + WM_DT / hold"),
+        ("ภาพตาย", "WM_DYING[i] -= WM_DT"),
+        ("เว้นจังหวะระหว่างขั้น", "WM_WAIT -= WM_DT"),
+        ("ตัวกันขั้นค้าง", "WM_STEP.age += WM_DT"),
+        ("ของที่ลงสนาม", "v.t += WM_DT"),
+        ("กระสุน", "WM_SHOT_STEP * WM_DT"),
+        ("เส้นประวิถี", "WM_TRAIL.t += WM_DT"),
+        ("สะเก็ด", "b.x += b.vx * WM_DT"),
+        ("วงระเบิด", "(b.t += WM_DT) / 30"),
+        ("ตัวเลขดาเมจ", "(p.t += WM_DT) / 78"),
+        ("กล้อง", "WM_CAM.glide(WM_DT)"),
+    ):
+        assert needle in PLAY, f"{who} ยังเดินตามจำนวนเฟรม ไม่ใช่เวลาจริง"

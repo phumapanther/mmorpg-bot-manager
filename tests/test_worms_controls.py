@@ -1321,16 +1321,19 @@ def test_nobody_hit_means_no_queue():
 
 # ── 27. ห้าม "อยู่ ๆ ก็ตกรอบ" จากพื้นหายใต้เท้า ──
 
-def test_you_do_not_lose_by_standing_still(world):
+def test_you_do_not_lose_early_by_standing_still(world):
     """เจ้าของเกมทัก: อยู่ ๆ ฉันก็ตกรอบ แพ้เอง
 
-    วัดแล้ว: ผู้เล่นยืนเฉย ๆ ไม่ทำอะไรเลย 40 เมล็ด จบเกมด้วยการตกน้ำ 27 ครั้ง
-    เพราะบอทยิงทะลุเกาะแล้ว _settle_everyone ปล่อยให้ร่วงลงทะเลทันที
-    """
-    import collections
+    ของเดิมที่พัง: ผู้เล่นยืนเฉย ๆ 40 เมล็ด จบเกมด้วยการตกน้ำ 27 ครั้ง
+    ภายในราว 5 รอบ เพราะบอทยิงทะลุเกาะแล้ว _settle_everyone ปล่อยให้ร่วงลงทะเลทันที
 
-    why = collections.Counter()
-    for seed in range(1, 26):
+    ⚠️ ที่วัดต้องเป็น "ตกน้ำเร็ว" ไม่ใช่ "ตกน้ำกี่ครั้ง" — เกาะโดนถล่มมาสิบกว่ารอบ
+       แล้วพังจนไม่เหลือที่ยืนเป็นเรื่องปกติของเกมแนวนี้ ไม่ใช่บั๊ก
+       (วัด 40 เมล็ด: ตกน้ำ 5 ครั้ง ที่รอบ 8/13/14/16/22 · เกมทั่วไปจบที่รอบ 9)
+       เกณฑ์เดิมนับหัวอย่างเดียวบน 25 เมล็ด แคบเกินกว่าความผันผวนปกติ
+    """
+    drown = []
+    for seed in range(1, 41):
         fresh(seed)
         for _ in range(30):
             st = match.load(UID)
@@ -1339,12 +1342,13 @@ def test_you_do_not_lose_by_standing_still(world):
             good, r = match.end_turn(UID, auto=True)
             if not good:
                 break
-            me = r["fighters"][0]
-            if me["dead"] or r["over"]:
-                log = " ".join(r["log"][-8:])
-                why["ตกน้ำ" if "ตกน้ำ" in log else "อื่น ๆ"] += 1
+            if r["fighters"][0]["dead"] or r["over"]:
+                if "ตกน้ำ" in " ".join(r["log"][-8:]):
+                    drown.append(r["round"])
                 break
-    assert why["ตกน้ำ"] <= 3, f"ยืนเฉย ๆ แล้วตกน้ำตาย {why['ตกน้ำ']}/25 เมล็ด — ยังเยอะเกินไป"
+    early = [d for d in drown if d < 6]
+    assert not early, f"ยังไม่ทันทำอะไรก็ตกน้ำแล้ว ที่รอบ {early} — เกาะไม่น่าพังเร็วขนาดนั้น"
+    assert len(drown) <= 8, f"ยืนเฉย ๆ แล้วตกน้ำ {len(drown)}/40 เมล็ด (รอบ {drown}) เยอะเกินไป"
 
 
 def test_the_ground_giving_way_lets_you_grab_a_ledge(world):
@@ -1448,8 +1452,8 @@ def test_the_fade_matches_the_lifetime():
     """จางเร็วกว่าที่อยู่จริง = หายไปก่อนถึงเวลา · ช้ากว่า = ดับวับตอนจบ"""
     import re as _re
 
-    for life, fade, what in [(r"WM_BOOMS\.filter\(b => b\.t < (\d+)\)", r"b\.t\+\+ / (\d+), r =", "ลูกไฟ"),
-                             (r"WM_POPS\.filter\(p => p\.t < (\d+)\)", r"const k = p\.t\+\+ / (\d+);", "เลขดาเมจ"),
+    for life, fade, what in [(r"WM_BOOMS\.filter\(b => b\.t < (\d+)\)", r"\(b\.t \+= WM_DT\) / (\d+), r =", "ลูกไฟ"),
+                             (r"WM_POPS\.filter\(p => p\.t < (\d+)\)", r"const k = \(p\.t \+= WM_DT\) / (\d+);", "เลขดาเมจ"),
                              (r"WM_BITS\.filter\(b => b\.t < (\d+)\)", r"\(1 - b\.t / (\d+)\)", "สะเก็ด")]:
         a, b = _re.search(life, PLAY), _re.search(fade, PLAY)
         assert a and b, f"หาอายุ/การจางของ{what}ไม่เจอ"

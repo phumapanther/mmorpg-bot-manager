@@ -231,6 +231,33 @@ def _blocks(grid, x, y):
     return T.material(grid, x, y) not in PASSES
 
 
+def _first_solid(grid, x0, y0, x1, y1, sx, sy):
+    """พิกเซลตันตัวแรกที่อยู่ "ระหว่าง" สองจุดของเส้นวิถี — คืน None ถ้าโล่งตลอด
+
+    ⚠️ จำเป็นจริง ๆ: กระสุนวิ่งได้ถึง 9 px ต่อเฟรม ถ้าเช็คแค่พิกเซลปลายก้าว
+       มันจะกระโดดข้ามพื้นบาง ๆ ไปเฉย ๆ วัดบนแผนที่จริง 720 นัด:
+       ข้ามพื้นตัน 403 นัด (56%) · คลาดจากจุดที่ควรระเบิด 3-9 px 211 นัด
+       คลาดเกิน 30 px 26 นัด · ทะลุหายไม่ระเบิดเลย 18 นัด
+       รัศมีระเบิดมีแค่ 26-30 px คลาดเท่านั้นคือเปลี่ยนว่าใครโดนใครรอด
+
+    hedgewars กันปัญหานี้ด้วยการบังคับความเร็วไม่เกิน 2 px/เฟรม
+    (uGearsHandlersMess.pas:400 "clip velocity at 2 - over 1 per pixel")
+    เราเลือกเช็คถี่ขึ้นแทนการหั่นความเร็ว จะได้ไม่ต้องแตะจังหวะเกมที่ปรับไว้ลงตัวแล้ว
+    """
+    steps = int(max(abs(x1 - x0), abs(y1 - y0))) + 1
+    for i in range(1, steps + 1):
+        k = i / steps
+        px, py = x0 + (x1 - x0) * k, y0 + (y1 - y0) * k
+        ix, iy = int(round(px)), int(round(py))
+        if not (0 <= ix < T.W) or iy < 0 or iy >= T.H:
+            return None
+        if (px - sx) ** 2 + (py - sy) ** 2 <= ARM_DIST ** 2:
+            continue                       # ยังไม่พ้นตัวคนยิง ไม่งั้นระเบิดใส่ตัวเอง
+        if _blocks(grid, ix, iy):
+            return ix, iy
+    return None
+
+
 def shoot(grid, x, y, angle_deg, power, muzzle=None, wind=0.0):
     """ยิงกระสุนแบบวิถีโค้ง — คืน {path, hit, x, y, out}
 
@@ -252,17 +279,20 @@ def shoot(grid, x, y, angle_deg, power, muzzle=None, wind=0.0):
     for _ in range(SHOT_FRAMES):
         vy += SHOT_GRAVITY
         vx += float(wind)              # 🌬️ ลมเป่าทุกเฟรม ยิ่งลอยนาน ยิ่งเบนเยอะ
-        px += vx
-        py += vy
+        nx, ny = px + vx, py + vy
+        # เช็คทุกพิกเซลที่ก้าวนี้ผ่าน ไม่ใช่แค่ปลายก้าว (ดู _first_solid)
+        blocked = _first_solid(grid, px, py, nx, ny, sx, sy)
+        if blocked:
+            path.append([blocked[0], blocked[1]])
+            return {"path": path, "hit": True, "x": blocked[0], "y": blocked[1],
+                    "out": False}
+        px, py = nx, ny
         ix, iy = int(round(px)), int(round(py))
         path.append([ix, iy])
         if iy >= T.H - T.WATER:                     # ตกน้ำ — จมหายไปเฉย ๆ
             return {"path": path, "hit": False, "x": ix, "y": iy, "out": True}
         if not (0 <= ix < T.W) or iy > T.H:
             return {"path": path, "hit": False, "x": ix, "y": iy, "out": True}
-        armed = (px - sx) ** 2 + (py - sy) ** 2 > ARM_DIST ** 2
-        if armed and iy >= 0 and _blocks(grid, ix, iy):
-            return {"path": path, "hit": True, "x": ix, "y": iy, "out": False}
     return {"path": path, "hit": False, "x": int(round(px)), "y": int(round(py)),
             "out": True}
 

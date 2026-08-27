@@ -187,6 +187,77 @@ def test_a_fireball_blows_a_hole_in_the_ground(world):
     assert after < before, "ระเบิดแล้วพื้นไม่หาย"
 
 
+def _first_solid_between(grid, a, b):
+    """เดินเส้นตรงระหว่างสองจุดของเส้นวิถี — เจอพื้นตันตรงไหนก่อน
+
+    เขียนแยกจากของจริงในเกมโดยตั้งใจ (คนละวิธีเดิน) จะได้เป็นการตรวจอิสระ
+    ไม่ใช่เอาสูตรเดียวกันมาเทียบตัวเองแล้วผ่านทุกที
+    """
+    x0, y0 = a
+    x1, y1 = b
+    n = max(abs(x1 - x0), abs(y1 - y0))
+    for i in range(1, n):
+        x = x0 + (x1 - x0) * i // n
+        y = y0 + (y1 - y0) * i // n
+        if 0 <= x < T.W and 0 <= y < T.H and P._blocks(grid, x, y):
+            return x, y
+    return None
+
+
+def test_a_shot_cannot_slip_through_a_thin_wall():
+    """กระสุนวิ่ง 8-9 px/เฟรม ถ้าเช็คแค่ปลายก้าวก็ข้ามกำแพงบางไปเฉย ๆ
+
+    hedgewars กันด้วยการบังคับความเร็วไม่เกิน 2 px/เฟรม
+    (uGearsHandlersMess.pas:400) เราเช็คถี่ขึ้นแทน จะได้ไม่ต้องแตะจังหวะเกม
+    """
+    for thick in (1, 2, 3, 5):
+        for power in (30, 50, 70, 90, 100):
+            g = [[T.AIR] * T.W for _ in range(T.H)]
+            for x in range(150, 150 + thick):
+                for y in range(60, 240):
+                    g[y][x] = T.ROCK
+            r = P.shoot(g, 100, 200, 10, power)
+            assert r["hit"], f"กำแพงหนา {thick} px แรง {power} — กระสุนทะลุไปเฉย ๆ"
+            assert r["x"] <= 150 + thick,                 f"ระเบิดเลยกำแพงไปที่ x={r['x']} (กำแพงอยู่ 150-{150 + thick})"
+
+
+def test_shots_blow_up_where_they_actually_touch_the_ground():
+    """กวาดแผนที่จริง — จุดระเบิดต้องตรงกับพิกเซลแรกที่วิถีแตะพื้น
+
+    วัดก่อนแก้: 720 นัด มี 270 นัด (37%) ที่ระเบิดคลาดจากจุดที่แตะพื้นเกิน 2 px
+    ในนั้นคลาดเกิน 30 px ไป 26 นัด และทะลุหายไม่ระเบิดเลย 18 นัด
+    รัศมีระเบิดมีแค่ 26-30 px คลาดขนาดนั้นคือเปลี่ยนว่าใครโดนใครรอด
+    """
+    import math
+    import random
+
+    rng = random.Random(0)
+    shots = bad = 0
+    worst = 0
+    for seed in range(1, 9):
+        grid = T.generate(seed)["grid"]
+        spots = T._open_spots(grid)
+        for _ in range(40):
+            x, y = rng.choice(spots)
+            ang = rng.choice([15, 25, 35, 45, 55, 70])
+            if rng.random() < .5:
+                ang = 180 - ang
+            r = P.shoot(grid, x, y, ang, rng.choice([30, 50, 70, 85, 100]))
+            shots += 1
+            path = r["path"]
+            sx, sy = path[0]
+            for i in range(len(path) - 1):
+                c = _first_solid_between(grid, path[i], path[i + 1])
+                if not c or math.hypot(c[0] - sx, c[1] - sy) <= P.ARM_DIST:
+                    continue
+                off = math.hypot(r["x"] - c[0], r["y"] - c[1]) if r["hit"] else 999
+                if off > 2:                      # เกินนี้ไม่ใช่แค่ปัดเศษแล้ว
+                    bad += 1
+                    worst = max(worst, off)
+                break
+    assert bad * 100 / shots < 3,         f"ยิง {shots} นัด ระเบิดผิดที่ {bad} นัด ({bad * 100 / shots:.0f}%) คลาดสุด {worst:.0f} px"
+
+
 def test_a_blast_hurts_more_the_closer_you_are():
     assert P.blast_damage(0, 30, 40) > P.blast_damage(20, 30, 40) > 0
     assert P.blast_damage(31, 30, 40) == 0, "อยู่นอกรัศมีแต่ยังเจ็บ"
