@@ -944,6 +944,106 @@ def test_a_new_match_forgets_who_died():
     assert "WM_DEAD_SEEN" in body, "สนามใหม่ยังจำคนตายรอบก่อน ภาพตายจะไม่เล่นอีกเลย"
 
 
+# ── 21.5 ห้ามเฉลยผลก่อนภาพจะเล่นถึง ──
+
+def _reveal_flow():
+    """รันฟังก์ชันซ่อน/เฉลยของจริงด้วย node แล้วคืนผลแต่ละขั้น
+
+    อ่านซอร์สอย่างเดียวจับไม่ได้ว่าเลือด "โผล่ค่าใหม่ตั้งแต่กระสุนยังไม่ถึง"
+    ต้องรันจริงถึงจะเห็นว่าค่าบนจอเป็นเท่าไหร่ในแต่ละจังหวะ
+    """
+    import json
+    import shutil
+    import subprocess
+
+    if not shutil.which("node"):
+        pytest.skip("เครื่องนี้ไม่มี node")
+    r = subprocess.run(["node", "tests/reveal_flow.js"],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stderr
+    return {d["step"]: d for d in map(json.loads, r.stdout.strip().splitlines())}
+
+
+def test_the_screen_keeps_the_old_hp_until_the_animation_gets_there():
+    """เจ้าของเกมสั่ง: "ห้ามสรุปผลลัพธ์ก่อน เด็ดขาด"
+
+    อาการที่เจอ: ยิงไม่โดนแต่เลือดตัวเองลดตั้งแต่กระสุนยังไม่ทันบินถึง
+    เพราะเซิร์ฟเวอร์ตอบผลทั้งก้อนมาแล้วเว็บเอาไปแสดงทันที
+    """
+    r = _reveal_flow()
+    me, bot = r["hidden"]["f"]
+    assert me["hp"] == 100, "เลือดเราลดตั้งแต่ภาพยังไม่เล่นถึง"
+    assert bot["hp"] == 30 and not bot["dead"], "คู่ต่อสู้ตายก่อนเห็นภาพโดน"
+    assert bot["x"] == 90, "คู่ต่อสู้วาปไปจุดที่กระเด็นไปแล้วตั้งแต่ยังไม่โดน"
+
+
+def test_each_victim_is_revealed_when_the_camera_reaches_him():
+    """เฉลยทีละคนตอนกล้องไปจับ — และตัดเท่าที่โชว์ ไม่ใช่กระโดดไปค่าสุดท้าย
+
+    ค่าสุดท้ายรวมหมัดที่ยังไม่ได้เล่นภาพด้วย (บอทยิงสวนมาในคำตอบเดียวกัน)
+    ตัดทีเดียวคือเลือดหายมากกว่าตัวเลขที่เด้งขึ้นมา
+    """
+    body = PLAY[PLAY.index("function wmSettleVictim("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert body.index("wmRevealOne(") < body.index("WM_POPS.push"),         "ไม่ได้เฉลยเลือดตอนกล้องไปจับคนที่โดน — เลขดาเมจเด้งแต่หลอดเลือดไม่ขยับ"
+
+    r = _reveal_flow()
+    me, bot = r["one"]["f"]
+    assert bot["hp"] == 0 and bot["dead"], "ถึงคิวเขาแล้วยังไม่ตัดเลือด"
+    assert me["hp"] == 75, ("ตัดเลือดไม่เท่าตัวเลขที่เด้ง — เลือดเหลือ "
+                            f"{me['hp']} ทั้งที่เพิ่งโชว์ -25 จาก 100")
+
+
+def test_many_hits_on_one_person_become_one_reveal(world):
+    """ดาบคู่ฟันรัวสี่ครั้ง = สี่รายการของคนเดียว ต้องยุบเหลือรายการเดียว
+
+    และต้องพก "เลือดหลังหมัดสุดท้าย" ที่เซิร์ฟเวอร์บอกมาไปด้วย
+    ไม่งั้นตอนเฉลยจะไม่มีเลขให้ใส่ เลือดค้างค่าเก่าจนจบภาพ
+    """
+    v = _reveal_flow()["victims"]["v"]
+    assert len(v) == 1, f"ยุบไม่ครบ เหลือ {len(v)} รายการ"
+    assert v[0]["dmg"] == 30, "รวมดาเมจทุกหมัดไม่ครบ"
+    assert v[0]["hp"] == 70, "ไม่ได้พกเลือดที่เซิร์ฟเวอร์บอกมา — เฉลยไม่ได้"
+
+
+def test_everything_matches_the_server_once_the_show_is_over():
+    """ซ่อนได้ แต่ห้ามซ่อนค้าง — ภาพจบแล้วค่าบนจอต้องตรงกับเซิร์ฟเวอร์เป๊ะ"""
+    r = _reveal_flow()
+    me, bot = r["all"]["f"]
+    assert me["hp"] == 60 and bot["hp"] == 0 and bot["dead"]
+    assert bot["x"] == 140, "ตำแหน่งสุดท้ายไม่ตรงกับเซิร์ฟเวอร์ = เดินต่อแล้วเพี้ยน"
+    assert r["all"]["left"] is None, "เฉลยแล้วยังค้างของซ่อนไว้อีก"
+
+
+def test_the_new_state_is_applied_before_the_visuals_are_queued():
+    """wmApply ล้างคิวภาพทิ้งทุกครั้ง — ต่อคิวก่อนเรียกมันคือต่อทิ้ง
+
+    เคยพลาดจริง: ท่าประชิดต่อคิวภาพไว้ใน wmShowHit แล้ว wmApply ล้างทิ้งทั้งชุด
+    เห็นแต่คู่ต่อสู้วาปไปจุดใหม่ ไม่มีทั้งการกระเด็นและตัวเลขดาเมจ
+    """
+    body = PLAY[PLAY.index("function wmPlayAttack("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert body.index("wmApply(d)") < body.index("wmShowHit("),         "เรียก wmShowHit ก่อน wmApply — ภาพที่ต่อคิวไว้จะถูกล้างทิ้ง"
+    assert body.index("wmHideOutcome(") < body.index("wmShowHit("),         "ยังไม่ทันซ่อนผล ภาพก็เริ่มเล่นแล้ว"
+    assert "wmStep(() => {}, wmFxIdle, () => wmQueueBot(d))" in body,         "ต่อคิวตาบอททันที — บอทจะเดินแข่งกับกระสุนของเราที่ยังบินอยู่"
+
+
+def test_the_bot_turn_is_queued_behind_what_the_step_it_waited_for_spawned():
+    """wmStep ต้องรับงาน "ตอนขั้นนี้เสร็จ" ได้
+
+    กระสุนถึงเป้าแล้วค่อยต่อคิวสรุปผลทีละคน ถ้าต่อคิวตาบอทไว้ตั้งแต่แรก
+    คิวจะเป็น [บอท, สรุปผล] = บอทเดินก่อนตัวเลขดาเมจจะขึ้นด้วยซ้ำ
+    """
+    assert "function wmStep(run, done, then)" in PLAY
+    assert "if (fin) fin();" in PLAY, "ขั้นเสร็จแล้วไม่ได้เรียกงานที่ฝากไว้"
+
+
+def test_hidden_values_are_never_left_hidden():
+    """กันซ่อนค้าง — ภาพจบเมื่อไหร่ต้องเฉลยเอง ไม่ต้องรอใครสั่ง"""
+    assert "if (WM_HIDDEN && !wmBusyFx()) wmRevealAll();" in PLAY,         "ไม่มีใครเฉลยของที่ซ่อนไว้ เลือดบนจอจะค้างค่าเก่าตลอดกาล"
+    assert "WM_HIDDEN = null;                // ค่าที่ซ่อนไว้ก็เป็นของก้อนเก่า" in PLAY,         "สถานะใหม่มาแล้วยังถือค่าซ่อนของก้อนเก่าไว้"
+
+
 # ── 22. แผงสรุปผลต้องแสดงชื่อกับดาเมจจริง ──
 
 def _render_over(payload):

@@ -109,6 +109,24 @@ def test_the_field_does_not_fill_up_forever(world):
         f"ของล้นสนาม {len(st['props'])} ชิ้น (เพดาน {match.DROP_MAX})"
 
 
+def test_things_never_land_close_enough_to_hide_each_other(world):
+    """ของสองชิ้นวางชิดกันเกินไป = ชิ้นหลังวาดทับชิ้นแรกจนหายไปเลย
+
+    วัดแล้วตอนเพดานระยะห่างเป็น 10 px: เรือเหาะโดนหีบทับ 31 ครั้งจาก 223 รอบ
+    ผู้เล่นเห็นเป็น "บางทีประตูวาปก็ไม่โชว์" แล้วข้ามเกาะไม่ได้ทั้งรอบ
+    รูปของกว้างสุด 11 px จึงต้องห่างกันอย่างน้อยเท่านั้น
+    """
+    WIDE, TALL = 11, 16               # ขนาดรูปของที่กว้าง/สูงที่สุด (เรือเหาะ)
+    # เมล็ดพวกนี้คัดมาจากการกวาด 20 เมล็ด — เป็นเมล็ดที่วางทับกันจริงตอนเพดานเป็น 10 px
+    for seed in (14, 16, 17, 3):
+        st = _round_up(seed=seed, rounds=8)
+        props = st["props"]
+        for i, a in enumerate(props):
+            for b in props[i + 1:]:
+                assert not (abs(a["x"] - b["x"]) < WIDE and abs(a["y"] - b["y"]) < TALL),                     (f"เมล็ด {seed}: {a['kind']} ที่ ({a['x']},{a['y']}) กับ "
+                     f"{b['kind']} ที่ ({b['x']},{b['y']}) วางทับกันจนบังกันเอง")
+
+
 # ── เรือเหาะข้ามเกาะ ──
 
 def test_a_ferry_shows_up_to_cross_islands(world):

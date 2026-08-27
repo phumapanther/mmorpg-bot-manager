@@ -2013,6 +2013,7 @@ function wmApply(d) {
   const fresh = !WM || !WM_ST || WM_ST.seed !== d.seed;
   wmStepsClear();
   WM_ANIM = null; WM_QUEUE = [];   // สถานะถูกแทนทั้งก้อน ภาพที่ค้างเป็นของสถานะเก่าไปแล้ว
+  WM_HIDDEN = null;                // ค่าที่ซ่อนไว้ก็เป็นของก้อนเก่า ทิ้งได้เลย
   if (!d || !d.over) WM_OVER_SHOWN = false;
   if (d && (d.drops || []).length && d.round !== WM_TOUR_ROUND) {
     WM_TOUR_ROUND = d.round;               // ของรอบนี้พาไปดูแล้ว ไม่พาซ้ำ
@@ -2208,6 +2209,7 @@ function wmTick() {
     while (WM_AFTER.length) WM_AFTER.shift()();
     wmPaintHud();
   }
+  if (WM_HIDDEN && !wmBusyFx()) wmRevealAll();   // ภาพจบแล้วค่อยเฉลยที่เหลือ
   // 🧭 ภาพเล่นจบหมดแล้วค่อยเทียบพื้นกับของเซิร์ฟเวอร์ — เจอต่างเมื่อไหร่โหลดใหม่ทั้งผืน
   //    (เทียบตอนภาพยังเล่นไม่ได้ หลุมจะโผล่ก่อนกระสุนจะบินถึง)
   if (WM && WM_ST && WM_ST.terrain && !wmBusyFx() && WM_ST.terrain !== WM_GROUND) {
@@ -2550,13 +2552,78 @@ async function wmAttack(key, ang, pow, dir) {
   finally { wmBusy = false; }
 }
 
-/** เล่นภาพผลการโจมตี แล้วต่อด้วยตาบอท (ผลทั้งหมดเซิร์ฟเวอร์ตัดสินไปแล้ว) */
+/** เล่นภาพผลการโจมตี แล้วต่อด้วยตาบอท (ผลทั้งหมดเซิร์ฟเวอร์ตัดสินไปแล้ว)
+
+    ⚠️ ลำดับนี้ผิดไม่ได้: wmApply ล้างคิวภาพทิ้งทุกครั้ง (wmStepsClear)
+       เดิมเรียก wmShowHit ก่อน ภาพท่าประชิดที่เพิ่งต่อคิวไว้เลยถูกล้างทิ้งทั้งชุด
+       เห็นแต่ตัวคู่ต่อสู้วาปไปจุดใหม่ ไม่มีทั้งการกระเด็นและตัวเลขดาเมจ
+ */
 function wmPlayAttack(d) {
   WM_DEATHS = d.deaths || [];
-  wmShowHit(d.attack || {});
+  const old = wmSnapshot();
   wmApply(d);
-  // ตาบอทต่อทันที — ต้องเห็นด้วยว่าบอททำอะไรเรา ไม่งั้นเลือดลดแล้วนึกว่าตีตัวเอง
-  wmQueueBot(d);
+  wmHideOutcome(old);
+  wmShowHit(d.attack || {});
+  // ตาบอทต่อ "หลัง" ภาพหมัดเราจบจริง — ต้องเห็นด้วยว่าบอททำอะไรเรา
+  // ไม่งั้นเลือดลดแล้วนึกว่าตีตัวเอง (ต่อคิวตอนขั้นนี้เสร็จ จะได้อยู่หลังคิวสรุปผลทีละคน)
+  wmStep(() => {}, wmFxIdle, () => wmQueueBot(d));
+}
+
+let WM_HIDDEN = null;   // ค่าจริงหลังหมัดนี้ ที่ยังไม่ให้เห็นจนกว่าภาพจะเล่นถึง
+
+/** 📸 จำเลือด/ตำแหน่ง/ความเป็นตาย ก่อนรับสถานะใหม่มาทับ */
+function wmSnapshot() {
+  const o = {};
+  (WM_ST ? WM_ST.fighters : []).forEach(f => {
+    o[f.name] = { x: f.x, y: f.y, hp: f.hp, dead: f.dead };
+  });
+  return o;
+}
+
+/** ⏳ ห้ามเฉลยผลก่อนภาพจะเล่นถึง (เจ้าของเกมสั่ง: "ห้ามสรุปผลลัพธ์ก่อน เด็ดขาด")
+
+    เซิร์ฟเวอร์ตอบผลทั้งก้อนมาพร้อมกัน — เลือดลด ตัวกระเด็นไปจุดใหม่ ตายแล้ว
+    เอามาแสดงทันทีคือเห็นเลือดตัวเองลดตั้งแต่กระสุนยังไม่ทันบินถึง
+    ("ยิงไม่โดนฉันแต่ขึ้นดาเมจที่ฉัน") จึงยืมค่าเก่ามาแสดงไว้ก่อน
+    แล้วปล่อยของจริงทีละคนตอนกล้องไปจับเขา — ที่เหลือปล่อยตอนภาพจบหมด
+ */
+function wmHideOutcome(old) {
+  if (!WM_ST) return;
+  WM_HIDDEN = {};
+  WM_ST.fighters.forEach(f => {
+    const o = old[f.name];
+    if (!o) return;
+    WM_HIDDEN[f.name] = { x: f.x, y: f.y, hp: f.hp, dead: f.dead };
+    f.x = o.x; f.y = o.y; f.hp = o.hp; f.dead = o.dead;
+  });
+  wmPaintHud();
+}
+
+/** เฉลยของคนเดียว — ใส่เลือด "หลังหมัดนี้" ที่เซิร์ฟเวอร์คิดมาให้ (ไม่ใช่ค่าสุดท้าย)
+
+    ค่าสุดท้ายรวมหมัดที่ยังไม่ได้เล่นภาพด้วย (บอทยิงสวนมาในคำตอบเดียวกัน)
+    ใส่ทีเดียวคือเลือดหายมากกว่าตัวเลขที่เพิ่งเด้งขึ้นมา
+    ⚠️ ห้ามคำนวณเองเด็ดขาด — ทุกตัวเลขต้องมาจากเซิร์ฟเวอร์ (กติกาเหล็กของหมวดนี้)
+ */
+function wmRevealOne(name, hp) {
+  const h = WM_HIDDEN && WM_HIDDEN[name];
+  const f = WM_ST && WM_ST.fighters.find(x => x.name === name);
+  if (!h || !f || hp === undefined) return;
+  f.hp = hp;
+  if (hp <= 0 && h.dead) f.dead = true;
+  wmPaintHud();
+}
+
+/** เฉลยที่เหลือทั้งหมด — ภาพเล่นจบแล้ว ค่าบนจอต้องตรงกับเซิร์ฟเวอร์เป๊ะ */
+function wmRevealAll() {
+  if (WM_ST) {
+    WM_ST.fighters.forEach(f => {
+      const h = WM_HIDDEN[f.name];
+      if (h) { f.x = h.x; f.y = h.y; f.hp = h.hp; f.dead = h.dead; }
+    });
+  }
+  WM_HIDDEN = null;
+  wmPaintHud();
 }
 
 /** เล่นภาพการโจมตีของบอททีละนัด — นัดถัดไปรอให้นัดก่อนเล่นจบก่อน */
@@ -2665,8 +2732,8 @@ let WM_WAIT = 0;             // เฟรมที่ต้องรออยู
 const WM_STEP_MAX = 900;     // ขั้นหนึ่งใช้เวลาได้ไม่เกิน 15 วินาที (กันค้างตาย)
 
 /** ต่อคิวหนึ่งขั้น — run() เริ่มทำ · done() คืน true เมื่อขั้นนั้นเสร็จจริง */
-function wmStep(run, done) {
-  WM_STEPS.push({ run: run, done: done || (() => true), on: false });
+function wmStep(run, done, then) {
+  WM_STEPS.push({ run: run, done: done || (() => true), then: then || null, on: false });
 }
 
 /** มีขั้นค้างอยู่ไหม (รวมช่วงเว้นจังหวะ) — ห้ามให้ใครแย่งทำงานระหว่างนี้ */
@@ -2688,7 +2755,9 @@ function wmRunSteps() {
   // ⏱️ กันค้าง: done() ไม่ยอมเป็นจริงภายในเวลาที่กำหนด ให้ข้ามไป ยอมข้ามดีกว่าค้างตาย
   //    เคยเจอ — ขั้นที่รอ 'กล้องเลื่อนไปถึง' ค้างเพราะมีคนอื่นแย่งตั้งเป้ากล้องทุกเฟรม
   if (++WM_STEP.age < WM_STEP_MAX && !WM_STEP.done()) return;
+  const fin = WM_STEP.then;
   WM_STEP = null;
+  if (fin) fin();                     // ต่อคิวของถัดไป "หลัง" คิวที่ขั้นนี้เพิ่งแตกออกมา
   WM_WAIT = WM_GAP_AFTER;             // ④ เว้นจังหวะหลังเสร็จ
 }
 
@@ -2754,6 +2823,7 @@ function wmPlayVictims(a, done) {
     let v = order.find(x => x.name === h.name);
     if (!v) order.push(v = { name: h.name, dmg: 0, dodged: true });
     v.dmg += h.damage || 0;
+    if (h.hp !== undefined) v.hp = h.hp;   // เลือดที่เหลือหลังหมัดนี้ — เซิร์ฟเวอร์คิดมาให้แล้ว
     v.dodged = v.dodged && !!h.dodged;
   });
   if (!order.length) { if (done) done(); return false; }
@@ -2788,6 +2858,7 @@ function wmSettleVictim(v) {
   if (fi < 0) return;
 
   const f = WM_ST.fighters[fi];
+  wmRevealOne(v.name, v.hp);              // ถึงคิวเขาแล้วค่อยใส่เลือดที่เซิร์ฟเวอร์บอก
   wmFocus(f, true);                       // จอจับอยู่ที่คนนี้ตอนสรุปผลของเขา
   WM_POPS.push({ x: f.x, y: f.y - 26, t: 0, miss: v.dodged,
                  text: v.dodged ? 'หลบ!' : '-' + v.dmg });
@@ -3112,7 +3183,9 @@ async function wmGiveUp() {
 async function wmEndTurn(how) {
   try {
     const d = await api('POST', '/api/web/pvp/worms/match', { action: how || 'end' });
+    const old = wmSnapshot();
     wmApply(d);
+    wmHideOutcome(old);
     wmQueueBot(d);
     SFX.play('click');
   } catch (e) { if (!wmBackoff(e)) toast(e.message, true); }

@@ -329,7 +329,8 @@ def _explode(st, grid, cx, cy, radius, dmg, crater, why, by=None):
     for f, raw in weapons.blast_targets(cx, cy, st["fighters"], radius, dmg):
         got = _hurt(st, f, raw, why, dodgeable=False, by=by)
         if got:
-            hits.append({"name": f["name"], "damage": got, "x": f["x"], "y": f["y"]})
+            hits.append({"name": f["name"], "damage": got, "hp": f["hp"],
+                         "x": f["x"], "y": f["y"]})
     if gone:
         st["terrain"] = terrain.encode(grid)
         _settle_everyone(st, grid)
@@ -500,8 +501,8 @@ def _use_skill(st, grid, f, key, angle, power):
                 dmg = int(dmg * s["behind"])
                 st["log"].append(f"🗡️ ลอบแทงจากด้านหลัง!")
             got = _hurt(st, t, dmg, f"โดน {s['name']}", by=f)
-            hits.append({"name": t["name"], "damage": got, "x": t["x"], "y": t["y"],
-                         "dodged": got == 0})
+            hits.append({"name": t["name"], "damage": got, "hp": t["hp"],
+                         "x": t["x"], "y": t["y"], "dodged": got == 0})
             # ทุกหมัดที่เข้าต้องผลักให้กระเด็น ไม่ใช่แค่ท่าที่ตั้ง knock ไว้
             kb = _knock_back(st, grid, t, f["x"], got, dist=s.get("knock"))
             if kb:
@@ -536,8 +537,8 @@ def _use_skill(st, grid, f, key, angle, power):
         beam_hits = []
         for t in weapons.path_targets(shot["path"], st["fighters"], exclude=f):
             got = _hurt(st, t, s["dmg"], f"โดน {s['name']}", by=f)
-            beam_hits.append({"name": t["name"], "damage": got, "x": t["x"], "y": t["y"],
-                              "dodged": got == 0})
+            beam_hits.append({"name": t["name"], "damage": got, "hp": t["hp"],
+                              "x": t["x"], "y": t["y"], "dodged": got == 0})
         out["hits"] = beam_hits
         if not beam_hits:
             st["log"].append(f"{f['name']} ยิง {s['name']} พลาดไม่โดนใคร")
@@ -584,8 +585,11 @@ def _supply_drop(st):
         return []
     # ⚠️ ยิ่งของเยอะ ที่ว่างยิ่งหายาก ถ้ายืนกรานระยะห่างเดียวการเติมของจะหยุดเงียบ ๆ
     #    ตั้งแต่รอบสาม (วัดแล้ว: 13 รอบเติมได้แค่ครั้งเดียว) — ผ่อนลงจนหาที่วางได้
+    #    ⚠️ แต่ผ่อนได้ไม่ต่ำกว่าความกว้างของรูปของ (กว้างสุด 11 px) ไม่งั้นวางทับกัน
+    #       จนบังกันเอง วัดแล้ว: เพดานเดิม 10 px ทำให้เรือเหาะโดนหีบวาดทับ
+    #       31 ครั้งจาก 223 รอบ ผู้เล่นเห็นเป็น "บางทีประตูวาปก็ไม่โชว์"
     spots = terrain._open_spots(grid)
-    for gap in (24, 16, 10):
+    for gap in (24, 18, 12):
         pool = [xy for xy in spots if all(abs(xy[0] - t) >= gap for t in taken)]
         if pool:
             break

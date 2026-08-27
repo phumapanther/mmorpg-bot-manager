@@ -6,6 +6,7 @@
   3. ยิงแล้วแผนที่พังแต่คนที่ยืนอยู่บนนั้นไม่ร่วง (ลอยกลางอากาศ)
 """
 import pathlib
+import re
 import time
 
 import pytest
@@ -87,6 +88,36 @@ def test_a_basic_attack_takes_health(world):
     arena()
     ok, r = match.attack(UID, "basic")
     assert ok and r["fighters"][1]["hp"] < 100, "ตีแล้วไม่เสียเลือด"
+
+
+def test_every_hit_reports_the_health_left_after_it(world):
+    """เว็บต้องได้ "เลือดที่เหลือหลังหมัดนี้" มาจากเซิร์ฟเวอร์ ไม่ใช่คิดลบเอง
+
+    เว็บซ่อนผลไว้ก่อนแล้วค่อยเฉลยทีละคนตอนกล้องไปจับ (ห้ามสรุปผลก่อนภาพจะถึง)
+    ถ้าไม่ส่งค่านี้มา เว็บจะเหลือทางเลือกแค่สองทางที่ผิดทั้งคู่:
+    ลบเลขเอง (ผิดกติกาเหล็ก) หรือใส่ค่าสุดท้าย (รวมหมัดที่บอทยิงสวนกลับมาด้วย)
+    """
+    arena()
+    ok, r = match.attack(UID, "basic")
+    hits = r["attack"]["hits"]
+    assert hits, "ตีติดแต่ไม่มีรายการคนโดน"
+    for h in hits:
+        assert "hp" in h, f"หมัดที่โดน {h['name']} ไม่บอกเลือดที่เหลือ"
+        assert h["hp"] == r["fighters"][1]["hp"], "เลือดที่บอกไม่ตรงกับสถานะจริง"
+
+
+def test_a_blast_reports_the_health_left_too(world):
+    """ระเบิดก็ต้องบอกเหมือนกัน — ไม่งั้นเว็บเฉลยเลือดคนที่โดนลูกหลงไม่ได้"""
+    st = arena("Mage", gap=20)
+    grid = T.decode(st["terrain"])
+    t = st["fighters"][1]
+    r = match._explode(st, grid, t["x"], t["y"] - T.CH_H // 2, 30, 20, 0, "เทส")
+    assert r["hits"], "ระเบิดกลางตัวแล้วไม่โดนใครเลย"
+    for h in r["hits"]:
+        assert "hp" in h, f"แรงระเบิดที่โดน {h['name']} ไม่บอกเลือดที่เหลือ"
+        f = next(x for x in st["fighters"] if x["name"] == h["name"])
+        assert h["hp"] == f["hp"], "เลือดที่บอกไม่ตรงกับสถานะจริงตอนนั้น"
+        assert h["hp"] < 100, "โดนระเบิดแล้วเลือดยังเต็ม"
 
 
 def test_you_cannot_hit_someone_out_of_reach(world):
@@ -342,10 +373,21 @@ def test_the_bot_can_actually_hurt_you(world):
 # ── กติกาเหล็ก: เบราว์เซอร์ไม่ตัดสินผล ──
 
 def test_the_browser_never_decides_damage():
+    """เว็บ "แสดง" เลือดได้ แต่ห้าม "คิด" เลือดเอง
+
+    เดิมแบนคำว่า `hp =` ไปเลย ซึ่งกว้างเกินจริง — เว็บต้องเขียนค่าลง f.hp
+    เพื่อเฉลยผลทีละคนตอนภาพเล่นถึง (ห้ามสรุปผลก่อนอนิเมชั่นจบ)
+    ที่ต้องกันจริง ๆ คือการ "คำนวณ" เอง จึงแบนเลขคณิตกับ hp และการสุ่ม
+    แล้วบังคับต่อว่าทุกค่าที่เขียนลง hp ต้องมาจากก้อนข้อมูลของเซิร์ฟเวอร์
+    """
     a = PLAY.index("async function wmAttack(")
     block = PLAY[a:PLAY.index("let WM_SHOT", a)]
-    for banned in ("hp -", "hp =", "damage =", "Math.random"):
+    for banned in ("hp -", "hp +", "hp *", "hp /", "damage =", "Math.random"):
         assert banned not in block, f"หน้าเว็บคิดผลการโจมตีเอง: {banned}"
+    # เขียนลง hp ได้ แต่ฝั่งขวาต้องเป็นค่าที่เซิร์ฟเวอร์ส่งมาเท่านั้น
+    okay = ("hp = hp", "hp = h.hp", "hp = o.hp", "hp = v.hp", "hp = f.hp")
+    for m in re.finditer(r"hp = .+", block):
+        assert m.group(0).startswith(okay), f"เว็บเสกเลือดขึ้นมาเอง: {m.group(0)}"
     assert "action: 'attack'" in block, "ไม่ได้ส่งคำสั่งโจมตีไปเซิร์ฟเวอร์"
 
 
