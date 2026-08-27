@@ -126,14 +126,19 @@ def step(grid, x, y, direction, no_drown=False):
 
 
 def walk(grid, x, y, direction, steps, no_drown=False):
-    """เดินหลายก้าว — คืน {path, x, y, drowned, fell}
+    """เดินหลายก้าว — คืน {path, x, y, drowned, fell, steps}
 
     หยุดเองเมื่อชนกำแพงหรือถึงขอบน้ำ ไม่ต้องให้เบราว์เซอร์คอยเช็ค
     no_drown ส่งต่อไปที่ step() — ผู้เล่นเดินเองต้องใส่ ส่วนแรงกระแทกไม่ต้อง
+
+    steps = ก้าวที่ก้าวได้จริง — ใช้คิดแรงเดิน **ห้ามใช้ len(path) แทน**
+    เพราะ path มีพิกเซลตอนร่วงลงรวมอยู่ด้วย ตกผา 74 px จะกลายเป็นเสียแรง 82
+    (ทั้งเทิร์นมีแค่ 60) = ก้าวพลาดหนึ่งก้าวจบเทิร์นทันที
     """
     steps = max(0, min(int(steps), STEP_MAX))
     path, cx, cy = [], x, y
     drowned = False
+    took = 0
     for _ in range(steps):
         how, nx, ny = step(grid, cx, cy, direction, no_drown)
         if how == BLOCKED:
@@ -141,13 +146,14 @@ def walk(grid, x, y, direction, steps, no_drown=False):
         if ny > cy + 1:                     # ก้าวนี้ร่วงลง — ใส่ระหว่างทางให้ครบ
             path.extend(_drop_path(nx, cy, ny))
         cx, cy = nx, ny
+        took += 1
         path.append([cx, cy])
         if how == DROWNED:
             drowned = True
             path.extend(_drop_path(cx, cy, cy + SINK_DEPTH))   # จมลงไปให้เห็น
             break
     return {"path": path, "x": cx, "y": cy, "drowned": drowned,
-            "fell": max(0, cy - y)}
+            "fell": max(0, cy - y), "steps": took}
 
 
 def jump(grid, x, y, direction, power=1.0, lean=0.0):

@@ -234,6 +234,7 @@ def move(uid, action, direction=1, steps=1, jump_power=1.0, lean=0.0):
     if st["over"]:
         return False, {"error": "แมตช์นี้จบแล้ว"}
 
+    _watched(st)                      # มีคำสั่งเข้ามา = ดูภาพจบแล้ว คืนเวลาที่นั่งดูให้
     if time_left(st) <= 0:
         return False, {"error": "⏱️ หมดเวลาเทิร์นแล้ว — กดจบเทิร์นได้เลย"}
 
@@ -257,7 +258,10 @@ def move(uid, action, direction=1, steps=1, jump_power=1.0, lean=0.0):
         if st["moves"] <= 0:
             return False, {"error": "แรงเดินหมดแล้ว — จบเทิร์นได้เลย"}
         r = physics.walk(grid, f["x"], f["y"], direction, steps, no_drown=True)
-        st["moves"] -= max(len(r["path"]), 1)
+        # ⚠️ คิดจาก "ก้าวที่ก้าวได้จริง" ไม่ใช่ len(path) — path มีพิกเซลตอนร่วงรวมอยู่
+        #    เดินตกผา 74 px เคยกลายเป็นเสียแรง 82 จากที่มีทั้งเทิร์น 60
+        #    ก้าวพลาดหนึ่งก้าวจบเทิร์นทันที และฝั่งจอเดาตามไม่ได้เลย
+        st["moves"] -= max(r["steps"], 1)
     else:
         return False, {"error": "ไม่รู้จักท่านี้"}
 
@@ -416,6 +420,7 @@ def attack(uid, skill, angle=None, power=70, direction=None):
         return False, {"error": "ยังไม่ได้เริ่มแมตช์ — กดซ้อมกับบอทก่อน"}
     if st["over"]:
         return False, {"error": "แมตช์นี้จบแล้ว"}
+    _watched(st)                      # มีคำสั่งเข้ามา = ดูภาพจบแล้ว คืนเวลาที่นั่งดูให้
     if time_left(st) <= 0:
         return False, {"error": "⏱️ หมดเวลาเทิร์นแล้ว — กดจบเทิร์นได้เลย"}
 
@@ -562,11 +567,35 @@ def _use_skill(st, grid, f, key, angle, power):
     return out
 
 
+ANIM_GRACE = 30     # หยุดนาฬิกาให้ดูภาพได้นานสุดกี่วินาทีต่อเทิร์น
+
+
+def _watching(st):
+    """ตอนนี้ผู้เล่นกำลังนั่งดูภาพที่เราเพิ่งส่งไปให้อยู่หรือเปล่า — เวลาช่วงนั้นไม่นับ
+
+    ⚠️ จำเป็นจริง ๆ: ตาบอทเดิน ของลงสนาม ร่างระเบิด ล้วนกินเวลาเล่นภาพหลายวินาที
+       ฝั่งเว็บหยุดนาฬิกาบนจอระหว่างนั้น (ตามที่เจ้าของเกมสั่ง) แต่นาฬิกาฝั่งนี้
+       ยังเดินอยู่ ผู้เล่นเลยเจอ "ขึ้นหมดเวลาทั้งที่บนจอยังเหลือเวลา"
+       จึงต้องหยุดนับฝั่งนี้ด้วย — วัดจากเวลาจริงที่ผ่านไปตั้งแต่ส่งภาพไปให้
+       จนกว่าจะมีคำสั่งถัดไปเข้ามา และมีเพดานกันคนเปิดจอทิ้งไว้เฉย ๆ
+    """
+    at = st.get("anim_sent_at") or 0
+    return min(ANIM_GRACE, max(0, time.time() - at)) if at else 0
+
+
+def _watched(st):
+    """ผู้เล่นส่งคำสั่งมาแล้ว = ดูภาพจบแล้ว — คืนเวลาที่นั่งดูให้เขา"""
+    if st.get("anim_sent_at"):
+        st["turn_started"] = st.get("turn_started", 0) + _watching(st)
+        st["anim_sent_at"] = 0
+
+
 def time_left(st):
     """เหลือเวลาในเทิร์นนี้กี่วินาที — เซิร์ฟเวอร์เป็นคนนับ ไม่ใช่นาฬิกาในเบราว์เซอร์"""
     if st.get("over"):
         return 0
-    return max(0, int(TURN_SECONDS - (time.time() - st.get("turn_started", 0))))
+    spent = time.time() - st.get("turn_started", 0) - _watching(st)
+    return max(0, int(TURN_SECONDS - spent))
 
 
 DROP_EVERY = 1          # ครบกี่รอบถึงเติมของใหม่ลงสนาม
@@ -649,6 +678,7 @@ def _pass_turn(st):
                 d.pop(k)
     st["moves"] = MOVE_BUDGET // 2 if f.get("buffs", {}).get("slow") else MOVE_BUDGET
     st["turn_started"] = time.time()
+    st["anim_sent_at"] = 0
     _roll_wind(st)
     _check_over(st)
 
@@ -825,6 +855,9 @@ def end_turn(uid, auto=False):
             break
         bot_moves += _bot_turn(st)
         _pass_turn(st)
+    # 🎬 ตอบไปพร้อมภาพให้ดู (ตาบอท ของลงสนาม) = หยุดนาฬิกาไว้จนกว่าเขาจะสั่งอะไรมา
+    if bot_moves or st.get("drops"):
+        st["anim_sent_at"] = time.time()
     save(uid, st)
     return True, {"bot_moves": bot_moves} | view(uid, st)
 

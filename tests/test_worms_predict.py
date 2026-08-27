@@ -282,3 +282,205 @@ def test_falling_off_a_ledge_is_animated_not_teleported():
     body = PLAY[PLAY.index("function wmWalkTick("):]
     body = body[:body.index(chr(10) + "}" + chr(10))]
     assert "wmChunk(" in body, "ตกหน้าผาแล้วไม่มีภาพร่วง — วาปลงพื้นเลย"
+
+# ── 🔋 แรงเดินสองฝั่งต้องตรงกัน ไม่งั้นค้างทั้งเทิร์น ──
+
+@pytest.mark.parametrize("seed", [3, 11, 27])
+def test_both_sides_charge_the_same_energy(seed):
+    """เจ้าของเกมเจอ: หมดแรงแล้วไม่จบเทิร์นเอง · ยังไม่หมดแรงแต่ขยับไม่ได้
+
+    ต้นเหตุ: จอหักแรงทุกครั้งที่พยายามก้าว แม้ชนกำแพง แต่เซิร์ฟเวอร์หัก
+    max(ก้าวที่เดินได้จริง, 1) "ต่อหนึ่งคำขอ" — กดค้างดันกำแพงแล้วจอคิดว่าแรงหมด
+    ทั้งที่เซิร์ฟเวอร์ยังเหลือเยอะ จอเลยหยุดส่งคำสั่ง เซิร์ฟเวอร์ไม่มีทางรู้ว่า
+    ต้องจบเทิร์น = กดอะไรไม่ได้เลยทั้งเทิร์น
+    """
+    rng = random.Random(seed * 17)
+    grid = T.generate(seed)["grid"]
+    spots = T._open_spots(grid)
+    cases = [[*rng.choice(spots), rng.choice([-1, 1]), rng.randint(1, 8), True]
+             for _ in range(150)]
+    js = _run_js(grid, cases)
+    for c, j in zip(cases, js):
+        x, y, d, n, _ = c
+        py = P.walk(grid, x, y, d, n, no_drown=True)
+        server = max(py["steps"], 1)              # กติกาหักแรงของ match.move()
+        screen = max(j["steps"], 1)               # กติกาที่ walk.js ต้องทำตาม
+        assert server == screen, (
+            f"เมล็ด {seed}: เดินจาก ({x},{y}) ทิศ {d} ขอ {n} ก้าว — "
+            f"เซิร์ฟเวอร์หัก {server} แต่จอหัก {screen}")
+
+
+def test_the_screen_charges_once_when_it_hits_a_wall():
+    """ดันกำแพงค้างไว้ต้องเสียแรงก้อนละ 1 ไม่ใช่ทุกเฟรมที่พยายามก้าว"""
+    body = PLAY[PLAY.index("function wmWalkTick("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert "if (!WM_PRED.pending) { WM_ST.moves--; WM_PRED.pending++; }" in body,         "ชนกำแพงแล้วยังหักแรงทุกครั้งที่พยายามก้าว"
+
+
+def test_the_screen_never_decides_the_turn_is_over_by_itself():
+    """จอคิดว่าแรงหมดได้ แต่ต้องถามเซิร์ฟเวอร์เสมอ ไม่ใช่เงียบไปเฉย ๆ
+
+    เงียบเมื่อไหร่ = เซิร์ฟเวอร์ไม่รู้ว่าต้องจบเทิร์น ผู้เล่นค้างทั้งเทิร์น
+    """
+    body = PLAY[PLAY.index("function wmWalkTick("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert "WM_ST.moves <= 0 && !WM_PRED.pending && !WM_PRED.probed" in body,         "จอคิดว่าแรงหมดแล้วหยุดส่งคำสั่งเลย เซิร์ฟเวอร์ไม่มีทางรู้"
+
+
+def test_a_jump_with_no_energy_says_so(): 
+    """กดกระโดดแล้วเงียบ = ผู้เล่นนึกว่าปุ่มเสีย (เจ้าของเกมเจอ: โดนตีแล้วกระโดดไม่ได้)"""
+    body = PLAY[PLAY.index("function wmJumpFire("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert "toast(" in body, "แรงไม่พอกระโดดแล้วไม่บอกอะไรเลย"
+
+
+# ── ⏱️ นาฬิกาฝั่งเซิร์ฟเวอร์ต้องหยุดตอนผู้เล่นนั่งดูภาพ ──
+
+def _match(tmp_path, monkeypatch, uid=7301):
+    import bot.models.player_model as pm
+    from bot.pvp import match
+    from license_server import web_db
+
+    monkeypatch.setattr(pm, "DB_NAME", str(tmp_path / "g.db"))
+    monkeypatch.setattr(web_db, "DB_PATH", tmp_path / "w.db")
+    pm.init_db()
+    pm.get_player(uid)
+    match.new_practice(uid, {"race": "Human", "cls": "Warrior",
+                             "armor": "None", "weapon": ""}, seed=7)
+    return match, uid
+
+
+def test_time_spent_watching_the_bot_is_not_charged_to_your_turn(tmp_path, monkeypatch):
+    """เจ้าของเกมเจอ: ขึ้นหมดเวลาทั้งที่บนจอยังเหลือเวลา
+
+    ฝั่งเว็บหยุดนาฬิกาบนจอตอนเล่นภาพ (ตามที่สั่งไว้) แต่ฝั่งเซิร์ฟเวอร์ยังเดินอยู่
+    ตาบอทเดิน + ของลงสนาม + ร่างระเบิด กินเวลาได้หลายสิบวินาที
+    """
+    import time
+
+    match, uid = _match(tmp_path, monkeypatch)
+    st = match.load(uid)
+    st["turn_started"] = time.time() - 20
+    st["anim_sent_at"] = time.time() - 20        # นั่งดูภาพมา 20 วิ
+    match.save(uid, st)
+    assert match.time_left(match.load(uid)) >= match.TURN_SECONDS - 1,         "เวลาที่นั่งดูภาพถูกหักจากเทิร์นของผู้เล่น"
+
+
+def test_the_grace_has_a_ceiling(tmp_path, monkeypatch):
+    """เปิดจอทิ้งไว้เฉย ๆ ห้ามได้เวลาฟรีไม่จำกัด ทั้งห้องจะค้าง"""
+    import time
+
+    match, uid = _match(tmp_path, monkeypatch)
+    st = match.load(uid)
+    st["turn_started"] = time.time() - 3600
+    st["anim_sent_at"] = time.time() - 3600
+    match.save(uid, st)
+    assert match.time_left(match.load(uid)) == 0,         f"ทิ้งไว้ชั่วโมงหนึ่งแล้วยังไม่หมดเวลา (เพดาน {match.ANIM_GRACE} วิ)"
+
+
+def test_acting_gives_the_watched_time_back(tmp_path, monkeypatch):
+    """สั่งอะไรมา = ดูภาพจบแล้ว ต้องคืนเวลาที่นั่งดูให้เขาถาวร ไม่ใช่คืนชั่วคราว"""
+    import time
+
+    match, uid = _match(tmp_path, monkeypatch)
+    st = match.load(uid)
+    st["turn_started"] = time.time() - 15
+    st["anim_sent_at"] = time.time() - 15
+    match.save(uid, st)
+    ok, _ = match.move(uid, "walk", 1, 1)
+    assert ok
+    st = match.load(uid)
+    assert st["anim_sent_at"] == 0, "สั่งไปแล้วยังค้างสถานะนั่งดูภาพอยู่"
+    assert match.time_left(st) >= match.TURN_SECONDS - 2, "คืนเวลาที่นั่งดูไม่ครบ"
+
+
+def test_a_new_turn_starts_the_clock_clean(tmp_path, monkeypatch):
+    """เปลี่ยนตาแล้วต้องล้างสถานะนั่งดูภาพ ไม่งั้นตาถัดไปได้เวลาฟรีติดมาด้วย"""
+    import time
+
+    match, uid = _match(tmp_path, monkeypatch)
+    st = match.load(uid)
+    st["anim_sent_at"] = time.time() - 25
+    match.save(uid, st)
+    match.end_turn(uid)
+    assert match.load(uid)["anim_sent_at"] in (0, None) or         match.load(uid).get("anim_sent_at", 0) >= time.time() - 1,         "ตาใหม่แล้วยังถือสถานะนั่งดูภาพของตาเก่า"
+
+
+def test_the_clock_pauses_only_when_there_is_something_to_watch(tmp_path, monkeypatch):
+    """ไม่มีภาพให้ดูก็ต้องนับเวลาตามปกติ ไม่งั้นเทิร์นไม่มีวันหมด"""
+    import time
+
+    match, uid = _match(tmp_path, monkeypatch)
+    st = match.load(uid)
+    st["turn_started"] = time.time() - 20
+    st["anim_sent_at"] = 0
+    match.save(uid, st)
+    left = match.time_left(match.load(uid))
+    assert left <= match.TURN_SECONDS - 19, f"ไม่มีภาพให้ดูแต่นาฬิกาไม่เดิน (เหลือ {left})"
+
+def test_falling_does_not_eat_your_whole_turn():
+    """เดินตกผาเคยเสียแรงตามจำนวนพิกเซลที่ร่วง — ตก 74 px = เสียแรง 82 จากที่มี 60
+
+    ก้าวพลาดหนึ่งก้าวจบเทิร์นทันที และฝั่งจอเดาตามไม่ได้เลยเพราะไม่รู้ว่าจะร่วงกี่พิกเซล
+    (ในเกมแนวนี้การตกไม่ใช่ "ออกแรงเดิน" อยู่แล้ว — เจ็บจากการตกคิดแยกต่างหาก)
+    """
+    g = [[T.AIR] * T.W for _ in range(T.H)]
+    for x in range(100, 300):
+        for y in range(120, T.H - T.WATER):
+            g[y][x] = T.ROCK
+    for x in range(300, 500):                    # เกาะขวาต่ำกว่า 80 px
+        for y in range(200, T.H - T.WATER):
+            g[y][x] = T.ROCK
+    r = P.walk(g, 295, 120, 1, 8, no_drown=True)
+    assert r["y"] == 200, "ไม่ได้ตกลงไปเกาะล่างจริง"
+    assert len(r["path"]) > 60, "เทสนี้ต้องเป็นเคสที่ร่วงยาว ๆ ถึงจะวัดอะไรได้"
+    assert r["steps"] <= 8, f"ก้าวได้จริง {r['steps']} ก้าว แต่ขอไปแค่ 8"
+    assert max(r["steps"], 1) < 20,         f"ตกผาแล้วคิดแรง {r['steps']} — ยังคิดตามพิกเซลที่ร่วงอยู่"
+
+def test_a_real_walk_off_a_cliff_barely_costs_energy(tmp_path, monkeypatch):
+    """ไล่ผ่าน match.move() ของจริง ไม่ใช่คิดสูตรเองแล้วเทียบกับสูตรตัวเอง
+
+    ⚠️ ต้องใช้หน้าผาที่ "ตกแล้วไม่เจ็บ" (ต่ำกว่า FALL_HURT_FROM) — ตกแล้วเจ็บเมื่อไหร่
+       เซิร์ฟเวอร์จบเทิร์นให้ทันทีแล้วรีเซ็ตแรงเต็ม วัดค่าที่หักไปไม่ได้เลย
+    """
+    match, uid = _match(tmp_path, monkeypatch, uid=7401)
+    drop = P.FALL_HURT_FROM - 5
+    g = [[T.AIR] * T.W for _ in range(T.H)]
+    for x in range(100, 300):
+        for y in range(120, T.H - T.WATER):
+            g[y][x] = T.ROCK
+    for x in range(300, 500):
+        for y in range(120 + drop, T.H - T.WATER):
+            g[y][x] = T.ROCK
+    st = match.load(uid)
+    st["terrain"] = T.encode(g)
+    st["props"] = []
+    st["fighters"][0].update(x=295, y=120, face=1, hp=100)
+    st["fighters"][1].update(x=450, y=120 + drop)
+    match.save(uid, st)
+
+    before = match.load(uid)["moves"]
+    ok, r = match.move(uid, "walk", 1, 8)
+    assert ok, r.get("error")
+    assert not r.get("auto_ended"), "ตกแล้วเจ็บจนจบเทิร์น — วัดแรงที่หักไม่ได้ ปรับความสูงหน้าผา"
+    assert r["fighters"][0]["y"] == 120 + drop, "ไม่ได้ตกลงเกาะล่างจริง"
+    assert len(r["move"]["path"]) > 30, "เคสนี้ต้องมีพิกเซลร่วงเยอะ ๆ ถึงจะวัดอะไรได้"
+    spent = before - r["moves"]
+    assert spent <= 8, (
+        f"เดินตกผา 8 ก้าวแล้วเสียแรง {spent} (พิกเซลที่ร่วง {len(r['move']['path'])}) "
+        "— ยังคิดแรงตามพิกเซลที่ร่วงอยู่")
+
+
+def test_a_bot_turn_response_pauses_the_clock(tmp_path, monkeypatch):
+    """ตอบพร้อมภาพให้ดูแล้วต้องหยุดนาฬิกา ไม่งั้นคืนเวลาไม่ได้เพราะไม่รู้ว่าเริ่มดูตอนไหน"""
+    match, uid = _match(tmp_path, monkeypatch, uid=7402)
+    st = match.load(uid)
+    st["turn_started"] = 0                  # บังคับให้หมดเวลาแล้วจะได้สลับตาจริง
+    match.save(uid, st)
+    ok, r = match.end_turn(uid, auto=True)
+    assert ok
+    st = match.load(uid)
+    played = (r.get("bot_moves") or []) or st.get("drops")
+    if not played:
+        pytest.skip("ตานี้บอทไม่ได้ทำอะไรและไม่มีของลง")
+    assert st.get("anim_sent_at"),         "ส่งภาพไปให้ดูแล้วแต่ไม่ได้หยุดนาฬิกา — เดี๋ยวขึ้นหมดเวลาทั้งที่ยังดูภาพอยู่"

@@ -3239,7 +3239,11 @@ let WM_JUMP_SEND = null;  // คำสั่งกระโดดที่รอ
 function wmJumpFire(dir, power, lean) {
   if (!WM_ST || WM_ST.over) return;
   const mine = WM_ST.turn, me = WM_ST.fighters[mine];
-  if (!me || me.bot || me.dead || WM_ST.moves < 6) return;
+  if (!me || me.bot || me.dead) return;
+  if (WM_ST.moves < 6) {                // เงียบไปเฉย ๆ = ผู้เล่นนึกว่าปุ่มเสีย
+    toast('🔋 แรงไม่พอกระโดด — กดจบเทิร์นได้เลย', true);
+    return;
+  }
   wmWalkStop();                         // ปิดก้อนเดินที่ค้างก่อน จะได้ไม่ปนกัน
   me.face = dir;
   const r = WALK.jump(WM, WALK.rules(WM_ST), me.x, me.y, dir, power, lean);
@@ -3420,7 +3424,8 @@ function wmWalkStart(dir) {
   if (!WM_ST || WM_ST.over) return;
   if (WM_PRED && WM_PRED.dir !== dir) WM_PRED.done = true;   // สลับทิศ = ปิดก้อนเดิม
   if (!WM_PRED || WM_PRED.done) wmWalkFlush();
-  if (!WM_PRED) WM_PRED = { dir: dir, tick: 0, pending: 0, beat: 0, done: false, at: 0 };
+  if (!WM_PRED)
+    WM_PRED = { dir: dir, tick: 0, pending: 0, beat: 0, done: false, probed: false, at: 0 };
   WM_PRED.dir = dir;
   WM_PRED.done = false;
   WM_PRED.at = WM_PRED.at || performance.now();
@@ -3445,10 +3450,18 @@ function wmWalkTick() {
     while (WM_PRED.tick >= WM_WALK_TICKS && WM_ST.moves > 0) {
       WM_PRED.tick -= WM_WALK_TICKS;
       const s = WALK.step(WM, WALK.rules(WM_ST), me.x, me.y, WM_PRED.dir, true);
-      WM_ST.moves--;                     // แรงเดินนับฝั่งจอด้วย จะได้หยุดตรงเวลา
-      WM_PRED.pending++;
       me.face = WM_PRED.dir;
-      if (s.how === WALK.BLOCKED) break;  // ชนกำแพง/ขอบน้ำ — อยู่กับที่แต่ยังกินแรง
+      // 🔋 หักแรงให้ตรงกับเซิร์ฟเวอร์เป๊ะ: เซิร์ฟเวอร์หัก max(ก้าวที่เดินได้จริง, 1)
+      //    "ต่อหนึ่งคำขอ" ไม่ใช่ต่อหนึ่งครั้งที่พยายามก้าว
+      //    ⚠️ เดิมหักทุกครั้งแม้ชนกำแพง — กดค้างดันกำแพงแล้วจอคิดว่าแรงหมด
+      //       ทั้งที่เซิร์ฟเวอร์ยังเหลือเยอะ จอเลยหยุดส่งคำสั่ง เซิร์ฟเวอร์ไม่มีทางรู้
+      //       ว่าต้องจบเทิร์น = กดอะไรไม่ได้เลยทั้งเทิร์น (ทั้งเดินและกระโดด)
+      if (s.how === WALK.BLOCKED) {
+        if (!WM_PRED.pending) { WM_ST.moves--; WM_PRED.pending++; }
+        break;                            // ชนกำแพง/ขอบน้ำ — ก้อนนี้จบแค่นี้
+      }
+      WM_ST.moves--;
+      WM_PRED.pending++;
       if (s.y > me.y + 1) {               // ก้าวนี้ตกหน้าผา — ต้องร่วงให้เห็น ไม่ใช่วาปลง
         me.x = s.x;
         const drop = [];
@@ -3461,6 +3474,13 @@ function wmWalkTick() {
       wmFocus(me);
     }
     wmPaintHud();
+  }
+  // 🔋 จอคิดว่าแรงหมดแล้ว — ต้องให้เซิร์ฟเวอร์เป็นคนชี้ขาดและจบเทิร์นให้
+  //    (จอคิดผิดได้ ห้ามปล่อยให้เงียบไปเฉย ๆ ไม่งั้นค้างทั้งเทิร์น)
+  if (can && WM_ST.moves <= 0 && !WM_PRED.pending && !WM_PRED.probed) {
+    WM_PRED.probed = true;
+    WM_PRED.pending = 1;                  // ขอเดินอีกก้าว — เซิร์ฟเวอร์จะจบเทิร์นให้เอง
+    WM_PRED.done = true;
   }
   wmWalkFlush();
   if (WM_JUMP_SEND && !wmBusy) { const j = WM_JUMP_SEND; WM_JUMP_SEND = null; wmJumpSend(j); }
