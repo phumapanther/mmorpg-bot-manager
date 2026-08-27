@@ -82,8 +82,7 @@ def test_the_jump_leaves_the_ground_without_waiting_for_the_server():
     """ปล่อยปุ่มแล้วต้องลอยเลย ไม่ใช่รอ ~300 ms ให้เซิร์ฟเวอร์ตอบก่อน"""
     body = PLAY[PLAY.index("function wmJumpFire("):]
     body = body[:body.index(chr(10) + "}" + chr(10))]
-    assert body.index("WM_ANIM = {") < body.index("wmBusy"),         "ยิงคำสั่งไปเซิร์ฟเวอร์ก่อนแล้วค่อยเริ่มภาพ = รอเน็ตเหมือนเดิม"
-    assert "WALK.jump(" in body, "ไม่ได้คำนวณวิถีเอง"
+    assert body.index("WM_FLY = WALK.jumpStart(") < body.index("wmBusy"),         "ยิงคำสั่งไปเซิร์ฟเวอร์ก่อนแล้วค่อยเริ่มลอย = รอเน็ตเหมือนเดิม"
 
 
 def test_a_jump_is_never_lost_when_the_line_is_busy():
@@ -102,7 +101,7 @@ def test_a_late_walk_batch_cannot_drag_you_out_of_the_air():
     """ก้อนเดินที่ส่งไปก่อนกระโดดจะกลับมาตอนกำลังลอยอยู่ — ห้ามลากตัวกลับลงพื้น"""
     body = PLAY[PLAY.index("async function wmDo("):]
     body = body[:body.index(chr(10) + "}" + chr(10))]
-    assert "if (!WM_JUMP_END) wmReconcile(" in body,         "ก้อนเดินที่มาทีหลังยังทาบตำแหน่งได้ทั้งที่กำลังลอยอยู่"
+    assert "if (!WM_FLY && !WM_JUMP_END) wmReconcile(" in body,         "ก้อนเดินที่มาทีหลังยังทาบตำแหน่งได้ทั้งที่กำลังลอยอยู่"
 
 
 @pytest.mark.parametrize("seed", [3, 11, 27, 42])
@@ -484,3 +483,125 @@ def test_a_bot_turn_response_pauses_the_clock(tmp_path, monkeypatch):
     if not played:
         pytest.skip("ตานี้บอทไม่ได้ทำอะไรและไม่มีของลง")
     assert st.get("anim_sent_at"),         "ส่งภาพไปให้ดูแล้วแต่ไม่ได้หยุดนาฬิกา — เดี๋ยวขึ้นหมดเวลาทั้งที่ยังดูภาพอยู่"
+
+# ── 🦘 กระโดดต้องลอยจริง ไม่ใช่วาปไปจุดลงพื้น ──
+
+def test_the_jump_is_flown_frame_by_frame_not_replayed():
+    """เจ้าของเกมสั่ง: "จุดลงพื้นไม่ควรถูกกำหนดไว้ล่วงหน้า ต้องคำนวณต่อเนื่องแบบเรียลไทม์"
+
+    ของเดิมคิดวิถีทั้งเส้นแล้วเล่นเทป — พอคำตอบจากเซิร์ฟเวอร์มาถึงกลางอากาศ
+    wmDo ล้าง WM_ANIM ทิ้ง ภาพกระโดดตายคาที่แล้ววาปไปจุดลงพื้นทันที
+    """
+    fire = PLAY[PLAY.index("function wmJumpFire("):]
+    fire = fire[:fire.index(chr(10) + "}" + chr(10))]
+    assert "WALK.jumpStart(" in fire, "ยังคิดวิถีทั้งเส้นล่วงหน้าอยู่"
+    assert "WALK.jump(" not in fire, "ยังเรียกตัวคิดวิถีทั้งเส้นอยู่"
+
+    tick = PLAY[PLAY.index("function wmFlyTick("):]
+    tick = tick[:tick.index(chr(10) + "}" + chr(10))]
+    assert "WALK.jumpStep(" in tick, "ไม่ได้เดินฟิสิกส์ทีละเฟรม"
+    assert "WM_FLY.tick += WM_DT" in tick, "การลอยไม่ได้ผูกกับเวลาจริง"
+
+
+def test_a_server_answer_mid_air_does_not_cut_the_jump_short():
+    """คำตอบมาถึงตอนยังลอยอยู่ = ต้องรอให้ลงพื้นก่อน ห้ามวาปไปจุดลงทันที"""
+    body = PLAY[PLAY.index("function wmLandJump("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert "if (WM_FLY) { WM_FLY.answer" in body, "คำตอบมากลางอากาศแล้วสรุปผลเลย"
+
+    do = PLAY[PLAY.index("async function wmDo("):]
+    do = do[:do.index(chr(10) + "}" + chr(10))]
+    assert "if (!predicted) { WM_ANIM = null; WM_QUEUE = []; }" in do,         "ยังล้างภาพที่ฝั่งจอกำลังเล่นเองอยู่ — กระโดด/ร่วง จะตายคากลางอากาศ"
+
+
+def test_being_in_the_air_blocks_everything_else():
+    """ลอยอยู่ = ยังทำอะไรไม่ได้ ทั้งเดินต่อ กระโดดซ้ำ และนาฬิกาต้องหยุด"""
+    busy = PLAY[PLAY.index("function wmBusyFx("):]
+    busy = busy[:busy.index(chr(10) + "}" + chr(10))]
+    assert "WM_FLY" in busy, "ลอยอยู่แต่ระบบถือว่าว่าง — กดอย่างอื่นแทรกได้"
+    idle = PLAY[PLAY.index("function wmFxIdle("):]
+    idle = idle[:idle.index(chr(10) + "}" + chr(10))]
+    assert "!WM_FLY" in idle, "ขั้นถัดไปเริ่มได้ทั้งที่ยังลอยอยู่"
+    fire = PLAY[PLAY.index("function wmJumpFire("):]
+    fire = fire[:fire.index(chr(10) + "}" + chr(10))]
+    assert "WM_FLY) return" in fire, "กระโดดซ้ำระหว่างลอยได้"
+
+
+@pytest.mark.parametrize("seed", [5, 19])
+def test_flying_frame_by_frame_lands_where_the_server_says(seed):
+    """เดินทีละเฟรมกับคิดทั้งเส้นต้องได้ผลเดียวกัน ไม่งั้นลงพื้นแล้ววาปแก้"""
+    rng = random.Random(seed)
+    grid = T.generate(seed)["grid"]
+    spots = T._open_spots(grid)
+    cases = [[*rng.choice(spots), rng.choice([-1, 1]), round(rng.random(), 3),
+              round(rng.uniform(-1, 1), 3)] for _ in range(80)]
+    js = _run_js(grid, cases, kind="jump")
+    for c, j in zip(cases, js):
+        x, y, d, pw, ln = c
+        py = P.jump(grid, x, y, d, power=pw, lean=ln)
+        assert (py["x"], py["y"]) == (j["x"], j["y"]), (
+            f"กระโดดจาก ({x},{y}) — เดินทีละเฟรมลง ({j['x']},{j['y']}) "
+            f"แต่เซิร์ฟเวอร์ว่า ({py['x']},{py['y']})")
+
+
+# ── 🌊 หมัดหนักผลักคนตกทะเลได้ ──
+
+def test_a_solid_hit_can_shove_someone_into_the_sea(tmp_path, monkeypatch):
+    """เจ้าของเกมสั่ง: การโจมตีต้องผลักคนอื่นกระเด็นตกน้ำได้"""
+    match, uid = _match(tmp_path, monkeypatch, uid=7601)
+    g = [[T.AIR] * T.W for _ in range(T.H)]
+    for x in range(200, 260):                    # เกาะแคบ ๆ ยืนใกล้ขอบ
+        for y in range(200, T.H - T.WATER):
+            g[y][x] = T.ROCK
+    st = match.load(uid)
+    st["terrain"] = T.encode(g)
+    st["props"] = []
+    st["fighters"][0].update(x=230, y=200, face=1, hp=100)
+    st["fighters"][1].update(x=252, y=200, face=-1, hp=100)
+    match.save(uid, st)
+    grid = T.decode(st["terrain"])
+    kb = match._knock_back(st, grid, st["fighters"][1], 230, 40)
+    assert st["fighters"][1]["dead"], "ต่อยเต็มแรงชิดขอบเกาะแล้วยังไม่ตกน้ำ"
+
+
+def test_a_light_graze_does_not_shove_you_into_the_sea(tmp_path, monkeypatch):
+    """หมัดเบา ๆ ต้องหยุดตรงขอบ — ไม่งั้นกลับไปเป็น "อยู่ ๆ ก็ตกรอบแพ้เอง"
+
+    วัดแล้ว: เปิดให้ทุกหมัดผลักตกน้ำ ผู้เล่นยืนเฉย ๆ 40 เมล็ดจมน้ำ 19 ครั้ง
+    (10 ครั้งก่อนรอบ 6) · จำกัดเป็น dmg>=25 เหลือ 8 ครั้ง (เร็วแค่ 2)
+    """
+    match, uid = _match(tmp_path, monkeypatch, uid=7602)
+    g = [[T.AIR] * T.W for _ in range(T.H)]
+    for x in range(200, 260):
+        for y in range(200, T.H - T.WATER):
+            g[y][x] = T.ROCK
+    st = match.load(uid)
+    st["terrain"] = T.encode(g)
+    st["props"] = []
+    st["fighters"][0].update(x=230, y=200, face=1, hp=100)
+    st["fighters"][1].update(x=252, y=200, face=-1, hp=100)
+    match.save(uid, st)
+    grid = T.decode(st["terrain"])
+    match._knock_back(st, grid, st["fighters"][1], 230, match.KNOCK_DROWN_DMG - 1)
+    assert not st["fighters"][1]["dead"],         f"หมัดเบา ({match.KNOCK_DROWN_DMG - 1}) ก็ผลักตกน้ำตายได้ — แรงเกินไป"
+
+
+# ── ✨ เอฟเฟกต์ที่เจ้าของเกมขอ ──
+
+def test_warping_and_opening_a_chest_have_their_own_effects():
+    for fn, what in (("function wmWarpFx(", "วาร์ป"), ("function wmChestFx(", "เปิดหีบ")):
+        assert fn in PLAY, f"ไม่มีเอฟเฟกต์{what}"
+    body = PLAY[PLAY.index("async function wmDo("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert body.count("wmWarpFx(") >= 2,         "เอฟเฟกต์วาร์ปต้องมีทั้งจุดที่หายไปและจุดที่โผล่ออกมา"
+    assert "wmChestFx(" in body, "เปิดหีบแล้วไม่มีเอฟเฟกต์"
+
+
+def test_the_pauses_between_steps_got_shorter():
+    """เจ้าของเกมสั่ง: ลดดีเลย์จาก 2 วิเป็น 1 วิ และ 1 วิเป็น 0.5 วิ"""
+    import re as _re
+
+    before = int(_re.search("const WM_GAP_BEFORE = " + chr(40) + "?P<n>[0-9]+" + chr(41), PLAY).group("n"))
+    after = int(_re.search("const WM_GAP_AFTER = " + chr(40) + "?P<n>[0-9]+" + chr(41), PLAY).group(1))
+    assert before == 30, f"เว้นก่อนเริ่ม {before} เฟรม (ต้องเป็น 30 = 0.5 วิ)"
+    assert after == 60, f"เว้นหลังเสร็จ {after} เฟรม (ต้องเป็น 60 = 1 วิ)"

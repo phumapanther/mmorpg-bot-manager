@@ -278,11 +278,16 @@ def test_there_is_one_central_step_queue():
 
 
 def test_the_gaps_are_what_the_owner_asked_for():
-    """2 วิหลังเสร็จ · 1 วิก่อนเริ่มขั้นถัดไป"""
+    """1 วิหลังเสร็จ · 0.5 วิก่อนเริ่มขั้นถัดไป
+
+    เจ้าของเกมเคาะครั้งแรกไว้ 2 วิ/1 วิ แล้วลองเล่นจริงว่าอืดไป (08-27)
+    ลดลงครึ่งหนึ่ง แต่ยังต้องมีจังหวะเว้นอยู่ ไม่ใช่ตัดทิ้ง — ไม่งั้นกลับไปแย่งกันทำงาน
+    """
     after = int(re.search(r"WM_GAP_AFTER = (\d+)", PLAY).group(1))
     before = int(re.search(r"WM_GAP_BEFORE = (\d+)", PLAY).group(1))
-    assert after >= 110, f"เว้นหลังเสร็จแค่ {after} เฟรม (~{after / 60:.1f} วิ) ไม่ถึง 2 วินาที"
-    assert before >= 55, f"เว้นก่อนเริ่มแค่ {before} เฟรม (~{before / 60:.1f} วิ) ไม่ถึง 1 วินาที"
+    assert after == 60, f"เว้นหลังเสร็จ {after} เฟรม (~{after / 60:.1f} วิ) ต้องเป็น 1 วินาที"
+    assert before == 30, f"เว้นก่อนเริ่ม {before} เฟรม (~{before / 60:.1f} วิ) ต้องเป็น 0.5 วินาที"
+    assert before < after, "เว้นก่อนเริ่มต้องสั้นกว่าเว้นหลังเสร็จ"
 
 
 def test_the_queue_runs_every_frame():

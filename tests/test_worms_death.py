@@ -306,7 +306,7 @@ def test_the_page_charges_the_jump():
     assert "wmJumpFire(" in stop, "ปล่อยแล้วไม่ได้ออกตัว"
     fire = _fn("function wmJumpFire(")
     assert "jump_power: j.power, lean: j.lean" in _fn("function wmJumpSend("),         "ออกตัวแล้วไม่ได้ส่งแรง/การเอนไปให้เซิร์ฟเวอร์คำนวณซ้ำ"
-    assert "WALK.jump(" in fire, "ไม่ได้คำนวณวิถีเองฝั่งจอ = กลับไปรอเน็ตเหมือนเดิม"
+    assert "WALK.jumpStart(" in fire, "ไม่ได้ลอยด้วยฟิสิกส์เองฝั่งจอ = กลับไปรอเน็ตเหมือนเดิม"
     assert "if (what === 'walk') return;" in stop,         "ปล่อยลูกศรระหว่างชาร์จแล้วกระโดดออกไปก่อนเวลา"
 
 

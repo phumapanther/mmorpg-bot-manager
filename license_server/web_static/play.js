@@ -2130,11 +2130,13 @@ function wmStartLoop() {
     }
     wmTick();
     wmWalkTick();
+    wmFlyTick();
 
     WM_CAM.glide(WM_DT);   // เลื่อนเข้าหาเป้าทีละนิด — จอไม่กระโดด
     WM.draw(ctx, WM_CAM, t++);
     WM_ST.fighters.forEach((f, i) => {
       const moving = !!(WM_ANIM && WM_ANIM.fi === i)
+                  || !!(WM_FLY && WM_FLY.fi === i)
                   || !!(WM_PRED && !WM_PRED.done && i === WM_ST.turn);
       // ตายแล้วแต่ภาพร่วง/จมน้ำ/ภาพตายยังเล่นค้างอยู่ = ต้องวาดต่อ ไม่งั้นหายวับ
       if (WM_DYING[i]) { if ((WM_DYING[i] -= WM_DT) <= 0) delete WM_DYING[i]; }
@@ -2153,7 +2155,7 @@ function wmDrawFighter(ctx, f, active, t, walking) {
   // เดินอยู่ก็สลับท่าขาตามก้าวจริง ไม่ใช่ยืนท่าเดิมแล้วเลื่อนตัวไป (เห็นเป็นลื่นไถล)
   // ⚠️ เดินเองฝั่งจอไม่มี WM_ANIM — นับก้าวจากตัวทำนายแทน (แตะ WM_ANIM ตรง ๆ จะพัง)
   const anim = WM_ANIM && WM_ANIM.fi === WM_ST.turn ? WM_ANIM : null;
-  const air = walking && anim && anim.air;
+  const air = walking && ((anim && anim.air) || !!WM_FLY);   // ลอยอยู่ = ท่าลอย
   const beat = anim ? Math.floor(anim.i) : (WM_PRED ? WM_PRED.pending + WM_PRED.beat : 0);
   const pose = !walking ? 'idle' : air ? 'run1' : (beat % 2 ? 'run1' : 'run2');
   const look = { ...(f.look || {}), pose: pose, flip: f.face < 0 };
@@ -2436,7 +2438,7 @@ function wmStartTour(list) {
 
 function wmBusyFx() {
   return !!(WM_ANIM || WM_QUEUE.length || WM_SHOT || WM_BOOMS.length ||
-            WM_AFTER.length || wmStepsBusy() ||
+            WM_AFTER.length || wmStepsBusy() || WM_FLY ||
             Object.keys(WM_DYING).length);
 }
 
@@ -2771,8 +2773,8 @@ function wmBuffFx(a) {
 // แต่ละอันต้องคอยรู้จักอันอื่นเอง พลาดที่เดียวก็แย่งกล้องกันทันที
 // ตอนนี้ทุกอย่างเข้าคิวที่เดียว: เริ่ม → รอจนเสร็จจริง → เว้นจังหวะ → ขั้นถัดไป
 // ══════════════════════════════════════════════════════════════════
-const WM_GAP_BEFORE = 60;    // เว้นก่อนเริ่มขั้นถัดไป (1 วินาที)
-const WM_GAP_AFTER = 120;    // เว้นหลังขั้นหนึ่งเสร็จ (2 วินาที)
+const WM_GAP_BEFORE = 30;    // เว้นก่อนเริ่มขั้นถัดไป (0.5 วินาที)
+const WM_GAP_AFTER = 60;     // เว้นหลังขั้นหนึ่งเสร็จ (1 วินาที)
 let WM_STEPS = [];           // ขั้นที่รอคิวอยู่
 let WM_STEP = null;          // ขั้นที่กำลังทำ
 let WM_WAIT = 0;             // เฟรมที่ต้องรออยู่ (ช่วงเว้นจังหวะ)
@@ -2810,7 +2812,7 @@ function wmRunSteps() {
 
 /** ภาพที่ "ขั้นหนึ่ง ๆ" ใช้อยู่เล่นจบหรือยัง — ใช้เป็น done() ของหลายขั้น */
 function wmFxIdle() {
-  return !WM_ANIM && !WM_QUEUE.length && !WM_SHOT && !WM_BOOMS.length &&
+  return !WM_ANIM && !WM_QUEUE.length && !WM_SHOT && !WM_BOOMS.length && !WM_FLY &&
          !Object.keys(WM_DYING).length;
 }
 
@@ -2930,6 +2932,35 @@ function wmCallDeaths() {
 }
 
 const WM_DEAD_SEEN = {};   // ประกาศตายไปแล้วหรือยัง (กันเล่นภาพตายซ้ำทุกเฟรม)
+
+/** 🌀 วาร์ป — วงแหวนหดเข้า/ขยายออก + ประกายพุ่งเข้าหาจุดกึ่งกลาง
+
+    up = true คือ "โผล่ออกมา" · false คือ "ถูกดูดหายไป"
+ */
+function wmWarpFx(x, y, up) {
+  const mid = y - 11;
+  for (let i = 0; i < 3; i++)
+    WM_BOOMS.push({ x: x, y: mid, r: 5 + i * 3, t: up ? i * 3 : 20 - i * 3 });
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * 6.283, far = up ? 1 : -1;
+    WM_BITS.push({ x: x + Math.cos(a) * 14, y: mid + Math.sin(a) * 10, t: 0, dust: true,
+                   vx: -Math.cos(a) * far * 1.1, vy: -Math.sin(a) * far * .8 });
+  }
+  wmDust(x, y, 8);
+  WM_POPS.push({ x: x, y: y - 32, t: 0, buff: true, text: up ? '🌀 โผล่!' : '🌀 วาร์ป' });
+}
+
+/** 🎁 ฝาหีบเปิด — ไม้กระเด็น แสงพุ่งขึ้น แล้วของลอยออกมา */
+function wmChestFx(x, y) {
+  for (let i = 0; i < 8; i++)            // เศษไม้ฝาหีบกระเด็น
+    WM_BITS.push({ x: x, y: y - 6, t: 0,
+                   vx: ((i % 5) - 2) * .7, vy: -1.4 - (i % 3) * .4 });
+  for (let i = 0; i < 10; i++)           // ประกายทองพุ่งขึ้น
+    WM_BITS.push({ x: x + ((i % 5) - 2) * 2, y: y - 8, t: 0, drop: true,
+                   vx: ((i % 3) - 1) * .35, vy: -2.1 - (i % 4) * .35 });
+  WM_BOOMS.push({ x: x, y: y - 8, r: 7, t: 12 });
+  wmDust(x, y, 10);
+}
 
 /** 🕳️ เหยียบกับดัก — ซี่เหล็กงับ ฝุ่นฟุ้ง แล้วเด้งป้ายเตือน */
 function wmTrapFx(x, y) {
@@ -3174,7 +3205,9 @@ async function wmDo(action, dir, extra) {
     const cur = WM_ST.fighters[mine];
     const from = tail ? { x: tail[0], y: tail[1] } : { x: cur.x, y: cur.y };
     const old = wmSnapshot();
-    WM_ANIM = null; WM_QUEUE = [];
+    // ⚠️ ห้ามล้างภาพที่ฝั่งจอกำลังเล่นเอง (กระโดด/ร่วงจากการเดิน) — เดิมล้างทุกครั้ง
+    //    คำตอบมาถึงกลางอากาศเมื่อไหร่ ภาพกระโดดตายคาที่แล้ววาปไปจุดลงพื้นทันที
+    if (!predicted) { WM_ANIM = null; WM_QUEUE = []; }
     WM_ST = { ...d };
     // 🤖 บอทต้องอยู่ที่เดิมจนกว่าภาพเดินของมันจะเริ่มเล่นจริง
     //    wmQueueBot ย้อนบอทกลับจุดเริ่ม "ตอนขั้นนั้นเริ่มทำงาน" ซึ่งช้ากว่าตรงนี้
@@ -3191,13 +3224,13 @@ async function wmDo(action, dir, extra) {
         toast('🕳️ เหยียบกับดัก!', true);
       });
       (d.opened || []).forEach(o => { SFX.play('chest');
-        wmDust(o.x, o.y, 10);
+        wmChestFx(o.x, o.y);
         toast('🎁 เปิดหีบได้ ' + (o.name || 'ของ') + '!'); });
       if (d.ferry) {                      // 🎈 ข้ามเกาะแล้ว — พากล้องไปที่จุดลงด้วย
         SFX.play('ferry');
         toast('🎈 ขึ้นเรือเหาะข้ามไปอีกเกาะ!');
-        wmDust(d.ferry.from[0], d.ferry.from[1], 10);
-        wmDust(d.ferry.x, d.ferry.y, 10);
+        wmWarpFx(d.ferry.from[0], d.ferry.from[1], false);   // ดูดหายจากจุดเดิม
+        wmWarpFx(d.ferry.x, d.ferry.y, true);                // โผล่ที่จุดใหม่
         WM_ST.fighters[mine].x = d.ferry.x;
         WM_ST.fighters[mine].y = d.ferry.y;
         wmFocus(WM_ST.fighters[mine], true);
@@ -3215,7 +3248,7 @@ async function wmDo(action, dir, extra) {
       wmLandJump(mine, d, after);         // ลอยอยู่แล้ว — ทาบปลายวิถีตอนถึงพื้น
     } else if (predicted) {
       // กำลังลอยอยู่ = ก้อนเดินก้อนนี้เป็นของอดีต อย่าลากตัวกลับลงมากลางอากาศ
-      if (!WM_JUMP_END) wmReconcile(mine, d, dir);
+      if (!WM_FLY && !WM_JUMP_END) wmReconcile(mine, d, dir);
       after();
     } else if (d.move && d.move.path.length) {
       WM_ST.fighters[mine].x = from.x; WM_ST.fighters[mine].y = from.y;
@@ -3228,8 +3261,55 @@ async function wmDo(action, dir, extra) {
   finally { wmBusy = false; }
 }
 
-let WM_JUMP_END = null;   // ปลายวิถีที่จอเดาไว้ — ไว้เทียบกับของเซิร์ฟเวอร์
+let WM_JUMP_END = null;   // ปลายวิถีที่ลงจริงแล้ว — ไว้เทียบกับของเซิร์ฟเวอร์
 let WM_JUMP_SEND = null;  // คำสั่งกระโดดที่รอส่ง (ก้อนเดินก่อนหน้ายังไม่กลับ)
+let WM_FLY = null;        // สภาพการลอยตอนนี้ (เดินทีละเฟรมด้วย WALK.jumpStep)
+
+/** เดินการลอยไปตามเวลาจริง — เรียกจากลูปวาดทุกเฟรม */
+function wmFlyTick() {
+  if (!WM_FLY || !WM_ST) return;
+  const f = WM_ST.fighters[WM_FLY.fi];
+  if (!f) { WM_FLY = null; return; }
+  WM_FLY.tick += WM_DT;
+  while (WM_FLY.tick >= 1 && !WM_FLY.done) {
+    WM_FLY.tick -= 1;
+    const p = WALK.jumpStep(WM, WALK.rules(WM_ST), WM_FLY);
+    if (p) { f.x = p[0]; f.y = p[1]; }
+    wmFocus(f);
+  }
+  if (!WM_FLY.done) return;
+
+  // ── ถึงพื้น (หรือจมน้ำ/หัวชนแล้วร่วงจบ) ──
+  const fly = WM_FLY;
+  WM_FLY = null;
+  if (!fly.landed && !fly.drowned) {     // หัวชนกลางอากาศ — ร่วงลงจากตรงนั้น
+    const s = WALK.settle(WM, WALK.rules(WM_ST), Math.round(fly.x), Math.round(fly.y));
+    const drop = [];
+    for (let gy = Math.round(fly.y) + 1; gy <= s.y; gy++) drop.push([s.x, gy]);
+    f.x = s.x;
+    if (drop.length) wmChunk(fly.fi, drop, null);
+    else { f.y = s.y; }
+    if (fly.bump) wmBump(fly.bump[0], fly.bump[1]);
+  }
+  WM_JUMP_END = { x: f.x, y: f.y };
+  if (fly.answer) wmSettleJump(fly.answer.d, fly.answer.after);   // คำตอบมาถึงก่อนลง
+}
+
+/** คำตอบของเซิร์ฟเวอร์กับจุดที่ลงจริง — ต่างกันเมื่อไหร่เชื่อเซิร์ฟเวอร์ */
+function wmSettleJump(d, after) {
+  const f = WM_ST.fighters[WM_ST.turn];
+  const end = d.move ? { x: d.move.x, y: d.move.y } : null;
+  if (end && f && (end.x !== f.x || end.y !== f.y)) {
+    f.x = end.x; f.y = end.y;
+    wmFocus(f);
+  }
+  if (f && WM_HIDDEN) {
+    delete WM_HIDDEN[f.name];
+    if (!Object.keys(WM_HIDDEN).length) WM_HIDDEN = null;
+  }
+  WM_JUMP_END = null;
+  after();
+}
 
 /** 🦘 ปล่อยปุ่มแล้วลอยทันที — ไม่ต้องรอ ~300 ms ให้เซิร์ฟเวอร์ตอบก่อนถึงจะออกตัว
 
@@ -3237,7 +3317,7 @@ let WM_JUMP_SEND = null;  // คำสั่งกระโดดที่รอ
     แล้วเซิร์ฟเวอร์คำนวณซ้ำด้วยกฎชุดเดียวกัน — วัดแล้วตรงกันทุกเฟรม 360 เคส
  */
 function wmJumpFire(dir, power, lean) {
-  if (!WM_ST || WM_ST.over) return;
+  if (!WM_ST || WM_ST.over || WM_FLY) return;   // ลอยอยู่แล้วกระโดดซ้ำไม่ได้
   const mine = WM_ST.turn, me = WM_ST.fighters[mine];
   if (!me || me.bot || me.dead) return;
   if (WM_ST.moves < 6) {                // เงียบไปเฉย ๆ = ผู้เล่นนึกว่าปุ่มเสีย
@@ -3246,14 +3326,15 @@ function wmJumpFire(dir, power, lean) {
   }
   wmWalkStop();                         // ปิดก้อนเดินที่ค้างก่อน จะได้ไม่ปนกัน
   me.face = dir;
-  const r = WALK.jump(WM, WALK.rules(WM_ST), me.x, me.y, dir, power, lean);
-  WM_JUMP_END = { x: r.x, y: r.y };
+  // 🦘 ลอยด้วยฟิสิกส์จริงทีละเฟรมจากจุดที่ยืนอยู่ตอนนี้
+  //    เจ้าของเกมสั่ง: "จุดลงพื้นไม่ควรถูกกำหนดไว้ล่วงหน้า" — ไม่คิดวิถีทั้งเส้นแล้วเล่นเทป
+  WM_FLY = WALK.jumpStart(WALK.rules(WM_ST), me.x, me.y, dir, power, lean);
+  WM_FLY.fi = mine;
+  WM_FLY.tick = 0;
+  WM_JUMP_END = null;                   // ยังไม่รู้ว่าจะลงตรงไหน — ต้องลอยไปก่อน
   WM_ST.moves -= 6;                     // ค่ากระโดดตายตัว (ตรงกับฝั่งเซิร์ฟเวอร์)
   WM_PRED = null;                       // ทิ้งการทาบของก้อนเดิน — ตอนนี้กำลังลอยอยู่
-  if (r.path.length) {
-    WM_ANIM = { fi: mine, path: r.path, i: 0, onEnd: null };
-    SFX.play('jump');
-  }
+  SFX.play('jump');
   // ⚠️ ก้อนเดินก่อนหน้าอาจยังไม่กลับ — ยิงตอนนี้ wmDo จะทิ้งคำสั่งทั้งที่จอกระโดดไปแล้ว
   //    (เซิร์ฟเวอร์จะไม่รู้เรื่องการกระโดดนี้เลย) จึงพักไว้ให้ลูปวาดส่งเมื่อสายว่าง
   const send = { dir: dir, power: power, lean: lean };
@@ -3298,26 +3379,13 @@ function wmReconcile(mine, d, dir) {
     เดาพลาด = สลับไปใช้เส้นทางของเซิร์ฟเวอร์ตั้งแต่จุดที่เล่นถึง ไม่ใช่วาปไปปลายทาง
  */
 function wmLandJump(mine, d, after) {
-  const path = d.move ? d.move.path : [];
-  const end = d.move ? { x: d.move.x, y: d.move.y } : null;
-  const anim = WM_ANIM && WM_ANIM.fi === mine ? WM_ANIM : null;
-  const wrong = end && WM_JUMP_END &&
-                (end.x !== WM_JUMP_END.x || end.y !== WM_JUMP_END.y);
-  WM_JUMP_END = null;
-  if (wrong && path.length) {
-    const at = anim ? Math.min(anim.i, path.length - 1) : 0;
-    WM_ANIM = { fi: mine, path: path, i: at, onEnd: after };
+  if (WM_FLY) { WM_FLY.answer = { d: d, after: after }; return; }  // ยังลอยอยู่ — รอถึงพื้น
+  if (WM_ANIM && WM_ANIM.fi === mine) {        // กำลังร่วงหลังหัวชน — รอให้ร่วงจบ
+    const prev = WM_ANIM.onEnd;
+    WM_ANIM.onEnd = () => { if (prev) prev(); wmSettleJump(d, after); };
     return;
   }
-  if (anim) { anim.onEnd = after; return; }   // ยังลอยอยู่ — สรุปผลตอนถึงพื้น
-  // ลงพื้นไปก่อนคำตอบจะมาถึง (กระโดดสั้น + เน็ตช้า) — สรุปได้เลย
-  const f = WM_ST.fighters[mine];
-  if (end) { f.x = end.x; f.y = end.y; }
-  if (WM_HIDDEN) {
-    delete WM_HIDDEN[f.name];
-    if (!Object.keys(WM_HIDDEN).length) WM_HIDDEN = null;
-  }
-  after();
+  wmSettleJump(d, after);
 }
 
 /** 🏳️ ยอมแพ้ — ระเบิดตัวเองทิ้งแล้วจบแมตช์ (ถามก่อน กดพลาดแล้วเสียใจ) */
