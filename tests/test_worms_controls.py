@@ -225,7 +225,10 @@ def test_a_walking_fighter_uses_a_walking_pose():
     body = PLAY[PLAY.index("function wmDrawFighter("):]
     body = body[:body.index(chr(10) + "}")]
     assert "'run1'" in body and "'run2'" in body, "เดินแล้วยังใช้ท่ายืนเฉย ๆ"
-    assert "Math.floor(WM_ANIM.i) % 2" in body, "สลับขาไม่ตามก้าวจริง"
+    assert "beat % 2" in body, "สลับขาไม่ตามก้าวจริง"
+    # ต้องนับก้าวได้ทั้งตอนเล่นเส้นทางจากเซิร์ฟเวอร์ และตอนจอเดินเอง
+    assert "Math.floor(anim.i)" in body, "ไม่ได้นับก้าวจากเส้นทางที่เซิร์ฟเวอร์ส่งมา"
+    assert "WM_PRED.pending + WM_PRED.beat" in body, "เดินเองฝั่งจอแล้วขาไม่ขยับ"
 
 
 def test_the_camera_only_follows_near_the_edge():
@@ -674,7 +677,7 @@ def test_the_player_walk_always_blocks_walking_into_the_sea():
 def test_falling_looks_different_from_walking():
     body = PLAY[PLAY.index("function wmDrawFighter("):]
     body = body[:body.index(chr(10) + "}")]
-    assert "WM_ANIM.air" in body, "ตกกับเดินวาดเหมือนกันหมด"
+    assert "anim.air" in body, "ตกกับเดินวาดเหมือนกันหมด"
     assert "ctx.rotate(" in body, "ลอยกลางอากาศแล้วตัวยังตั้งตรงเป๊ะเหมือนยืน"
 
 

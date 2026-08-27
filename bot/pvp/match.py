@@ -888,6 +888,14 @@ def view(uid, st=None):
         "props": st["props"],
         "traps": sum(1 for p in st["props"] if p["kind"] == "trap"),
         "wind": wind_bar(st),          # -100..100 ไว้วาดแถบลม (ไม่ใช่ค่าฟิสิกส์จริง)
+        # 📏 ค่าคงที่ของกฎการเดิน — ส่งไปให้เบราว์เซอร์ "เดาล่วงหน้า" ได้ตรงกับที่นี่
+        #    (เบราว์เซอร์เดาไว้ก่อนให้ตัวขยับทันนิ้ว เซิร์ฟเวอร์ยังตัดสินตำแหน่งจริงเหมือนเดิม)
+        #    ส่งเป็นค่าคงที่ ไม่ใช่ฝังตัวเลขไว้ในไฟล์ JS จะได้ไม่มีวันเพี้ยนจากกัน
+        "rules": {
+            "ch_h": terrain.CH_H, "foot_w": physics.FOOT_W,
+            "climb": physics.CLIMB, "step_max": physics.STEP_MAX,
+            "water": terrain.WATER,
+        },
         "turn": st["turn"], "round": st["round"], "moves": st["moves"],
         "move_budget": MOVE_BUDGET, "over": st["over"], "winner": st.get("winner", ""),
         "time_left": time_left(st), "turn_seconds": TURN_SECONDS,

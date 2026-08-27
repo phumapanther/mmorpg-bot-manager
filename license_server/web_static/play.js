@@ -2129,11 +2129,13 @@ function wmStartLoop() {
       wmFocus(wmMe(), true);
     }
     wmTick();
+    wmWalkTick();
 
     WM_CAM.glide(WM_DT);   // เลื่อนเข้าหาเป้าทีละนิด — จอไม่กระโดด
     WM.draw(ctx, WM_CAM, t++);
     WM_ST.fighters.forEach((f, i) => {
-      const moving = !!(WM_ANIM && WM_ANIM.fi === i);
+      const moving = !!(WM_ANIM && WM_ANIM.fi === i)
+                  || !!(WM_PRED && !WM_PRED.done && i === WM_ST.turn);
       // ตายแล้วแต่ภาพร่วง/จมน้ำ/ภาพตายยังเล่นค้างอยู่ = ต้องวาดต่อ ไม่งั้นหายวับ
       if (WM_DYING[i]) { if ((WM_DYING[i] -= WM_DT) <= 0) delete WM_DYING[i]; }
       if (!f.dead || moving || WM_DYING[i]) wmDrawFighter(ctx, f, i === WM_ST.turn, t, moving);
@@ -2149,9 +2151,11 @@ function wmDrawFighter(ctx, f, active, t, walking) {
   const z = WM_CAM.z, x = WM_CAM.sx(f.x), y = WM_CAM.sy(f.y);
   if (x < -60 || x > WM_CAM.vw + 60) return;
   // เดินอยู่ก็สลับท่าขาตามก้าวจริง ไม่ใช่ยืนท่าเดิมแล้วเลื่อนตัวไป (เห็นเป็นลื่นไถล)
-  const air = walking && WM_ANIM.air;
-  const pose = !walking ? 'idle' : air ? 'run1'
-              : (Math.floor(WM_ANIM.i) % 2 ? 'run1' : 'run2');
+  // ⚠️ เดินเองฝั่งจอไม่มี WM_ANIM — นับก้าวจากตัวทำนายแทน (แตะ WM_ANIM ตรง ๆ จะพัง)
+  const anim = WM_ANIM && WM_ANIM.fi === WM_ST.turn ? WM_ANIM : null;
+  const air = walking && anim && anim.air;
+  const beat = anim ? Math.floor(anim.i) : (WM_PRED ? WM_PRED.pending + WM_PRED.beat : 0);
+  const pose = !walking ? 'idle' : air ? 'run1' : (beat % 2 ? 'run1' : 'run2');
   const look = { ...(f.look || {}), pose: pose, flip: f.face < 0 };
   const hurt = WM_FLASH[f.name] || 0;
   if (hurt) { WM_FLASH[f.name] = hurt - 1; ctx.globalAlpha = hurt % 4 < 2 ? .35 : 1; }
@@ -3151,7 +3155,10 @@ function wmBackoff(e) {
 }
 
 async function wmDo(action, dir, extra) {
-  if (wmBusy || wmWaiting()) return;
+  const predicted = !!(extra && extra.predicted);
+  // เดินแบบเดาไว้ก่อนไม่ต้องรอคิวภาพ — ตัวเดินไปแล้ว นี่แค่ส่งไปให้ยืนยัน
+  if (wmBusy) return;
+  if (!predicted && wmWaiting()) return;
   if (performance.now() < WM_BACKOFF) return;
   wmBusy = true;
   try {
@@ -3198,7 +3205,10 @@ async function wmDo(action, dir, extra) {
       wmPaintHud();
     };
 
-    if (d.move && d.move.path.length) {
+    if (predicted) {
+      wmReconcile(mine, d, dir);          // ตัวเดินไปแล้ว — เอาตำแหน่งจริงมาทาบ
+      after();
+    } else if (d.move && d.move.path.length) {
       WM_ST.fighters[mine].x = from.x; WM_ST.fighters[mine].y = from.y;
       WM_ANIM = { fi: mine, path: d.move.path, i: 0, onEnd: after };
       if (action === 'jump') SFX.play('jump');
@@ -3207,6 +3217,27 @@ async function wmDo(action, dir, extra) {
     }
   } catch (e) { if (!wmBackoff(e)) toast(e.message, true); }
   finally { wmBusy = false; }
+}
+
+/** 🎯 เอาคำตอบของเซิร์ฟเวอร์มาทาบกับตำแหน่งที่จอเดาไว้
+
+    เซิร์ฟเวอร์ตอบ "เดิน n ก้าวที่ส่งไปแล้วอยู่ตรงนี้" แต่ระหว่างรอ ~300 ms
+    ผู้เล่นกดค้างต่อ จอจึงเดินไปอีกหลายก้าวที่เซิร์ฟเวอร์ยังไม่เห็น
+    ต้องเดินก้าวพวกนั้นซ้ำต่อจากตำแหน่งจริง ไม่ใช่ทิ้ง (ตัวจะกระตุกถอยหลัง)
+
+    ⚠️ เชื่อเซิร์ฟเวอร์เสมอ ต่างกันเท่าไหร่ก็ยอมตามนั้น — ไม่งั้นเปิด devtools
+       แล้วปล่อยให้ฝั่งจอชนะการทาบ = เดินทะลุกำแพงได้
+ */
+function wmReconcile(mine, d, dir) {
+  const f = WM_ST.fighters[mine];
+  const server = d.move ? { x: d.move.x, y: d.move.y } : { x: f.x, y: f.y };
+  const ahead = WM_PRED && WM_PRED.dir === dir ? WM_PRED.pending : 0;
+  const spot = ahead > 0
+    ? WALK.walk(WM, WALK.rules(WM_ST), server.x, server.y, dir, ahead, true)
+    : server;
+  const off = Math.abs(f.x - spot.x) + Math.abs(f.y - spot.y);
+  f.x = spot.x; f.y = spot.y;
+  if (off > 3) wmFocus(f);          // ต่างกันเยอะ (กับดัก/พื้นหาย) พากล้องตามไปด้วย
 }
 
 /** 🏳️ ยอมแพ้ — ระเบิดตัวเองทิ้งแล้วจบแมตช์ (ถามก่อน กดพลาดแล้วเสียใจ) */
@@ -3290,9 +3321,83 @@ function wmHoldStart(action, dir) {
   }
   WM_KEYS[dir > 0 ? 'right' : 'left'] = true;
   if (WM_JUMP) return;                     // กำลังชาร์จกระโดดอยู่ — ลูกศรคือ "เอนตัว" ไม่ใช่เดิน
-  wmDo(action, dir);
-  clearInterval(wmHold);
-  wmHold = setInterval(() => wmDo('walk', dir), WM_HOLD_MS);
+  wmWalkStart(dir);
+}
+
+// ── 🏃 เดินเองทันนิ้ว แล้วให้เซิร์ฟเวอร์ตามมายืนยัน ──
+//
+// เดิม: กดค้าง → ยิง HTTP ขอ "เดิน 6 ก้าว" → รอ ~300 ms (เซิร์ฟเวอร์อยู่หลัง tunnel)
+//       → เล่นภาพ 500 ms → ค่อยขอรอบใหม่ = 12 พิกเซล/วินาที เป็นก้อน ๆ
+//       และปล่อยนิ้วไปแล้วตัวยังเดินต่ออีกก้อนหนึ่ง
+// ใหม่: จอเดินเองด้วยกฎชุดเดียวกัน (walk.js) ทุก WM_WALK_TICKS เฟรม
+//       ส่ง "กดทิศไหนไปกี่ก้าว" ไปเป็นระยะ แล้วเอาตำแหน่งจริงจากเซิร์ฟเวอร์มาทาบ
+//
+// 🔒 ยังโกงไม่ได้: API ไม่เคยรับพิกัด รับแค่จำนวนก้าว แล้วเซิร์ฟเวอร์เดินเองซ้ำ
+//    ตัดด้วยแรงเดินที่เหลือ ก้าวที่เกินมาถูกทิ้งทั้งหมด
+const WM_WALK_TICKS = 3;      // ก้าวหนึ่งทุกกี่เฟรมมาตรฐาน (3 = ~20 พิกเซล/วินาที)
+const WM_SEND_MS = 250;       // ส่งให้เซิร์ฟเวอร์ยืนยันทุกกี่มิลลิวินาที
+
+// { dir, tick, pending, done } · pending = ก้าวที่เดินไปแล้วแต่ยังไม่ได้ส่ง
+let WM_PRED = null;
+
+function wmWalkStart(dir) {
+  if (!WM_ST || WM_ST.over) return;
+  if (WM_PRED && WM_PRED.dir !== dir) WM_PRED.done = true;   // สลับทิศ = ปิดก้อนเดิม
+  if (!WM_PRED || WM_PRED.done) wmWalkFlush();
+  if (!WM_PRED) WM_PRED = { dir: dir, tick: 0, pending: 0, beat: 0, done: false, at: 0 };
+  WM_PRED.dir = dir;
+  WM_PRED.done = false;
+  WM_PRED.at = WM_PRED.at || performance.now();
+}
+
+function wmWalkStop() {
+  if (WM_PRED) WM_PRED.done = true;      // ปิดก้อน — ลูปวาดจะส่งให้เองเมื่อสายว่าง
+}
+
+/** เดินฝั่งจอหนึ่งเฟรม + ส่งให้เซิร์ฟเวอร์ยืนยันเป็นระยะ — เรียกจากลูปวาดเท่านั้น */
+function wmWalkTick() {
+  if (!WM_PRED || !WM_ST) return;
+  const me = wmMe();
+  const held = (WM_KEYS.left || WM_KEYS.right) && !WM_PRED.done;
+  const can = held && !WM_ST.over && !WM_JUMP && !me.bot && !me.dead && !wmBusyFx();
+  if (can) {
+    WM_PRED.tick += WM_DT;
+    while (WM_PRED.tick >= WM_WALK_TICKS && WM_ST.moves > 0) {
+      WM_PRED.tick -= WM_WALK_TICKS;
+      const s = WALK.step(WM, WALK.rules(WM_ST), me.x, me.y, WM_PRED.dir, true);
+      WM_ST.moves--;                     // แรงเดินนับฝั่งจอด้วย จะได้หยุดตรงเวลา
+      WM_PRED.pending++;
+      me.face = WM_PRED.dir;
+      if (s.how === WALK.BLOCKED) break;  // ชนกำแพง/ขอบน้ำ — อยู่กับที่แต่ยังกินแรง
+      if (s.y > me.y + 1) {               // ก้าวนี้ตกหน้าผา — ต้องร่วงให้เห็น ไม่ใช่วาปลง
+        me.x = s.x;
+        const drop = [];
+        for (let gy = me.y + 1; gy <= s.y; gy++) drop.push([s.x, gy]);
+        wmChunk(WM_ST.turn, drop, null);  // ระหว่างร่วงเดินต่อไม่ได้ (wmBusyFx เป็นจริง)
+        break;
+      }
+      me.x = s.x; me.y = s.y;
+      if (WM_PRED.pending % 3 === 0) SFX.play('walk');
+      wmFocus(me);
+    }
+    wmPaintHud();
+  }
+  wmWalkFlush();
+}
+
+/** ส่งก้าวที่สะสมไว้ — รอให้คำขอก่อนหน้ากลับมาก่อนเสมอ ก้าวที่เดินระหว่างรอไม่หาย */
+function wmWalkFlush() {
+  const p = WM_PRED;
+  if (!p) return;
+  const due = p.done || performance.now() - p.at >= WM_SEND_MS;
+  if (!due || wmBusy) return;
+  if (!p.pending) { if (p.done) WM_PRED = null; return; }
+  const n = p.pending, dir = p.dir;
+  p.beat += n;                     // ท่าขาเดินต่อเนื่อง ไม่รีเซ็ตทุกครั้งที่ส่งก้อนไป
+  p.pending = 0;
+  p.at = performance.now();
+  if (p.done) WM_PRED = null;
+  wmDo('walk', dir, { steps: n, predicted: true });
 }
 
 /** ปล่อยปุ่ม — what = 'walk' | 'jump' | undefined (ปล่อยทุกอย่าง)
@@ -3303,6 +3408,7 @@ function wmHoldStop(what) {
   if (what !== 'jump') {
     clearInterval(wmHold); wmHold = 0;
     WM_KEYS.left = WM_KEYS.right = false;
+    wmWalkStop();                          // ปิดก้อนที่เดินไว้ ส่งให้เซิร์ฟเวอร์ยืนยันทันที
   }
   if (what === 'walk') return;
   if (WM_JUMP) {                           // ปล่อยปุ่มกระโดด = ออกตัวจริง
