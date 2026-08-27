@@ -29,22 +29,80 @@ PLAY = (WEB / "play.js").read_text(encoding="utf-8")
 HTML = (WEB / "play.html").read_text(encoding="utf-8")
 
 RULES = {"ch_h": T.CH_H, "foot_w": P.FOOT_W, "climb": P.CLIMB,
-         "step_max": P.STEP_MAX, "water": T.WATER}
+         "step_max": P.STEP_MAX, "water": T.WATER,
+         "gravity": P.GRAVITY, "jump_vx": P.JUMP_VX, "jump_vy": P.JUMP_VY,
+         "jump_curve": P.JUMP_CURVE, "air_accel": P.AIR_ACCEL,
+         "air_max": P.AIR_MAX, "sink": P.SINK_DEPTH}
 
 
-def _run_js(grid, cases):
+def _run_js(grid, cases, kind="walk"):
     """รัน walk.js ตัวจริงด้วย node แล้วคืนผลของแต่ละเคส"""
     if not shutil.which("node"):
         pytest.skip("เครื่องนี้ไม่มี node")
     with tempfile.TemporaryDirectory() as tmp:
         f = pathlib.Path(tmp) / "job.json"
-        f.write_text(json.dumps({"w": T.W, "h": T.H, "rules": RULES,
+        f.write_text(json.dumps({"w": T.W, "h": T.H, "rules": RULES, "kind": kind,
                                  "grid": [v for row in grid for v in row],
                                  "cases": cases}), encoding="utf-8")
         out = subprocess.run(["node", "tests/walk_check.js", str(f)],
                              capture_output=True, text=True, encoding="utf-8")
         assert out.returncode == 0, out.stderr
         return json.loads(out.stdout.strip().splitlines()[-1])
+
+
+@pytest.mark.parametrize("seed", [3, 11, 27])
+def test_both_sides_jump_along_exactly_the_same_arc(seed):
+    """วิถีกระโดดตัดสินตั้งแต่วินาทีที่ปล่อยปุ่ม จอจึงคำนวณเองได้ทันที
+
+    แต่ต้องตรงกับเซิร์ฟเวอร์ "ทุกเฟรม" ไม่ใช่แค่จุดตก — ไม่งั้นเห็นตัวสลับวิถีกลางอากาศ
+    """
+    rng = random.Random(seed * 31)
+    grid = T.generate(seed)["grid"]
+    spots = T._open_spots(grid)
+    cases = []
+    for _ in range(120):
+        x, y = rng.choice(spots)
+        cases.append([x, y, rng.choice([-1, 1]), round(rng.random(), 3),
+                      rng.choice([-1.0, 0.0, 1.0, round(rng.uniform(-1, 1), 3)])])
+
+    js = _run_js(grid, cases, kind="jump")
+    for c, j in zip(cases, js):
+        x, y, d, pw, ln = c
+        py = P.jump(grid, x, y, d, power=pw, lean=ln)
+        assert (py["x"], py["y"], py["drowned"]) == (j["x"], j["y"], j["drowned"]), (
+            f"เมล็ด {seed}: กระโดดจาก ({x},{y}) ทิศ {d} แรง {pw} เอน {ln} — "
+            f"python ลง ({py['x']},{py['y']}) · js ลง ({j['x']},{j['y']})")
+        assert len(py["path"]) == len(j["path"]), (
+            f"วิถียาวไม่เท่ากัน (python {len(py['path'])} · js {len(j['path'])}) "
+            "= ลอยคนละจังหวะ เห็นเป็นตัวกระตุกกลางอากาศ")
+        assert py["path"] == [list(pt) for pt in j["path"]], "วิถีไม่ตรงกันทุกเฟรม"
+
+
+def test_the_jump_leaves_the_ground_without_waiting_for_the_server():
+    """ปล่อยปุ่มแล้วต้องลอยเลย ไม่ใช่รอ ~300 ms ให้เซิร์ฟเวอร์ตอบก่อน"""
+    body = PLAY[PLAY.index("function wmJumpFire("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert body.index("WM_ANIM = {") < body.index("wmBusy"),         "ยิงคำสั่งไปเซิร์ฟเวอร์ก่อนแล้วค่อยเริ่มภาพ = รอเน็ตเหมือนเดิม"
+    assert "WALK.jump(" in body, "ไม่ได้คำนวณวิถีเอง"
+
+
+def test_a_jump_is_never_lost_when_the_line_is_busy():
+    """ปล่อยกระโดดตอนก้อนเดินยังไม่กลับ — ถ้าคำสั่งหาย เซิร์ฟเวอร์จะไม่รู้เรื่องเลย
+    จอกระโดดไปแล้วแต่เซิร์ฟเวอร์ยังคิดว่ายืนอยู่ที่เดิม = เพี้ยนยาว
+    """
+    body = PLAY[PLAY.index("function wmJumpFire("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert "WM_JUMP_SEND = send" in body, "สายไม่ว่างแล้วทิ้งคำสั่งกระโดดไปเฉย ๆ"
+    tick = PLAY[PLAY.index("function wmWalkTick("):]
+    tick = tick[:tick.index(chr(10) + "}" + chr(10))]
+    assert "WM_JUMP_SEND" in tick, "ไม่มีใครส่งคำสั่งกระโดดที่ค้างไว้"
+
+
+def test_a_late_walk_batch_cannot_drag_you_out_of_the_air():
+    """ก้อนเดินที่ส่งไปก่อนกระโดดจะกลับมาตอนกำลังลอยอยู่ — ห้ามลากตัวกลับลงพื้น"""
+    body = PLAY[PLAY.index("async function wmDo("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert "if (!WM_JUMP_END) wmReconcile(" in body,         "ก้อนเดินที่มาทีหลังยังทาบตำแหน่งได้ทั้งที่กำลังลอยอยู่"
 
 
 @pytest.mark.parametrize("seed", [3, 11, 27, 42])

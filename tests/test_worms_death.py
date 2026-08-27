@@ -302,7 +302,11 @@ def test_the_page_charges_the_jump():
     assert "WM_JUMP = { dir: dir, t0: performance.now() };" in body, "กดปุ่มกระโดดแล้วไม่ชาร์จ"
     assert "if (WM_JUMP) return;" in body, "ชาร์จกระโดดอยู่แล้วลูกศรยังสั่งเดิน"
     stop = _fn("function wmHoldStop(")
-    assert "jump_power: wmJumpPower(), lean: wmLean()" in stop, "ปล่อยแล้วไม่ได้ส่งแรง/การเอน"
+    assert "wmJumpPower()" in stop and "wmLean()" in stop, "ปล่อยแล้วไม่ได้อ่านแรง/การเอน"
+    assert "wmJumpFire(" in stop, "ปล่อยแล้วไม่ได้ออกตัว"
+    fire = _fn("function wmJumpFire(")
+    assert "jump_power: j.power, lean: j.lean" in _fn("function wmJumpSend("),         "ออกตัวแล้วไม่ได้ส่งแรง/การเอนไปให้เซิร์ฟเวอร์คำนวณซ้ำ"
+    assert "WALK.jump(" in fire, "ไม่ได้คำนวณวิถีเองฝั่งจอ = กลับไปรอเน็ตเหมือนเดิม"
     assert "if (what === 'walk') return;" in stop,         "ปล่อยลูกศรระหว่างชาร์จแล้วกระโดดออกไปก่อนเวลา"
 
 

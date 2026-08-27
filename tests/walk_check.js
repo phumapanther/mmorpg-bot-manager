@@ -14,5 +14,6 @@ const map = {
   w: job.w, h: job.h,
   at: (x, y) => flat[y * job.w + x],
 };
-console.log(JSON.stringify(job.cases.map(c =>
-  ctx.WALK.walk(map, job.rules, c[0], c[1], c[2], c[3], !!c[4]))));
+console.log(JSON.stringify(job.cases.map(c => (job.kind === 'jump'
+  ? ctx.WALK.jump(map, job.rules, c[0], c[1], c[2], c[3], c[4])
+  : ctx.WALK.walk(map, job.rules, c[0], c[1], c[2], c[3], !!c[4])))));

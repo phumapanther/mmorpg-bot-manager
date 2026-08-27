@@ -87,5 +87,53 @@ const WALK = (() => {
     return { x: cx, y: cy, steps: used, drowned: drowned, fell: Math.max(0, cy - y) };
   }
 
-  return { rules, standable, settle, step, walk, BLOCKED, MOVED, DROWNED };
+  /** 🦘 กระโดด — จำลองวิถีทีละเฟรมเหมือน physics.jump() ทุกบรรทัด
+
+      คืนเส้นทางทั้งเส้นไว้เล่นภาพ (ไม่ใช่แค่จุดปลาย) เพราะตัวต้องลอยไปให้เห็น
+      power = 0..1 · lean = -1..1 (เอนตัวกลางอากาศค้างตลอดวิถี)
+   */
+  function jump(map, r, x, y, dir, power, lean) {
+    power = Math.pow(Math.max(0, Math.min(1, power)), r.jump_curve);
+    lean = Math.max(-1, Math.min(1, lean));
+    let px = x, py = y;
+    let vx = r.jump_vx * dir * (0.10 + 0.90 * power);
+    let vy = r.jump_vy * (0.28 + 0.72 * power);
+    const path = [];
+    let top = y, bump = null;
+    for (let i = 0; i < 200; i++) {
+      vy += r.gravity;
+      vx = Math.max(-r.air_max, Math.min(r.air_max, vx + r.air_accel * lean));
+      let nx = px + vx;
+      const ny = py + vy;
+      let ix = Math.round(nx);
+      const iy = Math.round(ny);
+      if (!(ix >= 0 && ix < map.w)) {          // ชนขอบแผนที่ เด้งกลับเบา ๆ
+        vx = -vx * .4;
+        nx = px;
+        ix = Math.round(nx);
+      }
+      if (iy >= map.h - r.water) {
+        const water = map.h - r.water;
+        path.push([ix, water]);
+        for (let gy = water + 1; gy < water + r.sink; gy++) path.push([ix, gy]);
+        return { path: path, x: ix, y: water, drowned: true, fell: 0, bump: null };
+      }
+      if (!clear(map, r, ix, iy)) { bump = [ix, iy]; break; }   // หัวชน — หยุดพุ่ง
+      px = nx; py = ny;
+      top = Math.min(top, iy);
+      path.push([ix, iy]);
+      if (vy > 0 && standable(map, r, ix, iy))
+        return { path: path, x: ix, y: iy, drowned: false,
+                 fell: Math.max(0, iy - top), bump: null };
+    }
+    const s = settle(map, r, Math.round(px), Math.round(py));
+    for (let gy = Math.round(py) + 1; gy < s.y; gy++) path.push([s.x, gy]);
+    path.push([s.x, s.y]);
+    if (s.drowned)
+      for (let gy = s.y + 1; gy < s.y + r.sink; gy++) path.push([s.x, gy]);
+    return { path: path, x: s.x, y: s.y, drowned: s.drowned, bump: bump,
+             fell: Math.max(0, s.y - top) };
+  }
+
+  return { rules, standable, settle, step, walk, jump, BLOCKED, MOVED, DROWNED };
 })();

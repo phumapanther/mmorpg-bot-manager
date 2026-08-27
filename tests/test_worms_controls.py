@@ -1047,6 +1047,61 @@ def test_hidden_values_are_never_left_hidden():
     assert "WM_HIDDEN = null;                // ค่าที่ซ่อนไว้ก็เป็นของก้อนเก่า" in PLAY,         "สถานะใหม่มาแล้วยังถือค่าซ่อนของก้อนเก่าไว้"
 
 
+# ── 21.6 ห้ามเห็นผลของบอทก่อนบอทจะขยับ ──
+
+def test_the_bot_stays_put_until_its_walk_actually_plays():
+    """เจ้าของเกมทัก: บางทีเห็นผลการเดินของบอทก่อนบอทจะเดินจริง
+
+    ต้นเหตุ: wmQueueBot ย้อนบอทกลับจุดเริ่ม "ตอนขั้นนั้นเริ่มทำงาน" ซึ่งช้ากว่า
+    ตอนรับคำตอบอย่างน้อย 1 วินาที (WM_GAP_BEFORE) ระหว่างนั้นจอวาดบอทที่ปลายทางไปแล้ว
+    """
+    import json
+    import shutil
+    import subprocess
+
+    if not shutil.which("node"):
+        pytest.skip("เครื่องนี้ไม่มี node")
+    r = subprocess.run(["node", "tests/bot_reveal.js"],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout.strip().splitlines()[-1])
+
+    bot = next(f for f in out["duringGap"] if f["name"] == "บอท")
+    assert (bot["x"], bot["y"]) == (300, 200),         f"ช่วงรอภาพเริ่ม บอทไปยืนที่ ({bot['x']},{bot['y']}) แล้ว — เฉลยก่อนเดิน"
+    me = next(f for f in out["duringGap"] if f["name"] == "คุณ")
+    assert me["hp"] == 90, "เลือดเราลดตั้งแต่ยังไม่เห็นบอทตี"
+
+    done = next(f for f in out["after"] if f["name"] == "บอท")
+    assert (done["x"], done["y"]) == (420, 188), "เล่นภาพจบแล้วบอทไม่ไปที่ที่ควรอยู่"
+
+
+def test_every_state_swap_hides_the_outcome_first():
+    """ทุกทางที่รับสถานะใหม่ทั้งก้อนต้องซ่อนผลไว้ก่อน ไม่ใช่แค่ทางจบเทิร์น
+
+    เดิม wmDo ไม่ซ่อน — พอเดินจนแรงหมด (auto_ended) บอทเดินต่อในคำตอบเดียวกัน
+    ผู้เล่นจึงเห็นบอทยืนอยู่ปลายทางค้างเป็นวินาทีก่อนมันจะเด้งกลับไปเดิน
+    """
+    for fn in ("async function wmDo(", "async function wmEndTurn(",
+               "function wmPlayAttack("):
+        body = PLAY[PLAY.index(fn):]
+        body = body[:body.index(chr(10) + "}" + chr(10))]
+        assert "wmSnapshot()" in body and "wmHideOutcome(" in body,             f"{fn} รับสถานะใหม่มาแล้วโชว์ทันที ไม่ได้ซ่อนรอภาพ"
+        # ทับสถานะเก่าได้สองทาง: เขียน WM_ST ตรง ๆ หรือผ่าน wmApply()
+        swap = min(i for i in (body.find("WM_ST = "), body.find("wmApply(")) if i >= 0)
+        assert body.index("wmSnapshot()") < swap,             f"{fn} จำค่าเก่าหลังจากทับไปแล้ว — จำได้แต่ของใหม่"
+        assert swap < body.index("wmHideOutcome("),             f"{fn} ซ่อนผลก่อนที่สถานะใหม่จะมาถึง = ซ่อนของเก่าทับของเก่า"
+
+
+def test_reconciled_position_is_not_overwritten_by_the_late_reveal():
+    """ตัวเราทาบตำแหน่งเสร็จแล้วคือของจริง ห้ามให้การเฉลยรวมทีหลังมาทับ
+
+    ไม่งั้นเดินอยู่ดี ๆ ตัวจะเด้งถอยไปจุดที่เซิร์ฟเวอร์ตอบก่อนหน้า
+    """
+    body = PLAY[PLAY.index("function wmReconcile("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert "delete WM_HIDDEN[f.name]" in body,         "ทาบเสร็จแล้วยังค้างอยู่ในรายการที่รอเฉลย — เดี๋ยวโดนทับ"
+
+
 # ── 22. แผงสรุปผลต้องแสดงชื่อกับดาเมจจริง ──
 
 def _render_over(payload):

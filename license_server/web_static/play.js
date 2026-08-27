@@ -3173,8 +3173,14 @@ async function wmDo(action, dir, extra) {
       ? WM_ANIM.path[WM_ANIM.path.length - 1] : null;
     const cur = WM_ST.fighters[mine];
     const from = tail ? { x: tail[0], y: tail[1] } : { x: cur.x, y: cur.y };
+    const old = wmSnapshot();
     WM_ANIM = null; WM_QUEUE = [];
     WM_ST = { ...d };
+    // 🤖 บอทต้องอยู่ที่เดิมจนกว่าภาพเดินของมันจะเริ่มเล่นจริง
+    //    wmQueueBot ย้อนบอทกลับจุดเริ่ม "ตอนขั้นนั้นเริ่มทำงาน" ซึ่งช้ากว่าตรงนี้
+    //    อย่างน้อย 1 วินาที (WM_GAP_BEFORE) — ระหว่างนั้นจอวาดบอทที่ปลายทางไปแล้ว
+    //    ผู้เล่นเห็นเป็น "รู้ผลการเดินของบอทก่อนบอทจะเดิน"
+    wmHideOutcome(old);
     // 🚦 ผลลัพธ์ทุกอย่างรอให้ภาพเดิน/กระโดดเล่นจบก่อน — ห้ามสรุปผลก่อนเด็ดขาด
     //    เดิมเก็บหีบ/ขึ้นเรือเหาะ/เหยียบกับดัก เกิดทันทีที่เซิร์ฟเวอร์ตอบ
     //    ผู้เล่นเห็นได้ของตั้งแต่ตัวยังกระโดดไปไม่ถึงกล่องด้วยซ้ำ
@@ -3205,8 +3211,11 @@ async function wmDo(action, dir, extra) {
       wmPaintHud();
     };
 
-    if (predicted) {
-      wmReconcile(mine, d, dir);          // ตัวเดินไปแล้ว — เอาตำแหน่งจริงมาทาบ
+    if (predicted === 'jump') {
+      wmLandJump(mine, d, after);         // ลอยอยู่แล้ว — ทาบปลายวิถีตอนถึงพื้น
+    } else if (predicted) {
+      // กำลังลอยอยู่ = ก้อนเดินก้อนนี้เป็นของอดีต อย่าลากตัวกลับลงมากลางอากาศ
+      if (!WM_JUMP_END) wmReconcile(mine, d, dir);
       after();
     } else if (d.move && d.move.path.length) {
       WM_ST.fighters[mine].x = from.x; WM_ST.fighters[mine].y = from.y;
@@ -3217,6 +3226,39 @@ async function wmDo(action, dir, extra) {
     }
   } catch (e) { if (!wmBackoff(e)) toast(e.message, true); }
   finally { wmBusy = false; }
+}
+
+let WM_JUMP_END = null;   // ปลายวิถีที่จอเดาไว้ — ไว้เทียบกับของเซิร์ฟเวอร์
+let WM_JUMP_SEND = null;  // คำสั่งกระโดดที่รอส่ง (ก้อนเดินก่อนหน้ายังไม่กลับ)
+
+/** 🦘 ปล่อยปุ่มแล้วลอยทันที — ไม่ต้องรอ ~300 ms ให้เซิร์ฟเวอร์ตอบก่อนถึงจะออกตัว
+
+    วิถีทั้งเส้นตัดสินตั้งแต่วินาทีที่ปล่อย (ทิศ + แรง + การเอนตัว) จอจึงคำนวณเองได้
+    แล้วเซิร์ฟเวอร์คำนวณซ้ำด้วยกฎชุดเดียวกัน — วัดแล้วตรงกันทุกเฟรม 360 เคส
+ */
+function wmJumpFire(dir, power, lean) {
+  if (!WM_ST || WM_ST.over) return;
+  const mine = WM_ST.turn, me = WM_ST.fighters[mine];
+  if (!me || me.bot || me.dead || WM_ST.moves < 6) return;
+  wmWalkStop();                         // ปิดก้อนเดินที่ค้างก่อน จะได้ไม่ปนกัน
+  me.face = dir;
+  const r = WALK.jump(WM, WALK.rules(WM_ST), me.x, me.y, dir, power, lean);
+  WM_JUMP_END = { x: r.x, y: r.y };
+  WM_ST.moves -= 6;                     // ค่ากระโดดตายตัว (ตรงกับฝั่งเซิร์ฟเวอร์)
+  WM_PRED = null;                       // ทิ้งการทาบของก้อนเดิน — ตอนนี้กำลังลอยอยู่
+  if (r.path.length) {
+    WM_ANIM = { fi: mine, path: r.path, i: 0, onEnd: null };
+    SFX.play('jump');
+  }
+  // ⚠️ ก้อนเดินก่อนหน้าอาจยังไม่กลับ — ยิงตอนนี้ wmDo จะทิ้งคำสั่งทั้งที่จอกระโดดไปแล้ว
+  //    (เซิร์ฟเวอร์จะไม่รู้เรื่องการกระโดดนี้เลย) จึงพักไว้ให้ลูปวาดส่งเมื่อสายว่าง
+  const send = { dir: dir, power: power, lean: lean };
+  if (wmBusy) WM_JUMP_SEND = send;
+  else wmJumpSend(send);
+}
+
+function wmJumpSend(j) {
+  wmDo('jump', j.dir, { jump_power: j.power, lean: j.lean, predicted: 'jump' });
 }
 
 /** 🎯 เอาคำตอบของเซิร์ฟเวอร์มาทาบกับตำแหน่งที่จอเดาไว้
@@ -3238,6 +3280,40 @@ function wmReconcile(mine, d, dir) {
   const off = Math.abs(f.x - spot.x) + Math.abs(f.y - spot.y);
   f.x = spot.x; f.y = spot.y;
   if (off > 3) wmFocus(f);          // ต่างกันเยอะ (กับดัก/พื้นหาย) พากล้องตามไปด้วย
+  // ตัวเราไม่ได้รอภาพอะไร — ทาบเสร็จคือของจริงแล้ว เอาออกจากรายการที่ซ่อนไว้
+  // (ไม่งั้นตอนเฉลยรวมทีหลังจะเอาตำแหน่งดิบของเซิร์ฟเวอร์มาทับ เห็นเป็นตัวเด้งถอย)
+  if (WM_HIDDEN) {
+    delete WM_HIDDEN[f.name];
+    if (!Object.keys(WM_HIDDEN).length) WM_HIDDEN = null;
+  }
+}
+
+/** 🦘 คำตอบของกระโดดกลับมาแล้ว — ตัวยังลอยอยู่หรือลงพื้นไปแล้วก็ได้
+
+    เดาตรง (กรณีปกติ) = ปล่อยให้ภาพเล่นต่อจนจบแล้วค่อยสรุปผล
+    เดาพลาด = สลับไปใช้เส้นทางของเซิร์ฟเวอร์ตั้งแต่จุดที่เล่นถึง ไม่ใช่วาปไปปลายทาง
+ */
+function wmLandJump(mine, d, after) {
+  const path = d.move ? d.move.path : [];
+  const end = d.move ? { x: d.move.x, y: d.move.y } : null;
+  const anim = WM_ANIM && WM_ANIM.fi === mine ? WM_ANIM : null;
+  const wrong = end && WM_JUMP_END &&
+                (end.x !== WM_JUMP_END.x || end.y !== WM_JUMP_END.y);
+  WM_JUMP_END = null;
+  if (wrong && path.length) {
+    const at = anim ? Math.min(anim.i, path.length - 1) : 0;
+    WM_ANIM = { fi: mine, path: path, i: at, onEnd: after };
+    return;
+  }
+  if (anim) { anim.onEnd = after; return; }   // ยังลอยอยู่ — สรุปผลตอนถึงพื้น
+  // ลงพื้นไปก่อนคำตอบจะมาถึง (กระโดดสั้น + เน็ตช้า) — สรุปได้เลย
+  const f = WM_ST.fighters[mine];
+  if (end) { f.x = end.x; f.y = end.y; }
+  if (WM_HIDDEN) {
+    delete WM_HIDDEN[f.name];
+    if (!Object.keys(WM_HIDDEN).length) WM_HIDDEN = null;
+  }
+  after();
 }
 
 /** 🏳️ ยอมแพ้ — ระเบิดตัวเองทิ้งแล้วจบแมตช์ (ถามก่อน กดพลาดแล้วเสียใจ) */
@@ -3356,7 +3432,11 @@ function wmWalkStop() {
 
 /** เดินฝั่งจอหนึ่งเฟรม + ส่งให้เซิร์ฟเวอร์ยืนยันเป็นระยะ — เรียกจากลูปวาดเท่านั้น */
 function wmWalkTick() {
-  if (!WM_PRED || !WM_ST) return;
+  if (!WM_ST) return;
+  if (!WM_PRED) {                       // ไม่ได้กดเดินอยู่ แต่ยังต้องส่งกระโดดที่ค้าง
+    if (WM_JUMP_SEND && !wmBusy) { const j = WM_JUMP_SEND; WM_JUMP_SEND = null; wmJumpSend(j); }
+    return;
+  }
   const me = wmMe();
   const held = (WM_KEYS.left || WM_KEYS.right) && !WM_PRED.done;
   const can = held && !WM_ST.over && !WM_JUMP && !me.bot && !me.dead && !wmBusyFx();
@@ -3383,6 +3463,7 @@ function wmWalkTick() {
     wmPaintHud();
   }
   wmWalkFlush();
+  if (WM_JUMP_SEND && !wmBusy) { const j = WM_JUMP_SEND; WM_JUMP_SEND = null; wmJumpSend(j); }
 }
 
 /** ส่งก้าวที่สะสมไว้ — รอให้คำขอก่อนหน้ากลับมาก่อนเสมอ ก้าวที่เดินระหว่างรอไม่หาย */
@@ -3412,8 +3493,9 @@ function wmHoldStop(what) {
   }
   if (what === 'walk') return;
   if (WM_JUMP) {                           // ปล่อยปุ่มกระโดด = ออกตัวจริง
-    const j = WM_JUMP; WM_JUMP = null;
-    wmDo('jump', j.dir, { jump_power: wmJumpPower(), lean: wmLean() });
+    const j = WM_JUMP, pow = wmJumpPower(), lean = wmLean();
+    WM_JUMP = null;
+    wmJumpFire(j.dir, pow, lean);
   }
 }
 
