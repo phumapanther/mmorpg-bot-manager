@@ -282,10 +282,10 @@ def test_chests_are_visible_because_they_are_meant_to_be():
     assert any(p["kind"] == "chest" for v in seen for p in v["props"]), "ไม่มีหีบให้เห็นเลย"
 
 
-def test_the_browser_only_draws_chests():
+def test_the_browser_draws_every_prop_kind():
     fn = WORMS[WORMS.index("  _prop("):]
     fn = fn[:fn.index("\n  }")]
-    assert "'chest'" in fn and "trap" not in fn, "เบราว์เซอร์พยายามวาดกับดัก"
+    assert all(k in fn for k in ("'chest'", "'trap'", "'ferry'")), "เบราว์เซอร์ไม่ได้วาดของครบทุกชนิด"
 
 
 # ── 🎥 กล้อง: ซูม/เลื่อน/ไปดูคนอื่น ──

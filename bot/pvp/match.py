@@ -614,10 +614,9 @@ def _supply_drop(st):
     st["props"].extend(fresh)
     if fresh:
         st["log"].append(f"📦 ของใหม่ลงสนาม {len(fresh)} จุด (รอบ {st['round']})")
-    # 🔒 กับดักห้ามหลุดไปฝั่งเบราว์เซอร์เด็ดขาด — ตัดทิ้งตั้งแต่ตรงนี้
-    #    (รายการนี้ถูกส่งขึ้นเว็บจริงเพื่อพากล้องไปดูของใหม่ทีละชิ้น)
-    st["drops"] = [{"kind": p["kind"], "x": p["x"], "y": p["y"]}
-                   for p in fresh if p["kind"] != "trap"]
+    # รายการนี้ถูกส่งขึ้นเว็บเพื่อพากล้องไปดูของใหม่ทีละชิ้น — รวมกับดักด้วย
+    # เพราะตอนนี้กับดักโชว์บนแผนที่แล้ว ผู้เล่นต้องรู้ว่ามันไปลงตรงไหน
+    st["drops"] = [{"kind": p["kind"], "x": p["x"], "y": p["y"]} for p in fresh]
     return st["drops"]
 
 
@@ -861,7 +860,9 @@ def view(uid, st=None):
         "continent_label": st["continent_label"],
         "w": terrain.W, "h": terrain.H, "water": terrain.WATER,
         "terrain": st["terrain"],
-        "props": [p for p in st["props"] if p["kind"] != "trap"],
+        # 🕳️ เจ้าของเกมเคาะใหม่ (08-27): โชว์กับดักบนแผนที่ ให้กระโดดข้ามหลบได้
+        #    (เดิมซ่อนไว้ให้เซอร์ไพรส์ แต่เหยียบโดนแล้วรู้สึกโดนโกงมากกว่าสนุก)
+        "props": st["props"],
         "traps": sum(1 for p in st["props"] if p["kind"] == "trap"),
         "turn": st["turn"], "round": st["round"], "moves": st["moves"],
         "move_budget": MOVE_BUDGET, "over": st["over"], "winner": st.get("winner", ""),

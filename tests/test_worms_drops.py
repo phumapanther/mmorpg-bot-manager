@@ -77,13 +77,13 @@ def test_the_server_tells_the_page_what_dropped(world):
     pytest.fail("เล่นครบรอบหลายเมล็ดแล้วไม่มีของลงสนามเลยสักชิ้น")
 
 
-def test_a_drop_list_never_reveals_a_trap(world):
-    """กติกาเหล็กของหมวดนี้ — ตำแหน่งกับดักห้ามหลุดไปฝั่งเบราว์เซอร์
+def test_a_drop_list_shows_a_trap(world):
+    """กติกาเหล็กกลับด้าน (08-27) — กับดักที่เพิ่งลงต้องบอกตำแหน่งด้วย
 
     ต้องเก็บของที่ลงระหว่างเล่นทุกครั้ง ไม่ใช่ดูแค่สถานะสุดท้าย
     เพราะรายการถูกล้างทุกต้นรอบ รอบสุดท้ายอาจไม่มีของลงพอดี
     """
-    found = 0
+    found = traps = 0
     for seed in range(1, 12):
         match.new_practice(UID, {"race": "Human", "cls": "Warrior",
                                  "armor": "None", "weapon": ""}, seed=seed)
@@ -96,9 +96,11 @@ def test_a_drop_list_never_reveals_a_trap(world):
                 break
             drops = r.get("drops") or []
             found += len(drops)
-            assert all(x["kind"] != "trap" for x in drops),                 f"เมล็ด {seed} รอบ {r['round']}: บอกตำแหน่งกับดักไปด้วย"
+            for x in drops:
+                assert "x" in x and "y" in x, "ของที่ลงไม่บอกตำแหน่ง วาดไม่ได้"
+                traps += x["kind"] == "trap"
     assert found >= 4, f"เจอของที่ลงแค่ {found} ชิ้น น้อยเกินกว่าจะเชื่อผล"
-
+    assert traps, "ลงของมาตั้งเยอะแต่ไม่มีกับดักสักอันในรายการ"
 
 def test_the_field_does_not_fill_up_forever(world):
     st = _round_up(rounds=14)

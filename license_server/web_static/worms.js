@@ -105,7 +105,7 @@ class WormsMap {
     ctx.globalAlpha = 1;
   }
 
-  /** 🎁 หีบสมบัติบนแผนที่ (กับดักไม่วาด — เซิร์ฟเวอร์ไม่ส่งมาจนกว่าจะเหยียบโดน) */
+  /** 🎁 ของบนแผนที่ — หีบ เรือเหาะ และกับดัก (กับดักโชว์ให้เห็น จะได้กระโดดข้าม) */
   _prop(ctx, p) {
     if (p.kind === 'ferry') {                 // 🎈 เรือเหาะ — ขึ้นแล้วข้ามไปอีกเกาะ
       const bx = p.x - 5, by = p.y - 16;
@@ -114,6 +114,14 @@ class WormsMap {
       ctx.fillStyle = '#6b4a24'; ctx.fillRect(bx + 3, by + 8, 5, 1);
       ctx.fillStyle = '#8a5a24'; ctx.fillRect(bx + 2, by + 9, 7, 5);
       ctx.fillStyle = '#c89a3a'; ctx.fillRect(bx + 2, by + 9, 7, 1);
+      return;
+    }
+    if (p.kind === 'trap') {                  // 🕳️ กับดัก — เห็นแล้วกระโดดข้ามได้
+      const tx = p.x - 5, ty = p.y - 4;
+      ctx.fillStyle = '#20160c'; ctx.fillRect(tx, ty + 2, 11, 3);
+      ctx.fillStyle = '#8a8a92';               // ปากกับดักเป็นซี่ ๆ
+      for (let i = 0; i < 5; i++) ctx.fillRect(tx + 1 + i * 2, ty, 1, 3);
+      ctx.fillStyle = '#5a5a62'; ctx.fillRect(tx, ty + 4, 11, 1);
       return;
     }
     if (p.kind !== 'chest') return;

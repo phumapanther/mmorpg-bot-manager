@@ -2197,7 +2197,10 @@ function wmTick() {
   // ⏱️ ภาพตาบอทยังเล่นค้างอยู่ = เทิร์นเรายังไม่ได้เริ่มจริงในสายตาผู้เล่น
   //    ปล่อยให้นับต่อไปจะกลายเป็นหมดเวลาระหว่างนั่งดูบอทเดิน แล้วขอจบเทิร์น
   //    ไปตัดภาพบอทกลางคันด้วย — เลื่อนเส้นตายหนีไปเรื่อย ๆ จนกว่าภาพจะเล่นจบ
-  if (WM_ANIM || WM_QUEUE.length) WM_DEADLINE = performance.now() + WM_TIME_LEFT * 1000;
+  // ⏱️ หยุดนาฬิกาตลอดช่วงที่ระบบกำลังเล่นลำดับให้ดู (รวมช่วงเว้นจังหวะของคิวขั้นตอน)
+  //    เดิมหยุดเฉพาะตอนมีภาพเล่นอยู่ ช่วงเว้นจังหวะ 3 วินาทีต่อขั้นจึงกินเวลาเทิร์นผู้เล่น
+  //    ลำดับยาว ๆ กินไป 15-20 วิ พอถึงตาจริงเลยเหลือเวลานิดเดียว บางทีหมดเวลาไปแล้ว
+  if (wmBusyFx()) WM_DEADLINE = performance.now() + WM_TIME_LEFT * 1000;
   // ⚠️ งานที่ค้างต้องสะสางแม้ไม่มีภาพเล่นอยู่ ไม่ใช่รอจังหวะที่ภาพเพิ่งเล่นจบอย่างเดียว
   //    ยิงพลาดไม่โดนใคร = งานถูกเข้าคิวทั้งที่ไม่มีอะไรเล่น แล้วไม่มีใครมาสะสาง
   //    ผลคือ wmWaiting() ค้างเป็น true ตลอดกาล กดอะไรไม่ได้อีกเลยทั้งเกม
@@ -2393,11 +2396,12 @@ function wmStartTour(list) {
     wmStep(() => wmFocus({ x: d.x, y: d.y }, true), () => !WM_CAM || WM_CAM.arrived());
     // ② ถึงแล้วค่อยปล่อยของลงมา แล้วค้างให้ดูจนครบ
     wmStep(() => {
-      SFX.play('chest');
-      WM_SPAWNS.push({ x: d.x, y: d.y, t: 0,
-                       color: d.kind === 'ferry' ? '#ff8a6a' : '#ffd66b' });
-      WM_POPS.push({ x: d.x, y: d.y - 30, t: 0, buff: true,
-                     text: d.kind === 'ferry' ? '🎈 เรือเหาะมาแล้ว!' : '🎁 หีบสมบัติมาแล้ว!' });
+      const look = { ferry: ['#ff8a6a', '🎈 เรือเหาะมาแล้ว!'],
+                     trap:  ['#ff6a6a', '🕳️ ระวังกับดัก!'] }[d.kind]
+                 || ['#ffd66b', '🎁 หีบสมบัติมาแล้ว!'];
+      SFX.play(d.kind === 'trap' ? 'trap' : 'chest');
+      WM_SPAWNS.push({ x: d.x, y: d.y, t: 0, color: look[0] });
+      WM_POPS.push({ x: d.x, y: d.y - 30, t: 0, buff: true, text: look[1] });
       wmHoldAt(d.x, d.y, WM_TOUR_HOLD, null);
     }, wmFxIdle);
   });
@@ -2809,6 +2813,16 @@ function wmCallDeaths() {
 
 const WM_DEAD_SEEN = {};   // ประกาศตายไปแล้วหรือยัง (กันเล่นภาพตายซ้ำทุกเฟรม)
 
+/** 🕳️ เหยียบกับดัก — ซี่เหล็กงับ ฝุ่นฟุ้ง แล้วเด้งป้ายเตือน */
+function wmTrapFx(x, y) {
+  wmDust(x, y, 14);
+  for (let i = 0; i < 10; i++)
+    WM_BITS.push({ x: x, y: y - 2, t: 0,
+                   vx: ((i % 5) - 2) * .8, vy: -0.8 - (i % 3) * .5 });
+  WM_BOOMS.push({ x: x, y: y - 4, r: 9, t: 0 });
+  WM_POPS.push({ x: x, y: y - 30, t: 0, text: '🕳️ กับดัก!' });
+}
+
 /** 🧱 กระโดดหัวชนกำแพง — ดาวหมุนกับเศษปูนตรงจุดที่ชน แล้วร่วงลง */
 function wmBump(x, y) {
   SFX.play('hit');
@@ -3039,31 +3053,43 @@ async function wmDo(action, dir, extra) {
     const from = tail ? { x: tail[0], y: tail[1] } : { x: cur.x, y: cur.y };
     WM_ANIM = null; WM_QUEUE = [];
     WM_ST = { ...d };
+    // 🚦 ผลลัพธ์ทุกอย่างรอให้ภาพเดิน/กระโดดเล่นจบก่อน — ห้ามสรุปผลก่อนเด็ดขาด
+    //    เดิมเก็บหีบ/ขึ้นเรือเหาะ/เหยียบกับดัก เกิดทันทีที่เซิร์ฟเวอร์ตอบ
+    //    ผู้เล่นเห็นได้ของตั้งแต่ตัวยังกระโดดไปไม่ถึงกล่องด้วยซ้ำ
+    const after = () => {
+      (d.sprung || []).forEach(t => {     // 🕳️ กับดักระเบิดตรงจุดที่เหยียบ
+        SFX.play('trap');
+        wmTrapFx(t.x, t.y);
+        toast('🕳️ เหยียบกับดัก!', true);
+      });
+      (d.opened || []).forEach(o => { SFX.play('chest');
+        wmDust(o.x, o.y, 10);
+        toast('🎁 เปิดหีบได้ ' + (o.name || 'ของ') + '!'); });
+      if (d.ferry) {                      // 🎈 ข้ามเกาะแล้ว — พากล้องไปที่จุดลงด้วย
+        SFX.play('skill');
+        toast('🎈 ขึ้นเรือเหาะข้ามไปอีกเกาะ!');
+        wmDust(d.ferry.from[0], d.ferry.from[1], 10);
+        wmDust(d.ferry.x, d.ferry.y, 10);
+        WM_ST.fighters[mine].x = d.ferry.x;
+        WM_ST.fighters[mine].y = d.ferry.y;
+        wmFocus(WM_ST.fighters[mine], true);
+      }
+      if (d.move && d.move.bump) wmBump(d.move.bump[0], d.move.bump[1]);
+      if ((d.deaths || []).length)        // ตกตาย/เหยียบกับดักตาย ร่างก็ระเบิดเหมือนกัน
+        wmPlayDeaths(d.deaths, () => WM_AFTER.push(wmCallDeaths));
+      if (d.move && d.move.drowned) WM_AFTER.push(wmCallDeaths);
+      WM.props = d.props; WM.repaint();   // ของบนแผนที่หายตอนเก็บได้จริง ไม่ใช่ก่อนถึง
+      if (d.auto_ended) { wmQueueBot(d); toast('⏭️ แรงเดินหมด — จบเทิร์นให้อัตโนมัติ'); }
+      wmPaintHud();
+    };
+
     if (d.move && d.move.path.length) {
       WM_ST.fighters[mine].x = from.x; WM_ST.fighters[mine].y = from.y;
-      WM_ANIM = { fi: mine, path: d.move.path, i: 0 };
+      WM_ANIM = { fi: mine, path: d.move.path, i: 0, onEnd: after };
       if (action === 'jump') SFX.play('skill');
+    } else {
+      after();                            // ไม่มีภาพให้เล่น (ชนกำแพง) ก็สรุปได้เลย
     }
-    if (d.auto_ended) { wmQueueBot(d); toast('⏭️ แรงเดินหมด — จบเทิร์นให้อัตโนมัติ'); }
-    (d.sprung || []).forEach(() => { SFX.play('trap'); toast('🕳️ เหยียบกับดัก!', true); });
-    (d.opened || []).forEach(o => { SFX.play('chest');
-      toast('🎁 เปิดหีบได้ ' + (o.name || 'ของ') + '!'); });
-    if (d.ferry) {                        // 🎈 ข้ามเกาะแล้ว — พากล้องไปที่จุดลงด้วย
-      SFX.play('skill');
-      toast('🎈 ขึ้นเรือเหาะข้ามไปอีกเกาะ!');
-      wmDust(d.ferry.from[0], d.ferry.from[1], 10);
-      wmDust(d.ferry.x, d.ferry.y, 10);
-      WM_ST.fighters[mine].x = d.ferry.x;
-      WM_ST.fighters[mine].y = d.ferry.y;
-      WM_ANIM = null; WM_QUEUE = [];
-      wmFocus(WM_ST.fighters[mine], true);
-    }
-    if (d.move && d.move.bump) wmBump(d.move.bump[0], d.move.bump[1]);
-    if ((d.deaths || []).length)          // ตกตาย/เหยียบกับดักตาย ร่างก็ระเบิดเหมือนกัน
-      WM_AFTER.push(() => wmPlayDeaths(d.deaths, () => WM_AFTER.push(wmCallDeaths)));
-    if (d.move && d.move.drowned) WM_AFTER.push(wmCallDeaths);
-    WM.props = d.props; WM.repaint();
-    wmPaintHud();
   } catch (e) { if (!wmBackoff(e)) toast(e.message, true); }
   finally { wmBusy = false; }
 }

@@ -252,12 +252,11 @@ def test_walking_over_a_chest_opens_it(world):
                for p in r["props"]), "เปิดแล้วหีบยังอยู่"
 
 
-def test_a_trap_you_have_not_stepped_on_stays_secret(world):
-    """ส่งพิกัดกับดักไป = เปิด devtools แล้วเดินหลบได้หมด
+def test_traps_are_shown_on_the_map(world):
+    """เจ้าของเกมเคาะใหม่ (08-27): โชว์กับดักให้เห็น จะได้กระโดดข้ามหลบได้
 
-    ต้องหาเมล็ดที่มีกับดักจริงก่อน — ไม่งั้นเทสผ่านลม ๆ บนแผนที่ที่ไม่มีกับดักสักอัน
+    เดิมซ่อนไว้ให้เซอร์ไพรส์ แต่เหยียบโดนแล้วรู้สึกโดนโกงมากกว่าสนุก
     """
-    import json
     seeds = [s for s in range(1, 40)
              if any(p["kind"] == "trap"
                     for p in match.new_practice(UID, LOOK, seed=s)["props"])]
@@ -265,9 +264,11 @@ def test_a_trap_you_have_not_stepped_on_stays_secret(world):
     for seed in seeds[:6]:
         match.new_practice(UID, LOOK, seed=seed)
         v = match.view(UID)
-        assert isinstance(v["traps"], int) and v["traps"] > 0
-        blob = json.dumps([v["props"], v["fighters"], v["log"]], ensure_ascii=False)
-        assert "trap" not in blob, f"เมล็ด {seed}: พิกัดกับดักหลุดไปเบราว์เซอร์"
+        traps = [p for p in v["props"] if p["kind"] == "trap"]
+        assert traps, f"เมล็ด {seed}: มีกับดักในสนามแต่ไม่ได้ส่งไปให้เว็บวาด"
+        for t in traps:
+            assert "x" in t and "y" in t, "ส่งกับดักไปแต่ไม่บอกตำแหน่ง วาดไม่ได้"
+        assert v["traps"] == len(traps), "จำนวนกับดักที่บอกไม่ตรงกับที่ส่งไป"
 
 
 def test_drowning_ends_the_match(world):

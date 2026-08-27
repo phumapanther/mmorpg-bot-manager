@@ -703,7 +703,7 @@ def test_the_clock_is_frozen_while_the_bot_replay_plays():
     แล้วเทิร์นเราก็โผล่มาโดยไม่ได้ดูว่าบอททำอะไร"""
     body = PLAY[PLAY.index("function wmTick("):]
     body = body[:body.index(chr(10) + "}")]
-    assert "if (WM_ANIM || WM_QUEUE.length) WM_DEADLINE" in body,         "นาฬิกายังเดินตอนภาพตาบอทเล่นค้างอยู่"
+    assert "if (wmBusyFx()) WM_DEADLINE" in body,         "นาฬิกายังเดินตอนภาพตาบอทเล่นค้างอยู่"
 
 
 # ── 17. ปุ่มยอมแพ้ ──
@@ -1433,13 +1433,19 @@ def test_riding_the_ferry_takes_you_somewhere_you_could_not_walk(world):
     pytest.skip("ไม่เจอเรือเหาะในเมล็ดที่ลอง")
 
 
-def test_supply_drops_never_reveal_where_traps_are(world):
-    """กติกาเหล็กของหมวดนี้ — ตำแหน่งกับดักห้ามหลุดไปฝั่งเบราว์เซอร์"""
+def test_supply_drops_show_where_traps_are(world):
+    """กติกาเหล็กกลับด้าน (08-27) — กับดักต้องหลุดไปให้เบราว์เซอร์วาด
+
+    เดิมห้ามส่ง แต่เจ้าของเกมเคาะว่าเหยียบโดนของที่มองไม่เห็นคือโดนโกง
+    ต้องเห็นแล้วกระโดดข้ามได้
+    """
     st = _round_up(rounds=6)
     view = match.view(UID, st)
-    assert all(p["kind"] != "trap" for p in view["props"]), "ส่งตำแหน่งกับดักไปให้เบราว์เซอร์"
-    assert view["traps"] >= 0
-
+    traps = [p for p in view["props"] if p["kind"] == "trap"]
+    assert traps, "ไม่ได้ส่งกับดักไปให้เบราว์เซอร์เลย วาดหลบไม่ได้"
+    for t in traps:
+        assert "x" in t and "y" in t, "ส่งกับดักไปแต่ไม่บอกตำแหน่ง"
+    assert view["traps"] == len(traps), "จำนวนกับดักที่บอกไม่ตรงกับที่ส่งไป"
 
 def test_the_page_draws_the_ferry_and_the_ride():
     worms = (WEB / "worms.js").read_text(encoding="utf-8")
