@@ -156,8 +156,10 @@ def test_weapons_and_potions_really_come_out_of_chests():
     for key in ("herb_potion", "great_potion"):
         assert key in W.ARTIFACTS and W.ARTIFACTS[key].get("heal"), f"ไม่มียาฮีล {key}"
         assert key in W.CHEST_LOOT, f"ยาฮีล {key} ไม่เคยออกจากหีบ"
+    # เจ้าของเกมกลับด้านกติกา (08-28): อาวุธต้องเป็นของที่เจอง่ายที่สุด
+    # "ช่วงแรก ๆ จะได้มีอะไรไว้ยิงกันระยะไกล" — แต่ยังต้องเหลือที่ให้ของอื่นบ้าง
     gear_share = sum(1 for k in W.CHEST_LOOT if k in W.GEAR) / len(W.CHEST_LOOT)
-    assert 0.02 < gear_share < 0.35,         f"โอกาสได้อาวุธ {gear_share:.0%} — อาวุธใช้ได้ตลอด ควรหายากกว่าของใช้ครั้งเดียว"
+    assert 0.4 <= gear_share <= 0.7,         f"โอกาสได้อาวุธ {gear_share:.0%} — ควรอยู่ราวครึ่งหนึ่ง"
 
 
 def test_the_bow_fires_only_one(world):
@@ -329,3 +331,49 @@ def test_the_bot_aims_at_bodies_too(world):
     body = PLAY_MATCH[PLAY_MATCH.index("def _bot_attack("):]
     body = body[:body.index(chr(10) + "def ")]
     assert "_bodies(st, me)" in body, "บอทเล็งโดยไม่นับตัวคนเป็นเป้า"
+
+def test_your_very_first_chest_always_arms_you(world):
+    """เจ้าของเกมสั่ง: ช่วงแรก ๆ ต้องมีอะไรไว้ยิงกันระยะไกล
+
+    ปล่อยให้สุ่มล้วนแล้วบางเกมทั้งเกมไม่มีใครได้อาวุธเลย เหลือแต่ตีประชิด
+    """
+    for seed in (3, 7, 11, 19, 23):
+        match.new_practice(UID, LOOK, seed=seed)
+        st = match.load(UID)
+        st["terrain"] = T.encode(_flat())
+        st["props"] = [{"kind": "chest", "x": 150, "y": 200}]
+        f = st["fighters"][0]
+        f.update(x=150, y=200, ammo={}, bag={})
+        got = match._open_chests(st, f)
+        assert got, "เดินทับหีบแล้วไม่ได้อะไร"
+        assert got[0]["item"] in W.GEAR,             f"เมล็ด {seed}: หีบใบแรกได้ {got[0]['item']} ไม่ใช่อาวุธ"
+
+
+def test_once_you_have_a_weapon_chests_go_back_to_normal(world):
+    """การันตีแค่ใบแรก — ไม่งั้นทั้งเกมได้แต่อาวุธ ไม่มียา ไม่มีอาร์ติแฟกต์เลย"""
+    seen = set()
+    for seed in range(1, 40):
+        match.new_practice(UID, LOOK, seed=seed)
+        st = match.load(UID)
+        st["terrain"] = T.encode(_flat())
+        st["props"] = [{"kind": "chest", "x": 150, "y": 200}]
+        f = st["fighters"][0]
+        f.update(x=150, y=200, ammo={"bow": 5}, bag={})     # มีอาวุธแล้ว
+        got = match._open_chests(st, f)
+        if got:
+            seen.add(got[0]["item"] in W.GEAR)
+    assert seen == {True, False},         f"มีอาวุธแล้วแต่หีบยัง{'ออกแต่อาวุธ' if seen == {True} else 'ไม่เคยออกอาวุธ'}"
+
+
+def test_a_map_starts_with_enough_chests_to_matter():
+    """หีบน้อยเกินไป = การันตีใบแรกก็ไม่ช่วย เพราะไม่มีหีบให้เดินไปเปิด"""
+    import collections
+    import random as _random
+
+    tot = collections.Counter()
+    for seed in range(1, 21):
+        g = T.generate(seed)["grid"]
+        for p in T.place_props(g, _random.Random(seed ^ 0x5EED)):
+            tot[p["kind"]] += 1
+    assert tot["chest"] / 20 >= 2.5, f"หีบเฉลี่ยแค่ {tot['chest'] / 20:.1f} ใบต่อแผนที่"
+    assert tot["trap"] / 20 >= 1.5,         f"เพิ่มหีบจนกับดักโดนเบียดเหลือ {tot['trap'] / 20:.1f} — ของอื่นต้องไม่หายไป"

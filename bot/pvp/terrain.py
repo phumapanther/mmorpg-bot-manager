@@ -34,7 +34,8 @@ AIR, GRASS, DIRT, ROCK, WOOD, BRICK, TRUNK, LEAF = range(8)
 GRASS_DEPTH, DIRT_DEPTH = 3, 10
 
 # 💎 ของบนแผนที่ · น้ำหนักคือโอกาสถูกสุ่มวางเมื่อเทียบกัน
-PROPS = {"chest": 3, "trap": 4, "ferry": 1}
+# หีบเยอะขึ้นตั้งแต่ต้นเกม — เจ้าของเกมสั่งให้ธนู/หน้าไม้เก็บได้ง่ายในช่วงแรก
+PROPS = {"chest": 6, "trap": 4, "ferry": 1}
 
 
 def _noise(rng, n, octaves=3):
@@ -368,7 +369,11 @@ def place_props(grid, rng, spots=None):
     rng.shuffle(pool)
     out, used = [], []
     kinds = [k for k, n in PROPS.items() for _ in range(n)]
-    want = min(len(kinds) + rng.randint(2, 6), max(0, len(pool) // 18))
+    # ⚠️ เพดานนี้คุมของทั้งหมดบนแผนที่ ไม่ใช่แค่หีบ — ผ่อนจาก //18 เป็น //14
+    #    เพราะเจ้าของเกมสั่งให้ธนู/หน้าไม้เก็บง่ายในช่วงแรก ถ้าเพิ่มแต่น้ำหนักหีบ
+    #    กับดักจะโดนเบียดหายไปแทน (วัดแล้ว: หีบ 1.7→2.2 แต่กับดัก 2.1→1.5)
+    #    ผ่อนเพดานด้วยเลยได้ทั้งคู่ — หีบ 3.1 · กับดัก 2.0 ต่อแผนที่
+    want = min(len(kinds) + rng.randint(2, 6), max(0, len(pool) // 14))
     for x, y in pool:
         if len(out) >= want:
             break

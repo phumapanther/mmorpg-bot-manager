@@ -195,6 +195,11 @@ def _ride_ferry(st, grid, f):
         here = physics.walk_group(grid, (f["x"], f["y"]))
         rng = random.Random(st["seed"] ^ (p["x"] * 6997))
         far = [xy for xy in terrain._open_spots(grid) if xy not in here]
+        if st.get("flood"):
+            # 🎈 ภัยพิบัติมาแล้ว — เรือต้องพาขึ้น "ที่สูงกว่าเดิมเสมอ" ไม่ใช่สุ่มมั่ว
+            #    (เจ้าของเกมสั่ง: เพิ่มโอกาสหนี) ยิ่งสูงยิ่งดี เพราะเส้นตายไต่ขึ้นทุกรอบ
+            higher = [xy for xy in far if xy[1] < f["y"] - 8]
+            far = sorted(higher, key=lambda xy: xy[1])[:8] or far
         if not far:
             continue                       # ไม่มีเกาะอื่นให้ไป ก็เก็บเรือไว้ก่อน
         st["props"].remove(p)
@@ -217,7 +222,13 @@ def _open_chests(st, f):
             continue
         st["props"].remove(p)
         rng = random.Random(st["seed"] ^ (p["x"] * 7919))     # หีบเดิมได้ของเดิมเสมอ
-        key = rng.choice(weapons.CHEST_LOOT)
+        # 🏹 ยังไม่มีอาวุธสักชิ้น = หีบใบนี้ต้องเป็นอาวุธ (เจ้าของเกมสั่ง)
+        #    "ช่วงแรก ๆ จะได้มีอะไรไว้ยิงกันระยะไกล" — ปล่อยให้สุ่มล้วนแล้วบางเกม
+        #    ทั้งเกมไม่มีใครได้อาวุธเลย เหลือแต่ตีประชิดกับสกิลคลาส
+        if not (f.get("ammo") or {}):
+            key = rng.choice(sorted(weapons.GEAR))
+        else:
+            key = rng.choice(weapons.CHEST_LOOT)
         spec = weapons.ALL[key]
         if key in weapons.GEAR:
             # 🏹 อาวุธเก็บแล้วใช้ได้ตลอด — เก็บซ้ำคือกระสุนสะสมเพิ่ม ไม่ใช่ได้อีกชิ้น
@@ -763,7 +774,9 @@ def _supply_drop(st):
         if p["kind"] == "ferry":
             taken_isles |= physics.walk_group(grid, (p["x"], p["y"]))
 
-    kinds = ["ferry", "chest", "chest", "trap"]
+    # ภัยพิบัติมาแล้ว = เรือเหาะลงถี่ขึ้น (ทางหนีต้องหาง่ายขึ้นตามความกดดัน)
+    kinds = (["ferry", "ferry", "chest", "chest"] if st.get("flood")
+             else ["ferry", "chest", "chest", "trap"])
     fresh = []
     for x, y in pool:
         if len(fresh) >= min(room, len(kinds)):
@@ -797,6 +810,7 @@ def _pass_turn(st):
     if st["turn"] == 0:
         st["round"] += 1
         st["drops"] = []
+        st["disaster"] = _rise_disaster(st)      # ภัยพิบัติไต่ขึ้นก่อน แล้วค่อยหย่อนของ
         if st["round"] % DROP_EVERY == 0:
             _supply_drop(st)
     f = _fighter(st)
@@ -994,6 +1008,57 @@ def end_turn(uid, auto=False):
     return True, {"bot_moves": bot_moves} | view(uid, st)
 
 
+# ── 🌊 ภัยพิบัติ: ครบ 10 รอบแล้วพื้นล่างค่อย ๆ หายไป บีบให้ทุกคนขึ้นที่สูง ──
+#
+# เจ้าของเกมสั่ง (08-28): "หลังผ่านไป 10 รอบ จะเกิดภัยพิบัติตามแต่ละประเภทของแมพ
+# ที่จะค่อย ๆ บังคับให้ทุกคนตายอย่างเท่าเทียมกัน"
+#
+# ทำเป็น "เส้นตายที่ไต่ขึ้นทีละรอบ" — พื้นใต้เส้นถูกกลืนหายไปจริง ๆ
+# ใครอยู่ใต้เส้นก็ตาย ไม่ต้องมีระบบใหม่มาคุมความสูงน้ำในฟิสิกส์ทุกฟังก์ชัน
+# (พื้นหายแล้ว _settle_everyone เดิมพาคนร่วงลงไปเองตามกติกาที่มีอยู่แล้ว)
+DISASTER_ROUND = 10      # ครบกี่รอบถึงเริ่ม
+FLOOD_STEP = 7           # ไต่ขึ้นกี่พิกเซลต่อรอบ
+DISASTER = {             # ทวีปไหนเจอภัยอะไร — ต่างกันแค่หน้าตากับข้อความ กติกาเดียวกัน
+    "ocean": "water", "main": "water", "frozen": "water", "skyward": "water",
+    "volcanic": "lava", "demon": "lava", "nether": "lava",
+    "sylvan": "poison", "mechanized": "poison",
+}
+DISASTER_NAME = {"water": "🌊 น้ำท่วม", "lava": "🌋 ลาวาไหล", "poison": "☠️ บ่อพิษ"}
+
+
+def disaster_kind(st):
+    return DISASTER.get(st.get("continent", ""), "water")
+
+
+def flood_line(st):
+    """ผิวของภัยพิบัติตอนนี้อยู่ที่ y เท่าไหร่ (ยิ่งเลขน้อย = ยิ่งสูง)"""
+    return terrain.H - terrain.WATER - int(st.get("flood", 0))
+
+
+def _rise_disaster(st):
+    """ภัยพิบัติไต่ขึ้นหนึ่งขั้น — กลืนพื้นและกลืนคนที่ยังอยู่ต่ำกว่าเส้น"""
+    if st["round"] <= DISASTER_ROUND:
+        return None
+    first = not st.get("flood")
+    st["flood"] = int(st.get("flood", 0)) + FLOOD_STEP
+    line = flood_line(st)
+    grid = _grid(st)
+    for y in range(max(0, line), terrain.H):        # พื้นใต้เส้นหายไปจริง
+        for x in range(terrain.W):
+            grid[y][x] = terrain.AIR
+    st["terrain"] = terrain.encode(grid)
+    name = DISASTER_NAME[disaster_kind(st)]
+    if first:
+        st["log"].append(f"{name}เริ่มขึ้นแล้ว — รีบหนีขึ้นที่สูง!")
+    for f in st["fighters"]:
+        if not f["dead"] and f["y"] >= line:
+            f["hp"], f["dead"] = 0, True
+            st["log"].append(f"{name} กลืน {f['name']} ไป!")
+    _settle_everyone(st, grid)                      # คนที่พื้นหายใต้เท้าก็ร่วงตาม
+    st["props"] = [p for p in st["props"] if p["y"] < line]
+    return {"kind": disaster_kind(st), "line": line, "first": first}
+
+
 SURRENDER_CRATER = 26
 
 
@@ -1053,6 +1118,11 @@ def view(uid, st=None):
         "props": st["props"],
         "traps": sum(1 for p in st["props"] if p["kind"] == "trap"),
         "wind": wind_bar(st),          # -100..100 ไว้วาดแถบลม (ไม่ใช่ค่าฟิสิกส์จริง)
+        "flood": int(st.get("flood", 0)),
+        "flood_line": flood_line(st),
+        "disaster": disaster_kind(st),
+        "disaster_in": max(0, DISASTER_ROUND - st["round"] + 1),
+        "disaster_hit": st.get("disaster") or None,
         # 📏 ค่าคงที่ของกฎการเดิน — ส่งไปให้เบราว์เซอร์ "เดาล่วงหน้า" ได้ตรงกับที่นี่
         #    (เบราว์เซอร์เดาไว้ก่อนให้ตัวขยับทันนิ้ว เซิร์ฟเวอร์ยังตัดสินตำแหน่งจริงเหมือนเดิม)
         #    ส่งเป็นค่าคงที่ ไม่ใช่ฝังตัวเลขไว้ในไฟล์ JS จะได้ไม่มีวันเพี้ยนจากกัน

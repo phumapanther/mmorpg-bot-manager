@@ -2060,7 +2060,24 @@ function wmApply(d) {
   } else {
     WM.props = wmPropsNow(d.props); WM.repaint();
   }
+  // 🌊 ระดับภัยพิบัติไต่ขึ้นทุกรอบ — ต้องอัปเดตก่อนวาดเฟรมถัดไป
+  if (WM) { WM.flood = d.flood || 0; WM.disaster = d.disaster || 'water'; }
+  if (d.disaster_hit) wmWarnDisaster(d.disaster_hit, d.disaster);
   wmPaintHud();
+}
+
+/** 🌊 ประกาศภัยพิบัติ — ครั้งแรกเตือนใหญ่ ครั้งต่อไปแค่บอกว่ามันขึ้นมาอีกขั้น */
+function wmWarnDisaster(hit, kind) {
+  const name = { water: '🌊 น้ำท่วม', lava: '🌋 ลาวาไหล',
+                 poison: '☠️ บ่อพิษ' }[kind] || '🌊 น้ำท่วม';
+  if (hit.first) {
+    SFX.play('danger');
+    toast(name + 'เริ่มขึ้นแล้ว — รีบหนีขึ้นที่สูง!', true);
+  }
+  wmStep(() => {
+    WM_POPS.push({ x: WM.w / 2, y: hit.line - 14, t: 0, text: name + ' ขึ้นมาอีก!' });
+    if (!hit.first) SFX.play('trap');
+  }, () => true);
 }
 
 function wmMe() { return WM_ST.fighters[WM_ST.turn]; }

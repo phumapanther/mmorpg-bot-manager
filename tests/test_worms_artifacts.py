@@ -230,8 +230,15 @@ def test_a_chest_gives_an_artifact(world):
     match.save(UID, st)
     ok, r = match.move(UID, "walk", 1, 3)
     assert ok and r["opened"], "เดินทับหีบแล้วไม่ได้อะไร"
-    assert r["opened"][0].get("item") in W.ARTIFACTS, "หีบไม่ได้ให้อาร์ติแฟกต์"
-    assert r["fighters"][0]["bag"], "ได้ของแต่ไม่เข้ากระเป๋า"
+    # หีบใบแรกการันตีอาวุธเสมอ (เจ้าของเกมสั่ง 08-28) — ของที่ได้จึงเป็นอาวุธหรือ
+    # อาร์ติแฟกต์ก็ได้ ขอแค่เป็นของที่ใช้ได้จริง ไม่ใช่คีย์ลอย ๆ ที่ไม่มีในตาราง
+    got = r["opened"][0].get("item")
+    assert got in W.ALL, f"หีบให้ของที่ไม่มีอยู่จริง: {got}"
+    assert got in W.ARTIFACTS or got in W.GEAR, "หีบให้ของที่ใช้ไม่ได้"
+    # อาวุธเก็บเป็นกระสุน (ammo) · ของใช้ครั้งเดียวเก็บเป็นชิ้น (bag)
+    f = r["fighters"][0]
+    where = f.get("ammo") if got in W.GEAR else f.get("bag")
+    assert where and got in where, f"ได้ {got} แต่ไม่เข้าช่องเก็บของ"
 
 
 def test_a_chest_always_gives_the_same_thing_for_a_seed(world):

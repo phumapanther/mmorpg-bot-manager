@@ -11,6 +11,13 @@ const AIR = 0, GRASS = 1, DIRT = 2, ROCK = 3, WOOD = 4, BRICK = 5, TRUNK = 6, LE
 
 // สีรายทวีป — ท้องฟ้าใช้ MAPS ของ scene.js ร่วมกัน ตรงนี้มีเฉพาะส่วนที่ scene.js ไม่มี
 // ลำดับ: [หญ้า, ดิน, หิน, ไม้บ้าน, อิฐปราสาท, ลำต้น, ใบไม้]
+// ผิวภัยพิบัติแต่ละแบบ — [สีพื้น, สีคลื่น]
+const WORM_FLOOD = {
+  water:  ['#2f6fa8', '#bfe9ff'],
+  lava:   ['#b0331a', '#ffd06a'],
+  poison: ['#3f7a2e', '#c8ff8a'],
+};
+
 const WORM_GROUND = {
   main:       ['#6fa84e', '#6b5433', '#4a3f30', '#8a5a30', '#8f8c86', '#5a3d22', '#4f8a3a'],
   demon:      ['#a84a6a', '#4a2030', '#3a1626', '#6a2a3a', '#6e5a66', '#3a1a24', '#7a2a4a'],
@@ -44,6 +51,8 @@ function decodeTerrain(text, w, h) {
 class WormsMap {
   constructor(data) {
     this.w = data.w; this.h = data.h; this.water = data.water;
+    this.flood = data.flood || 0;              // ภัยพิบัติไต่ขึ้นมาแล้วกี่พิกเซล
+    this.disaster = data.disaster || 'water';
     this.seed = data.seed;
     this.continent = data.continent || 'main';
     this.props = data.props || [];
@@ -156,12 +165,16 @@ class WormsMap {
     const sw = vw / cam.z, sh = vh / cam.z;
     ctx.drawImage(this.buf, cam.x, cam.y, sw, sh, 0, 0, vw, vh);
 
-    // น้ำ — ต้องเห็นชัดว่าตกลงไปคือตาย
-    const wy = (this.h - this.water - cam.y) * cam.z;
+    // น้ำ/ลาวา/บ่อพิษ — ต้องเห็นชัดว่าตกลงไปคือตาย
+    // 🌊 ครบ 10 รอบแล้วผิวนี้จะไต่ขึ้นทุกรอบ (this.flood) จนกลืนทั้งแผนที่
+    const skin = WORM_FLOOD[this.disaster] || WORM_FLOOD.water;
+    const wy = (this.h - this.water - (this.flood || 0) - cam.y) * cam.z;
     if (wy < vh) {
-      ctx.fillStyle = sky[0];
-      ctx.globalAlpha = .55; ctx.fillRect(0, wy, vw, vh - wy); ctx.globalAlpha = 1;
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = this.flood ? skin[0] : sky[0];
+      ctx.globalAlpha = this.flood ? .78 : .55;
+      ctx.fillRect(0, wy, vw, vh - wy);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = this.flood ? skin[1] : '#ffffff';
       for (let x = 0; x < vw; x += 4) {
         const k = Math.sin((x + (t || 0) * .7) / 9) + Math.sin((x - (t || 0) * .4) / 5);
         ctx.globalAlpha = .10 + .10 * (k + 2) / 4;
