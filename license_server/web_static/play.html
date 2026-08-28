@@ -401,11 +401,19 @@
       <div class="wm-aim" id="wmAim" hidden></div>
       <div class="wm-log" id="wmLog"></div>
       <div class="g-grid wm-buttons">
-        <button class="g-tile hot" id="wmNew"><span class="ic">🎲</span>สนามใหม่
-          <span class="sub">สุ่มแผนที่แล้วเริ่มซ้อมกับบอท</span></button>
+        <button class="g-tile hot" id="wmNew"><span class="ic">🎲</span>ซ้อมกับบอท
+          <span class="sub">สุ่มแผนที่แล้วลงสนามคนเดียว</span></button>
         <button class="g-tile" id="wmSame"><span class="ic">📋</span>เปิดจากรหัสแผนที่
           <span class="sub">รหัสเดียวกันได้แผนที่เดียวกันเป๊ะ</span></button>
       </div>
+      <!-- 🎪 ชวนเพื่อน — เจ้าของเกมสั่งให้แยกปุ่มออกจากซ้อมกับบอทให้ชัด -->
+      <div class="g-grid wm-buttons">
+        <button class="g-tile hot" id="wmRoomOpen"><span class="ic">🎪</span>ชวนเพื่อนเล่น
+          <span class="sub">สูงสุด 6 คน · แบ่งทีม 3-3 หรือ 2-2-2</span></button>
+        <button class="g-tile" id="wmRoomJoin"><span class="ic">🚪</span>เข้าห้องด้วยรหัส
+          <span class="sub">ใส่รหัสห้องที่เพื่อนส่งมา</span></button>
+      </div>
+      <div class="wm-room" id="wmRoom" hidden></div>
       <p class="g-note">กดค้างที่ ◀ ▶ เพื่อเดินต่อเนื่อง · ลากบนจอเพื่อเลื่อนดู · ล้อ/สองนิ้วเพื่อซูม
       <br><b>เลือกสกิลแล้วกดค้างบนแผนที่ฝั่งที่จะยิง</b> — ค้างนานยิ่งไกล เลื่อนขึ้นลงปรับองศา ปล่อยเพื่อยิง
       <br>แรงเดินหมดจะจบเทิร์นให้เอง</p>

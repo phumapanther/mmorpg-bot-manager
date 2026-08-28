@@ -97,6 +97,11 @@ document.getElementById('wmSame')?.addEventListener('click', () => {
   const seed = prompt('วางรหัสแผนที่ที่อยากเปิด', document.getElementById('wmSeed').textContent);
   if (seed && /^\d+$/.test(seed.trim())) wmNewMatch(seed.trim());
 });
+document.getElementById('wmRoomOpen')?.addEventListener('click', () => wmRoomDo('create'));
+document.getElementById('wmRoomJoin')?.addEventListener('click', () => {
+  const code = prompt('ใส่รหัสห้องที่เพื่อนส่งมา (5 ตัว)');
+  if (code && code.trim()) wmRoomDo('join', { code: code.trim().toUpperCase() });
+});
 document.getElementById('wmGiveUp')?.addEventListener('click', wmGiveUp);
 document.getElementById('wmIn')?.addEventListener('click', () => wmZoom(1));
 document.getElementById('wmOut')?.addEventListener('click', () => wmZoom(-1));
@@ -2263,6 +2268,7 @@ function wmTick() {
     wmPaintHud();
   }
   if (WM_HIDDEN && !wmBusyFx()) wmRevealAll();   // ภาพจบแล้วค่อยเฉลยที่เหลือ
+  wmPeekTurn();                                  // เล่นหลายคน — คอยดูว่าถึงตาเรายัง
   // 🧭 ภาพเล่นจบหมดแล้วค่อยเทียบพื้นกับของเซิร์ฟเวอร์ — เจอต่างเมื่อไหร่โหลดใหม่ทั้งผืน
   //    (เทียบตอนภาพยังเล่นไม่ได้ หลุมจะโผล่ก่อนกระสุนจะบินถึง)
   if (WM && WM_ST && WM_ST.terrain && !wmBusyFx() && WM_ST.terrain !== WM_GROUND) {
@@ -2403,6 +2409,9 @@ function wmBindAim(cv) {
 function wmWaiting() {
   if (!WM_ST || !WM_ST.active || WM_ST.over) return true;
   if (wmMe().bot) return true;
+  // 🎪 เล่นหลายคน — ไม่ใช่ตาเราก็กดอะไรไม่ได้ (เซิร์ฟเวอร์ปฏิเสธอยู่แล้ว
+  //    แต่ต้องล็อกฝั่งจอด้วย ไม่งั้นตัวเดินไปแล้วค่อยเด้งกลับ)
+  if (WM_ST.room && WM_ST.my_turn === false) return true;
   const isBot = fi => !!(WM_ST.fighters[fi] && WM_ST.fighters[fi].bot);
   return !!((WM_ANIM && isBot(WM_ANIM.fi)) || WM_QUEUE.some(q => isBot(q.fi)) ||
             WM_SHOT || WM_BOOMS.length || WM_AFTER.length ||
@@ -4021,4 +4030,93 @@ async function fillPartner() {
        <div class="kv"><span>${esc(d.ring.name)}</span>
          <b>${d.ring.has ? '✅ มีแหวนแล้ว' : fmt(d.ring.price) + ' ทอง'}</b></div>` +
       (d.history.length ? `<div class="kv"><span>เคยแต่งมาแล้ว</span><b>${d.history.length} ครั้ง</b></div>` : '');
+}
+
+
+// ══════════════════════════════════════════════════════════════════════
+// 🎪 ห้องเล่นหลายคน — แยกขาดจากปุ่มซ้อมกับบอทตามที่เจ้าของเกมสั่ง
+//
+// เบราว์เซอร์ทำแค่ "กดปุ่ม" เหมือนเดิม — ห้อง ทีม และลำดับเทิร์น
+// ตัดสินที่เซิร์ฟเวอร์ทั้งหมด (bot/pvp/rooms.py)
+// ══════════════════════════════════════════════════════════════════════
+// ⏳ เล่นหลายคน: ตาคนอื่นอยู่ ต้องคอยถามเซิร์ฟเวอร์ว่ามีอะไรเกิดขึ้นบ้าง
+//    (ไม่มีตัวนี้ = นั่งมองจอนิ่ง ๆ ไม่มีวันรู้ว่าถึงตาตัวเองแล้ว)
+const WM_PEEK_MS = 2200;
+let WM_PEEK_AT = 0;
+
+function wmPeekTurn() {
+  if (!WM_ST || !WM_ST.room || WM_ST.over) return;
+  if (WM_ST.my_turn || wmBusyFx() || wmBusy) return;
+  const now = performance.now();
+  if (now - WM_PEEK_AT < WM_PEEK_MS) return;
+  WM_PEEK_AT = now;
+  fillWorms().catch(() => {});                   // เน็ตสะดุดครั้งเดียวไม่ต้องทำอะไร
+}
+
+let WM_ROOM = null;          // สถานะห้องล่าสุดที่เซิร์ฟเวอร์ตอบมา
+let WM_ROOM_POLL = 0;        // ตัวจับเวลาถามซ้ำ (คนอื่นเข้า/ออก/เปลี่ยนทีมต้องเห็น)
+
+async function wmRoomDo(action, extra) {
+  try {
+    WM_ROOM = await api('POST', '/api/web/pvp/worms/room',
+                        { action: action, ...(extra || {}) });
+    wmPaintRoom();
+    if (action === 'start') { WM_ROOM = null; wmPaintRoom(); await fillWorms(); }
+  } catch (e) { toast(e.message, true); }
+}
+
+/** ถามสถานะห้องซ้ำเป็นระยะ — ไม่งั้นเพื่อนเข้ามาแล้วเราไม่เห็น */
+function wmRoomWatch(on) {
+  clearInterval(WM_ROOM_POLL);
+  WM_ROOM_POLL = 0;
+  if (!on) return;
+  WM_ROOM_POLL = setInterval(async () => {
+    try {
+      const r = await api('GET', '/api/web/pvp/worms/room');
+      const changed = JSON.stringify(r) !== JSON.stringify(WM_ROOM);
+      WM_ROOM = r;
+      if (changed) wmPaintRoom();
+      if (r.started) { wmRoomWatch(false); await fillWorms(); }
+    } catch (e) { /* เน็ตสะดุดครั้งเดียวไม่ต้องปิดห้องทิ้ง */ }
+  }, 2500);
+}
+
+function wmPaintRoom() {
+  const box = document.getElementById('wmRoom');
+  if (!box) return;
+  const r = WM_ROOM;
+  if (!r || !r.in_room) {
+    box.hidden = true;
+    wmRoomWatch(false);
+    return;
+  }
+  box.hidden = false;
+  wmRoomWatch(true);
+  const plans = r.plans.map(p => `
+    <button data-plan="${esc(p.key)}" class="${p.key === r.plan ? 'on' : ''}"
+      ${r.host ? '' : 'disabled'}>${esc(p.name)}${p.need ? ` (${p.need} คน)` : ''}</button>`).join('');
+  const teams = r.teams > 1 ? `<div class="teams">` + r.team_names.map((n, i) =>
+    `<button data-team="${i}">${esc(n)}</button>`).join('') + `</div>` : '';
+  box.innerHTML = `
+    <div class="code">${esc(r.code)}</div>
+    <div class="why">ส่งรหัสนี้ให้เพื่อนกด “เข้าห้องด้วยรหัส” · ${r.seats.length}/${r.max} คน</div>
+    <div class="plans">${plans}</div>
+    ${teams}
+    <div class="seats">${r.seats.map(s => `
+      <div class="seat${s.you ? ' you' : ''}">
+        ${s.host ? '👑' : '🙋'} ${esc(s.name)}
+        <span class="tag">${r.teams > 1 ? esc(r.team_names[s.team] || '') : ''}
+          ${s.you ? '· คุณ' : ''}</span>
+      </div>`).join('')}</div>
+    ${r.why ? `<div class="why">⚠️ ${esc(r.why)}</div>` : ''}
+    <button class="go" id="wmRoomGo" ${r.can_start && r.host ? '' : 'disabled'}>
+      ${r.host ? '🚀 เริ่มเกม' : '⏳ รอหัวห้องกดเริ่ม'}</button>
+    <button class="go" id="wmRoomOut" style="background:none;color:var(--g-muted);
+      border-color:var(--g-line)">🚪 ออกจากห้อง</button>`;
+  box.querySelectorAll('[data-plan]').forEach(b =>
+    b.onclick = () => wmRoomDo('plan', { plan: b.dataset.plan }));
+  box.querySelectorAll('[data-team]').forEach(b =>
+    b.onclick = () => wmRoomDo('team', { team: +b.dataset.team }));
+  document.getElementById('wmRoomGo').onclick = () => wmRoomDo('start');
+  document.getElementById('wmRoomOut').onclick = () => wmRoomDo('leave');
 }

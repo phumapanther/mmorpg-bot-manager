@@ -15,7 +15,7 @@ import time
 
 from license_server import web_db
 
-from bot.pvp import physics, terrain, weapons
+from bot.pvp import physics, rooms, terrain, weapons
 
 MOVE_BUDGET = 60         # ก้าวได้กี่ก้าวต่อหนึ่งเทิร์น
 TURN_SECONDS = 60        # หมดเวลาเทิร์นแล้วสลับให้เอง (ปิดจอหนีไม่ได้ ทั้งห้องจะได้ไม่ค้าง)
@@ -40,6 +40,10 @@ def _conn():
 
 
 def save(uid, st):
+    # 🎪 อยู่ในห้องเล่นหลายคน = สถานะเป็นของห้อง ไม่ใช่ของคนใดคนหนึ่ง
+    #    (ดู bot/pvp/rooms.py — คนทั้งห้องอ่าน/เขียนก้อนเดียวกัน)
+    if st.get("room"):
+        return rooms.save(st["room"], st)
     st["updated_at"] = time.time()
     with _conn() as conn:
         conn.execute("INSERT INTO worms_matches(user_id, state, updated_at) VALUES (?,?,?) "
@@ -50,6 +54,12 @@ def save(uid, st):
 
 
 def load(uid):
+    code = rooms.room_of(uid)
+    if code:
+        st = rooms.load(code)
+        if st and st.get("started"):
+            return st
+        return None                       # อยู่ห้องแต่ยังไม่เริ่มเล่น = ยังไม่มีแมตช์
     with _conn() as conn:
         conn.execute("DELETE FROM worms_matches WHERE updated_at < ?", (time.time() - MATCH_TTL,))
         row = conn.execute("SELECT state FROM worms_matches WHERE user_id=?", (str(uid),)).fetchone()
@@ -67,6 +77,21 @@ def _grid(st):
 
 def _fighter(st, idx=None):
     return st["fighters"][st["turn"] if idx is None else idx]
+
+
+def _not_your_turn(st, uid):
+    """ตอนนี้เป็นตาของคนที่ส่งคำสั่งมาจริงไหม — คืนข้อความผิดพลาดถ้าไม่ใช่
+
+    ⚠️ เล่นหลายคนแล้วข้อนี้สำคัญมาก: เดิมเช็คแค่ "ตัวปัจจุบันเป็นบอทไหม"
+       ซึ่งพอในห้องมีคนจริงหลายคน ใครก็สั่งแทนคนอื่นได้หมด
+    """
+    f = _fighter(st)
+    if f.get("bot"):
+        return "ยังไม่ถึงตาคุณ"
+    owner = f.get("uid")
+    if owner and str(owner) != str(uid):
+        return f"ยังไม่ถึงตาคุณ — ตอนนี้เป็นตาของ {f['name']}"
+    return None
 
 
 def new_practice(uid, player_look, seed=0, continent=""):
@@ -101,10 +126,11 @@ def new_practice(uid, player_look, seed=0, continent=""):
         "turn": 0, "round": 1, "moves": MOVE_BUDGET, "over": False, "log": [],
         "turn_started": time.time(),
         "fighters": [
-            {"name": "คุณ", "bot": False, "hp": 100, "max_hp": 100, "face": 1,
+            {"name": "คุณ", "bot": False, "uid": str(uid), "team": 0,
+             "hp": 100, "max_hp": 100, "face": 1,
              "x": spots[0][0], "y": spots[0][1], "look": look, "dead": False,
              "buffs": {}, "cd": {}, "bag": {}, "dealt": 0, "kills": 0},
-            {"name": "🤖 บอท", "bot": True, "hp": 100, "max_hp": 100, "face": -1,
+            {"name": "🤖 บอท", "bot": True, "team": 1, "hp": 100, "max_hp": 100, "face": -1,
              "x": spots[1][0], "y": spots[1][1], "look": bot_look, "dead": False,
              "buffs": {}, "cd": {}, "bag": {}, "dealt": 0, "kills": 0},
         ],
@@ -256,9 +282,10 @@ def move(uid, action, direction=1, steps=1, jump_power=1.0, lean=0.0):
     if time_left(st) <= 0:
         return False, {"error": "⏱️ หมดเวลาเทิร์นแล้ว — กดจบเทิร์นได้เลย"}
 
+    wrong = _not_your_turn(st, uid)
+    if wrong:
+        return False, {"error": wrong}
     f = _fighter(st)
-    if f["bot"]:
-        return False, {"error": "ยังไม่ถึงตาคุณ"}
     if f["dead"]:
         return False, {"error": "ตัวละครของคุณตกรอบแล้ว"}
 
@@ -507,9 +534,10 @@ def attack(uid, skill, angle=None, power=70, direction=None):
     if time_left(st) <= 0:
         return False, {"error": "⏱️ หมดเวลาเทิร์นแล้ว — กดจบเทิร์นได้เลย"}
 
+    wrong = _not_your_turn(st, uid)
+    if wrong:
+        return False, {"error": wrong}
     f = _fighter(st)
-    if f["bot"]:
-        return False, {"error": "ยังไม่ถึงตาคุณ"}
     if f["dead"]:
         return False, {"error": "ตัวละครของคุณตกรอบแล้ว"}
 
@@ -1096,10 +1124,77 @@ def standings(st):
 
 
 def _check_over(st):
+    """จบเกมหรือยัง — เล่นเป็นทีมต้องนับ "ทีมที่ยังเหลือคน" ไม่ใช่ "คนที่ยังเหลือ"
+
+    ⚠️ ไม่แยกเคสนี้แล้วเล่นทีมพัง: 3v3 เหลือเพื่อนร่วมทีมสองคนยืนอยู่
+       เกมจะยังไม่จบทั้งที่อีกฝั่งตายหมดแล้ว
+    """
     alive = [f for f in st["fighters"] if not f["dead"]]
+    if st.get("teamed"):
+        sides = {f.get("team", 0) for f in alive}
+        if len(sides) <= 1:
+            st["over"] = True
+            st["winner"] = (rooms.TEAM_NAME[sides.pop()] if sides else "")
+        return
     if len(alive) <= 1:
         st["over"] = True
         st["winner"] = alive[0]["name"] if alive else ""
+
+
+def start_room(uid, seed=0, continent=""):
+    """🎪 หัวห้องกดเริ่ม — สร้างสนามเดียวใช้ร่วมกันทั้งห้อง
+
+    ต่างจาก new_practice() ตรงที่นักสู้มาจากที่นั่งในห้อง (ไม่มีบอท)
+    และสถานะถูกเก็บไว้ที่ห้อง ทุกคนอ่านก้อนเดียวกัน
+    """
+    from bot.game_data import CONTINENTS
+
+    code = rooms.room_of(uid)
+    room = rooms.load(code) if code else None
+    if not room:
+        return False, {"error": "ยังไม่ได้อยู่ห้องไหน"}
+    if room["host"] != str(uid):
+        return False, {"error": "เฉพาะหัวห้องเท่านั้นที่กดเริ่มได้"}
+    if room.get("started"):
+        return False, {"error": "ห้องนี้เริ่มไปแล้ว"}
+    ok, why = rooms.plan_ready(room)
+    if not ok:
+        return False, {"error": why}
+
+    rng = random.Random()
+    seed = int(seed) or rng.randrange(1, 10 ** 14)
+    if continent not in CONTINENTS:
+        continent = rng.choice(list(CONTINENTS))
+    grid = terrain.generate(seed, continent)["grid"]
+    prng = random.Random(seed ^ 0x5EED)
+    props = terrain.place_props(grid, prng)
+    seats = room["seats"]
+    spots = terrain.spawns(grid, len(seats), prng, avoid=props)
+
+    teamed = bool(rooms.TEAM_PLANS[room["plan"]]["teams"])
+    st = {
+        "seed": seed, "continent": continent,
+        "continent_label": CONTINENTS.get(continent, {}).get("label", continent),
+        "terrain": terrain.encode(grid), "props": props,
+        "turn": 0, "round": 1, "moves": MOVE_BUDGET, "over": False, "log": [],
+        "turn_started": time.time(),
+        # ต้องพกข้อมูลห้องติดไปกับสถานะ — save() ใช้ตัดสินว่าเขียนลงห้องหรือลงแถวเดี่ยว
+        "room": room["room"], "host": room["host"], "started": True,
+        "plan": room["plan"], "teamed": teamed,
+        "seats": seats,
+        "fighters": [
+            {"name": s["name"], "bot": False, "uid": s["uid"],
+             "team": s["team"] if teamed else i,
+             "hp": 100, "max_hp": 100, "face": 1 if i % 2 == 0 else -1,
+             "x": spots[i][0], "y": spots[i][1], "look": s["look"], "dead": False,
+             "buffs": {}, "cd": {}, "bag": {}, "ammo": {}, "dealt": 0, "kills": 0}
+            for i, s in enumerate(seats)
+        ],
+    }
+    st["log"].append(f"🎪 เริ่มแล้ว! ผู้เล่น {len(seats)} คน · "
+                     f"{rooms.TEAM_PLANS[room['plan']]['name']}")
+    _roll_wind(st)
+    return True, rooms.save(room["room"], st)
 
 
 def view(uid, st=None):
@@ -1136,6 +1231,11 @@ def view(uid, st=None):
             "sink": physics.SINK_DEPTH,
         },
         "turn": st["turn"], "round": st["round"], "moves": st["moves"],
+        # 🎪 เล่นหลายคน — เว็บต้องรู้ว่าตอนนี้ตาของเราหรือของคนอื่น
+        "room": st.get("room", ""), "teamed": bool(st.get("teamed")),
+        "me": next((i for i, f in enumerate(st["fighters"])
+                    if str(f.get("uid") or "") == str(uid)), 0),
+        "my_turn": str(_fighter(st).get("uid") or "") == str(uid),
         "move_budget": MOVE_BUDGET, "over": st["over"], "winner": st.get("winner", ""),
         "time_left": time_left(st), "turn_seconds": TURN_SECONDS,
         "standings": standings(st),

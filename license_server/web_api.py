@@ -1867,6 +1867,68 @@ def worms_match_state(request: Request):
     return match.view(uid)
 
 
+class RoomBody(BaseModel):
+    action: str = "view"       # view | create | join | leave | plan | team | start
+    code: str = ""             # รหัสห้องตอน join
+    plan: str = ""             # ffa | 3v3 | 2v2v2
+    team: int = 0
+    seed: int = 0
+
+
+@router.post("/pvp/worms/room")
+def worms_room(body: RoomBody, request: Request):
+    """🎪 ห้องเล่นหลายคน — แยกขาดจากปุ่มซ้อมกับบอท
+
+    🔒 ทุกคำสั่งผูกกับ uid ที่ล็อกอินอยู่เท่านั้น เบราว์เซอร์ระบุแทนคนอื่นไม่ได้
+    """
+    uid = int(require_player(request)["uid"])
+    from bot.pvp import match, rooms
+
+    def _look():
+        p = player_model_get(uid)
+        from bot import fashion as _fashion
+        return {"race": p.get("race"), "cls": p.get("class_name"),
+                "armor": p.get("armor") or "None", "weapon": p.get("weapon") or "",
+                "fashion": _fashion.worn(p)}
+
+    def _name():
+        # ใช้ยศเป็นชื่อเรียกเหมือนหน้าโปรไฟล์เพื่อน (bot/friends.py) ไม่มีก็ใช้ไอดี
+        p = player_model_get(uid)
+        return p.get("rank") or f"ผู้เล่น {uid}"
+
+    with _user_lock(uid):
+        if body.action == "create":
+            rooms.create(uid, _name(), _look())
+        elif body.action == "join":
+            ok, r = rooms.join(uid, body.code, _name(), _look())
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action == "leave":
+            rooms.leave(uid)
+        elif body.action == "plan":
+            ok, r = rooms.set_plan(uid, body.plan)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action == "team":
+            ok, r = rooms.set_team(uid, body.team)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action == "start":
+            ok, r = match.start_room(uid, body.seed)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action != "view":
+            raise HTTPException(400, "ไม่รู้จักคำสั่งนี้")
+        return rooms.view(uid)
+
+
+@router.get("/pvp/worms/room")
+def worms_room_state(request: Request):
+    uid = int(require_player(request)["uid"])
+    from bot.pvp import rooms
+    return rooms.view(uid)
+
+
 @router.get("/friends/{target_id}/profile")
 def friend_profile(target_id: str, request: Request):
     """โปรไฟล์สาธารณะของเพื่อน — ไม่มีทอง/ธนาคาร/ของในกระเป๋าเด็ดขาด"""

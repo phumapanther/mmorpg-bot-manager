@@ -1022,3 +1022,26 @@ body.bar-min .pbar .money { margin-left: auto; }
 .wm-wait .wm-stage canvas { cursor: default; }
 .wm-hold { color: #ffd66b; font-style: normal; font-size: .78rem;
   background: #00000055; border-radius: 6px; padding: 1px 7px; margin-left: 6px; }
+
+/* ── 🎪 ห้องเล่นหลายคน ── */
+.wm-room { margin-top: 12px; border: 1px solid var(--g-line); border-radius: 16px;
+  background: var(--g-panel); padding: 14px; display: grid; gap: 10px; }
+.wm-room .code { font-family: var(--g-num); font-size: 26px; letter-spacing: 4px;
+  color: var(--g-gold); text-align: center; }
+.wm-room .plans, .wm-room .teams { display: flex; flex-wrap: wrap; gap: 6px; }
+.wm-room .plans button, .wm-room .teams button { border-radius: 999px; padding: 7px 14px;
+  min-height: 36px; border: 1px solid var(--g-line); background: var(--g-hi);
+  color: var(--g-ink); font-family: inherit; font-size: 12.5px; cursor: pointer; }
+.wm-room .plans button.on, .wm-room .teams button.on { border-color: var(--g-gold);
+  color: var(--g-gold); }
+.wm-room .seats { display: grid; gap: 6px; }
+.wm-room .seat { display: flex; align-items: center; gap: 8px; font-size: 13px;
+  padding: 7px 10px; border-radius: 12px; background: var(--g-hi);
+  border: 1px solid var(--g-line); }
+.wm-room .seat.you { border-color: var(--g-gold); }
+.wm-room .seat .tag { font-size: 11px; color: var(--g-muted); margin-left: auto; }
+.wm-room .why { font-size: 12px; color: var(--g-muted); }
+.wm-room .go { min-height: 46px; border-radius: 14px; border: 1px solid #6d1a11;
+  background: linear-gradient(160deg,#d93b2b,#8f2317); color: #fff; font-family: inherit;
+  font-size: 15px; font-weight: 600; cursor: pointer; }
+.wm-room .go:disabled { opacity: .45; cursor: not-allowed; }
