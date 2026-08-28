@@ -611,8 +611,12 @@ def test_melee_gets_a_swing_not_a_trail():
     """ประชิดไม่มีวิถี — แสดงแค่วงเหวี่ยงตรงจุดที่ฟันถึง"""
     fn = _fn("function wmShowHit(")
     assert "if (a.path && a.path.length)" in fn, "ไม่ได้แยกสกิลมีวิถีออกจากประชิด"
+    # ตัดเอาเฉพาะ "ในบล็อกของสกิลมีวิถี" ไม่ใช่นับตัวอักษรเอา
+    # (นับตัวอักษรแล้วพอเพิ่มโค้ดในบล็อกนิดเดียวเทสก็แดงทั้งที่พฤติกรรมเหมือนเดิม)
     tail = fn[fn.index("if (a.path && a.path.length)"):]
-    assert "return;" in tail[:400], "สกิลมีวิถีต้องรอบินให้จบก่อน ไม่ใช่แสดงผลทันที"
+    block = tail[:tail.index(chr(10) + "  }")]
+    assert "return;" in block, "สกิลมีวิถีต้องรอบินให้จบก่อน ไม่ใช่แสดงผลทันที"
+    assert "wmPlayVictims" not in block, "ยังสรุปผลทันทีทั้งที่กระสุนยังไม่ถึงเป้า"
 
 
 def test_the_crater_appears_only_when_the_shot_lands():

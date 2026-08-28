@@ -87,12 +87,43 @@ ARTIFACTS = {
                      "crater": 12, "desc": "ยิงเลเซอร์เป็นเส้นตรง ทะลุไปไกล"},
 }
 
+# 🧪 ยาฮีล — เจอจากหีบเหมือนกัน ใช้ครั้งเดียวหมด
+#    ⚠️ ติดป้าย arena_only ไว้ — สองชิ้นนี้ไม่มีในเกมหลัก คิดขึ้นมาสำหรับสนามนี้
+#       เทสที่เฝ้าว่า "อาร์ติแฟกต์ในสนามต้องตรงกับเกมหลัก" จะได้ไม่นับรวม
+ARTIFACTS.update({
+    "herb_potion": {"name": "🧪 ยาสมุนไพร", "kind": "self", "heal": 30,
+                    "arena_only": True, "desc": "ฟื้นเลือด 30 ทันที"},
+    "great_potion": {"name": "🍶 ยาฟื้นกำลังใหญ่", "kind": "self", "heal": 65,
+                     "arena_only": True, "desc": "ฟื้นเลือด 65 ทันที"},
+})
+
+# 🏹 อาวุธที่เก็บได้ — ต่างจากอาร์ติแฟกต์ตรงที่ **ใช้ได้ตลอด ไม่มีวันหมด**
+#    แต่มีกระสุนจำกัด ยิงจนหมดแล้วต้องรอรีโหลด พอครบก็เต็มกลับมาเอง
+#    เก็บซ้ำ = กระสุนสะสมเพิ่ม (เจ้าของเกมเคาะ)
+#
+#    glide = ยิงตรงไปกี่เฟรมก่อนจะเริ่มตก — นี่คือสิ่งที่ทำให้ธนูต่างจากลูกไฟ
+#    (ลูกไฟโค้งตั้งแต่เฟรมแรก · ธนูพุ่งตรงยาวแล้วค่อยย้อยลง)
+GEAR = {
+    "bow": {"name": "🏹 ธนู", "kind": "lob", "dmg": 26, "radius": 16, "crater": 12,
+            "glide": 22, "ammo": 10, "reload": 2, "shots": 1,
+            "desc": "ยิงตรงยาวแล้วค่อยตก · 10 นัด หมดแล้วรอ 2 เทิร์น"},
+    "crossbow": {"name": "🎯 หน้าไม้", "kind": "lob", "dmg": 17, "radius": 13, "crater": 9,
+                 "glide": 18, "ammo": 6, "reload": 3, "shots": 3, "spread": 8,
+                 "desc": "ยิงแยกสามแฉกทีเดียว · 6 นัด หมดแล้วรอ 3 เทิร์น"},
+}
+for _g in GEAR.values():
+    _g["gear"] = True
+    _g.setdefault("cooldown", 0)
+
 # อาร์ติแฟกต์ทุกชิ้นใช้ครั้งเดียวหมด และไม่มีคูลดาวน์ (ของหายากอยู่แล้ว)
 for _a in ARTIFACTS.values():
     _a.setdefault("cooldown", 0)
     _a["artifact"] = True
 
-ALL = {**SKILLS, **ARTIFACTS}
+ALL = {**SKILLS, **ARTIFACTS, **GEAR}
+
+# ของที่ออกจากหีบได้ — อาวุธหายากกว่าเพราะใช้ได้ตลอด (น้ำหนักน้อยกว่า)
+CHEST_LOOT = sorted(ARTIFACTS) * 3 + sorted(GEAR)
 
 
 def spec(key):
@@ -120,11 +151,21 @@ def needs_aim(key):
     return (spec(key) or {}).get("kind") in ("lob", "beam")
 
 
-def items_view(bag):
-    """อาร์ติแฟกต์ที่ถืออยู่ พร้อมแสดงผลบนเว็บ"""
-    return [{"key": k, "name": ARTIFACTS[k]["name"], "kind": ARTIFACTS[k]["kind"],
-             "desc": ARTIFACTS[k]["desc"], "aim": needs_aim(k), "count": n}
-            for k, n in sorted((bag or {}).items()) if k in ARTIFACTS and n > 0]
+def items_view(bag, ammo=None, cooldowns=None):
+    """ของที่ถืออยู่ พร้อมแสดงผลบนเว็บ — อาร์ติแฟกต์ (นับชิ้น) + อาวุธ (นับกระสุน)"""
+    cds = cooldowns or {}
+    out = [{"key": k, "name": ARTIFACTS[k]["name"], "kind": ARTIFACTS[k]["kind"],
+            "desc": ARTIFACTS[k]["desc"], "aim": needs_aim(k), "count": n}
+           for k, n in sorted((bag or {}).items()) if k in ARTIFACTS and n > 0]
+    for k, n in sorted((ammo or {}).items()):
+        if k not in GEAR:
+            continue
+        left = int(cds.get(k, 0))
+        out.append({"key": k, "name": GEAR[k]["name"], "kind": GEAR[k]["kind"],
+                    "desc": GEAR[k]["desc"], "aim": needs_aim(k), "count": n,
+                    "gear": True, "ready_in": left,
+                    "reloading": left > 0 or n <= 0})
+    return out
 
 
 def view(cls, cooldowns=None):

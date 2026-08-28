@@ -217,12 +217,19 @@ def _open_chests(st, f):
             continue
         st["props"].remove(p)
         rng = random.Random(st["seed"] ^ (p["x"] * 7919))     # หีบเดิมได้ของเดิมเสมอ
-        key = rng.choice(sorted(weapons.ARTIFACTS))
-        bag = f.setdefault("bag", {})
-        bag[key] = bag.get(key, 0) + 1
-        st["log"].append(f"🎁 {f['name']} เปิดหีบได้ {weapons.ARTIFACTS[key]['name']}!")
-        got.append({"x": p["x"], "y": p["y"], "item": key,
-                    "name": weapons.ARTIFACTS[key]["name"]})
+        key = rng.choice(weapons.CHEST_LOOT)
+        spec = weapons.ALL[key]
+        if key in weapons.GEAR:
+            # 🏹 อาวุธเก็บแล้วใช้ได้ตลอด — เก็บซ้ำคือกระสุนสะสมเพิ่ม ไม่ใช่ได้อีกชิ้น
+            ammo = f.setdefault("ammo", {})
+            ammo[key] = ammo.get(key, 0) + spec["ammo"]
+            st["log"].append(
+                f"🎁 {f['name']} เก็บ {spec['name']} ได้! (กระสุน {ammo[key]} นัด)")
+        else:
+            bag = f.setdefault("bag", {})
+            bag[key] = bag.get(key, 0) + 1
+            st["log"].append(f"🎁 {f['name']} เปิดหีบได้ {spec['name']}!")
+        got.append({"x": p["x"], "y": p["y"], "item": key, "name": spec["name"]})
     return got
 
 
@@ -335,6 +342,56 @@ def _knock_back(st, grid, f, from_x, dmg, dist=None):
     return {"name": f["name"], "path": kb["path"]} if kb["path"] else None
 
 
+# 💥 ของบนแผนที่โดนระเบิดแล้วพังตามไปด้วย (เจ้าของเกมเคาะ 08-28)
+#    (รัศมีที่พัง, รัศมีระเบิดต่อ, ดาเมจระเบิดต่อ, หลุม, รัศมีไฟ, ดาเมจไฟ)
+PROP_BREAK = {
+    # เรือเหาะมีถังเชื้อเพลิง — ระเบิดแรงแล้วไฟลามรอบข้าง
+    "ferry": {"catch": 14, "radius": 34, "dmg": 22, "crater": 18, "fire": 26, "burn": 10},
+    # หีบไม้ไม่ระเบิด แต่ติดไฟ
+    "chest": {"catch": 12, "radius": 0, "dmg": 0, "crater": 0, "fire": 22, "burn": 12},
+    # กับดักคือระเบิดอยู่แล้ว โดนยิงก็ลั่นทันที
+    "trap":  {"catch": 12, "radius": 24, "dmg": 18, "crater": 12, "fire": 0, "burn": 0},
+}
+
+
+def _break_props(st, grid, cx, cy, radius, by=None):
+    """ของที่อยู่ในรัศมีระเบิดพังตามไปด้วย — คืนรายการไว้ให้เว็บเล่นภาพทีละชิ้น
+
+    ⚠️ ลบของออกจากสนาม "ก่อน" จะจุดระเบิดต่อ ไม่งั้นระเบิดลูกโซ่จะวนหาตัวเองไม่จบ
+    """
+    out = []
+    for p in list(st["props"]):
+        rule = PROP_BREAK.get(p["kind"])
+        if not rule:
+            continue
+        if (p["x"] - cx) ** 2 + (p["y"] - cy) ** 2 > (radius + rule["catch"]) ** 2:
+            continue
+        if p not in st["props"]:
+            continue
+        st["props"].remove(p)
+        st["log"].append(f"💥 {_PROP_NAME.get(p['kind'], 'ของ')}ถูกยิงพัง!")
+        hit = {"kind": p["kind"], "x": p["x"], "y": p["y"],
+               "fire": rule["fire"], "blast": None}
+        if rule["radius"]:
+            hit["blast"] = _explode(st, grid, p["x"], p["y"] - terrain.CH_H // 3,
+                                    rule["radius"], rule["dmg"], rule["crater"],
+                                    f"โดนแรงระเบิดจาก{_PROP_NAME.get(p['kind'], 'ของ')}",
+                                    by=by)
+        if rule["fire"]:
+            # 🔥 ไฟลามรอบข้าง — ลวกทุกคนที่ยืนอยู่ในวง ไม่เจาะพื้น
+            hit["burn"] = _explode(st, grid, p["x"], p["y"] - terrain.CH_H // 3,
+                                   rule["fire"], rule["burn"], 0, "โดนไฟลวก 🔥", by=by)
+        out.append(hit)
+        # ระเบิดลูกโซ่: ของที่พังเพราะของชิ้นนี้ ต้องแบนออกมาอยู่ระดับเดียวกัน
+        # ไม่งั้นเว็บต้องไล่ซ้อนหลายชั้น แล้วก็ลืมเล่นภาพของชั้นในเสมอ
+        for inner in ("blast", "burn"):
+            out.extend((hit.get(inner) or {}).pop("broke", None) or [])
+    return out
+
+
+_PROP_NAME = {"ferry": "🎈 เรือเหาะ", "chest": "🎁 หีบสมบัติ", "trap": "🕳️ กับดัก"}
+
+
 def _explode(st, grid, cx, cy, radius, dmg, crater, why, by=None):
     """💥 ระเบิด ณ จุดหนึ่ง — เจาะพื้นเป็นหลุมแล้วกระจายดาเมจตามระยะ
 
@@ -351,12 +408,15 @@ def _explode(st, grid, cx, cy, radius, dmg, crater, why, by=None):
     if gone:
         st["terrain"] = terrain.encode(grid)
         _settle_everyone(st, grid)
+    # 💥 ของบนแผนที่ที่อยู่ในรัศมีก็พังไปด้วย (ระเบิดลูกโซ่ได้)
+    broke = _break_props(st, grid, cx, cy, radius, by=by) if radius else []
     for h in hits:                       # ผลักหลังเจาะหลุมเสร็จ จะได้กระเด็นบนพื้นใหม่
         f = next((x for x in st["fighters"] if x["name"] == h["name"]), None)
         kb = _knock_back(st, grid, f, cx, h["damage"]) if f else None
         if kb:
             knocks.append(kb)
-    return {"x": cx, "y": cy, "crater": crater, "hits": hits, "knocks": knocks}
+    return {"x": cx, "y": cy, "crater": crater, "hits": hits, "knocks": knocks,
+            "broke": broke}
 
 
 SCRAMBLE = 46           # พื้นหายแล้วไถลไปเกาะขอบได้ไกลสุดเท่านี้
@@ -447,9 +507,15 @@ def attack(uid, skill, angle=None, power=70, direction=None):
 
     key = str(skill or "")
     artifact = key in weapons.ARTIFACTS
+    gear = key in weapons.GEAR
     if artifact:
         if int(f.get("bag", {}).get(key, 0)) <= 0:
             return False, {"error": "❌ คุณไม่มีไอเทมชิ้นนี้ — หาจากหีบสมบัติในสนาม"}
+    elif gear:
+        if key not in (f.get("ammo") or {}):
+            return False, {"error": "❌ คุณยังไม่มีอาวุธชิ้นนี้ — หาจากหีบสมบัติในสนาม"}
+        if int(f["ammo"][key]) <= 0:
+            return False, {"error": "🔄 กระสุนหมด — รอรีโหลดอีกสองสามเทิร์น"}
     elif key not in weapons.kit_for((f.get("look") or {}).get("cls")):
         return False, {"error": "คลาสของคุณใช้สกิลนี้ไม่ได้"}
     left = int(f.setdefault("cd", {}).get(key, 0))
@@ -464,6 +530,14 @@ def attack(uid, skill, angle=None, power=70, direction=None):
         f["bag"][key] -= 1           # อาร์ติแฟกต์ใช้ครั้งเดียวหมด
         if f["bag"][key] <= 0:
             f["bag"].pop(key, None)
+    elif gear:
+        # 🏹 อาวุธไม่หายไปไหน แค่กระสุนลด — หมดแล้วเข้าคูลดาวน์รีโหลด
+        #    พอคูลดาวน์ครบ _pass_turn จะเติมกระสุนกลับให้เต็มเอง
+        f["ammo"][key] -= 1
+        if f["ammo"][key] <= 0:
+            f["cd"][key] = weapons.GEAR[key]["reload"] + 1
+            st["log"].append(f"🔄 {f['name']} กระสุน{weapons.GEAR[key]['name']}หมด "
+                             f"— รอรีโหลด {weapons.GEAR[key]['reload']} เทิร์น")
     cd = weapons.spec(key)["cooldown"]
     if cd:
         f["cd"][key] = cd + 1        # +1 เพราะจะถูกลบหนึ่งตอนขึ้นเทิร์นของตัวเอง
@@ -546,10 +620,14 @@ def _use_skill(st, grid, f, key, angle, power):
     if f["face"] < 0:
         aim = 180 - angle
     out["angle"], out["power"] = angle, power
+    # 🏹 อาวุธยิงหลายนัดพร้อมกัน (หน้าไม้แยกสามแฉก) — ยิงทีละลูกแล้วรวมผล
+    if s.get("shots", 1) > 1 and s["kind"] == "lob":
+        return _volley(st, grid, f, s, out, aim, power)
+
     # 🌬️ ลมเป่าเฉพาะลูกที่ลอยเป็นวิถีโค้ง — ลำแสงเป็นเส้นตรงทันที ลมไม่ทัน
     shot = (physics.beam(grid, f["x"], f["y"], aim) if s["kind"] == "beam"
             else physics.shoot(grid, f["x"], f["y"], aim, power,
-                               wind=st.get("wind", 0)))
+                               wind=st.get("wind", 0), glide=s.get("glide", 0)))
     out["path"] = shot["path"]
 
     if s["kind"] == "beam":
@@ -600,6 +678,38 @@ def _watched(st):
     if st.get("anim_sent_at"):
         st["turn_started"] = st.get("turn_started", 0) + _watching(st)
         st["anim_sent_at"] = 0
+
+
+def _volley(st, grid, f, s, out, aim, power):
+    """🎯 ยิงแยกหลายแฉกทีเดียว (หน้าไม้) — ทุกลูกบินพร้อมกัน ระเบิดของใครของมัน
+
+    รวมผลของทุกลูกไว้ใน out["blast"] ก้อนเดียว เพื่อให้เว็บไล่สรุปดาเมจทีละคนได้ถูก
+    (ยิงคนเดียวโดนสองลูก ต้องขึ้นเลขรวม ไม่ใช่ขึ้นสองครั้งซ้อน)
+    ส่วน out["volley"] คือวิถีแยกของแต่ละลูกไว้ให้เว็บวาด
+    """
+    n = int(s["shots"])
+    spread = float(s.get("spread", 8))
+    bolts, hits, knocks, gone = [], [], [], False
+    for i in range(n):
+        off = (i - (n - 1) / 2) * spread          # กระจายรอบมุมที่เล็ง
+        shot = physics.shoot(grid, f["x"], f["y"], aim + off, power,
+                             wind=st.get("wind", 0), glide=s.get("glide", 0))
+        bolt = {"path": shot["path"], "hit": bool(shot["hit"])}
+        if shot["hit"]:
+            b = _explode(st, grid, shot["x"], shot["y"], s["radius"], s["dmg"],
+                         s.get("crater", 0), f"โดน {s['name']}", by=f)
+            bolt["blast"] = b
+            hits.extend(b["hits"])
+            knocks.extend(b["knocks"])
+            gone = True
+        bolts.append(bolt)
+    out["path"] = bolts[0]["path"]                # ลูกแรกเป็นตัวนำกล้อง
+    out["volley"] = bolts
+    out["blast"] = {"x": f["x"], "y": f["y"], "crater": 0,
+                    "hits": hits, "knocks": knocks, "volley": True}
+    if not gone:
+        st["log"].append(f"{f['name']} ยิง {s['name']} พลาดออกนอกสนาม")
+    return out
 
 
 def time_left(st):
@@ -688,6 +798,9 @@ def _pass_turn(st):
             d[k] -= 1
             if d[k] <= 0:
                 d.pop(k)
+                if key == "cd" and k in weapons.GEAR:      # รีโหลดครบ = กระสุนเต็ม
+                    f.setdefault("ammo", {})[k] = weapons.GEAR[k]["ammo"]
+                    st["log"].append(f"🏹 {f['name']} รีโหลด{weapons.GEAR[k]['name']}เสร็จ")
     st["moves"] = MOVE_BUDGET // 2 if f.get("buffs", {}).get("slow") else MOVE_BUDGET
     st["turn_started"] = time.time()
     st["anim_sent_at"] = 0
@@ -956,6 +1069,8 @@ def view(uid, st=None):
                      for f in st["fighters"]],
         "skills": weapons.view((_fighter(st).get("look") or {}).get("cls"),
                                _fighter(st).get("cd")),
-        "items": weapons.items_view(_fighter(st).get("bag")),
+        "items": weapons.items_view(_fighter(st).get("bag"),
+                                    _fighter(st).get("ammo"),
+                                    _fighter(st).get("cd")),
         "buff_names": {k: v["name"] for k, v in weapons.BUFFS.items()},
     }

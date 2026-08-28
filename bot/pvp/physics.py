@@ -264,7 +264,7 @@ def _first_solid(grid, x0, y0, x1, y1, sx, sy):
     return None
 
 
-def shoot(grid, x, y, angle_deg, power, muzzle=None, wind=0.0):
+def shoot(grid, x, y, angle_deg, power, muzzle=None, wind=0.0, glide=0):
     """ยิงกระสุนแบบวิถีโค้ง — คืน {path, hit, x, y, out}
 
     เริ่มจากปากกระบอกที่เลื่อนออกจากตัวเล็กน้อย ไม่งั้นระเบิดใส่ตัวเองทุกนัด
@@ -282,8 +282,11 @@ def shoot(grid, x, y, angle_deg, power, muzzle=None, wind=0.0):
     # จุดแรกของเส้นวิถีต้องเป็นปากกระบอก ไม่ใช่ตำแหน่งหลังบินไปแล้วหนึ่งก้าว
     # (ก้าวหนึ่งยาวได้ถึง 9 px ตอนชาร์จเต็ม บวกระยะแขนอีก 7 = กระสุนโผล่ห่างตัว 16 px)
     path = [[int(round(px)), int(round(py))]]
-    for _ in range(SHOT_FRAMES):
-        vy += SHOT_GRAVITY
+    for i in range(SHOT_FRAMES):
+        # 🏹 ลูกธนู: พุ่งตรงยาว ๆ ก่อน แล้วค่อยเริ่มตก (glide = กี่เฟรมที่ยังไม่ตก)
+        #    ลูกไฟ/ลูกระเบิดใช้ glide = 0 คือโค้งตั้งแต่เฟรมแรกเหมือนเดิม
+        if i >= glide:
+            vy += SHOT_GRAVITY
         vx += float(wind)              # 🌬️ ลมเป่าทุกเฟรม ยิ่งลอยนาน ยิ่งเบนเยอะ
         nx, ny = px + vx, py + vy
         # เช็คทุกพิกเซลที่ก้าวนี้ผ่าน ไม่ใช่แค่ปลายก้าว (ดู _first_solid)

@@ -2491,7 +2491,7 @@ function wmShowDrop(d) {
 
 function wmBusyFx() {
   return !!(WM_ANIM || WM_QUEUE.length || WM_SHOT || WM_BOOMS.length ||
-            WM_AFTER.length || wmStepsBusy() ||
+            WM_AFTER.length || wmStepsBusy() || WM_FIRES.length ||
             Object.keys(WM_DYING).length);
 }
 
@@ -2731,8 +2731,11 @@ function wmShowHit(a, byBot) {
 
   if (a.path && a.path.length) {
     // 🎯 มีวิถี — วาดเส้นประตามทางที่บินไป พอถึงปลายทางค่อยระเบิด
+    //    🎯 หน้าไม้ยิงสามแฉก: ลูกแรกเป็นตัวนำกล้อง ที่เหลือบินคู่ไปด้วย
     WM_SHOT = { path: a.path, i: 0, blast: a.blast || null, hits: hits, byBot: byBot,
-                name: a.name, atk: a };
+                name: a.name, atk: a,
+                extra: (a.volley || []).slice(1).map(v => ({ path: v.path, i: 0,
+                                                             blast: v.blast || null })) };
     return;
   }
 
@@ -2743,6 +2746,7 @@ function wmShowHit(a, byBot) {
   }
   if (a.kind === 'melee') wmSwing(a);
   if (a.blast) wmLand(a.blast);
+  wmBreakProps((a.blast || {}).broke);      // ของบนแผนที่ที่โดนพังไปด้วย
   const boom = WM_DEATHS; WM_DEATHS = [];
   wmPlayVictims(a, () => wmPlayDeaths(boom, () => WM_AFTER.push(wmCallDeaths)));
   if (byBot) toast(`🤖 บอทใช้ ${a.name}`, hits.some(h => h.name === 'คุณ' && !h.dodged));
@@ -2788,6 +2792,7 @@ function wmClock(now) {
 const WM_SHOT_STEP = 0.34;   // กระสุนเดินกี่จุดต่อเฟรมมาตรฐาน (น้อย = ช้าและลื่นกว่า)
 let WM_SHOT = null, WM_BOOMS = [], WM_POPS = [], WM_SWINGS = [];
 let WM_TRAIL = null, WM_BITS = [];    // เส้นประของวิถีที่ผ่านมาแล้ว · สะเก็ดจากหลุม
+let WM_FIRES = [];                    // 🔥 กองไฟที่ยังลุกอยู่
 const WM_FLASH = {};       // ชื่อ -> เฟรมที่เหลือของการกระพริบตอนโดนตี
 
 /** เด้งตัวเลขดาเมจตรงตัวคนที่โดน + ทำให้ตัวกระพริบ */
@@ -2875,7 +2880,7 @@ function wmRunSteps() {
 /** ภาพที่ "ขั้นหนึ่ง ๆ" ใช้อยู่เล่นจบหรือยัง — ใช้เป็น done() ของหลายขั้น */
 function wmFxIdle() {
   return !WM_ANIM && !WM_QUEUE.length && !WM_SHOT && !WM_BOOMS.length &&
-         !Object.keys(WM_DYING).length;
+         !WM_FIRES.length && !Object.keys(WM_DYING).length;
 }
 
 /** ต่อคิวภาพหนึ่งท่อน พร้อมงานที่ต้องทำตอนท่อนนั้นจบ */
@@ -3040,6 +3045,32 @@ function wmRideFerry(fi, ferry) {
     toast('🎈 ขึ้นเรือเหาะข้ามไปอีกเกาะ!');
     wmHoldAt(ferry.x, ferry.y, 26, null);
   }, wmFxIdle);
+}
+
+const WM_FIRE_LIFE = 96;   // เปลวไฟอยู่กี่เฟรมก่อนจางหมด
+
+/** 🔥 ไฟลุกเป็นวง — ใช้ตอนเรือเหาะ/หีบโดนยิงพัง
+    (ห้ามตั้งชื่อชนกับปุ่มยิงเก่าที่ถอดไปแล้ว — มีเทสเฝ้าไว้ว่าห้ามกลับมา) */
+function wmFlames(x, y, r) {
+  WM_FIRES.push({ x: x, y: y, r: r, t: 0 });
+  for (let i = 0; i < 14; i++)            // สะเก็ดไฟกระเด็นตอนติดไฟ
+    WM_BITS.push({ x: x + ((i % 7) - 3) * 2, y: y - 4, t: 0, fire: true,
+                   vx: ((i % 5) - 2) * .8, vy: -1.2 - (i % 4) * .5 });
+  SFX.play('boom');
+}
+
+/** 💥 ของบนแผนที่โดนยิงพัง — เล่นทีละชิ้นเป็นขั้น ๆ ไม่ให้ซ้อนกันจนดูไม่ออก */
+function wmBreakProps(list) {
+  (list || []).forEach(b => wmStep(() => {
+    wmFocus({ x: b.x, y: b.y }, true);
+    WM_POPS.push({ x: b.x, y: b.y - 30, t: 0,
+                   text: { ferry: '🎈 เรือเหาะพัง!', chest: '🎁 หีบไหม้!',
+                           trap: '🕳️ กับดักลั่น!' }[b.kind] || '💥 พัง!' });
+    if (b.blast) wmLand(b.blast);         // ระเบิดเจาะพื้นจริง
+    if (b.fire) wmFlames(b.x, b.y - 6, b.fire);
+    wmPlayVictims(b.burn || b.blast || {}, null);
+    wmHoldAt(b.x, b.y, 34, null);
+  }, wmFxIdle));
 }
 
 /** 🌀 วาร์ป — วงแหวนหดเข้า/ขยายออก + ประกายพุ่งเข้าหาจุดกึ่งกลาง
@@ -3228,6 +3259,17 @@ function wmDrawFx(ctx) {
     ctx.fillRect(hx - 2, hy - 2, 5, 5);
     ctx.fillStyle = '#ffb45a';
     ctx.fillRect(hx - 1, hy - 1, 3, 3);
+    // 🎯 ลูกที่แยกออกไปพร้อมกัน (หน้าไม้สามแฉก) — บินคู่ ระเบิดของใครของมัน
+    (WM_SHOT.extra || []).forEach(e => {
+      if (e.done) return;
+      e.i = Math.min(e.path.length, e.i + WM_SHOT_STEP * WM_DT);
+      const eat = Math.min(Math.floor(e.i), e.path.length - 1);
+      wmDrawTrail(ctx, e.path.slice(0, eat + 1), .8);
+      const ep = e.path[eat];
+      ctx.fillStyle = '#ffd08a';
+      ctx.fillRect(WM_CAM.sx(ep[0]) - 1, WM_CAM.sy(ep[1]) - 1, 3, 3);
+      if (e.i >= e.path.length) { e.done = true; if (e.blast) wmLand(e.blast); }
+    });
     if (WM_SHOT.i >= WM_SHOT.path.length) {
       // ถึงปลายทางแล้ว — เจาะพื้น ระเบิด แล้วค่อยไล่ดูคนที่โดนทีละคน
       const shot = WM_SHOT;
@@ -3236,6 +3278,7 @@ function wmDrawFx(ctx) {
       wmFocus({ x: p[0], y: p[1] }, true);      // ค้างที่จุดกระทบก่อน
       wmLand(shot.blast);
       const boom = WM_DEATHS; WM_DEATHS = [];
+      wmBreakProps((shot.blast || {}).broke);   // ของที่โดนระเบิดพังไปด้วย
       wmPlayVictims(shot.atk || { hits: shot.hits, blast: shot.blast },
                     () => wmPlayDeaths(boom, () => WM_AFTER.push(wmCallDeaths)));
       if (shot.byBot) toast(`🤖 บอทใช้ ${shot.name}`,
@@ -3248,13 +3291,33 @@ function wmDrawFx(ctx) {
     wmDrawTrail(ctx, WM_TRAIL.path, Math.max(0, 1 - WM_TRAIL.t / 70));
     if (WM_TRAIL.t > 70) WM_TRAIL = null;
   }
+  // 🔥 กองไฟ — เปลวสั่นไหวแล้วค่อยจางลง
+  WM_FIRES = WM_FIRES.filter(v => v.t < WM_FIRE_LIFE);
+  WM_FIRES.forEach(v => {
+    const k = (v.t += WM_DT) / WM_FIRE_LIFE, z = WM_CAM.z;
+    const gx = WM_CAM.sx(v.x), gy = WM_CAM.sy(v.y);
+    ctx.globalAlpha = Math.min(1, (1 - k) * 1.6);
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * 6.283 + v.t * .05;
+      const rr = v.r * (0.35 + 0.5 * ((i % 3) + 1) / 3);
+      const fx = gx + Math.cos(a) * rr * z;
+      const fy = gy + Math.sin(a) * rr * z * .45
+               - Math.abs(Math.sin(v.t * .18 + i)) * 7 * z;
+      ctx.fillStyle = (i + Math.floor(v.t / 4)) % 3 === 0 ? '#ffe07a'
+                    : (i % 2 ? '#ff8a3a' : '#d93b2b');
+      ctx.fillRect(fx - z, fy - 2 * z, 2 * z, 3 * z);
+    }
+    ctx.globalAlpha = 1;
+  });
+
   // 🪨 สะเก็ดจากหลุมที่เพิ่งเจาะ
   WM_BITS = WM_BITS.filter(b => b.t < 52);
   WM_BITS.forEach(b => {
     b.vy += (b.dust ? 0.03 : 0.14) * WM_DT;
     b.x += b.vx * WM_DT; b.y += b.vy * WM_DT; b.t += WM_DT;
     ctx.globalAlpha = (1 - b.t / 52) * (b.dust ? .55 : 1);
-    ctx.fillStyle = b.drop ? (b.t % 4 < 2 ? '#bfe9ff' : '#6fb6d8')
+    ctx.fillStyle = b.fire ? (b.t % 4 < 2 ? '#ffd06a' : '#ff6a2a')
+                  : b.drop ? (b.t % 4 < 2 ? '#bfe9ff' : '#6fb6d8')
                   : b.dust ? '#d8cbb4' : b.t % 5 < 2 ? '#c89a4b' : '#6b5433';
     ctx.fillRect(WM_CAM.sx(b.x), WM_CAM.sy(b.y), Math.max(1, WM_CAM.z / 2),
                  Math.max(1, WM_CAM.z / 2));

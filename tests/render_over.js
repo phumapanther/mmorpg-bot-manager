@@ -16,7 +16,7 @@ const ctx = {
   SFX: { play() {} }, wmNewMatch: () => {}, api: async () => ({}), toast: () => {},
   console, Math, JSON, Object, Array, String, Number,
   WM_ANIM: null, WM_QUEUE: [], WM_SHOT: null, WM_BOOMS: [],
-  WM_AFTER: [], WM_DYING: {}, WM_OVER_SHOWN: false, WM_TOUR: null, WM_FLY: null,
+  WM_AFTER: [], WM_DYING: {}, WM_OVER_SHOWN: false, WM_TOUR: null, WM_FIRES: [],
   wmStepsBusy: () => false,
   WM_ST: JSON.parse(fs.readFileSync(process.argv[2], 'utf8')),
 };

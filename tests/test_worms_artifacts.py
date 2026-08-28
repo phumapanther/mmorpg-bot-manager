@@ -59,7 +59,9 @@ def _dmg_to_bot(r):
 
 def test_only_eight_artifacts_make_it_into_the_arena():
     """เจ้าของเกมเคาะ: อีก 3 ชิ้นไม่ใส่ในสนาม"""
-    assert len(W.ARTIFACTS) == 8, f"มี {len(W.ARTIFACTS)} ชิ้น (ต้องเป็น 8)"
+    # ของที่ยกมาจากเกมหลักเท่านั้น — ยาฮีลของสนาม (arena_only) ไม่นับ
+    from_game = {k: v for k, v in W.ARTIFACTS.items() if not v.get("arena_only")}
+    assert len(from_game) == 8, f"มี {len(from_game)} ชิ้น (ต้องเป็น 8)"
 
 
 def test_the_names_match_the_main_game_exactly():
@@ -68,7 +70,8 @@ def test_the_names_match_the_main_game_exactly():
 
     real = {d["name"] for d in config_loader.get_all_items().values()
             if d.get("effect") == "equip_artifact"}
-    arena_names = {a["name"] for a in W.ARTIFACTS.values()}
+    # เทียบเฉพาะของที่ยกมาจากเกมหลัก — ยาฮีลคิดขึ้นมาสำหรับสนามนี้โดยเฉพาะ
+    arena_names = {a["name"] for a in W.ARTIFACTS.values() if not a.get("arena_only")}
     assert arena_names <= real, f"ชื่อที่ไม่มีในเกมหลัก: {sorted(arena_names - real)}"
     left = {"🎭 แว่นเดี่ยวหน้ากาก", "👝 ถุงเต๋าเทพี", "💠 ปริซึมมานา"}
     assert real - arena_names == left, "รายชื่อที่ไม่ใส่ในสนามไม่ตรงกับที่เคาะไว้"
