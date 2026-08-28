@@ -1045,3 +1045,45 @@ body.bar-min .pbar .money { margin-left: auto; }
   background: linear-gradient(160deg,#d93b2b,#8f2317); color: #fff; font-family: inherit;
   font-size: 15px; font-weight: 600; cursor: pointer; }
 .wm-room .go:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ══ 📱 มือถือ: จอเกมต้องใหญ่พอจะเห็นอะไร และปุ่มต้องกดถูก ══
+   แคนวาสของจริงเป็น 720×270 (อัตราส่วน 8:3) พอย่อลงจอ 360px กว้าง
+   จะเหลือสูงแค่ 135px — เล็กจนมองไม่เห็นอะไรเลย (เจ้าของเกมทัก)
+   จึงให้ .wm-stage กำหนดความสูงเอง แล้ว JS ปรับขนาดแคนวาสจริงตามกล่อง
+   (ดู wmFitCanvas ใน play.js — กล้องอ่าน vw/vh จากขนาดนั้น) */
+@media (max-width: 720px) {
+  .wm-stage { height: 46vh; min-height: 260px; }
+  .wm-stage canvas { width: 100%; height: 100%; }
+
+  /* ปุ่มเดินใหญ่ขึ้นให้กดด้วยนิ้วโป้งได้ถนัด */
+  .wm-pad { gap: 8px; margin-top: 8px; }
+  .wm-pad button { min-height: 60px; font-size: 26px; border-radius: 14px; }
+  .wm-pad .wm-end { font-size: 16px; }
+  .wm-pad .wm-giveup { font-size: 13px; }
+
+  /* ชิปสกิลกดง่ายขึ้น แต่ยังเป็นบรรทัดเดียว */
+  .wm-skills button, .wm-items .wm-item { min-height: 44px; font-size: 13.5px;
+    padding: 9px 14px; }
+
+  /* แถบข้อมูลบนจอเล็กลง จะได้ไม่บังสนาม */
+  .wm-hud { font-size: 11px; padding: 5px 9px; gap: 8px; left: 6px; top: 6px; }
+  .wm-mv i, .wm-wind i { width: 56px; }
+}
+
+/* 📱 แนวนอน: จอเตี้ยแต่กว้าง — ให้สนามกินพื้นที่เกือบทั้งจอ
+   แล้วบีบปุ่มให้เตี้ยลง จะได้ไม่ต้องเลื่อนหาสนาม */
+@media (max-width: 960px) and (orientation: landscape) {
+  .wm-stage { height: 62vh; min-height: 200px; }
+  .wm-pad button { min-height: 46px; font-size: 21px; }
+  .wm-skills button, .wm-items .wm-item { min-height: 38px; font-size: 12.5px;
+    padding: 7px 12px; }
+  .wm-log { display: none; }          /* บันทึกยาว ๆ ไม่ต้องโชว์ตอนจอเตี้ย */
+  .wm-buttons { margin-top: 8px; }
+}
+
+/* 📱 จอแคบมาก: ปุ่มเดินสองแถวแทนสี่ช่องเบียดกัน */
+@media (max-width: 380px) {
+  .wm-pad { grid-template-columns: repeat(2, 1fr); }
+  .wm-pad .wm-end { grid-column: span 2; }
+  .wm-pad .wm-giveup { grid-column: span 2; }
+}

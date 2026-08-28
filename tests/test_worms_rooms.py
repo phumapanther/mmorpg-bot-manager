@@ -340,3 +340,19 @@ def test_the_lobby_polls_so_you_see_friends_arrive():
     body = play[play.index("function wmRoomWatch("):]
     body = body[:body.index(chr(10) + "}" + chr(10))]
     assert "setInterval" in body and "clearInterval" in body,         "ตั้งตัวจับเวลาแล้วไม่มีทางหยุด = ถามซ้ำตลอดกาลแม้ออกจากห้องแล้ว"
+
+def test_the_menu_tile_says_what_the_mode_actually_is():
+    """เจ้าของเกมสั่ง: ปุ่มหน้าเข้าเกมต้องเป็น "สนามรบผลัดเทิร์น"
+
+    เดิมเขียนว่า "ซ้อมกับบอท" ซึ่งตอนนี้ไม่จริงแล้ว — โหมดนี้ชวนเพื่อนได้ 6 คน
+    ชื่อปุ่มบอกแค่ครึ่งเดียวของสิ่งที่กดเข้าไปเจอ
+    """
+    html = pathlib.Path("license_server/web_static/play.html").read_text(encoding="utf-8")
+    tile = html[html.index('data-go="worms"'):]
+    tile = tile[:tile.index("</button>")]
+    # ⚠️ ต้องดู "ชื่อปุ่ม" คือข้อความก่อน <span class="sub"> ไม่ใช่ค้นทั้งปุ่ม
+    #    ของเดิมมีคำว่าสนามรบผลัดเทิร์นอยู่ในบรรทัดคำอธิบายอยู่แล้ว ค้นรวม ๆ เลยผ่านทุกที
+    label = tile[tile.index("</span>") + 7:tile.index('<span class="sub">')]
+    assert label.strip() == "สนามรบผลัดเทิร์น", f"ชื่อปุ่มคือ {label.strip()!r}"
+    sub = tile[tile.index('<span class="sub">') + 18:]
+    assert "ชวนเพื่อน" in sub, f"คำอธิบายไม่ได้บอกว่าชวนเพื่อนได้: {sub!r}"

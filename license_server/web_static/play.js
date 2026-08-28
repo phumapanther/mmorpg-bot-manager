@@ -2052,6 +2052,7 @@ function wmApply(d) {
     WM = new WormsMap(d);
     WM.props = wmPropsNow(d.props); WM.repaint();
     const cv = document.getElementById('wmCanvas');
+    wmFitCanvas();                     // ตั้งขนาดภาพจริงก่อน กล้องจะได้จำขนาดที่ถูก
     WM_CAM = new WormsCam(cv, WM);
     WM_CAM.attach(null);
     if (!cv.dataset.aimed) { cv.dataset.aimed = '1'; wmBindAim(cv); }
@@ -4043,6 +4044,34 @@ async function fillPartner() {
 //    (ไม่มีตัวนี้ = นั่งมองจอนิ่ง ๆ ไม่มีวันรู้ว่าถึงตาตัวเองแล้ว)
 const WM_PEEK_MS = 2200;
 let WM_PEEK_AT = 0;
+
+/** 📱 ปรับขนาดแคนวาสจริงให้เท่ากล่องบนจอ — ไม่งั้นภาพถูกยืดจาก 720×270
+
+    แคนวาสมีสองขนาด: ขนาดกล่อง (CSS) กับขนาดภาพจริง (width/height ของ element)
+    ถ้าไม่ปรับขนาดภาพจริงตาม ภาพ 720×270 จะถูกยืดให้เต็มกล่อง = เบลอและสัดส่วนเพี้ยน
+    ปรับแล้วกล้องจะเห็นพื้นที่กว้าง/สูงขึ้นจริง (vw/vh อ่านจากขนาดนี้)
+
+    ⚠️ ต้องเรียกใหม่ทุกครั้งที่หมุนจอ/เปลี่ยนขนาดหน้าต่าง ไม่งั้นหมุนจอแล้วภาพเพี้ยนค้าง
+ */
+function wmFitCanvas() {
+  const cv = document.getElementById('wmCanvas');
+  if (!cv) return false;
+  const box = cv.getBoundingClientRect();
+  if (!box.width || !box.height) return false;
+  // เพดานไว้กันเครื่องช้า — ภาพใหญ่กว่านี้ตาก็ไม่เห็นความต่างแต่วาดหนักขึ้นมาก
+  const w = Math.min(1280, Math.round(box.width));
+  const h = Math.min(720, Math.round(box.height));
+  if (cv.width === w && cv.height === h) return false;
+  cv.width = w; cv.height = h;
+  if (WM_CAM) {
+    WM_CAM.vw = w; WM_CAM.vh = h;
+    WM_CAM.clamp(); WM_CAM.hold();
+  }
+  return true;
+}
+
+addEventListener('resize', () => wmFitCanvas());
+addEventListener('orientationchange', () => setTimeout(wmFitCanvas, 120));
 
 function wmPeekTurn() {
   if (!WM_ST || !WM_ST.room || WM_ST.over) return;

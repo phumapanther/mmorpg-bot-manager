@@ -1267,6 +1267,77 @@ def test_opening_a_chest_shows_the_lid_before_the_loot():
     assert body.index("wmChestFx(") < body.index("toast("),         "ขึ้นข้อความว่าได้อะไรก่อนฝาหีบจะเด้ง"
 
 
+# ── 21.9 📱 จอมือถือต้องใหญ่พอจะเห็นอะไร ──
+
+def _css():
+    return (WEB / "play.css").read_text(encoding="utf-8")
+
+
+def _css_block(head):
+    """ตัดกลุ่มกฎของ @media ก้อนหนึ่งออกมา — ตัดที่วงเล็บปิดจริง ไม่ใช่นับบรรทัด"""
+    css = _css()
+    a = css.index(head)
+    return css[a:css.index(chr(10) + "}" + chr(10), a)]
+
+
+def test_the_canvas_grows_to_fill_its_box():
+    """เจ้าของเกมทัก: จอเกมบนมือถือเล็กเกินไป
+
+    แคนวาสของจริงเป็น 720×270 (8:3) พอย่อลงจอกว้าง 360px จะเหลือสูงแค่ 135px
+    ต้องปรับ "ขนาดภาพจริง" ของแคนวาสตามกล่องด้วย ไม่ใช่ปล่อยให้ยืดเอา
+    """
+    body = PLAY[PLAY.index("function wmFitCanvas("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert "cv.width = w; cv.height = h;" in body, "ไม่ได้ตั้งขนาดภาพจริงของแคนวาส"
+    assert "WM_CAM.vw = w" in body and "WM_CAM.vh = h" in body,         "ปรับแคนวาสแล้วไม่ได้บอกกล้อง — กล้องจะยังคิดว่าจอเท่าเดิม"
+    assert "WM_CAM.clamp()" in body, "เปลี่ยนขนาดแล้วไม่จัดขอบกล้องใหม่"
+
+
+def test_the_camera_is_built_after_the_canvas_is_sized():
+    """สร้างกล้องก่อนปรับขนาด = กล้องจำขนาด 720×270 ไปตลอด"""
+    body = PLAY[PLAY.index("function wmApply("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert body.index("wmFitCanvas();") < body.index("new WormsCam("),         "สร้างกล้องก่อนตั้งขนาดแคนวาส"
+
+
+def test_turning_the_phone_resizes_the_view():
+    assert "addEventListener('resize', () => wmFitCanvas())" in PLAY,         "เปลี่ยนขนาดหน้าต่างแล้วภาพไม่ปรับตาม"
+    assert "orientationchange" in PLAY, "หมุนจอแล้วภาพเพี้ยนค้าง"
+
+
+def test_portrait_and_landscape_are_laid_out_differently():
+    """เจ้าของเกมสั่ง: แนวนอนกับแนวตั้งแก้ให้ต่างกันได้เพื่อความสะดวก"""
+    import re as _re
+
+    css = _css()
+    assert "orientation: landscape" in css, "ไม่ได้แยกกรณีจอแนวนอน"
+    port = _css_block("@media (max-width: 720px)")
+    land = _css_block("@media (max-width: 960px) and (orientation: landscape)")
+    ph = _re.search("[.]wm-stage [{] height: ([0-9]+)vh", port)
+    lh = _re.search("[.]wm-stage [{] height: ([0-9]+)vh", land)
+    assert ph and lh, "ไม่ได้กำหนดความสูงสนามของแต่ละแนว"
+    assert int(lh.group(1)) > int(ph.group(1)),         f"แนวนอนสูง {lh.group(1)}vh · แนวตั้ง {ph.group(1)}vh — แนวนอนควรใช้จอได้มากกว่า"
+
+
+def test_the_buttons_are_bigger_on_a_phone():
+    """นิ้วโป้งกดปุ่ม 44px บนจอมือถือยาก — ต้องใหญ่ขึ้นเฉพาะจอเล็ก"""
+    import re as _re
+
+    css = _css()
+    desk = int(_re.search("[.]wm-pad button [{][^}]*min-height: ([0-9]+)px", css).group(1))
+    phone = _re.search("[.]wm-pad button [{][^}]*min-height: ([0-9]+)px",
+                       _css_block("@media (max-width: 720px)"))
+    assert phone, "จอมือถือไม่ได้ปรับขนาดปุ่มเลย"
+    assert int(phone.group(1)) > desk,         f"ปุ่มบนมือถือ {phone.group(1)}px ไม่ได้ใหญ่กว่าบนจอใหญ่ ({desk}px)"
+
+
+def test_a_very_narrow_phone_gets_two_columns():
+    """จอแคบมากแล้วยัดสี่ปุ่มแถวเดียว = ปุ่มละ 80px กดพลาดตลอด"""
+    css = _css()
+    narrow = css[css.index("@media (max-width: 380px)"):]
+    assert "grid-template-columns: repeat(2, 1fr)" in narrow,         "จอแคบมากยังเป็นสี่ช่องเบียดกัน"
+
+
 # ── 22. แผงสรุปผลต้องแสดงชื่อกับดาเมจจริง ──
 
 def _render_over(payload):
