@@ -2031,9 +2031,13 @@ function wmApply(d) {
   //    wmBusyFx() จึงยังว่าง แผงเลยโผล่ทันทีแล้วหายไปตอนภาพเริ่มเล่น
   //    ผู้เล่นเห็นผลแพ้ชนะก่อนเห็นตัวเองตายด้วยซ้ำ — โชว์ได้ที่ wmTick ที่เดียว
   if (!d.active) {
-    wmPaintOver();                     // ออกจากสนามแล้ว — เก็บแผงทิ้ง
+    wmPaintOver();                     // ออกจากสนามแล้ว — ขึ้นหน้าเริ่มเกม
     cancelAnimationFrame(wmLoop); wmLoop = 0; WM = WM_ST = null; return;
   }
+  // 🚪 แมตช์กำลังเล่นอยู่ = ปิดแผงเสมอ (ทั้งหน้าเริ่มเกมและแผงสรุปผลของแมตช์ก่อน)
+  //    "ปิด" ปลอดภัยเสมอ ต่างจาก "เปิด" ที่ต้องรอภาพเล่นจบก่อน จึงทำตรงนี้ได้
+  //    ⚠️ ไม่มีบรรทัดนี้ = กดเริ่มเกมใหม่แล้วหน้าเริ่มเกมค้างทับสนามที่เล่นอยู่
+  wmShutOver();
 
   WM_TIME_LEFT = d.time_left || 0;
   WM_DEADLINE = performance.now() + WM_TIME_LEFT * 1000;
@@ -2205,7 +2209,7 @@ let WM_QUEUE = [];         // ท่อนเดินที่รอเล่�
 let WM_AFTER = [];         // งานที่ต้องรอภาพเล่นจบก่อน (สรุปดาเมจ · ประกาศคนตาย)
 let WM_DEATHS = [];        // ร่างที่รอระเบิด — เล่นหลังสรุปดาเมจของหมัดนั้นเสร็จ
 const WM_DYING = {};       // ลำดับ -> เฟรมที่เหลือของภาพตาย (ตายแล้วยังต้องวาดต่อ)
-let WM_OVER_SHOWN = false; // ขึ้นแผงสรุปผลไปแล้วหรือยัง (กันวาดซ้ำทุกเฟรม)
+let WM_OVER_SHOWN = false; // ตอนนี้แผง (หน้าเริ่มเกม/สรุปผล) โชว์อยู่ไหม
 let WM_TOUR_ROUND = 0;     // พาไปดูของรอบไหนแล้ว
 const WM_TOUR_HOLD = 180;  // ค้างที่ของแต่ละชิ้น 3 วินาที — เริ่มนับ "หลัง" กล้องเลื่อนไปถึงแล้ว
 const WM_SPAWN_LIFE = 110; // เอฟเฟกต์ของที่ลงสนามอยู่ได้กี่เฟรม
@@ -2459,6 +2463,13 @@ function wmBusyFx() {
             Object.keys(WM_DYING).length);
 }
 
+/** ปิดแผง (หน้าเริ่มเกม/สรุปผล) — ทำได้ทุกเมื่อ ไม่ต้องรอภาพเล่นจบ */
+function wmShutOver() {
+  const box = document.getElementById('wmOver');
+  if (box) box.hidden = true;
+  WM_OVER_SHOWN = false;
+}
+
 function wmPaintOver() {
   const box = document.getElementById('wmOver'), d = WM_ST;
   if (!box) return;
@@ -2469,10 +2480,11 @@ function wmPaintOver() {
   //    เคยพลาด: กดยอมแพ้แล้ว wmApply เรียกตัวนี้ก่อนที่ระเบิดจะถูกต่อคิว
   //    ตอนนั้นยังว่าง แผงเลยโชว์ + ติดธงว่าโชว์แล้ว พอระเบิดมาถึงก็ถูกซ่อน
   //    แล้วธงกันโชว์ซ้ำทำให้ไม่มีวันกลับมาโชว์อีกเลย — ขึ้นแค่ "จบแล้ว" แต่ไม่มีผลแพ้ชนะ
-  if (!idle && wmBusyFx()) { box.hidden = true; WM_OVER_SHOWN = false; return; }
+  if (!idle && wmBusyFx()) { wmShutOver(); return; }
   box.hidden = !idle && !d.over;
-  if (box.hidden) return;
-  WM_OVER_SHOWN = !idle;
+  if (box.hidden) { WM_OVER_SHOWN = false; return; }
+  // ธงนี้แปลว่า "ตอนนี้แผงโชว์อยู่" ตรง ๆ — ลูปวาดใช้เทียบว่าต้องวาดใหม่ไหม
+  WM_OVER_SHOWN = true;
 
   if (idle) {
     box.innerHTML = `

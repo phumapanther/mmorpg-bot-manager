@@ -830,7 +830,7 @@ def test_the_result_waits_for_the_animation_to_finish():
     """
     body = PLAY[PLAY.index("function wmPaintOver("):]
     body = body[:body.index(chr(10) + "}")]
-    assert "if (!idle && wmBusyFx()) { box.hidden = true;" in body, \
+    assert "if (!idle && wmBusyFx()) { wmShutOver(); return; }" in body, \
         "ยังขึ้นแผงสรุปทับทันทีที่เซิร์ฟเวอร์บอกว่าจบ"
 
 
@@ -849,7 +849,7 @@ def test_the_result_does_appear_once_nothing_is_animating():
 
 
 def test_the_result_is_painted_once_not_every_frame():
-    assert "WM_OVER_SHOWN = !idle;" in PLAY, "ไม่ได้จำว่าขึ้นไปแล้ว จะวาดใหม่ทุกเฟรม"
+    assert "WM_OVER_SHOWN = true;" in PLAY, "ไม่ได้จำว่าขึ้นไปแล้ว จะวาดใหม่ทุกเฟรม"
     body = PLAY[PLAY.index("function wmApply("):PLAY.index("function wmMe(")]
     assert "if (!d || !d.over) WM_OVER_SHOWN = false;" in body,         "เริ่มสนามใหม่แล้วยังจำว่าเคยขึ้นผลไปแล้ว รอบหน้าจะไม่ขึ้นอีกเลย"
 
@@ -1151,10 +1151,38 @@ def test_only_the_draw_loop_may_show_the_result_panel():
 def test_a_late_explosion_hides_the_panel_again():
     """ระเบิดลูกโซ่โผล่มาหลังแผงขึ้นแล้ว ต้องซ่อนแผงคืนแล้วค่อยโชว์ใหม่ตอนจบจริง"""
     out = _over_timing()
-    assert out["seen"] == ["โชว์", "ซ่อน", "โชว์"],         f"ลำดับโชว์/ซ่อนไม่ถูก: {out['seen']}"
+    assert out["endOfMatch"] == ["โชว์", "ซ่อน", "โชว์"],         f"ลำดับโชว์/ซ่อนไม่ถูก: {out['endOfMatch']}"
     # ตัวจำลองด้านบนใช้ wmPaintOver ตัวจริง แต่ "เงื่อนไขที่เรียกมัน" อยู่ในลูปวาด
     # จึงต้องปักไว้ด้วย ไม่งั้นแก้เงื่อนไขให้โชว์อย่างเดียวแล้วเทสยังเขียว
     assert "WM_OVER_SHOWN !== !wmBusyFx()" in PLAY,         "ลูปวาดเช็คแค่ขาโชว์ ไม่ได้ซ่อนคืนตอนมีภาพโผล่มาทีหลัง"
+
+
+def test_starting_a_new_match_closes_the_start_screen():
+    """เจ้าของเกมเจอ: กดเริ่มเกมหลังจบเกม แล้วหน้าเริ่มเกมค้างทับสนามที่เล่นอยู่
+
+    ผมทำพังเองตอนแก้ "แผงโผล่ก่อนภาพตายจบ" — ตัด wmApply ไม่ให้วาดแผงเลย
+    เลยไม่มีใครปิดหน้าเริ่มเกมตอนแมตช์ใหม่มาถึง (ลูปวาดดูแลแค่ตอน over เท่านั้น)
+    """
+    out = _over_timing()
+    new = out["newMatch"]
+    assert new["hidden"], "แมตช์ใหม่เริ่มแล้วแผงยังโชว์ทับอยู่"
+    assert not new["shown"], "ปิดแผงแล้วแต่ธงยังบอกว่าโชว์อยู่ — เดี๋ยวลูปวาดสับสน"
+    assert new["seen"] == ["ซ่อน"], f"ควรปิดครั้งเดียวจบ แต่ได้ {new['seen']}"
+
+    body = PLAY[PLAY.index("function wmApply("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert "wmShutOver()" in body, "แมตช์เริ่มแล้วไม่มีใครปิดแผง"
+
+
+def test_closing_the_panel_is_always_allowed():
+    """"ปิด" ปลอดภัยเสมอ ต่างจาก "เปิด" ที่ต้องรอภาพเล่นจบก่อน
+    จึงต้องมีทางปิดที่เรียกได้ทุกเมื่อ แยกจากตัววาดแผง
+    """
+    assert "function wmShutOver(" in PLAY, "ไม่มีทางปิดแผงแบบเรียกได้ทุกเมื่อ"
+    body = PLAY[PLAY.index("function wmShutOver("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert "WM_OVER_SHOWN = false" in body, "ปิดแล้วไม่ล้างธง"
+    assert "wmBusyFx" not in body, "การปิดไม่ควรต้องรอภาพเล่นจบ"
 
 
 # ── 22. แผงสรุปผลต้องแสดงชื่อกับดาเมจจริง ──
@@ -1725,11 +1753,12 @@ def test_hiding_the_result_panel_lets_it_come_back():
     แล้วธงกันโชว์ซ้ำทำให้ไม่มีวันกลับมาโชว์อีก
     """
     body = _fn("function wmPaintOver(")
-    assert "box.hidden = true; WM_OVER_SHOWN = false; return;" in body,         "ซ่อนแผงเพราะยังมีภาพเล่นอยู่ แต่ไม่ได้ล้างธง — แผงจะไม่กลับมาอีกเลย"
+    assert "wmShutOver(); return;" in body,         "ซ่อนแผงเพราะยังมีภาพเล่นอยู่ แต่ไม่ได้ล้างธง — แผงจะไม่กลับมาอีกเลย"
 
 
 def test_the_result_panel_still_paints_only_once_when_it_shows():
     """กันแก้เกินจนวาดใหม่ทุกเฟรม"""
     body = _fn("function wmPaintOver(")
-    assert "WM_OVER_SHOWN = !idle;" in body, "โชว์แล้วไม่ได้ติดธง จะวาดซ้ำทุกเฟรม"
-    assert body.index("WM_OVER_SHOWN = false; return;") < body.index("WM_OVER_SHOWN = !idle;"),         "ลำดับสลับกัน — ธงจะถูกล้างหลังติด"
+    assert "WM_OVER_SHOWN = true;" in body, "โชว์แล้วไม่ได้ติดธง จะวาดซ้ำทุกเฟรม"
+    assert "if (box.hidden) { WM_OVER_SHOWN = false; return; }" in body,         "ซ่อนแล้วธงยังค้างว่าโชว์อยู่ — ลูปวาดจะสับสนว่าต้องวาดใหม่ไหม"
+    assert body.index("WM_OVER_SHOWN = false; return;") < body.index("WM_OVER_SHOWN = true;"),         "ลำดับสลับกัน — ธงจะถูกล้างหลังติด"

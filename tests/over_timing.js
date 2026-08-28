@@ -30,9 +30,9 @@ const ctx = {
 };
 vm.createContext(ctx);
 vm.runInContext([grab(web, 'function esc('), grab(play, 'function wmBusyFx('),
-                 grab(play, 'function wmPaintOver(')].join(NL)
+                 grab(play, 'function wmShutOver('), grab(play, 'function wmPaintOver(')].join(NL)
   + NL + 'globalThis.API = { paint: wmPaintOver, busy: wmBusyFx,'
-  + ' shown: () => WM_OVER_SHOWN, setShown: v => { WM_OVER_SHOWN = v; } };', ctx);
+  + ' shown: () => WM_OVER_SHOWN, shut: wmShutOver };', ctx);
 const API = ctx.API;
 
 ctx.WM_ST = { active: true, over: true, winner: 'บอท', fighters: [
@@ -54,5 +54,16 @@ tick(); tick(); tick();
 const afterDeath = seen.slice();
 ctx.STEPS = 1; tick();              // ระเบิดลูกโซ่โผล่มาทีหลัง
 ctx.STEPS = 0; tick(); tick();      // แล้วจบจริง
+const endOfMatch = seen.slice();
+
+// ── กดเริ่มเกมใหม่หลังจบเกม: แมตช์ใหม่มาถึง แผงต้องปิด ──
+//    (ทางเดียวกับที่ wmApply ทำ — "ปิด" ทำได้ทุกเมื่อ ไม่ต้องรอภาพ)
+seen.length = 0;
+ctx.WM_ST = { active: true, over: false, fighters: [], standings: [] };
+API.shut();                          // wmApply เรียกตัวนี้ตอนแมตช์ยังเล่นอยู่
+for (let i = 0; i < 5; i++) tick();  // ลูปวาดต้องไม่เอากลับมาโชว์
+const newMatch = { seen: seen.slice(), hidden: boxes['wmOver'].hidden,
+                   shown: API.shown() };
+
 console.log(JSON.stringify({ duringDeath: duringDeath, afterDeath: afterDeath,
-                             seen: seen }));
+                             endOfMatch: endOfMatch, newMatch: newMatch }));
