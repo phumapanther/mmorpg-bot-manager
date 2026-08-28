@@ -2014,6 +2014,10 @@ function wmApply(d) {
   wmStepsClear();
   WM_ANIM = null; WM_QUEUE = [];   // สถานะถูกแทนทั้งก้อน ภาพที่ค้างเป็นของสถานะเก่าไปแล้ว
   WM_HIDDEN = null;                // ค่าที่ซ่อนไว้ก็เป็นของก้อนเก่า ทิ้งได้เลย
+  // ⚠️ การลอยที่ค้างอยู่ก็เป็นของก้อนเก่า — ไม่ทิ้งแล้ว WM_FLY ค้างตลอดกาล
+  //    wmBusyFx() จะจริงตลอด = กดอะไรไม่ได้ทั้งเกม และกระโดดครั้งต่อไปถูกปฏิเสธเงียบ ๆ
+  //    เพราะ wmJumpFire เห็นว่า "ยังลอยอยู่" (เจ้าของเกมเจอ: ระบบกระโดดพัง)
+  WM_FLY = null; WM_JUMP_END = null; WM_JUMP_SEND = null;
   if (!d || !d.over) WM_OVER_SHOWN = false;
   if (d && (d.drops || []).length && d.round !== WM_TOUR_ROUND) {
     WM_TOUR_ROUND = d.round;               // ของรอบนี้พาไปดูแล้ว ไม่พาซ้ำ
@@ -3292,12 +3296,14 @@ function wmFlyTick() {
     if (fly.bump) wmBump(fly.bump[0], fly.bump[1]);
   }
   WM_JUMP_END = { x: f.x, y: f.y };
-  if (fly.answer) wmSettleJump(fly.answer.d, fly.answer.after);   // คำตอบมาถึงก่อนลง
+  if (fly.answer) wmSettleJump(fly.fi, fly.answer.d, fly.answer.after);  // คำตอบมาก่อนลง
 }
 
 /** คำตอบของเซิร์ฟเวอร์กับจุดที่ลงจริง — ต่างกันเมื่อไหร่เชื่อเซิร์ฟเวอร์ */
-function wmSettleJump(d, after) {
-  const f = WM_ST.fighters[WM_ST.turn];
+function wmSettleJump(fi, d, after) {
+  // ⚠️ ต้องใช้ "คนที่กระโดด" ไม่ใช่ WM_ST.turn — ตกแล้วเจ็บ/แรงหมด เซิร์ฟเวอร์จบเทิร์นให้
+  //    ตอนคำตอบกลับมา WM_ST.turn กลายเป็นบอทไปแล้ว จะกลายเป็นวาปบอทมาที่จุดเราลง
+  const f = WM_ST.fighters[fi];
   const end = d.move ? { x: d.move.x, y: d.move.y } : null;
   if (end && f && (end.x !== f.x || end.y !== f.y)) {
     f.x = end.x; f.y = end.y;
@@ -3382,10 +3388,10 @@ function wmLandJump(mine, d, after) {
   if (WM_FLY) { WM_FLY.answer = { d: d, after: after }; return; }  // ยังลอยอยู่ — รอถึงพื้น
   if (WM_ANIM && WM_ANIM.fi === mine) {        // กำลังร่วงหลังหัวชน — รอให้ร่วงจบ
     const prev = WM_ANIM.onEnd;
-    WM_ANIM.onEnd = () => { if (prev) prev(); wmSettleJump(d, after); };
+    WM_ANIM.onEnd = () => { if (prev) prev(); wmSettleJump(mine, d, after); };
     return;
   }
-  wmSettleJump(d, after);
+  wmSettleJump(mine, d, after);
 }
 
 /** 🏳️ ยอมแพ้ — ระเบิดตัวเองทิ้งแล้วจบแมตช์ (ถามก่อน กดพลาดแล้วเสียใจ) */

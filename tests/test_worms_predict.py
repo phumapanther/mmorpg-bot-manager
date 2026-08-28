@@ -605,3 +605,63 @@ def test_the_pauses_between_steps_got_shorter():
     after = int(_re.search("const WM_GAP_AFTER = " + chr(40) + "?P<n>[0-9]+" + chr(41), PLAY).group(1))
     assert before == 30, f"เว้นก่อนเริ่ม {before} เฟรม (ต้องเป็น 30 = 0.5 วิ)"
     assert after == 60, f"เว้นหลังเสร็จ {after} เฟรม (ต้องเป็น 60 = 1 วิ)"
+
+# ── 🦘 การลอยค้างต้องล้างได้เสมอ ไม่งั้นเกมค้างถาวร ──
+
+def _jump_flow():
+    """รันวงจรกระโดดของจริง (wmJumpFire → wmFlyTick → wmLandJump) ด้วย node"""
+    if not shutil.which("node"):
+        pytest.skip("เครื่องนี้ไม่มี node")
+    g = [[T.AIR] * T.W for _ in range(T.H)]
+    for x in range(T.W):
+        for y in range(200, T.H - T.WATER):
+            g[y][x] = T.ROCK
+    job = {"w": T.W, "h": T.H, "grid": [v for row in g for v in row],
+           "x": 200, "y": 200, "rules": RULES}
+    with tempfile.TemporaryDirectory() as tmp:
+        f = pathlib.Path(tmp) / "j.json"
+        f.write_text(json.dumps(job), encoding="utf-8")
+        r = subprocess.run(["node", "tests/jump_flow.js", str(f)],
+                           capture_output=True, text=True, encoding="utf-8")
+        assert r.returncode == 0, r.stderr
+        return json.loads(r.stdout.strip().splitlines()[-1]), P.jump(g, 200, 200, 1,
+                                                                     power=1.0, lean=0)
+
+
+def test_the_jump_actually_flies_and_lands_where_the_server_says():
+    """ลอยจริงทีละเฟรม แล้วลงตรงกับเซิร์ฟเวอร์ ไม่ว่าคำตอบจะมาถึงตอนไหน"""
+    out, truth = _jump_flow()
+    assert out["noAnswer"]["frames"] > 10,         f"ลอยแค่ {out['noAnswer']['frames']} เฟรม — วาปไปจุดลงแทนที่จะลอย"
+    for case in ("noAnswer", "midAir"):
+        assert out[case]["end"] == [truth["x"], truth["y"]],             f"{case}: ลงที่ {out[case]['end']} แต่เซิร์ฟเวอร์ว่า {[truth['x'], truth['y']]}"
+    assert out["lateAnswer"]["landed"] == out["lateAnswer"]["after"],         "คำตอบมาถึงหลังลงพื้นแล้วยังลากตัวไปที่อื่นอีก"
+
+
+def test_a_state_swap_mid_air_does_not_lock_the_game_forever():
+    """เจ้าของเกมเจอ: ระบบกระโดดพัง
+
+    ต้นเหตุ: wmApply แทนสถานะทั้งก้อนแต่ไม่ล้าง WM_FLY — การลอยของก้อนเก่าค้างอยู่
+    wmBusyFx() เลยจริงตลอดกาล = กดอะไรไม่ได้ทั้งเกม และกระโดดครั้งต่อไปถูกปฏิเสธเงียบ ๆ
+    เพราะ wmJumpFire เห็นว่า "ยังลอยอยู่"
+    """
+    body = PLAY[PLAY.index("function wmApply("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert "WM_FLY = null" in body, "รับสถานะใหม่แล้วไม่ล้างการลอยที่ค้างอยู่"
+    assert "WM_JUMP_SEND = null" in body, "คำสั่งกระโดดที่รอส่งของก้อนเก่ายังค้างอยู่"
+
+    out, _ = _jump_flow()
+    assert out["afterStateSwap"]["canJumpAgain"], "ล้างแล้วยังกระโดดใหม่ไม่ได้"
+
+
+def test_landing_never_teleports_whoever_happens_to_have_the_turn():
+    """ตกแล้วเจ็บ/แรงหมด เซิร์ฟเวอร์จบเทิร์นให้ — ตอนคำตอบกลับมา ตาเป็นของบอทแล้ว
+    ถ้าสรุปผลใส่ "คนที่ถึงตาตอนนี้" จะกลายเป็นวาปบอทมาที่จุดที่เราลง
+    """
+    body = PLAY[PLAY.index("function wmSettleJump("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert "WM_ST.fighters[fi]" in body, "ยังใช้คนที่ถึงตาตอนนี้แทนคนที่กระโดด"
+
+    out, _ = _jump_flow()
+    t = out["turnFlipped"]
+    assert t["bot"] == t["botWas"], f"บอทโดนวาปจาก {t['botWas']} ไป {t['bot']}"
+    assert t["me"] == t["meLanded"], "คนกระโดดโดนย้ายหลังลงพื้นแล้ว"
