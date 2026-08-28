@@ -250,5 +250,38 @@ def test_the_page_draws_the_ferry():
 
 def test_riding_the_ferry_is_shown():
     assert "d.ferry" in PLAY, "ขึ้นเรือแล้วเว็บไม่รู้เรื่อง"
-    body = PLAY[body_at("async function wmDo("):body_at("async function wmEndTurn(")]
-    assert "wmFocus(WM_ST.fighters[mine], true)" in body, "ข้ามเกาะแล้วกล้องไม่ตามไป"
+    body = PLAY[body_at("function wmRideFerry("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert "wmFocus({ x: ferry.x, y: ferry.y }, true)" in body, "ข้ามเกาะแล้วกล้องไม่ตามไป"
+    assert body.count("wmStep(") >= 3, "วาร์ปยังเกิดรวดเดียว ไม่ได้แบ่งเป็นจังหวะ"
+
+def test_a_dropped_thing_stays_invisible_until_the_camera_gets_there():
+    """เจ้าของเกมทัก: ของโผล่ขึ้นมาก่อนที่กล้องจะโฟกัสไปพร้อมเอฟเฟกต์สปอนซ้ำ
+
+    ต้นเหตุ: wmApply ใส่ props ทั้งชุดลงแผนที่ทันทีที่คำตอบมาถึง
+    ทัวร์กล้องเลยไปเล่นเอฟเฟกต์ "ของตกลงมา" ทับของที่เห็นอยู่แล้ว
+    """
+    import json
+    import shutil
+    import subprocess
+
+    if not shutil.which("node"):
+        pytest.skip("เครื่องนี้ไม่มี node")
+    r = subprocess.run(["node", "tests/drop_reveal.js"],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout.strip().splitlines()[-1])
+
+    assert out["beforeTour"] == ["chest"],         f"ทัวร์ยังไม่เริ่มแต่ของใหม่โผล่แล้ว: {out['beforeTour']}"
+    # ของโผล่ทีละชิ้นตามลำดับที่กล้องไปถึง ไม่ใช่โผล่พร้อมกันหมด
+    assert out["afterEachStep"][-1] == "chest,ferry,chest,trap",         f"ทัวร์จบแล้วของไม่ครบ: {out['afterEachStep'][-1]}"
+    assert out["afterEachStep"][0] == "chest", "ขั้นเลื่อนกล้องไม่ควรทำให้ของโผล่"
+    assert out["stillHidden"] == 0, "ทัวร์จบแล้วยังมีของค้างไม่ถูกปล่อย"
+
+
+def test_clearing_the_queue_never_leaves_a_thing_invisible_forever():
+    """คิวถูกล้างกลางทัวร์ (เปิดหน้าใหม่/แมตช์ใหม่) = ไม่มีใครมาปล่อยของที่ซ่อนไว้"""
+    body = PLAY[PLAY.index("function wmApply("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert body.index("WM_TOUR_HIDE = []") < body.index("wmStartTour("),         "ล้างรายการของที่ซ่อนไว้หลังเริ่มทัวร์ใหม่ = ล้างของรอบใหม่ทิ้ง"
+    assert "wmStepsClear();" in body and         body.index("wmStepsClear();") < body.index("WM_TOUR_HIDE = []"),         "ล้างคิวแล้วไม่ได้ล้างรายการของที่ซ่อนไว้ตาม — ของจะหายถาวร"

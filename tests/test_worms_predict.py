@@ -480,10 +480,16 @@ def test_a_light_graze_does_not_shove_you_into_the_sea(tmp_path, monkeypatch):
 def test_warping_and_opening_a_chest_have_their_own_effects():
     for fn, what in (("function wmWarpFx(", "วาร์ป"), ("function wmChestFx(", "เปิดหีบ")):
         assert fn in PLAY, f"ไม่มีเอฟเฟกต์{what}"
-    body = PLAY[PLAY.index("async function wmDo("):]
-    body = body[:body.index(chr(10) + "}" + chr(10))]
-    assert body.count("wmWarpFx(") >= 2,         "เอฟเฟกต์วาร์ปต้องมีทั้งจุดที่หายไปและจุดที่โผล่ออกมา"
-    assert "wmChestFx(" in body, "เปิดหีบแล้วไม่มีเอฟเฟกต์"
+    ferry = PLAY[PLAY.index("function wmRideFerry("):]
+    ferry = ferry[:ferry.index(chr(10) + "}" + chr(10))]
+    assert ferry.count("wmWarpFx(") >= 2,         "เอฟเฟกต์วาร์ปต้องมีทั้งจุดที่หายไปและจุดที่โผล่ออกมา"
+    chest = PLAY[PLAY.index("function wmOpenChest("):]
+    chest = chest[:chest.index(chr(10) + "}" + chr(10))]
+    assert "wmChestFx(" in chest, "เปิดหีบแล้วไม่มีเอฟเฟกต์"
+    # และต้องมีใครเรียกทั้งสองตัวจริง ๆ ไม่ใช่เขียนไว้เฉย ๆ
+    do = PLAY[PLAY.index("async function wmDo("):]
+    do = do[:do.index(chr(10) + "}" + chr(10))]
+    assert "wmRideFerry(" in do and "wmOpenChest(" in do, "เขียนไว้แต่ไม่มีใครเรียก"
 
 
 def test_the_pauses_between_steps_got_shorter():

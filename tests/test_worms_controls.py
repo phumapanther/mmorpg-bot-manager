@@ -1185,6 +1185,83 @@ def test_closing_the_panel_is_always_allowed():
     assert "wmBusyFx" not in body, "การปิดไม่ควรต้องรอภาพเล่นจบ"
 
 
+# ── 21.8 แผงปุ่มต้องไม่กินจอ และเอฟเฟกต์ต้องมาก่อนผลของมัน ──
+
+def test_the_button_pad_does_not_eat_the_screen():
+    """เจ้าของเกมทัก: ปุ่มด้านล่างเกะกะ ดึงจอ รกจอ
+
+    เดิม "จบเทิร์น" กินเต็มแถว และ "ยอมแพ้" กินอีกแถวเต็ม รวมกับปุ่มเดิน 4 ช่อง
+    เป็นสามแถวสูง 58px ก่อนจะถึงสกิลที่เป็นการ์ดสองบรรทัดอีก
+    """
+    css = (WEB / "play.css").read_text(encoding="utf-8")
+    pad = css[css.index(".wm-pad {"):css.index(".wm-who button.now")]
+    assert "grid-column: span 3" in pad,         "จบเทิร์นยังกินเต็มแถว — ยอมแพ้เลยต้องลงไปอีกแถว"
+    assert "grid-column: 1 / -1" not in pad, "ยังมีปุ่มกินเต็มแถวอยู่"
+    import re as _re
+    high = int(_re.search(r"\.wm-pad button \{[^}]*min-height: (\d+)px", pad).group(1))
+    assert high <= 48, f"ปุ่มสูง {high}px — เตี้ยกว่านี้ได้"
+
+
+def test_skills_are_one_line_chips_but_keep_their_description():
+    """ย่อเป็นชิปบรรทัดเดียวได้ แต่ห้ามทิ้งคำอธิบาย — ย้ายไปอยู่ใน tooltip แทน"""
+    body = PLAY[PLAY.index("function wmPaintSkills("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert "<small>" not in body, "สกิลยังเป็นการ์ดสองบรรทัด"
+    assert 'title="${esc(s.desc)}"' in body, "ย่อแล้วทิ้งคำอธิบายไปเลย"
+
+    items = PLAY[PLAY.index("function wmPaintItems("):]
+    items = items[:items.index(chr(10) + "}" + chr(10))]
+    assert "<small>" not in items, "ไอเทมยังเป็นการ์ดสองบรรทัด"
+    assert 'title="${esc(i.desc)}"' in items, "ย่อแล้วทิ้งคำอธิบายไปเลย"
+
+
+def test_the_body_explodes_before_anyone_is_thrown():
+    """เจ้าของเกมทัก: การกระเด็นเกิดก่อนเอฟเฟกต์ระเบิดตอนตาย
+
+    ต้นเหตุ: wmPlayVictims ถูกเรียกตอน "ต่อคิว" ขั้นระเบิด แต่ข้างในมันยิง
+    การกระเด็นทันทีโดยไม่รอคิว (ตั้งใจไว้สำหรับหมัดตรง ๆ — โดนปุ๊บปลิวปั๊บ)
+    พอเอามาใช้กับระเบิดร่างจึงกลายเป็นคนปลิวก่อนลูกไฟจะขึ้น
+    """
+    body = PLAY[PLAY.index("function wmPlayDeaths("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert body.index("wmLand(d.blast)") < body.index("wmPlayVictims(d.blast"),         "ยังต่อคิวคนที่โดนลูกหลงก่อนจะเจาะหลุม/ขึ้นลูกไฟ"
+    # ต้องอยู่ "ใน" ขั้น ไม่ใช่ตอนต่อคิวขั้น
+    step = body[body.index("wmStep(() => {"):body.index("}, wmFxIdle);")]
+    assert "wmPlayVictims(d.blast" in step,         "wmPlayVictims ยังถูกเรียกตอนต่อคิว = การกระเด็นยิงทันทีก่อนระเบิดขึ้น"
+
+
+def test_the_head_bump_puffs_when_the_head_hits_not_when_the_feet_land():
+    """ไล่ตรวจตามที่เจ้าของเกมขอ: มีเอฟเฟกต์ไหนอีกที่มาช้ากว่าเหตุของมัน
+
+    เจอหนึ่งอัน — หัวชนเพดานเกิดกลางอากาศ แต่เอฟเฟกต์ไปขึ้นตอนอนิเมชั่นจบ
+    (ท้ายวิถี = ตอนเท้าแตะพื้น) ซึ่งช้ากว่าเหตุจริงเกือบทั้งวิถีที่ร่วงลงมา
+    """
+    body = PLAY[PLAY.index("const after = () => {"):]
+    body = body[:body.index(chr(10) + "    };")]
+    assert "wmBump(" not in body, "เอฟเฟกต์หัวชนยังรอไปขึ้นตอนอนิเมชั่นจบ"
+    assert "WM_ANIM.bump" in PLAY, "ไม่ได้ผูกจุดหัวชนไว้กับอนิเมชั่น"
+    assert "bump: (d.move.bump || null)" in PLAY, "ไม่ได้ส่งจุดหัวชนเข้าไปในอนิเมชั่น"
+
+
+def test_riding_the_ferry_is_a_sequence_not_a_teleport():
+    """เจ้าของเกมขอ: มีอนิเมชั่นตอนเดินเข้าเรือเหาะวาป"""
+    body = PLAY[PLAY.index("function wmRideFerry("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert body.count("wmStep(") >= 3, "วาร์ปยังเกิดรวดเดียว ไม่ได้แบ่งเป็นจังหวะ"
+    assert body.index("wmWarpFx(ferry.from") < body.index("wmWarpFx(ferry.x"),         "โผล่ที่ปลายทางก่อนจะหายจากจุดเดิม"
+    assert "WM_WARPING" in body, "ระหว่างถูกดูดวาร์ปยังวาดตัวอยู่ที่เดิม"
+    draw = PLAY[PLAY.index("WM_ST.fighters.forEach((f, i) => {"):]
+    assert "i === WM_WARPING" in draw[:600], "ตัวที่ถูกดูดวาร์ปแล้วยังถูกวาดอยู่"
+
+
+def test_opening_a_chest_shows_the_lid_before_the_loot():
+    """เจ้าของเกมขอ: มีอนิเมชั่นตอนเก็บกล่อง"""
+    body = PLAY[PLAY.index("function wmOpenChest("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert body.count("wmStep(") >= 2, "เปิดหีบยังเกิดรวดเดียว"
+    assert body.index("wmChestFx(") < body.index("toast("),         "ขึ้นข้อความว่าได้อะไรก่อนฝาหีบจะเด้ง"
+
+
 # ── 22. แผงสรุปผลต้องแสดงชื่อกับดาเมจจริง ──
 
 def _render_over(payload):
@@ -1310,7 +1387,8 @@ def test_a_jump_into_a_wall_reports_where_it_hit():
 
 
 def test_the_page_plays_a_bump_when_you_hit_a_wall():
-    assert "if (d.move && d.move.bump) wmBump(" in PLAY,         "เซิร์ฟเวอร์บอกว่าชนแล้วเว็บไม่เล่นภาพ"
+    assert "bump: (d.move.bump || null)" in PLAY, "เซิร์ฟเวอร์บอกว่าชนแล้วเว็บไม่รับมาเล่น"
+    assert "wmBump(WM_ANIM.bump[0], WM_ANIM.bump[1])" in PLAY,         "รับจุดชนมาแล้วแต่ไม่เล่นภาพ"
     body = PLAY[PLAY.index("function wmBump("):]
     body = body[:body.index(chr(10) + "}")]
     assert "WM_BITS.push" in body and "wmDust(" in body, "ชนกำแพงแล้วเงียบสนิท"
@@ -1702,8 +1780,9 @@ def test_the_page_draws_the_ferry_and_the_ride():
     worms = (WEB / "worms.js").read_text(encoding="utf-8")
     assert "p.kind === 'ferry'" in worms, "เรือเหาะไม่ถูกวาดบนแผนที่"
     assert "d.ferry" in PLAY, "ขึ้นเรือแล้วเว็บไม่รู้เรื่อง"
-    body = PLAY[PLAY.index("async function wmDo("):PLAY.index("async function wmEndTurn(")]
-    assert "wmFocus(WM_ST.fighters[mine], true)" in body, "ข้ามเกาะแล้วกล้องไม่ตามไป"
+    body = PLAY[PLAY.index("function wmRideFerry("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    assert "wmFocus({ x: ferry.x, y: ferry.y }, true)" in body, "ข้ามเกาะแล้วกล้องไม่ตามไป"
 
 
 # ── 32. โดนตีกระเด็นทันที แต่ยังไม่คิดค่าเสียหาย ──

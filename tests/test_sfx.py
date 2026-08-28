@@ -222,7 +222,7 @@ def test_the_arena_stopped_borrowing_the_trap_sound_for_everything(report):
 
     assert "SFX.play('boom')" in body("function wmLand("), "ระเบิดยังไม่ได้ใช้เสียงระเบิด"
     assert "SFX.play('jump')" in body("async function wmDo("), "กระโดดยังไม่ได้ใช้เสียงกระโดด"
-    assert "SFX.play('ferry')" in body("async function wmDo("), "ขึ้นเรือเหาะยังไม่ได้ใช้เสียงเรือเหาะ"
+    assert "SFX.play('ferry')" in body("function wmRideFerry("),         "ขึ้นเรือเหาะยังไม่ได้ใช้เสียงเรือเหาะ"
 
 
 def test_every_event_you_can_run_into_has_its_own_sound(report):

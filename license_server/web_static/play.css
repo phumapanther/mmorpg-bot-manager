@@ -918,14 +918,17 @@ body.bar-min .pbar .money { margin-left: auto; }
 .wm-wind i b { position: absolute; top: 0; height: 100%; background: #7fb8e8;
   border-radius: 999px; }
 .wm-wind small { font-family: var(--g-num); color: var(--g-muted); }
-.wm-pad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
-.wm-pad button { min-height: 58px; border-radius: 14px; border: 1px solid var(--g-line);
-  background: var(--g-hi); color: var(--g-ink); font-size: 22px; font-family: inherit;
+/* แผงปุ่ม — เตี้ยและแน่น ไม่ให้กินจอจนต้องเลื่อนหาสนาม
+   จบเทิร์น (3 ช่อง) + ยอมแพ้ (1 ช่อง) อยู่แถวเดียวกัน เดิมกินคนละแถวเต็ม ๆ */
+.wm-pad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
+.wm-pad button { min-height: 44px; border-radius: 12px; border: 1px solid var(--g-line);
+  background: var(--g-hi); color: var(--g-ink); font-size: 19px; font-family: inherit;
   cursor: pointer; touch-action: none; user-select: none; }
 .wm-pad button:active { background: #40311f; transform: translateY(2px); }
 .wm-pad button:disabled { opacity: .4; cursor: not-allowed; }
-.wm-pad .wm-end { grid-column: 1 / -1; font-size: 14px; font-weight: 600;
+.wm-pad .wm-end { grid-column: span 3; font-size: 14px; font-weight: 600;
   background: linear-gradient(160deg,#d93b2b,#8f2317); border-color: #6d1a11; color: #fff; }
+.wm-pad .wm-giveup { font-size: 12px; }
 .wm-who button.now { border-color: var(--g-gold); color: var(--g-gold); }
 .wm-who button.dead { opacity: .45; text-decoration: line-through; }
 .wm-log { margin-top: 10px; font-size: 12px; color: var(--g-muted); line-height: 1.8;
@@ -937,13 +940,13 @@ body.bar-min .pbar .money { margin-left: auto; }
 @keyframes wmBeat { 50% { opacity: .35; } }
 
 /* ── ⚔️ สกิลในสนามรบ ── */
-.wm-skills { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 8px; margin-top: 10px; }
-.wm-skills button { position: relative; text-align: left; padding: 10px 12px; min-height: 56px;
-  border-radius: 14px; border: 1px solid var(--g-line); background: var(--g-panel);
-  color: var(--g-ink); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
-  display: grid; gap: 3px; }
-.wm-skills button small { font-size: 11px; font-weight: 400; color: var(--g-muted); }
+/* สกิล/ไอเทมเป็นชิปบรรทัดเดียว — คำอธิบายย้ายไปอยู่ใน title (ชี้/จิ้มค้างก็เห็น)
+   เดิมเป็นการ์ดสองบรรทัดสูง 56px เรียงกันจนดันสนามหลุดจอ */
+.wm-skills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.wm-skills button { position: relative; text-align: left; padding: 7px 12px; min-height: 36px;
+  border-radius: 999px; border: 1px solid var(--g-line); background: var(--g-panel);
+  color: var(--g-ink); font-family: inherit; font-size: 12.5px; font-weight: 600;
+  cursor: pointer; white-space: nowrap; }
 .wm-skills button:hover:not(:disabled) { border-color: var(--g-gold); background: var(--g-hi); }
 .wm-skills button.on { border-color: var(--g-gold); box-shadow: 0 0 0 1px var(--g-gold) inset; }
 .wm-skills button:disabled { opacity: .45; cursor: not-allowed; }
