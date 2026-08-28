@@ -2014,10 +2014,6 @@ function wmApply(d) {
   wmStepsClear();
   WM_ANIM = null; WM_QUEUE = [];   // สถานะถูกแทนทั้งก้อน ภาพที่ค้างเป็นของสถานะเก่าไปแล้ว
   WM_HIDDEN = null;                // ค่าที่ซ่อนไว้ก็เป็นของก้อนเก่า ทิ้งได้เลย
-  // ⚠️ การลอยที่ค้างอยู่ก็เป็นของก้อนเก่า — ไม่ทิ้งแล้ว WM_FLY ค้างตลอดกาล
-  //    wmBusyFx() จะจริงตลอด = กดอะไรไม่ได้ทั้งเกม และกระโดดครั้งต่อไปถูกปฏิเสธเงียบ ๆ
-  //    เพราะ wmJumpFire เห็นว่า "ยังลอยอยู่" (เจ้าของเกมเจอ: ระบบกระโดดพัง)
-  WM_FLY = null; WM_JUMP_END = null; WM_JUMP_SEND = null;
   if (!d || !d.over) WM_OVER_SHOWN = false;
   if (d && (d.drops || []).length && d.round !== WM_TOUR_ROUND) {
     WM_TOUR_ROUND = d.round;               // ของรอบนี้พาไปดูแล้ว ไม่พาซ้ำ
@@ -2074,7 +2070,18 @@ function wmStartLoop() {
   const cv = document.getElementById('wmCanvas'), ctx = cv.getContext('2d');
   cancelAnimationFrame(wmLoop);
   let t = 0, last = 0;
+  // 🛟 error เฟรมเดียวเคยฆ่าลูปวาดทั้งอัน = ภาพค้าง กดอะไรไม่ได้ ปุ่มยอมแพ้ก็ตาย
+  //    ผู้เล่นเห็นเป็น "พังหมดทุกอย่าง" ทั้งที่ต้นเหตุคือบัคเล็ก ๆ จุดเดียว
+  //    ห่อไว้ให้เฟรมถัดไปยังวาดต่อได้ และพ่น error ลง console ให้เห็นเต็ม ๆ
   const tick = (now) => {
+    try {
+      frame(now);
+    } catch (e) {
+      console.error('[worms] เฟรมนี้พัง — เล่นต่อเฟรมหน้า', e);
+      wmLoop = requestAnimationFrame(tick);
+    }
+  };
+  const frame = (now) => {
     if (!document.getElementById('v-worms').classList.contains('on')) { wmLoop = 0; return; }
     wmClock(now);
     // เล่นภาพเส้นทางที่เซิร์ฟเวอร์ส่งมาทีละเฟรม (ตำแหน่งจริงเซิร์ฟเวอร์ตัดสินไปแล้ว)
@@ -2134,13 +2141,11 @@ function wmStartLoop() {
     }
     wmTick();
     wmWalkTick();
-    wmFlyTick();
 
     WM_CAM.glide(WM_DT);   // เลื่อนเข้าหาเป้าทีละนิด — จอไม่กระโดด
     WM.draw(ctx, WM_CAM, t++);
     WM_ST.fighters.forEach((f, i) => {
       const moving = !!(WM_ANIM && WM_ANIM.fi === i)
-                  || !!(WM_FLY && WM_FLY.fi === i)
                   || !!(WM_PRED && !WM_PRED.done && i === WM_ST.turn);
       // ตายแล้วแต่ภาพร่วง/จมน้ำ/ภาพตายยังเล่นค้างอยู่ = ต้องวาดต่อ ไม่งั้นหายวับ
       if (WM_DYING[i]) { if ((WM_DYING[i] -= WM_DT) <= 0) delete WM_DYING[i]; }
@@ -2159,7 +2164,7 @@ function wmDrawFighter(ctx, f, active, t, walking) {
   // เดินอยู่ก็สลับท่าขาตามก้าวจริง ไม่ใช่ยืนท่าเดิมแล้วเลื่อนตัวไป (เห็นเป็นลื่นไถล)
   // ⚠️ เดินเองฝั่งจอไม่มี WM_ANIM — นับก้าวจากตัวทำนายแทน (แตะ WM_ANIM ตรง ๆ จะพัง)
   const anim = WM_ANIM && WM_ANIM.fi === WM_ST.turn ? WM_ANIM : null;
-  const air = walking && ((anim && anim.air) || !!WM_FLY);   // ลอยอยู่ = ท่าลอย
+  const air = walking && anim && anim.air;
   const beat = anim ? Math.floor(anim.i) : (WM_PRED ? WM_PRED.pending + WM_PRED.beat : 0);
   const pose = !walking ? 'idle' : air ? 'run1' : (beat % 2 ? 'run1' : 'run2');
   const look = { ...(f.look || {}), pose: pose, flip: f.face < 0 };
@@ -2442,7 +2447,7 @@ function wmStartTour(list) {
 
 function wmBusyFx() {
   return !!(WM_ANIM || WM_QUEUE.length || WM_SHOT || WM_BOOMS.length ||
-            WM_AFTER.length || wmStepsBusy() || WM_FLY ||
+            WM_AFTER.length || wmStepsBusy() ||
             Object.keys(WM_DYING).length);
 }
 
@@ -2816,7 +2821,7 @@ function wmRunSteps() {
 
 /** ภาพที่ "ขั้นหนึ่ง ๆ" ใช้อยู่เล่นจบหรือยัง — ใช้เป็น done() ของหลายขั้น */
 function wmFxIdle() {
-  return !WM_ANIM && !WM_QUEUE.length && !WM_SHOT && !WM_BOOMS.length && !WM_FLY &&
+  return !WM_ANIM && !WM_QUEUE.length && !WM_SHOT && !WM_BOOMS.length &&
          !Object.keys(WM_DYING).length;
 }
 
@@ -3248,11 +3253,9 @@ async function wmDo(action, dir, extra) {
       wmPaintHud();
     };
 
-    if (predicted === 'jump') {
-      wmLandJump(mine, d, after);         // ลอยอยู่แล้ว — ทาบปลายวิถีตอนถึงพื้น
-    } else if (predicted) {
+    if (predicted) {
       // กำลังลอยอยู่ = ก้อนเดินก้อนนี้เป็นของอดีต อย่าลากตัวกลับลงมากลางอากาศ
-      if (!WM_FLY && !WM_JUMP_END) wmReconcile(mine, d, dir);
+      wmReconcile(mine, d, dir);
       after();
     } else if (d.move && d.move.path.length) {
       WM_ST.fighters[mine].x = from.x; WM_ST.fighters[mine].y = from.y;
@@ -3265,66 +3268,17 @@ async function wmDo(action, dir, extra) {
   finally { wmBusy = false; }
 }
 
-let WM_JUMP_END = null;   // ปลายวิถีที่ลงจริงแล้ว — ไว้เทียบกับของเซิร์ฟเวอร์
-let WM_JUMP_SEND = null;  // คำสั่งกระโดดที่รอส่ง (ก้อนเดินก่อนหน้ายังไม่กลับ)
-let WM_FLY = null;        // สภาพการลอยตอนนี้ (เดินทีละเฟรมด้วย WALK.jumpStep)
+/** 🦘 ปล่อยปุ่ม = ขอกระโดดจากเซิร์ฟเวอร์ แล้วเล่นภาพวิถีที่มันคืนมา
 
-/** เดินการลอยไปตามเวลาจริง — เรียกจากลูปวาดทุกเฟรม */
-function wmFlyTick() {
-  if (!WM_FLY || !WM_ST) return;
-  const f = WM_ST.fighters[WM_FLY.fi];
-  if (!f) { WM_FLY = null; return; }
-  WM_FLY.tick += WM_DT;
-  while (WM_FLY.tick >= 1 && !WM_FLY.done) {
-    WM_FLY.tick -= 1;
-    const p = WALK.jumpStep(WM, WALK.rules(WM_ST), WM_FLY);
-    if (p) { f.x = p[0]; f.y = p[1]; }
-    wmFocus(f);
-  }
-  if (!WM_FLY.done) return;
-
-  // ── ถึงพื้น (หรือจมน้ำ/หัวชนแล้วร่วงจบ) ──
-  const fly = WM_FLY;
-  WM_FLY = null;
-  if (!fly.landed && !fly.drowned) {     // หัวชนกลางอากาศ — ร่วงลงจากตรงนั้น
-    const s = WALK.settle(WM, WALK.rules(WM_ST), Math.round(fly.x), Math.round(fly.y));
-    const drop = [];
-    for (let gy = Math.round(fly.y) + 1; gy <= s.y; gy++) drop.push([s.x, gy]);
-    f.x = s.x;
-    if (drop.length) wmChunk(fly.fi, drop, null);
-    else { f.y = s.y; }
-    if (fly.bump) wmBump(fly.bump[0], fly.bump[1]);
-  }
-  WM_JUMP_END = { x: f.x, y: f.y };
-  if (fly.answer) wmSettleJump(fly.fi, fly.answer.d, fly.answer.after);  // คำตอบมาก่อนลง
-}
-
-/** คำตอบของเซิร์ฟเวอร์กับจุดที่ลงจริง — ต่างกันเมื่อไหร่เชื่อเซิร์ฟเวอร์ */
-function wmSettleJump(fi, d, after) {
-  // ⚠️ ต้องใช้ "คนที่กระโดด" ไม่ใช่ WM_ST.turn — ตกแล้วเจ็บ/แรงหมด เซิร์ฟเวอร์จบเทิร์นให้
-  //    ตอนคำตอบกลับมา WM_ST.turn กลายเป็นบอทไปแล้ว จะกลายเป็นวาปบอทมาที่จุดเราลง
-  const f = WM_ST.fighters[fi];
-  const end = d.move ? { x: d.move.x, y: d.move.y } : null;
-  if (end && f && (end.x !== f.x || end.y !== f.y)) {
-    f.x = end.x; f.y = end.y;
-    wmFocus(f);
-  }
-  if (f && WM_HIDDEN) {
-    delete WM_HIDDEN[f.name];
-    if (!Object.keys(WM_HIDDEN).length) WM_HIDDEN = null;
-  }
-  WM_JUMP_END = null;
-  after();
-}
-
-/** 🦘 ปล่อยปุ่มแล้วลอยทันที — ไม่ต้องรอ ~300 ms ให้เซิร์ฟเวอร์ตอบก่อนถึงจะออกตัว
-
-    วิถีทั้งเส้นตัดสินตั้งแต่วินาทีที่ปล่อย (ทิศ + แรง + การเอนตัว) จอจึงคำนวณเองได้
-    แล้วเซิร์ฟเวอร์คำนวณซ้ำด้วยกฎชุดเดียวกัน — วัดแล้วตรงกันทุกเฟรม 360 เคส
+    ⚠️ เคยลองให้จอลอยเองด้วยฟิสิกส์ (08-27) เพื่อตัดดีเลย์ ~300 ms ออก
+       ฟิสิกส์ตรงกับเซิร์ฟเวอร์เป๊ะทุกเฟรม (เทส 360 เคส) แต่ "สภาพการลอย"
+       ที่ถืออยู่ฝั่งจอกลายเป็นสถานะค้างได้หลายทาง พอค้างแล้วเกมล็อกทั้งเกม
+       เจ้าของเกมเจอของจริง: กระโดดแล้วภาพค้าง · ยอมแพ้ไม่ทำงาน · เปิดแมตช์ใหม่จอเพี้ยน
+       จึงถอยกลับมาแบบนี้ — ช้ากว่าแต่ไม่มีสถานะค้างให้พังได้เลย
  */
 function wmJumpFire(dir, power, lean) {
-  if (!WM_ST || WM_ST.over || WM_FLY) return;   // ลอยอยู่แล้วกระโดดซ้ำไม่ได้
-  const mine = WM_ST.turn, me = WM_ST.fighters[mine];
+  if (!WM_ST || WM_ST.over) return;
+  const me = WM_ST.fighters[WM_ST.turn];
   if (!me || me.bot || me.dead) return;
   if (WM_ST.moves < 6) {                // เงียบไปเฉย ๆ = ผู้เล่นนึกว่าปุ่มเสีย
     toast('🔋 แรงไม่พอกระโดด — กดจบเทิร์นได้เลย', true);
@@ -3332,24 +3286,7 @@ function wmJumpFire(dir, power, lean) {
   }
   wmWalkStop();                         // ปิดก้อนเดินที่ค้างก่อน จะได้ไม่ปนกัน
   me.face = dir;
-  // 🦘 ลอยด้วยฟิสิกส์จริงทีละเฟรมจากจุดที่ยืนอยู่ตอนนี้
-  //    เจ้าของเกมสั่ง: "จุดลงพื้นไม่ควรถูกกำหนดไว้ล่วงหน้า" — ไม่คิดวิถีทั้งเส้นแล้วเล่นเทป
-  WM_FLY = WALK.jumpStart(WALK.rules(WM_ST), me.x, me.y, dir, power, lean);
-  WM_FLY.fi = mine;
-  WM_FLY.tick = 0;
-  WM_JUMP_END = null;                   // ยังไม่รู้ว่าจะลงตรงไหน — ต้องลอยไปก่อน
-  WM_ST.moves -= 6;                     // ค่ากระโดดตายตัว (ตรงกับฝั่งเซิร์ฟเวอร์)
-  WM_PRED = null;                       // ทิ้งการทาบของก้อนเดิน — ตอนนี้กำลังลอยอยู่
-  SFX.play('jump');
-  // ⚠️ ก้อนเดินก่อนหน้าอาจยังไม่กลับ — ยิงตอนนี้ wmDo จะทิ้งคำสั่งทั้งที่จอกระโดดไปแล้ว
-  //    (เซิร์ฟเวอร์จะไม่รู้เรื่องการกระโดดนี้เลย) จึงพักไว้ให้ลูปวาดส่งเมื่อสายว่าง
-  const send = { dir: dir, power: power, lean: lean };
-  if (wmBusy) WM_JUMP_SEND = send;
-  else wmJumpSend(send);
-}
-
-function wmJumpSend(j) {
-  wmDo('jump', j.dir, { jump_power: j.power, lean: j.lean, predicted: 'jump' });
+  wmDo('jump', dir, { jump_power: power, lean: lean });
 }
 
 /** 🎯 เอาคำตอบของเซิร์ฟเวอร์มาทาบกับตำแหน่งที่จอเดาไว้
@@ -3377,21 +3314,6 @@ function wmReconcile(mine, d, dir) {
     delete WM_HIDDEN[f.name];
     if (!Object.keys(WM_HIDDEN).length) WM_HIDDEN = null;
   }
-}
-
-/** 🦘 คำตอบของกระโดดกลับมาแล้ว — ตัวยังลอยอยู่หรือลงพื้นไปแล้วก็ได้
-
-    เดาตรง (กรณีปกติ) = ปล่อยให้ภาพเล่นต่อจนจบแล้วค่อยสรุปผล
-    เดาพลาด = สลับไปใช้เส้นทางของเซิร์ฟเวอร์ตั้งแต่จุดที่เล่นถึง ไม่ใช่วาปไปปลายทาง
- */
-function wmLandJump(mine, d, after) {
-  if (WM_FLY) { WM_FLY.answer = { d: d, after: after }; return; }  // ยังลอยอยู่ — รอถึงพื้น
-  if (WM_ANIM && WM_ANIM.fi === mine) {        // กำลังร่วงหลังหัวชน — รอให้ร่วงจบ
-    const prev = WM_ANIM.onEnd;
-    WM_ANIM.onEnd = () => { if (prev) prev(); wmSettleJump(mine, d, after); };
-    return;
-  }
-  wmSettleJump(mine, d, after);
 }
 
 /** 🏳️ ยอมแพ้ — ระเบิดตัวเองทิ้งแล้วจบแมตช์ (ถามก่อน กดพลาดแล้วเสียใจ) */
@@ -3512,10 +3434,7 @@ function wmWalkStop() {
 /** เดินฝั่งจอหนึ่งเฟรม + ส่งให้เซิร์ฟเวอร์ยืนยันเป็นระยะ — เรียกจากลูปวาดเท่านั้น */
 function wmWalkTick() {
   if (!WM_ST) return;
-  if (!WM_PRED) {                       // ไม่ได้กดเดินอยู่ แต่ยังต้องส่งกระโดดที่ค้าง
-    if (WM_JUMP_SEND && !wmBusy) { const j = WM_JUMP_SEND; WM_JUMP_SEND = null; wmJumpSend(j); }
-    return;
-  }
+  if (!WM_PRED) return;
   const me = wmMe();
   const held = (WM_KEYS.left || WM_KEYS.right) && !WM_PRED.done;
   const can = held && !WM_ST.over && !WM_JUMP && !me.bot && !me.dead && !wmBusyFx();
@@ -3557,7 +3476,6 @@ function wmWalkTick() {
     WM_PRED.done = true;
   }
   wmWalkFlush();
-  if (WM_JUMP_SEND && !wmBusy) { const j = WM_JUMP_SEND; WM_JUMP_SEND = null; wmJumpSend(j); }
 }
 
 /** ส่งก้าวที่สะสมไว้ — รอให้คำขอก่อนหน้ากลับมาก่อนเสมอ ก้าวที่เดินระหว่างรอไม่หาย */

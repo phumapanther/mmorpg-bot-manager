@@ -33,6 +33,7 @@ RULES = {"ch_h": T.CH_H, "foot_w": P.FOOT_W, "climb": P.CLIMB,
          "gravity": P.GRAVITY, "jump_vx": P.JUMP_VX, "jump_vy": P.JUMP_VY,
          "jump_curve": P.JUMP_CURVE, "air_accel": P.AIR_ACCEL,
          "air_max": P.AIR_MAX, "sink": P.SINK_DEPTH}
+# (ค่ากระโดดยังส่งไปด้วยเผื่ออนาคต — ฝั่งจอไม่ได้ใช้แล้ว ดูหัวไฟล์ walk.js)
 
 
 def _run_js(grid, cases, kind="walk"):
@@ -48,60 +49,6 @@ def _run_js(grid, cases, kind="walk"):
                              capture_output=True, text=True, encoding="utf-8")
         assert out.returncode == 0, out.stderr
         return json.loads(out.stdout.strip().splitlines()[-1])
-
-
-@pytest.mark.parametrize("seed", [3, 11, 27])
-def test_both_sides_jump_along_exactly_the_same_arc(seed):
-    """วิถีกระโดดตัดสินตั้งแต่วินาทีที่ปล่อยปุ่ม จอจึงคำนวณเองได้ทันที
-
-    แต่ต้องตรงกับเซิร์ฟเวอร์ "ทุกเฟรม" ไม่ใช่แค่จุดตก — ไม่งั้นเห็นตัวสลับวิถีกลางอากาศ
-    """
-    rng = random.Random(seed * 31)
-    grid = T.generate(seed)["grid"]
-    spots = T._open_spots(grid)
-    cases = []
-    for _ in range(120):
-        x, y = rng.choice(spots)
-        cases.append([x, y, rng.choice([-1, 1]), round(rng.random(), 3),
-                      rng.choice([-1.0, 0.0, 1.0, round(rng.uniform(-1, 1), 3)])])
-
-    js = _run_js(grid, cases, kind="jump")
-    for c, j in zip(cases, js):
-        x, y, d, pw, ln = c
-        py = P.jump(grid, x, y, d, power=pw, lean=ln)
-        assert (py["x"], py["y"], py["drowned"]) == (j["x"], j["y"], j["drowned"]), (
-            f"เมล็ด {seed}: กระโดดจาก ({x},{y}) ทิศ {d} แรง {pw} เอน {ln} — "
-            f"python ลง ({py['x']},{py['y']}) · js ลง ({j['x']},{j['y']})")
-        assert len(py["path"]) == len(j["path"]), (
-            f"วิถียาวไม่เท่ากัน (python {len(py['path'])} · js {len(j['path'])}) "
-            "= ลอยคนละจังหวะ เห็นเป็นตัวกระตุกกลางอากาศ")
-        assert py["path"] == [list(pt) for pt in j["path"]], "วิถีไม่ตรงกันทุกเฟรม"
-
-
-def test_the_jump_leaves_the_ground_without_waiting_for_the_server():
-    """ปล่อยปุ่มแล้วต้องลอยเลย ไม่ใช่รอ ~300 ms ให้เซิร์ฟเวอร์ตอบก่อน"""
-    body = PLAY[PLAY.index("function wmJumpFire("):]
-    body = body[:body.index(chr(10) + "}" + chr(10))]
-    assert body.index("WM_FLY = WALK.jumpStart(") < body.index("wmBusy"),         "ยิงคำสั่งไปเซิร์ฟเวอร์ก่อนแล้วค่อยเริ่มลอย = รอเน็ตเหมือนเดิม"
-
-
-def test_a_jump_is_never_lost_when_the_line_is_busy():
-    """ปล่อยกระโดดตอนก้อนเดินยังไม่กลับ — ถ้าคำสั่งหาย เซิร์ฟเวอร์จะไม่รู้เรื่องเลย
-    จอกระโดดไปแล้วแต่เซิร์ฟเวอร์ยังคิดว่ายืนอยู่ที่เดิม = เพี้ยนยาว
-    """
-    body = PLAY[PLAY.index("function wmJumpFire("):]
-    body = body[:body.index(chr(10) + "}" + chr(10))]
-    assert "WM_JUMP_SEND = send" in body, "สายไม่ว่างแล้วทิ้งคำสั่งกระโดดไปเฉย ๆ"
-    tick = PLAY[PLAY.index("function wmWalkTick("):]
-    tick = tick[:tick.index(chr(10) + "}" + chr(10))]
-    assert "WM_JUMP_SEND" in tick, "ไม่มีใครส่งคำสั่งกระโดดที่ค้างไว้"
-
-
-def test_a_late_walk_batch_cannot_drag_you_out_of_the_air():
-    """ก้อนเดินที่ส่งไปก่อนกระโดดจะกลับมาตอนกำลังลอยอยู่ — ห้ามลากตัวกลับลงพื้น"""
-    body = PLAY[PLAY.index("async function wmDo("):]
-    body = body[:body.index(chr(10) + "}" + chr(10))]
-    assert "if (!WM_FLY && !WM_JUMP_END) wmReconcile(" in body,         "ก้อนเดินที่มาทีหลังยังทาบตำแหน่งได้ทั้งที่กำลังลอยอยู่"
 
 
 @pytest.mark.parametrize("seed", [3, 11, 27, 42])
@@ -486,64 +433,6 @@ def test_a_bot_turn_response_pauses_the_clock(tmp_path, monkeypatch):
 
 # ── 🦘 กระโดดต้องลอยจริง ไม่ใช่วาปไปจุดลงพื้น ──
 
-def test_the_jump_is_flown_frame_by_frame_not_replayed():
-    """เจ้าของเกมสั่ง: "จุดลงพื้นไม่ควรถูกกำหนดไว้ล่วงหน้า ต้องคำนวณต่อเนื่องแบบเรียลไทม์"
-
-    ของเดิมคิดวิถีทั้งเส้นแล้วเล่นเทป — พอคำตอบจากเซิร์ฟเวอร์มาถึงกลางอากาศ
-    wmDo ล้าง WM_ANIM ทิ้ง ภาพกระโดดตายคาที่แล้ววาปไปจุดลงพื้นทันที
-    """
-    fire = PLAY[PLAY.index("function wmJumpFire("):]
-    fire = fire[:fire.index(chr(10) + "}" + chr(10))]
-    assert "WALK.jumpStart(" in fire, "ยังคิดวิถีทั้งเส้นล่วงหน้าอยู่"
-    assert "WALK.jump(" not in fire, "ยังเรียกตัวคิดวิถีทั้งเส้นอยู่"
-
-    tick = PLAY[PLAY.index("function wmFlyTick("):]
-    tick = tick[:tick.index(chr(10) + "}" + chr(10))]
-    assert "WALK.jumpStep(" in tick, "ไม่ได้เดินฟิสิกส์ทีละเฟรม"
-    assert "WM_FLY.tick += WM_DT" in tick, "การลอยไม่ได้ผูกกับเวลาจริง"
-
-
-def test_a_server_answer_mid_air_does_not_cut_the_jump_short():
-    """คำตอบมาถึงตอนยังลอยอยู่ = ต้องรอให้ลงพื้นก่อน ห้ามวาปไปจุดลงทันที"""
-    body = PLAY[PLAY.index("function wmLandJump("):]
-    body = body[:body.index(chr(10) + "}" + chr(10))]
-    assert "if (WM_FLY) { WM_FLY.answer" in body, "คำตอบมากลางอากาศแล้วสรุปผลเลย"
-
-    do = PLAY[PLAY.index("async function wmDo("):]
-    do = do[:do.index(chr(10) + "}" + chr(10))]
-    assert "if (!predicted) { WM_ANIM = null; WM_QUEUE = []; }" in do,         "ยังล้างภาพที่ฝั่งจอกำลังเล่นเองอยู่ — กระโดด/ร่วง จะตายคากลางอากาศ"
-
-
-def test_being_in_the_air_blocks_everything_else():
-    """ลอยอยู่ = ยังทำอะไรไม่ได้ ทั้งเดินต่อ กระโดดซ้ำ และนาฬิกาต้องหยุด"""
-    busy = PLAY[PLAY.index("function wmBusyFx("):]
-    busy = busy[:busy.index(chr(10) + "}" + chr(10))]
-    assert "WM_FLY" in busy, "ลอยอยู่แต่ระบบถือว่าว่าง — กดอย่างอื่นแทรกได้"
-    idle = PLAY[PLAY.index("function wmFxIdle("):]
-    idle = idle[:idle.index(chr(10) + "}" + chr(10))]
-    assert "!WM_FLY" in idle, "ขั้นถัดไปเริ่มได้ทั้งที่ยังลอยอยู่"
-    fire = PLAY[PLAY.index("function wmJumpFire("):]
-    fire = fire[:fire.index(chr(10) + "}" + chr(10))]
-    assert "WM_FLY) return" in fire, "กระโดดซ้ำระหว่างลอยได้"
-
-
-@pytest.mark.parametrize("seed", [5, 19])
-def test_flying_frame_by_frame_lands_where_the_server_says(seed):
-    """เดินทีละเฟรมกับคิดทั้งเส้นต้องได้ผลเดียวกัน ไม่งั้นลงพื้นแล้ววาปแก้"""
-    rng = random.Random(seed)
-    grid = T.generate(seed)["grid"]
-    spots = T._open_spots(grid)
-    cases = [[*rng.choice(spots), rng.choice([-1, 1]), round(rng.random(), 3),
-              round(rng.uniform(-1, 1), 3)] for _ in range(80)]
-    js = _run_js(grid, cases, kind="jump")
-    for c, j in zip(cases, js):
-        x, y, d, pw, ln = c
-        py = P.jump(grid, x, y, d, power=pw, lean=ln)
-        assert (py["x"], py["y"]) == (j["x"], j["y"]), (
-            f"กระโดดจาก ({x},{y}) — เดินทีละเฟรมลง ({j['x']},{j['y']}) "
-            f"แต่เซิร์ฟเวอร์ว่า ({py['x']},{py['y']})")
-
-
 # ── 🌊 หมัดหนักผลักคนตกทะเลได้ ──
 
 def test_a_solid_hit_can_shove_someone_into_the_sea(tmp_path, monkeypatch):
@@ -608,60 +497,34 @@ def test_the_pauses_between_steps_got_shorter():
 
 # ── 🦘 การลอยค้างต้องล้างได้เสมอ ไม่งั้นเกมค้างถาวร ──
 
-def _jump_flow():
-    """รันวงจรกระโดดของจริง (wmJumpFire → wmFlyTick → wmLandJump) ด้วย node"""
-    if not shutil.which("node"):
-        pytest.skip("เครื่องนี้ไม่มี node")
-    g = [[T.AIR] * T.W for _ in range(T.H)]
-    for x in range(T.W):
-        for y in range(200, T.H - T.WATER):
-            g[y][x] = T.ROCK
-    job = {"w": T.W, "h": T.H, "grid": [v for row in g for v in row],
-           "x": 200, "y": 200, "rules": RULES}
-    with tempfile.TemporaryDirectory() as tmp:
-        f = pathlib.Path(tmp) / "j.json"
-        f.write_text(json.dumps(job), encoding="utf-8")
-        r = subprocess.run(["node", "tests/jump_flow.js", str(f)],
-                           capture_output=True, text=True, encoding="utf-8")
-        assert r.returncode == 0, r.stderr
-        return json.loads(r.stdout.strip().splitlines()[-1]), P.jump(g, 200, 200, 1,
-                                                                     power=1.0, lean=0)
+# ── 🦘 กระโดดกลับไปให้เซิร์ฟเวอร์เป็นคนคิด (ถอยระบบลอยฝั่งจอออก 08-27) ──
 
-
-def test_the_jump_actually_flies_and_lands_where_the_server_says():
-    """ลอยจริงทีละเฟรม แล้วลงตรงกับเซิร์ฟเวอร์ ไม่ว่าคำตอบจะมาถึงตอนไหน"""
-    out, truth = _jump_flow()
-    assert out["noAnswer"]["frames"] > 10,         f"ลอยแค่ {out['noAnswer']['frames']} เฟรม — วาปไปจุดลงแทนที่จะลอย"
-    for case in ("noAnswer", "midAir"):
-        assert out[case]["end"] == [truth["x"], truth["y"]],             f"{case}: ลงที่ {out[case]['end']} แต่เซิร์ฟเวอร์ว่า {[truth['x'], truth['y']]}"
-    assert out["lateAnswer"]["landed"] == out["lateAnswer"]["after"],         "คำตอบมาถึงหลังลงพื้นแล้วยังลากตัวไปที่อื่นอีก"
-
-
-def test_a_state_swap_mid_air_does_not_lock_the_game_forever():
-    """เจ้าของเกมเจอ: ระบบกระโดดพัง
-
-    ต้นเหตุ: wmApply แทนสถานะทั้งก้อนแต่ไม่ล้าง WM_FLY — การลอยของก้อนเก่าค้างอยู่
-    wmBusyFx() เลยจริงตลอดกาล = กดอะไรไม่ได้ทั้งเกม และกระโดดครั้งต่อไปถูกปฏิเสธเงียบ ๆ
-    เพราะ wmJumpFire เห็นว่า "ยังลอยอยู่"
+def test_the_jump_asks_the_server_and_plays_what_it_sends_back():
+    """เคยให้จอลอยเองเพื่อตัดดีเลย์ ~300 ms — ฟิสิกส์ตรงเป๊ะแต่ "สภาพการลอย"
+    ที่ต้องถือไว้ฝั่งจอกลายเป็นสถานะค้างได้หลายทาง พอค้างแล้วล็อกทั้งเกม
+    เจ้าของเกมเจอของจริง: กระโดดแล้วภาพค้าง · ยอมแพ้ไม่ทำงาน · เปิดแมตช์ใหม่จอเพี้ยน
     """
-    body = PLAY[PLAY.index("function wmApply("):]
+    body = PLAY[PLAY.index("function wmJumpFire("):]
     body = body[:body.index(chr(10) + "}" + chr(10))]
-    assert "WM_FLY = null" in body, "รับสถานะใหม่แล้วไม่ล้างการลอยที่ค้างอยู่"
-    assert "WM_JUMP_SEND = null" in body, "คำสั่งกระโดดที่รอส่งของก้อนเก่ายังค้างอยู่"
-
-    out, _ = _jump_flow()
-    assert out["afterStateSwap"]["canJumpAgain"], "ล้างแล้วยังกระโดดใหม่ไม่ได้"
+    assert "wmDo('jump'" in body, "ไม่ได้ขอกระโดดจากเซิร์ฟเวอร์"
+    assert "jump_power" in body and "lean" in body, "ไม่ได้ส่งแรง/การเอนไปให้คิด"
+    assert "predicted" not in body, "ยังส่งแบบ 'เดาไว้ก่อน' อยู่"
 
 
-def test_landing_never_teleports_whoever_happens_to_have_the_turn():
-    """ตกแล้วเจ็บ/แรงหมด เซิร์ฟเวอร์จบเทิร์นให้ — ตอนคำตอบกลับมา ตาเป็นของบอทแล้ว
-    ถ้าสรุปผลใส่ "คนที่ถึงตาตอนนี้" จะกลายเป็นวาปบอทมาที่จุดที่เราลง
+def test_no_client_side_flight_state_exists_at_all():
+    """สถานะที่ค้างได้ = บัคที่ล็อกเกมได้ — ถอดออกแล้วต้องไม่เหลือร่องรอย"""
+    for ghost in ("WM_FLY", "wmFlyTick", "wmSettleJump", "wmLandJump", "WM_JUMP_SEND"):
+        assert ghost not in PLAY, f"ยังเหลือ {ghost} ในหน้าเว็บ"
+    for ghost in ("jumpStart", "jumpStep", "function jump("):
+        assert ghost not in WALK_JS, f"ยังเหลือ {ghost} ใน walk.js"
+
+
+def test_one_bad_frame_cannot_kill_the_whole_game():
+    """error เฟรมเดียวเคยฆ่าลูปวาดทั้งอัน = ภาพค้าง กดอะไรไม่ได้ ปุ่มยอมแพ้ก็ตาย
+    ผู้เล่นเห็นเป็น "พังหมดทุกอย่าง" ทั้งที่ต้นเหตุคือบัคเล็ก ๆ จุดเดียว
     """
-    body = PLAY[PLAY.index("function wmSettleJump("):]
+    body = PLAY[PLAY.index("function wmStartLoop("):]
     body = body[:body.index(chr(10) + "}" + chr(10))]
-    assert "WM_ST.fighters[fi]" in body, "ยังใช้คนที่ถึงตาตอนนี้แทนคนที่กระโดด"
-
-    out, _ = _jump_flow()
-    t = out["turnFlipped"]
-    assert t["bot"] == t["botWas"], f"บอทโดนวาปจาก {t['botWas']} ไป {t['bot']}"
-    assert t["me"] == t["meLanded"], "คนกระโดดโดนย้ายหลังลงพื้นแล้ว"
+    assert "try {" in body and "catch (e)" in body, "ลูปวาดไม่มีตาข่ายรับ error"
+    assert "requestAnimationFrame(tick)" in body[body.index("catch (e)"):],         "จับ error ได้แล้วแต่ไม่ต่อเฟรมถัดไป = ค้างอยู่ดี"
+    assert "console.error" in body, "กลืน error เงียบ ๆ = ไล่บัคไม่ได้"

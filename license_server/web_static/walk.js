@@ -1,4 +1,9 @@
-// 🏃 กฎการเดิน — สำเนาฝั่งเบราว์เซอร์ของ bot/pvp/physics.py
+// 🏃 กฎการ "เดิน" ฝั่งเบราว์เซอร์ — สำเนาของส่วนเดินใน bot/pvp/physics.py
+//
+// ⚠️ มีแค่การเดินเท่านั้น การกระโดดเคยอยู่ที่นี่ด้วย (08-27) แล้วถอดออก —
+//    ฟิสิกส์ตรงกับเซิร์ฟเวอร์เป๊ะทุกเฟรม แต่ "สภาพการลอย" ที่ต้องถือไว้ฝั่งจอ
+//    กลายเป็นสถานะค้างได้หลายทาง พอค้างแล้วเกมล็อกทั้งเกม
+//    กระโดดจึงกลับไปรอเส้นทางจากเซิร์ฟเวอร์แล้วเล่นภาพ (ช้ากว่า แต่ไม่มีอะไรค้างได้)
 //
 // ⚠️ อ่านตรงนี้ก่อนแก้อะไรในไฟล์นี้
 //
@@ -87,88 +92,5 @@ const WALK = (() => {
     return { x: cx, y: cy, steps: used, drowned: drowned, fell: Math.max(0, cy - y) };
   }
 
-  /** 🦘 ตั้งต้นการกระโดด — คืน "สภาพการลอย" ที่เอาไปเดินทีละเฟรมได้
-
-      ⚠️ จงใจแยกเป็น start/step แทนที่จะคำนวณวิถีทั้งเส้นรวดเดียว
-         เจ้าของเกมสั่ง: "จุดลงพื้นไม่ควรถูกกำหนดไว้ล่วงหน้า ต้องคำนวณต่อเนื่อง
-         จากจุดที่อยู่ปัจจุบันแบบเรียลไทม์" — ตัวจึงลอยไปตามฟิสิกส์จริงทีละเฟรม
-         ไม่ใช่เล่นเทปวิถีที่คิดจบไปแล้ว
-   */
-  function jumpStart(r, x, y, dir, power, lean) {
-    power = Math.pow(Math.max(0, Math.min(1, power)), r.jump_curve);
-    return {
-      x: x, y: y,
-      vx: r.jump_vx * dir * (0.10 + 0.90 * power),
-      vy: r.jump_vy * (0.28 + 0.72 * power),
-      lean: Math.max(-1, Math.min(1, lean)),
-      top: y, frames: 0, done: false, landed: false, drowned: false, bump: null,
-    };
-  }
-
-  /** เดินการลอยไปหนึ่งเฟรม — คืน [x, y] ที่ต้องวาด หรือ null ถ้าจบแล้ว */
-  function jumpStep(map, r, f) {
-    if (f.done) return null;
-    if (++f.frames > 200) { f.done = true; return null; }   // กันลอยวนไม่จบ
-    f.vy += r.gravity;
-    f.vx = Math.max(-r.air_max, Math.min(r.air_max, f.vx + r.air_accel * f.lean));
-    let nx = f.x + f.vx;
-    const ny = f.y + f.vy;
-    let ix = Math.round(nx);
-    const iy = Math.round(ny);
-    if (!(ix >= 0 && ix < map.w)) {           // ชนขอบแผนที่ เด้งกลับเบา ๆ
-      f.vx = -f.vx * .4;
-      nx = f.x;
-      ix = Math.round(nx);
-    }
-    if (iy >= map.h - r.water) {              // ถึงผิวน้ำ — จมหายไป
-      f.x = ix; f.y = map.h - r.water;
-      f.done = true; f.drowned = true;
-      return [f.x, f.y];
-    }
-    if (!clear(map, r, ix, iy)) {             // หัวหรือตัวชน — หยุดพุ่ง แล้วร่วงลง
-      f.bump = [ix, iy];
-      f.done = true;
-      return null;
-    }
-    f.x = nx; f.y = ny;
-    f.top = Math.min(f.top, iy);
-    if (f.vy > 0 && standable(map, r, ix, iy)) {
-      f.x = ix; f.y = iy;
-      f.done = true; f.landed = true;
-      return [ix, iy];
-    }
-    return [ix, iy];
-  }
-
-  /** วิถีกระโดดทั้งเส้น — ใช้ตัวเดินทีละเฟรมข้างบนวนจนจบ ไม่ได้เขียนสูตรซ้ำ
-
-      เก็บไว้ให้เทสเทียบกับ physics.jump() ฝั่งเซิร์ฟเวอร์ได้ทั้งเส้น
-   */
-  function jump(map, r, x, y, dir, power, lean) {
-    const f = jumpStart(r, x, y, dir, power, lean);
-    const path = [];
-    let pt;
-    while ((pt = jumpStep(map, r, f)) !== null) {
-      path.push(pt);
-      if (f.done) break;
-    }
-    if (f.drowned) {
-      for (let gy = f.y + 1; gy < f.y + r.sink; gy++) path.push([f.x, gy]);
-      return { path: path, x: f.x, y: f.y, drowned: true, fell: 0, bump: null };
-    }
-    if (f.landed)
-      return { path: path, x: f.x, y: f.y, drowned: false,
-               fell: Math.max(0, f.y - f.top), bump: null };
-    // หัวชนหรือลอยครบเพดานเฟรม — ร่วงลงจากตรงนั้น
-    const s = settle(map, r, Math.round(f.x), Math.round(f.y));
-    for (let gy = Math.round(f.y) + 1; gy < s.y; gy++) path.push([s.x, gy]);
-    path.push([s.x, s.y]);
-    if (s.drowned)
-      for (let gy = s.y + 1; gy < s.y + r.sink; gy++) path.push([s.x, gy]);
-    return { path: path, x: s.x, y: s.y, drowned: s.drowned, bump: f.bump,
-             fell: Math.max(0, s.y - f.top) };
-  }
-
-  return { rules, standable, settle, step, walk, jump, jumpStart, jumpStep,
-           BLOCKED, MOVED, DROWNED };
+  return { rules, standable, settle, step, walk, BLOCKED, MOVED, DROWNED };
 })();
