@@ -356,3 +356,48 @@ def test_the_menu_tile_says_what_the_mode_actually_is():
     assert label.strip() == "สนามรบผลัดเทิร์น", f"ชื่อปุ่มคือ {label.strip()!r}"
     sub = tile[tile.index('<span class="sub">') + 18:]
     assert "ชวนเพื่อน" in sub, f"คำอธิบายไม่ได้บอกว่าชวนเพื่อนได้: {sub!r}"
+
+
+# ── ค้างในห้องแล้วซ้อมกับบอทไม่ได้ (เจ้าของเกมเจอ 08-28) ──
+
+def test_opening_a_room_does_not_block_practice(world):
+    """เปิดห้องทิ้งไว้แล้วกดซ้อมกับบอท ต้องได้เล่นจริง ไม่ใช่ค้างหน้าเริ่มเกม
+
+    บั๊กที่เจอ: เปิดห้องแล้วไม่ได้ปิด → match.load() เห็นว่ายังอยู่ในห้องที่ยัง
+    ไม่เริ่ม เลยคืน None ทิ้งแมตช์ซ้อมที่เพิ่งสร้างไปเฉย ๆ
+    view() จึงตอบ active=False → เว็บขึ้นหน้า "เริ่มเกม" ทับ กดอะไรก็ไม่ไป
+    """
+    rooms.create(HOST, "หัวห้อง", LOOK)
+    match.new_practice(HOST, LOOK, seed=7)
+    assert match.view(HOST)["active"] is True
+
+
+def test_practice_gives_you_a_bot_to_fight(world):
+    """ซ้อมกับบอทต้องมีบอทให้ตีจริง — ไม่ใช่ยืนคนเดียวในสนาม"""
+    rooms.create(HOST, "หัวห้อง", LOOK)
+    match.new_practice(HOST, LOOK, seed=7)
+    v = match.view(HOST)
+    assert sum(1 for f in v["fighters"] if f.get("bot")) >= 1
+
+
+def test_practice_leaves_the_room_behind(world):
+    """กดซ้อมกับบอท = ลุกจากห้องเดิม ไม่ค้างที่นั่งไว้ให้คนอื่นรอเก้อ"""
+    code = rooms.create(HOST, "หัวห้อง", LOOK)["room"]
+    match.new_practice(HOST, LOOK, seed=7)
+    assert rooms.room_of(HOST) is None
+    assert rooms.load(code) is None          # คนเดียวในห้อง = ห้องปิดไปด้วย
+
+
+def test_every_action_works_after_opening_a_room(world):
+    """กระโดด/ยอมแพ้/จบเทิร์น ต้องใช้ได้หลังเคยเปิดห้องทิ้งไว้
+
+    ทั้งสามเดินผ่าน match.load() ตัวเดียวกัน — พอ load() คืน None
+    ทุกปุ่มจึงตายพร้อมกันหมด ไม่ใช่บั๊กแยกกันสามตัว
+    """
+    rooms.create(HOST, "หัวห้อง", LOOK)
+    match.new_practice(HOST, LOOK, seed=7)
+    for act in (lambda: match.move(HOST, "jump", 1),
+                lambda: match.end_turn(HOST),
+                lambda: match.surrender(HOST)):
+        ok, r = act()
+        assert r.get("error") != "ยังไม่ได้เริ่มแมตช์", r

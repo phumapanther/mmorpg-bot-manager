@@ -98,6 +98,11 @@ def new_practice(uid, player_look, seed=0, continent=""):
     """🤖 เริ่มซ้อมกับบอท — คนจริง 1 บอท 1"""
     from bot.game_data import CONTINENTS
 
+    # กดซ้อมกับบอท = ลุกจากห้องที่นั่งค้างไว้ก่อน
+    # ⚠️ ไม่มีบรรทัดนี้ = load() เห็นว่ายังอยู่ห้องที่ยังไม่เริ่ม เลยคืน None
+    #    ทิ้งแมตช์ซ้อมที่เพิ่งสร้างไปเฉย → เว็บค้างหน้า "เริ่มเกม" กดอะไรก็ไม่ไป
+    rooms.leave(uid)
+
     rng = random.Random()
     seed = int(seed) or rng.randrange(1, 10 ** 14)
     if continent not in CONTINENTS:
