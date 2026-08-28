@@ -237,7 +237,19 @@ def _blocks(grid, x, y):
     return T.material(grid, x, y) not in PASSES
 
 
-def _first_solid(grid, x0, y0, x1, y1, sx, sy):
+def in_body(bodies, x, y):
+    """พิกเซลนี้อยู่ในตัวใครไหม — กล่องกว้าง CH_W สูง CH_H นับขึ้นจากเท้า
+
+    ⚠️ กระสุนต้องระเบิดตอนโดนตัว ไม่ใช่ทะลุผ่านไปแล้วค่อยไปตกที่พื้น
+       (เดิมเช็คแต่พื้น คนเลยไม่ใช่เป้าเลย ยิงตรงตัวก็ผ่านทะลุไป)
+    """
+    for bx, by in bodies:
+        if abs(x - bx) <= T.CH_W // 2 and by - T.CH_H <= y <= by:
+            return True
+    return False
+
+
+def _first_solid(grid, x0, y0, x1, y1, sx, sy, bodies=()):
     """พิกเซลตันตัวแรกที่อยู่ "ระหว่าง" สองจุดของเส้นวิถี — คืน None ถ้าโล่งตลอด
 
     ⚠️ จำเป็นจริง ๆ: กระสุนวิ่งได้ถึง 9 px ต่อเฟรม ถ้าเช็คแค่พิกเซลปลายก้าว
@@ -259,12 +271,12 @@ def _first_solid(grid, x0, y0, x1, y1, sx, sy):
             return None
         if (px - sx) ** 2 + (py - sy) ** 2 <= ARM_DIST ** 2:
             continue                       # ยังไม่พ้นตัวคนยิง ไม่งั้นระเบิดใส่ตัวเอง
-        if _blocks(grid, ix, iy):
+        if _blocks(grid, ix, iy) or in_body(bodies, ix, iy):
             return ix, iy
     return None
 
 
-def shoot(grid, x, y, angle_deg, power, muzzle=None, wind=0.0, glide=0):
+def shoot(grid, x, y, angle_deg, power, muzzle=None, wind=0.0, glide=0, bodies=()):
     """ยิงกระสุนแบบวิถีโค้ง — คืน {path, hit, x, y, out}
 
     เริ่มจากปากกระบอกที่เลื่อนออกจากตัวเล็กน้อย ไม่งั้นระเบิดใส่ตัวเองทุกนัด
@@ -290,7 +302,7 @@ def shoot(grid, x, y, angle_deg, power, muzzle=None, wind=0.0, glide=0):
         vx += float(wind)              # 🌬️ ลมเป่าทุกเฟรม ยิ่งลอยนาน ยิ่งเบนเยอะ
         nx, ny = px + vx, py + vy
         # เช็คทุกพิกเซลที่ก้าวนี้ผ่าน ไม่ใช่แค่ปลายก้าว (ดู _first_solid)
-        blocked = _first_solid(grid, px, py, nx, ny, sx, sy)
+        blocked = _first_solid(grid, px, py, nx, ny, sx, sy, bodies)
         if blocked:
             path.append([blocked[0], blocked[1]])
             return {"path": path, "hit": True, "x": blocked[0], "y": blocked[1],

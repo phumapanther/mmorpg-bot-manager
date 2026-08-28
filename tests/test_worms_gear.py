@@ -23,6 +23,7 @@ from license_server import web_db
 UID = 7801
 LOOK = {"race": "Human", "cls": "Mage", "armor": "None", "weapon": ""}
 PLAY = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+PLAY_MATCH = pathlib.Path("bot/pvp/match.py").read_text(encoding="utf-8")
 
 
 @pytest.fixture
@@ -256,3 +257,75 @@ def test_the_page_flies_every_bolt_of_a_volley():
     shot = shot[:shot.index("  // เส้นประค้างไว้อีกครู่")]
     assert "WM_SHOT.extra" in shot, "ลูกที่แยกออกไปไม่ได้ถูกวาด"
     assert "if (e.blast) wmLand(e.blast)" in shot, "ลูกที่แยกออกไปไม่ระเบิด"
+
+# ── 🎯 กระสุนต้องระเบิดตอนโดนตัว ไม่ใช่ทะลุผ่านไป ──
+
+def test_a_shell_blows_up_on_a_body_not_through_it():
+    """เจ้าของเกมทัก: ยิงแล้วผ่านตัวไปเลย
+
+    เดิม shoot() เช็คแต่พื้น คนไม่ใช่เป้าเลย ยิงตรงตัวก็ทะลุไปตกไกลกว่านั้น
+    แล้วค่อยหวังให้รัศมีระเบิดกินถึง — ยิงแม่นแค่ไหนก็ไม่ต่างจากยิงพลาด
+    """
+    g = _flat()
+    foe = [(300, 200)]
+    changed = 0
+    for ang in (5, 10, 15, 20, 25, 30, 35, 40, 45):
+        for pw in (40, 55, 70, 85, 100):
+            through = P.shoot(g, 150, 200, ang, pw)
+            onto = P.shoot(g, 150, 200, ang, pw, bodies=foe)
+            if (through["x"], through["y"]) != (onto["x"], onto["y"]):
+                changed += 1
+                assert abs(onto["x"] - 300) <= T.CH_W,                     f"ระเบิดที่ x={onto['x']} ทั้งที่คนอยู่ x=300"
+                assert onto["hit"], "ชนตัวแล้วไม่นับว่าโดน"
+    assert changed >= 5, f"มีแค่ {changed} นัดที่เปลี่ยนผล — วิถีไม่เคยผ่านตัวเลย"
+
+
+def test_the_hitbox_is_the_character_box():
+    """เล็กไปก็ยิงไม่โดน · ใหญ่ไปก็ระเบิดกลางอากาศห่างตัว"""
+    body = [(300, 200)]
+    assert P.in_body(body, 300, 190), "ยิงกลางตัวแล้วไม่โดน"
+    assert P.in_body(body, 300 + T.CH_W // 2, 195), "ขอบตัวยังต้องโดน"
+    assert not P.in_body(body, 300 + T.CH_W, 195), "ห่างเกินตัวแล้วยังโดน"
+    assert not P.in_body(body, 300, 200 - T.CH_H - 1), "เหนือหัวไปแล้วยังโดน"
+    assert not P.in_body(body, 300, 205), "ใต้เท้าไปแล้วยังโดน"
+
+
+def test_nothing_inside_the_arming_distance_can_set_the_shell_off():
+    """ระยะติดสลักต้องกันทั้งตัวเองและคนที่ยืนติดกัน
+
+    ไม่งั้นยืนชิดกันแล้วยิง = ระเบิดคาหน้าตัวเองทุกนัด
+    """
+    g = _flat()
+    close = [(150 + P.ARM_DIST // 2, 200)]      # ยืนอยู่ในระยะติดสลัก
+    r = P.shoot(g, 150, 200, 8, 70, bodies=close)
+    assert r["x"] - 150 > P.ARM_DIST,         f"ระเบิดที่ x={r['x']} ห่างตัวแค่ {r['x'] - 150} px (ระยะติดสลัก {P.ARM_DIST})"
+
+    far = [(150 + P.ARM_DIST + 40, 200)]        # พ้นระยะแล้วต้องโดน
+    r2 = P.shoot(g, 150, 200, 8, 70, bodies=far)
+    assert abs(r2["x"] - far[0][0]) <= T.CH_W, "พ้นระยะติดสลักแล้วยังทะลุตัวไป"
+
+
+def test_your_own_body_is_never_a_target(world):
+    """ส่งตัวเองไปเป็นเป้าด้วย = ยิงมุมสูง ๆ ลูกตกกลับมาระเบิดใส่หัวตัวเอง"""
+    st = _arena()
+    f = st["fighters"][0]
+    assert (f["x"], f["y"]) not in match._bodies(st, f), "ตัวเองอยู่ในรายการเป้าด้วย"
+    assert (st["fighters"][1]["x"], st["fighters"][1]["y"]) in match._bodies(st, f),         "คนอื่นไม่ได้อยู่ในรายการเป้า"
+
+
+def test_a_direct_hit_actually_takes_health(world):
+    """ไล่ผ่าน match.attack ของจริง — ยิงตรงตัวต้องเจ็บ"""
+    st = _arena()
+    st["fighters"][1].update(x=300, y=200, hp=100)
+    match.save(UID, st)
+    ok, r = match.attack(UID, "fire", angle=10, power=85)
+    assert ok, r.get("error")
+    assert r["fighters"][1]["hp"] < 100, "ยิงตรงตัวแล้วไม่เจ็บเลย"
+    assert abs(r["attack"]["blast"]["x"] - 300) <= T.CH_W, "ระเบิดไม่ได้เกิดตรงตัว"
+
+
+def test_the_bot_aims_at_bodies_too(world):
+    """บอทเล็งด้วยการลองยิงจริง — ไม่ส่งตัวคนไปด้วยก็เล็งเลยหัวไปตลอด"""
+    body = PLAY_MATCH[PLAY_MATCH.index("def _bot_attack("):]
+    body = body[:body.index(chr(10) + "def ")]
+    assert "_bodies(st, me)" in body, "บอทเล็งโดยไม่นับตัวคนเป็นเป้า"

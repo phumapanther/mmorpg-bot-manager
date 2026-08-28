@@ -549,6 +549,11 @@ def attack(uid, skill, angle=None, power=70, direction=None):
     return True, {"attack": r, "deaths": deaths} | (after if ok else view(uid))
 
 
+def _bodies(st, shooter):
+    """ตัวคนอื่นที่กระสุนชนได้ — ไม่รวมคนยิงเอง (ระยะติดสลักกันไว้อีกชั้นอยู่แล้ว)"""
+    return [(o["x"], o["y"]) for o in st["fighters"] if not o["dead"] and o is not shooter]
+
+
 def _use_skill(st, grid, f, key, angle, power):
     """ลงมือใช้สกิลหนึ่งอัน — คืนผลไว้ให้เบราว์เซอร์เล่นภาพ"""
     s = weapons.spec(key)
@@ -627,7 +632,8 @@ def _use_skill(st, grid, f, key, angle, power):
     # 🌬️ ลมเป่าเฉพาะลูกที่ลอยเป็นวิถีโค้ง — ลำแสงเป็นเส้นตรงทันที ลมไม่ทัน
     shot = (physics.beam(grid, f["x"], f["y"], aim) if s["kind"] == "beam"
             else physics.shoot(grid, f["x"], f["y"], aim, power,
-                               wind=st.get("wind", 0), glide=s.get("glide", 0)))
+                               wind=st.get("wind", 0), glide=s.get("glide", 0),
+                               bodies=_bodies(st, f)))
     out["path"] = shot["path"]
 
     if s["kind"] == "beam":
@@ -693,7 +699,8 @@ def _volley(st, grid, f, s, out, aim, power):
     for i in range(n):
         off = (i - (n - 1) / 2) * spread          # กระจายรอบมุมที่เล็ง
         shot = physics.shoot(grid, f["x"], f["y"], aim + off, power,
-                             wind=st.get("wind", 0), glide=s.get("glide", 0))
+                             wind=st.get("wind", 0), glide=s.get("glide", 0),
+                             bodies=_bodies(st, f))
         bolt = {"path": shot["path"], "hit": bool(shot["hit"])}
         if shot["hit"]:
             b = _explode(st, grid, shot["x"], shot["y"], s["radius"], s["dmg"],
@@ -888,7 +895,7 @@ def _bot_turn(st):
     return out
 
 
-def _bot_aim(grid, me, target, wind=0.0):
+def _bot_aim(grid, me, target, wind=0.0, bodies=()):
     """หามุมกับแรงที่ยิงแล้วตกใกล้เป้าที่สุด — ลองยิงจริงหลายชุดแล้วเลือกอันที่ดีที่สุด
 
     ใช้ฟิสิกส์ตัวเดียวกับผู้เล่น ไม่ได้คำนวณสูตรวิถีแยก บอทจึงพลาดได้เหมือนคนจริง
@@ -898,7 +905,7 @@ def _bot_aim(grid, me, target, wind=0.0):
     for ang in (25, 35, 45, 55, 65):
         for pw in (35, 50, 65, 80, 95):
             aim = ang if d > 0 else 180 - ang
-            r = physics.shoot(grid, me["x"], me["y"], aim, pw, wind=wind)
+            r = physics.shoot(grid, me["x"], me["y"], aim, pw, wind=wind, bodies=bodies)
             if not r["hit"]:
                 continue
             miss = abs(r["x"] - target["x"]) + abs(r["y"] - target["y"]) * .5
@@ -934,7 +941,7 @@ def _bot_attack(st, grid, me, target):
             pick, aim = max(melee, key=lambda k: weapons.spec(k)["dmg"]
                             * weapons.spec(k).get("times", 1)), None
         elif shots:
-            aim = _bot_aim(grid, me, target, st.get("wind", 0))
+            aim = _bot_aim(grid, me, target, st.get("wind", 0), _bodies(st, me))
             if not aim:
                 return None
             pick = max(shots, key=lambda k: weapons.spec(k)["dmg"])
