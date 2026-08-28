@@ -1,0 +1,363 @@
+<title>ศึกไพ่รูน</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --g-bg:#17110d; --g-stage:#1f1813; --g-panel:#2a211a; --g-hi:#362a20; --g-line:#453528;
+  --g-ink:#f2e7d8; --g-muted:#a99274; --g-gold:#e8b04b; --g-ok:#6fa860;
+  --g-r:18px; --g-num:'Bahnschrift','DIN Alternate','Segoe UI Semibold',system-ui,sans-serif;
+  --g-ease:cubic-bezier(.22,.9,.3,1);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--g-bg);color:var(--g-ink);
+     font:15px/1.6 system-ui,-apple-system,'Segoe UI',sans-serif;padding:20px}
+.wrap{max-width:1000px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1{font-size:20px;margin:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;text-wrap:balance}
+h1 .tag{font-family:var(--g-num);font-size:11px;color:var(--g-gold);
+        border:1px solid var(--g-line);border-radius:999px;padding:2px 10px;font-weight:400}
+.lead{margin:0;color:var(--g-muted);font-size:14px;max-width:65ch}
+.stage{background:var(--g-stage);border:1px solid var(--g-line);border-radius:var(--g-r);
+       overflow:hidden;position:relative}
+canvas{display:block;width:100%;height:auto;touch-action:manipulation}
+.hud{position:absolute;top:10px;left:12px;font-family:var(--g-num);font-size:12px;
+     color:var(--g-muted);background:rgba(23,17,13,.72);border:1px solid var(--g-line);
+     border-radius:999px;padding:3px 12px;font-variant-numeric:tabular-nums;
+     display:flex;gap:12px;pointer-events:none}
+.hud b{color:var(--g-ok);font-weight:500}
+.hud b.warn{color:var(--g-gold)}
+.pad{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px}
+button{background:var(--g-panel);color:var(--g-ink);border:1px solid var(--g-line);
+       border-radius:12px;min-height:48px;padding:8px 14px;cursor:pointer;
+       font:inherit;font-weight:600;display:flex;align-items:center;justify-content:center;
+       gap:8px;transition:background .16s var(--g-ease),transform .16s var(--g-ease)}
+button:hover{background:var(--g-hi)}
+button:active{transform:translateY(1px)}
+button:focus-visible{outline:2px solid var(--g-gold);outline-offset:2px}
+button .ic{font-size:17px}
+.note{color:var(--g-muted);font-size:13px;border-top:1px solid var(--g-line);
+      padding-top:14px;margin:0;max-width:65ch}
+.note b{color:var(--g-ink);font-weight:600}
+@media(prefers-reduced-motion:reduce){button{transition:none}}
+</style>
+
+<div class="wrap">
+  <h1>🎴 ศึกไพ่รูน <span class="tag">ม็อคอัพ · ยังไม่มีกฎ</span></h1>
+  <p class="lead">กดปุ่มดูอนิเมชันอย่างเดียว ยังไม่มีกติกา ไม่มีเดิมพัน ไม่มีผู้เล่นอื่น
+     ทำไว้ให้ตรวจว่าภาพลื่นพอไหมก่อนลงมือทำของจริง</p>
+
+  <div class="stage">
+    <canvas id="cv" width="900" height="500"></canvas>
+    <div class="hud"><span>FPS <b id="fps">–</b></span><span>เฟรมช้าสุด <b id="worst">–</b> ms</span><span id="act">พร้อม</span></div>
+  </div>
+
+  <div class="pad">
+    <button id="bShuffle"><span class="ic">🌀</span>สับไพ่</button>
+    <button id="bDeal"><span class="ic">🃏</span>แจกไพ่</button>
+    <button id="bFlip"><span class="ic">🔄</span>พลิกไพ่</button>
+    <button id="bPlay"><span class="ic">💥</span>วางไพ่ลงกอง</button>
+    <button id="bFx"><span class="ic">✨</span>ปล่อยพลังธาตุ</button>
+    <button id="bAll"><span class="ic">🎬</span>เล่นรวดเดียว</button>
+  </div>
+
+  <p class="note"><b>ลากเล่นได้:</b> จิ้มไพ่ในมือแล้วลากไปวางที่กองกลาง ปล่อยแล้วไพ่จะลงกอง ·
+     ลากไม่ถึงกองแล้วปล่อย ไพ่จะเด้งกลับเข้ามือเอง · ชี้ค้างที่ไพ่ใบไหนใบนั้นจะลอยขึ้น<br>
+     <b>ดูอะไร:</b> ไพ่ต้องไม่กระตุก ไม่วาป และหยุดตรงที่ควรหยุด ·
+     ตัวเลข <b>เฟรมช้าสุด</b> เกิน 32 ms เมื่อไหร่แปลว่าเริ่มสะดุดตาเห็น ·
+     ทุกอย่างเดินตามเวลาจริง จอ 60 Hz กับ 144 Hz ต้องเร็วเท่ากัน</p>
+</div>
+
+<script>
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+
+// นาฬิกากลาง: ยืมแนวคิดตัวสะสมเวลาคงที่จาก LittleJS (engine.js:222)
+// เหมือนที่ใช้ในสนามรบผลัดเทิร์นแล้ว จอเร็วจอช้าต้องได้ความเร็วเท่ากัน
+let DT = 1, LAST = 0, FPS_N = 0, FPS_T = 0, WORST = 0;
+function clock(now){
+  const gap = LAST ? now - LAST : 16.7;
+  LAST = now;
+  DT = Math.max(0.2, Math.min(3, gap * 60 / 1000));
+  FPS_N++; FPS_T += gap;
+  if (gap > WORST && FPS_N > 5) WORST = gap;
+  if (FPS_T >= 500){
+    document.getElementById('fps').textContent = Math.round(1000 / (FPS_T / FPS_N));
+    const w = document.getElementById('worst');
+    w.textContent = Math.round(WORST);
+    w.className = WORST > 32 ? 'warn' : '';
+    FPS_N = 0; FPS_T = 0;
+  }
+}
+
+// ธาตุทั้งห้า (ธีมต่างโลกที่เคาะไว้)
+const SUITS = {
+  ember:  {c:'#d4553a', d:'#8f3021', name:'เพลิง',   ico:'🔥'},
+  mana:   {c:'#4a86a8', d:'#2c5670', name:'มนตรา',   ico:'💧'},
+  sylvan: {c:'#5f9455', d:'#3a5f34', name:'พฤกษา',   ico:'🌿'},
+  sun:    {c:'#e8b04b', d:'#a2742a', name:'สุริยะ',   ico:'☀️'},
+  nether: {c:'#7c5aa6', d:'#4a3266', name:'นิรันดร์', ico:'🌑'}
+};
+const KEYS = Object.keys(SUITS);
+const CW = 76, CH = 108;
+const DECK = {x: 150, y: H/2};
+const PILE = {x: W/2 + 90, y: H/2};
+
+const ease = t => 1 - Math.pow(1 - t, 3);
+const easeIO = t => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2;
+
+let cards = [], bits = [], glow = null, shuffleT = 0;
+let hover = null, drag = null;          // ไพ่ที่ชี้อยู่ · ไพ่ที่กำลังลาก
+function setMsg(s){ document.getElementById('act').textContent = s; }
+
+function mkCard(i){
+  return {suit: KEYS[i % KEYS.length], num: (i*3 + 1) % 10,
+          x: DECK.x, y: DECK.y, rot: 0, face: 0, sc: 1,
+          jx: 0, jy: 0, anim: null, t: 0, dur: 0, from: null, to: null, dust: false};
+}
+function reset(){ cards = Array.from({length: 7}, (_, i) => mkCard(i)); bits = []; glow = null; }
+reset();
+
+function rr(x, y, w, h, r){
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+  else { ctx.moveTo(x+r, y); ctx.arcTo(x+w, y, x+w, y+h, r); ctx.arcTo(x+w, y+h, x, y+h, r);
+         ctx.arcTo(x, y+h, x, y, r); ctx.arcTo(x, y, x+w, y, r); ctx.closePath(); }
+}
+
+function drawCard(c){
+  const flat = Math.abs(Math.cos(c.face * Math.PI));
+  const showFace = Math.cos(c.face * Math.PI) <= 0;
+  ctx.save();
+  ctx.translate(c.x + c.jx, c.y + c.jy);
+  ctx.rotate(c.rot);
+  ctx.scale(Math.max(.02, flat) * c.sc, c.sc);
+
+  const s = SUITS[c.suit];
+  ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 6;
+  ctx.fillStyle = showFace ? '#f2e7d8' : '#2a211a';
+  rr(-CW/2, -CH/2, CW, CH, 9); ctx.fill();
+  ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+
+  if (showFace){
+    const g = ctx.createLinearGradient(0, -CH/2, 0, CH/2);
+    g.addColorStop(0, s.c); g.addColorStop(1, s.d);
+    ctx.fillStyle = g; rr(-CW/2 + 5, -CH/2 + 5, CW - 10, CH - 10, 6); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.94)';
+    ctx.font = '600 30px Bahnschrift, DIN Alternate, system-ui';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(c.num, 0, 2);
+    ctx.font = '15px system-ui';
+    ctx.fillText(s.ico, 0, CH/2 - 18);
+    ctx.textAlign = 'left';
+    ctx.fillText(s.ico, -CW/2 + 8, -CH/2 + 16);
+  } else {
+    ctx.strokeStyle = '#e8b04b'; ctx.lineWidth = 1.5;
+    rr(-CW/2 + 6, -CH/2 + 6, CW - 12, CH - 12, 6); ctx.stroke();
+    ctx.fillStyle = '#e8b04b'; ctx.globalAlpha = .82;
+    ctx.font = '26px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('\u{1F702}', 0, 0);
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+}
+
+function fanSpot(i, n){
+  const spread = Math.min(.17, 1.1 / n), a = (i - (n - 1)/2) * spread;
+  return {x: W/2 - 40 + Math.sin(a) * 250, y: H - 118 + (1 - Math.cos(a)) * 230, rot: a};
+}
+function go(c, to, dur, kind){
+  c.anim = kind || 'move'; c.t = 0; c.dur = dur; c.dust = false;
+  c.from = {x: c.x, y: c.y, rot: c.rot, face: c.face};
+  c.to = to;
+}
+function burst(x, y, col, n){
+  for (let i = 0; i < n; i++){
+    const a = Math.random() * Math.PI * 2, sp = 1.4 + Math.random() * 3.6;
+    bits.push({x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1,
+               life: 1, col, r: 1.6 + Math.random() * 2.6});
+  }
+}
+
+function deal(){
+  reset(); setMsg('แจกไพ่');
+  cards.forEach((c, i) => {
+    const f = fanSpot(i, cards.length);
+    setTimeout(() => go(c, {x: f.x, y: f.y, rot: f.rot, face: 0}, 26, 'arc'), i * 90);
+  });
+}
+function flip(){
+  setMsg('พลิกไพ่');
+  cards.forEach((c, i) => setTimeout(() => {
+    go(c, {x: c.x, y: c.y, rot: c.rot, face: c.face < .5 ? 1 : 0}, 22, 'flip');
+  }, i * 70));
+}
+function shuffle(){
+  setMsg('สับไพ่'); shuffleT = 46;
+  cards.forEach(c => { c.x = DECK.x; c.y = DECK.y; c.rot = 0; c.face = 0; c.anim = null; });
+}
+function playTop(){
+  const c = cards[cards.length - 1];
+  if (!c) return;
+  setMsg('วางไพ่ลงกอง');
+  go(c, {x: PILE.x, y: PILE.y, rot: (Math.random() - .5) * .34, face: 1, pile: true}, 24, 'slam');
+}
+function elemFx(){
+  const c = cards[cards.length - 1];
+  if (!c) return;
+  const s = SUITS[c.suit];
+  setMsg('พลังธาตุ' + s.name);
+  glow = {x: c.x, y: c.y, t: 0, col: s.c};
+  burst(c.x, c.y, s.c, 46);
+}
+function playAll(){
+  setMsg('เล่นรวดเดียว'); shuffle();
+  setTimeout(deal, 900); setTimeout(flip, 2100);
+  setTimeout(playTop, 3100); setTimeout(elemFx, 3900);
+}
+
+document.getElementById('bShuffle').onclick = shuffle;
+document.getElementById('bDeal').onclick    = deal;
+document.getElementById('bFlip').onclick    = flip;
+document.getElementById('bPlay').onclick    = playTop;
+document.getElementById('bFx').onclick      = elemFx;
+document.getElementById('bAll').onclick     = playAll;
+
+// ── ลากไพ่ ──
+// จุดบนจอ -> พิกัดในผืนผ้าใบ (ผืนผ้าใบมีสองขนาด: กล่องบนจอ กับ ขนาดภาพจริง)
+// สูตรเดียวกับที่ใช้เล็งในสนามรบผลัดเทิร์น (play.js wmBindAim)
+function at(e){
+  const r = cv.getBoundingClientRect(), t = e.touches ? e.touches[0] : e;
+  return {x: (t.clientX - r.left) * cv.width / r.width,
+          y: (t.clientY - r.top) * cv.height / r.height};
+}
+/** ไพ่ใบบนสุดที่จุดนี้ทับอยู่ — ไล่จากท้ายลิสต์เพราะใบท้ายวาดทับใบหน้า */
+function cardAt(p){
+  for (let i = cards.length - 1; i >= 0; i--){
+    const c = cards[i];
+    if (c.anim) continue;
+    const dx = p.x - c.x, dy = p.y - c.y;
+    const co = Math.cos(-c.rot), si = Math.sin(-c.rot);   // หมุนจุดกลับตามไพ่ที่เอียง
+    if (Math.abs(dx*co - dy*si) <= CW/2 && Math.abs(dx*si + dy*co) <= CH/2) return c;
+  }
+  return null;
+}
+const nearPile = c => Math.hypot(c.x - PILE.x, c.y - PILE.y) < 130;
+
+function onDown(e){
+  const p = at(e), c = cardAt(p);
+  if (!c) return;
+  drag = {c, ox: c.x - p.x, oy: c.y - p.y, home: {x: c.x, y: c.y, rot: c.rot}};
+  cards.push(cards.splice(cards.indexOf(c), 1)[0]);   // ยกมาไว้บนสุด
+  setMsg('กำลังลาก');
+  e.preventDefault();
+}
+function onMove(e){
+  const p = at(e);
+  if (!drag){ hover = cardAt(p); return; }
+  drag.c.x = p.x + drag.ox;
+  drag.c.y = p.y + drag.oy;
+  drag.c.rot += (0 - drag.c.rot) * .2;                 // ตั้งตรงขึ้นระหว่างลาก
+  e.preventDefault();
+}
+function onUp(){
+  if (!drag) return;
+  const c = drag.c;
+  if (nearPile(c)){
+    setMsg('วางไพ่ลงกอง');
+    go(c, {x: PILE.x, y: PILE.y, rot: (Math.random() - .5) * .34, face: 1, pile: true}, 14, 'slam');
+  } else {
+    setMsg('เด้งกลับเข้ามือ');
+    go(c, {x: drag.home.x, y: drag.home.y, rot: drag.home.rot, face: c.face}, 18, 'move');
+  }
+  drag = null;
+}
+cv.addEventListener('mousedown', onDown);
+cv.addEventListener('mousemove', onMove);
+addEventListener('mouseup', onUp);
+cv.addEventListener('touchstart', onDown, {passive:false});
+cv.addEventListener('touchmove', onMove, {passive:false});
+addEventListener('touchend', onUp);
+
+function frame(now){
+  clock(now);
+  ctx.fillStyle = '#1f1813'; ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  const tg = ctx.createRadialGradient(W/2, H/2, 30, W/2, H/2, 430);
+  tg.addColorStop(0, '#3c2f22'); tg.addColorStop(1, '#241b14');
+  ctx.fillStyle = tg;
+  ctx.beginPath(); ctx.ellipse(W/2, H/2, 400, 215, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#453528'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.restore();
+
+  // ที่วางกองจั่ว/กองทิ้ง — กองทิ้งสว่างขึ้นตอนลากไพ่เข้ามาใกล้พอจะวางได้
+  const armed = drag && nearPile(drag.c);
+  ctx.save(); ctx.setLineDash([5, 5]); ctx.lineWidth = 1.5;
+  [DECK, PILE].forEach(p => {
+    const hot = armed && p === PILE;
+    ctx.globalAlpha = hot ? .95 : .30;
+    ctx.strokeStyle = hot ? '#e8b04b' : '#a99274';
+    ctx.lineWidth = hot ? 2.5 : 1.5;
+    rr(p.x - CW/2 - (hot ? 5 : 0), p.y - CH/2 - (hot ? 5 : 0),
+       CW + (hot ? 10 : 0), CH + (hot ? 10 : 0), 9);
+    ctx.stroke();
+  });
+  ctx.restore();
+
+  // สับไพ่ สั่นสุ่มกลับไปกลับมา (แนวคิดจาก phaser-video-poker: yoyo กว้าง 5px)
+  if (shuffleT > 0){
+    shuffleT -= DT;
+    cards.forEach(c => { c.jx = (Math.random() - .5) * 11; c.jy = (Math.random() - .5) * 9; });
+    if (shuffleT <= 0) cards.forEach(c => { c.jx = c.jy = 0; });
+  }
+
+  cards.forEach(c => {
+    if (c.anim){
+      c.t = Math.min(c.dur, c.t + DT);
+      const k = c.t / c.dur, e = c.anim === 'flip' ? easeIO(k) : ease(k);
+      c.x = c.from.x + (c.to.x - c.from.x) * e;
+      c.y = c.from.y + (c.to.y - c.from.y) * e;
+      c.rot = c.from.rot + (c.to.rot - c.from.rot) * e;
+      c.face = c.from.face + (c.to.face - c.from.face) * e;
+      c.sc = 1;
+      if (c.anim === 'arc')  c.y -= Math.sin(k * Math.PI) * 62;
+      if (c.anim === 'slam') c.sc = 1 + Math.sin(k * Math.PI) * .17;
+      if (c.t >= c.dur){
+        if (c.to.pile && !c.dust){ c.dust = true; burst(PILE.x, PILE.y + 22, '#c8b48e', 18); }
+        c.anim = null; c.sc = 1;
+      }
+    }
+    // ชี้ค้าง = ลอยขึ้นนิดนึงให้รู้ว่าจิ้มโดน · ลากอยู่ = ยกสูงขึ้นอีก
+    const want = (drag && drag.c === c) ? 1 : (!drag && hover === c ? .45 : 0);
+    c.lift = (c.lift || 0) + (want - (c.lift || 0)) * Math.min(1, .22 * DT);
+    c.jy = (c.jy || 0) - c.lift * 20;
+    c.sc = (c.anim === 'slam' ? c.sc : 1) + c.lift * .08;
+    drawCard(c);
+    c.jy += c.lift * 20;                 // คืนค่าเดิม ไม่ให้สะสมข้ามเฟรม
+  });
+
+  if (glow){
+    glow.t += DT;
+    const k = glow.t / 40;
+    if (k >= 1) glow = null;
+    else {
+      ctx.save(); ctx.globalAlpha = (1 - k) * .55;
+      const rg = ctx.createRadialGradient(glow.x, glow.y, 4, glow.x, glow.y, 30 + k * 150);
+      rg.addColorStop(0, glow.col); rg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H); ctx.restore();
+    }
+  }
+
+  bits = bits.filter(b => {
+    b.x += b.vx * DT; b.y += b.vy * DT; b.vy += .13 * DT; b.life -= .022 * DT;
+    if (b.life <= 0) return false;
+    ctx.globalAlpha = Math.max(0, b.life);
+    ctx.fillStyle = b.col;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+    return true;
+  });
+
+  requestAnimationFrame(frame);
+}
+deal();
+requestAnimationFrame(frame);
+</script>
