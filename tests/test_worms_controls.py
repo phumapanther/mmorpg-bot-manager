@@ -551,7 +551,8 @@ def test_the_start_screen_is_painted_even_with_no_match():
     """wmPaintSkills ไปไม่ถึงตอนยังไม่มีแมตช์ ต้องวาดจาก wmApply โดยตรง"""
     body = PLAY[PLAY.index("function wmApply("):PLAY.index("function wmMe(")]
     at = body.index("wmPaintOver()")
-    assert at < body.index("if (!d.active)"), "วาดแผงหลังจากออกจากฟังก์ชันไปแล้ว"
+    # ต้องอยู่ "ใน" ขาที่ไม่มีแมตช์ และมาก่อนบรรทัดที่ออกจากฟังก์ชัน
+    assert at < body.index("cancelAnimationFrame(wmLoop)"),         "วาดแผงหลังจากออกจากฟังก์ชันไปแล้ว"
 
 
 # ── 12. โฟกัสคนที่ถึงตาให้ได้จริง ──
@@ -844,7 +845,7 @@ def test_busy_covers_every_kind_of_animation():
 def test_the_result_does_appear_once_nothing_is_animating():
     body = PLAY[PLAY.index("function wmTick("):]
     body = body[:body.index(chr(10) + "}")]
-    assert "WM_ST.over && !WM_OVER_SHOWN && !wmBusyFx()" in body,         "รอแล้วไม่มีใครมาเปิดแผงให้ — จบเกมแล้วจอค้างเปล่า ๆ"
+    assert "WM_ST.over && WM_OVER_SHOWN !== !wmBusyFx()" in body,         "รอแล้วไม่มีใครมาเปิดแผงให้ — จบเกมแล้วจอค้างเปล่า ๆ"
 
 
 def test_the_result_is_painted_once_not_every_frame():
@@ -1100,6 +1101,60 @@ def test_reconciled_position_is_not_overwritten_by_the_late_reveal():
     body = PLAY[PLAY.index("function wmReconcile("):]
     body = body[:body.index(chr(10) + "}" + chr(10))]
     assert "delete WM_HIDDEN[f.name]" in body,         "ทาบเสร็จแล้วยังค้างอยู่ในรายการที่รอเฉลย — เดี๋ยวโดนทับ"
+
+
+# ── 21.7 แผงสรุปผลห้ามโผล่ก่อนภาพตายจะเล่นจบ ──
+
+def _over_timing():
+    """ไล่ลำดับจริงด้วย wmPaintOver/wmBusyFx ตัวจริง แล้วดูว่าแผงโชว์/ซ่อนตอนไหน"""
+    import json
+    import shutil
+    import subprocess
+
+    if not shutil.which("node"):
+        pytest.skip("เครื่องนี้ไม่มี node")
+    r = subprocess.run(["node", "tests/over_timing.js"],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stderr
+    return json.loads(r.stdout.strip().splitlines()[-1])
+
+
+def test_the_result_panel_waits_for_the_death_animation():
+    """เจ้าของเกมเจอ: โดนดาเมจ/ตกน้ำแล้วสรุปผลแพ้ชนะโผล่ทันที
+    แล้วหายไป ก่อนภาพระเบิดร่างจะขึ้นด้วยซ้ำ
+    """
+    out = _over_timing()
+    assert out["duringDeath"] == [],         f"ระหว่างภาพตายยังเล่นอยู่ แผงมีการ {out['duringDeath']} — สปอยล์ผลก่อนเห็นตัวเองตาย"
+    assert out["afterDeath"] == ["โชว์"],         f"ภาพตายจบแล้วแผงควรโชว์ครั้งเดียว แต่ได้ {out['afterDeath']}"
+
+
+def test_only_the_draw_loop_may_show_the_result_panel():
+    """ต้นเหตุ: wmApply กับ wmPaintSkills วาดแผงตอนที่ภาพยังไม่ถูกต่อคิว
+
+    ตอนนั้น wmBusyFx() ยังว่าง แผงเลยโผล่ทันที แล้วโดนซ่อนตอนภาพเริ่มเล่น
+    """
+    body = PLAY[PLAY.index("function wmApply("):]
+    body = body[:body.index(chr(10) + "}" + chr(10))]
+    for line in body.splitlines():
+        if "wmPaintOver()" in line:
+            assert "ออกจากสนาม" in line,                 "wmApply ยังวาดแผงสรุปผลทั้งที่แมตช์ยังอยู่ — ภาพยังไม่ถูกต่อคิวเลย"
+
+    skills = PLAY[PLAY.index("function wmPaintSkills("):]
+    skills = skills[:skills.index(chr(10) + "}" + chr(10))]
+    assert "wmPaintOver()" not in skills,         "ตัววาด HUD ยังวาดแผงสรุปผลด้วย — ถูกเรียกทุกเฟรมตอนเดินและก่อนต่อคิวภาพ"
+
+    give = PLAY[PLAY.index("async function wmGiveUp("):]
+    give = give[:give.index(chr(10) + "}" + chr(10))]
+    assert "wmPaintOver()" not in give, "ยอมแพ้แล้ววาดแผงเอง — ระเบิดยังไม่ทันขึ้น"
+
+
+def test_a_late_explosion_hides_the_panel_again():
+    """ระเบิดลูกโซ่โผล่มาหลังแผงขึ้นแล้ว ต้องซ่อนแผงคืนแล้วค่อยโชว์ใหม่ตอนจบจริง"""
+    out = _over_timing()
+    assert out["seen"] == ["โชว์", "ซ่อน", "โชว์"],         f"ลำดับโชว์/ซ่อนไม่ถูก: {out['seen']}"
+    # ตัวจำลองด้านบนใช้ wmPaintOver ตัวจริง แต่ "เงื่อนไขที่เรียกมัน" อยู่ในลูปวาด
+    # จึงต้องปักไว้ด้วย ไม่งั้นแก้เงื่อนไขให้โชว์อย่างเดียวแล้วเทสยังเขียว
+    assert "WM_OVER_SHOWN !== !wmBusyFx()" in PLAY,         "ลูปวาดเช็คแค่ขาโชว์ ไม่ได้ซ่อนคืนตอนมีภาพโผล่มาทีหลัง"
 
 
 # ── 22. แผงสรุปผลต้องแสดงชื่อกับดาเมจจริง ──

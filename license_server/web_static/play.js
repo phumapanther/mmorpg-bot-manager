@@ -2026,8 +2026,14 @@ function wmApply(d) {
   }
   WM_ST = d;
   document.getElementById('v-worms').classList.toggle('wm-idle', !d.active);
-  wmPaintOver();
-  if (!d.active) { cancelAnimationFrame(wmLoop); wmLoop = 0; WM = WM_ST = null; return; }
+  // ⚠️ ห้ามวาดแผงสรุปผลตรงนี้ — ภาพของคำตอบนี้ยังไม่ถูกต่อคิวเลยสักอย่าง
+  //    (ตาบอท ร่างระเบิด วิถีกระสุน ถูกต่อคิวโดยผู้เรียกหลังจากบรรทัดนี้)
+  //    wmBusyFx() จึงยังว่าง แผงเลยโผล่ทันทีแล้วหายไปตอนภาพเริ่มเล่น
+  //    ผู้เล่นเห็นผลแพ้ชนะก่อนเห็นตัวเองตายด้วยซ้ำ — โชว์ได้ที่ wmTick ที่เดียว
+  if (!d.active) {
+    wmPaintOver();                     // ออกจากสนามแล้ว — เก็บแผงทิ้ง
+    cancelAnimationFrame(wmLoop); wmLoop = 0; WM = WM_ST = null; return;
+  }
 
   WM_TIME_LEFT = d.time_left || 0;
   WM_DEADLINE = performance.now() + WM_TIME_LEFT * 1000;
@@ -2238,7 +2244,9 @@ function wmTick() {
   if (WM_CAM) WM_CAM.locked = !!WM_AIM || wmWaiting() || !WM_CAM.arrived();
   wmSyncLock();
   // ภาพเล่นจบแล้วค่อยเฉลยว่าใครแพ้ใครชนะ (วาดครั้งเดียว ไม่ใช่ทุกเฟรม)
-  if (WM_ST.over && !WM_OVER_SHOWN && !wmBusyFx()) wmPaintOver();
+  // 🏁 แผงสรุปผลโชว์ได้จากที่นี่ที่เดียว — วาดใหม่เมื่อ "ที่โชว์อยู่" ไม่ตรงกับ "ควรโชว์ไหม"
+  //    (ครอบทั้งขาโชว์ตอนภาพจบ และขาซ่อนคืนตอนมีภาพโผล่มาทีหลัง เช่นระเบิดลูกโซ่)
+  if (WM_ST.over && WM_OVER_SHOWN !== !wmBusyFx()) wmPaintOver();
   if (WM_AIM) WM_AIM.pow = Math.min(100, 10 + (performance.now() - WM_AIM.t0) * 90 / WM_CHARGE_MS);
   const el = document.getElementById('wmClock');
   if (!el || !WM_ST || !WM_ST.active) return;
@@ -2533,7 +2541,6 @@ function wmPaintSkills() {
     b.onclick = () => wmPickSkill(b.dataset.skill));
   wmPaintItems(locked);
   wmShowAim();
-  wmPaintOver();
 }
 
 /** 🏺 อาร์ติแฟกต์ที่เก็บได้จากหีบ — ใช้ครั้งเดียวหมด */
@@ -3326,7 +3333,6 @@ async function wmGiveUp() {
     wmApply(d);
     SFX.play('lose');
     if (s.blast) wmLand(s.blast);                 // ระเบิดตรงจุดที่ยืน + เจาะพื้นจริง
-    wmPaintOver();                                // ระเบิดยังไม่จาง = แผงจะรอไปก่อนเอง
     WM_POPS.push({ x: s.x, y: s.y - 30, t: 0, buff: true, text: '🏳️ ยอมแพ้' });
   } catch (e) { if (!wmBackoff(e)) toast(e.message, true); }
 }
