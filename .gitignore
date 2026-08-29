@@ -15,3 +15,5 @@ license_server/web.db
 license_server/web_uploads/
 license_server/admin_secret.txt
 license_server/tools/
+
+license_server/admin_secret.txt
