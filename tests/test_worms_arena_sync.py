@@ -128,3 +128,72 @@ def test_the_bot_shots_no_longer_guess_the_timing():
         "ยังใช้ setTimeout เดาเวลาแทนที่จะรอภาพเล่นจบจริง"
     body = _fn("function wmPlayBotShots(")
     assert "wmStep(() => wmShowHit(a, true), wmFxIdle)" in body, "ยิงหลายนัดจะทับกันเอง ไม่ได้เข้าคิวทีละนัด"
+
+
+# ── 👥 เทิร์นของคนอื่นต้องมีภาพให้ดู (เจ้าของเกมเจอ 08-29) ──
+#
+# "เทิร์นของคนอื่น เวลาคนอื่นขยับหรือทำอะไร มันไม่เห็นการกระทำ
+#  และไม่มีอนิเมชั่นการกระทำด้วย"
+#
+# ต้นเหตุ: เกมมีทางเล่นภาพ 2 ทาง และไม่มีทางไหนครอบคลุมผู้เล่นคนอื่นเลย
+#   เราเดินเอง -> wmDo() ต่อคิวภาพเอง
+#   บอทเดิน   -> wmQueueBot(d) จากคำตอบตอนเราจบเทิร์น
+#   เพื่อนเดิน -> wmPeekTurn() -> fillWorms() -> wmApply() = ได้แค่พิกัดใหม่ ตัววาป
+# view() ไม่เคยส่งข้อมูลการเคลื่อนไหว และสถานะก็ไม่ได้เก็บไว้ด้วยซ้ำ
+
+
+def test_the_state_remembers_what_just_happened(world):
+    """เซิร์ฟเวอร์ต้องจำ "เทิร์นล่าสุดเกิดอะไร" ไม่ใช่จำแค่ว่าใครอยู่ตรงไหน"""
+    st = match.new_practice(UID, {}, seed=5)
+    before = st.get("turn_seq", 0)
+    match.move(UID, "walk", 1, steps=3)
+    st = match.load(UID)
+    assert st.get("last_turn"), "ไม่ได้เก็บว่าเทิร์นล่าสุดเกิดอะไร คนอื่นจึงไม่มีภาพให้ดู"
+    assert st["turn_seq"] > before, "ไม่มีเลขลำดับ เบราว์เซอร์แยกไม่ออกว่าอันไหนดูไปแล้ว"
+
+
+def test_other_players_get_the_movement_path(world):
+    """view() ต้องส่งเส้นทางเดินมาด้วย ไม่งั้นวาดได้แค่จุดปลายทาง = ตัววาป"""
+    match.new_practice(UID, {}, seed=5)
+    match.move(UID, "walk", 1, steps=3)
+    v = match.view(UID)
+    lt = v.get("last_turn") or {}
+    assert lt.get("moves"), "ไม่ส่งการเคลื่อนไหวมาเลย"
+    assert (lt["moves"][0].get("path") or []), "ส่งมาแต่ไม่มีเส้นทาง วาดเป็นอนิเมชันไม่ได้"
+
+
+def test_the_replay_number_lets_the_browser_skip_what_it_saw(world):
+    """เลขลำดับต้องนิ่งเมื่อไม่มีใครทำอะไร ไม่งั้นโพลทีก็เล่นภาพซ้ำที"""
+    match.new_practice(UID, {}, seed=5)
+    match.move(UID, "walk", 1, steps=3)
+    a = match.view(UID)["turn_seq"]
+    b = match.view(UID)["turn_seq"]
+    assert a == b, "ถามเฉย ๆ ไม่ได้ทำอะไร เลขไม่ควรขยับ"
+    # ...แต่พอมีคนทำอะไรจริง เลขต้องเดินหน้า
+    # เลขค้างที่เดิม = เบราว์เซอร์เล่นภาพแรกครั้งเดียวแล้วตาบอดตลอดกาล
+    match.move(UID, "walk", 1, steps=2)
+    assert match.view(UID)["turn_seq"] > b, "เดินอีกรอบแต่เลขไม่ขยับ — คนอื่นจะตาบอดตั้งแต่เทิร์นที่สอง"
+
+
+def test_the_browser_plays_what_it_has_not_seen_yet():
+    """ฝั่งเบราว์เซอร์ต้องเล่นภาพเทิร์นที่ยังไม่เคยดู แทนที่จะล้างคิวทิ้งอย่างเดียว"""
+    body = _fn("function wmApply(")
+    assert "wmQueueOther" in body, "wmApply ไม่เคยเรียกตัวเล่นภาพของคนอื่นเลย"
+    seen = _fn("function wmQueueOther(")
+    # เลขลำดับมาใน last_turn.seq — ต้องเทียบกับของที่ดูไปแล้วก่อนเล่น
+    assert "WM_SEEN_TURN" in seen, "ไม่ได้จำว่าดูถึงเทิร์นไหนแล้ว"
+    assert "seq <= WM_SEEN_TURN" in seen.replace("lt.", ""),         "ไม่ได้ข้ามเทิร์นที่ดูไปแล้ว จะเล่นซ้ำทุกครั้งที่โพล"
+    assert "WM_QUEUE.push" in seen, "ไม่ได้ต่อคิวภาพเดินของคนอื่น"
+
+
+def test_practice_never_plays_the_bot_twice():
+    """ซ้อมกับบอทมี wmQueueBot() เล่นภาพอยู่แล้ว
+
+    wmEndTurn เรียก wmApply(d) แล้วตามด้วย wmQueueBot(d)
+    ถ้า wmApply ต่อคิวให้ด้วย บอทจะเดินสองรอบกลางแมตช์
+    """
+    body = _fn("function wmApply(")
+    line = [l for l in body.split(chr(10)) if "wmQueueOther(d)" in l]
+    assert line, "wmApply ไม่เรียกตัวเล่นภาพของคนอื่น"
+    assert "d.room" in line[0],         "ไม่ได้จำกัดเฉพาะห้องหลายคน — ซ้อมกับบอทจะเห็นบอทเดินสองรอบ"
+    assert "wmSeenTurn" in _fn("function wmQueueBot("),         "wmQueueBot ไม่จดว่าเล่นไปแล้ว โพลรอบถัดไปจะเล่นซ้ำ"

@@ -275,6 +275,33 @@ def _open_chests(st, f):
     return got
 
 
+# ── 👥 จำไว้ว่า "เทิร์นล่าสุดเกิดอะไร" เพื่อให้คนอื่นในห้องมีภาพให้ดู ──
+#
+# เจ้าของเกมเจอ (08-29): "เทิร์นของคนอื่น เวลาคนอื่นขยับหรือทำอะไร
+# มันไม่เห็นการกระทำ และไม่มีอนิเมชั่นการกระทำด้วย"
+#
+# ต้นเหตุ: view() ส่งแค่ "ตอนนี้ใครอยู่ตรงไหน" ไม่เคยส่ง "เพิ่งเกิดอะไรขึ้น"
+# คนอื่นจึงได้แค่พิกัดใหม่ = ตัววาปไปโผล่ ไม่มีเดิน ไม่มียิง ไม่มีระเบิด
+#
+# ⚠️ เลขลำดับสำคัญพอ ๆ กับตัวข้อมูล: เบราว์เซอร์ถามซ้ำทุก ๆ ไม่กี่วินาที
+#    ถ้าไม่มีเลขกำกับ มันจะเล่นภาพเดิมซ้ำทุกครั้งที่ถาม
+
+
+def _record(st, moves=None, shots=None, **extra):
+    """เก็บภาพของเทิร์นนี้ไว้ให้คนอื่นในห้องมาดูย้อนหลัง
+
+    เก็บเฉพาะที่วาดเป็นภาพได้จริง (เส้นทางเดิน วิถีกระสุน) — ไม่ใช่สถานะทั้งก้อน
+    """
+    moves = [m for m in (moves or []) if (m or {}).get("path")]
+    shots = [a for a in (shots or []) if a]
+    if not moves and not shots and not any(extra.values()):
+        return                                   # ไม่มีอะไรให้ดู ก็ไม่ต้องขยับเลข
+    st["turn_seq"] = int(st.get("turn_seq", 0)) + 1
+    st["last_turn"] = {"seq": st["turn_seq"], "by": _fighter(st).get("name", ""),
+                       "moves": moves, "shots": shots,
+                       **{k: v for k, v in extra.items() if v}}
+
+
 def move(uid, action, direction=1, steps=1, jump_power=1.0, lean=0.0):
     """เดิน/กระโดด — คืน (ok, ผล) · ตำแหน่งใหม่ตัดสินที่นี่เท่านั้น"""
     st = load(uid)
@@ -336,6 +363,10 @@ def move(uid, action, direction=1, steps=1, jump_power=1.0, lean=0.0):
     #    ระเบิดใส่ตัวเอง หรือโดนลูกหลง ล้วนจบเทิร์นเหมือนกันหมด
     # แรงเดินหมด = จบเทิร์นให้เลย ไม่ต้องให้ผู้เล่นมากดเอง
     # (ใช้สกิลก็จบเทิร์นอยู่แล้ว เดินจนหมดแรงจึงเท่ากับเลือกทางเดินแทนทางยิง)
+    # 👥 เก็บภาพเดินของเราไว้ให้คนอื่นในห้องดู (ตัวเราเล่นภาพเองอยู่แล้ว)
+    _record(st, moves=[r], sprung=traps, opened=chests, ferry=ferry, deaths=deaths)
+    save(uid, st)
+
     if not st["over"] and (st["moves"] <= 0 or f["hp"] < hp_before):
         ok, after = end_turn(uid)
         if ok:
@@ -588,6 +619,8 @@ def attack(uid, skill, angle=None, power=70, direction=None):
 
     deaths = _death_blasts(st, grid)   # ตายจากหมัดนี้ก็ระเบิดต่อ (ลูกโซ่ได้)
     _check_over(st)
+    # 👥 เก็บวิถีกระสุนไว้ก่อน end_turn() — มันจะทับ last_turn ด้วยตาบอท
+    _record(st, shots=[r], deaths=deaths)
     save(uid, st)
     ok, after = end_turn(uid)        # ใช้สกิลแล้วจบเทิร์นทันที
     return True, {"attack": r, "deaths": deaths} | (after if ok else view(uid))
@@ -1037,6 +1070,8 @@ def end_turn(uid, auto=False):
     # 🎬 ตอบไปพร้อมภาพให้ดู (ตาบอท ของลงสนาม) = หยุดนาฬิกาไว้จนกว่าเขาจะสั่งอะไรมา
     if bot_moves or st.get("drops"):
         st["anim_sent_at"] = time.time()
+    # 👥 ตาบอทก็ต้องเก็บไว้ให้คนอื่นในห้องดู ไม่ใช่เห็นแค่คนที่กดจบเทิร์น
+    _record(st, moves=bot_moves, shots=[m["attack"] for m in bot_moves if m.get("attack")])
     save(uid, st)
     return True, {"bot_moves": bot_moves} | view(uid, st)
 
@@ -1242,6 +1277,8 @@ def view(uid, st=None):
                     if str(f.get("uid") or "") == str(uid)), 0),
         "my_turn": str(_fighter(st).get("uid") or "") == str(uid),
         "move_budget": MOVE_BUDGET, "over": st["over"], "winner": st.get("winner", ""),
+        # 👥 ภาพของเทิร์นล่าสุด — คนอื่นในห้องเอาไปเล่นต่อ ตัวเจ้าของเล่นเองไปแล้ว
+        "turn_seq": int(st.get("turn_seq", 0)), "last_turn": st.get("last_turn"),
         "time_left": time_left(st), "turn_seconds": TURN_SECONDS,
         "standings": standings(st),
         "drops": st.get("drops", []),

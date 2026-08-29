@@ -2048,6 +2048,12 @@ function wmApply(d) {
 
   WM_TIME_LEFT = d.time_left || 0;
   WM_DEADLINE = performance.now() + WM_TIME_LEFT * 1000;
+  // 👥 เทิร์นของคนอื่นที่ยังไม่เคยดู — ต่อคิวภาพให้ ไม่ใช่ปล่อยให้ตัววาปไปโผล่
+  //    วางไว้ "หลัง" ล้างคิวข้างบน ไม่งั้นภาพที่เพิ่งต่อโดนล้างทิ้งทันที
+  // ⚠️ เฉพาะห้องเล่นหลายคน — ซ้อมกับบอทมี wmQueueBot() เล่นภาพอยู่แล้ว
+  //    ใส่ทั้งสอง = บอทเดินสองรอบ (ทดสอบแล้วเกิดจริงตอนเล่นมาสักพัก)
+  if (d.room && !d.my_turn) wmQueueOther(d);
+  else wmSeenTurn(d);          // ตาเรา/ซ้อมบอท = มีคนเล่นภาพให้อยู่แล้ว แค่จดว่าดูแล้ว
   if (fresh) {
     WM = new WormsMap(d);
     WM.props = wmPropsNow(d.props); WM.repaint();
@@ -3525,7 +3531,51 @@ async function wmEndTurn(how) {
 
     ⚠️ ต้องย้อนบอทกลับไปจุดเริ่มก่อน ไม่งั้นมันโผล่ที่หมายทันทีแล้วค่อยเด้งกลับมาเดินซ้ำ
  */
+let WM_SEEN_TURN = 0;        // เลขเทิร์นล่าสุดที่เล่นภาพไปแล้ว (กันเล่นซ้ำตอนโพล)
+
+/** 👥 เล่นภาพเทิร์นของ "คนอื่น" ที่เรายังไม่เคยดู
+
+    เจ้าของเกมเจอ (08-29): เทิร์นของคนอื่นไม่มีอนิเมชันเลย ตัววาปไปโผล่เฉย ๆ
+    ต้นเหตุ: ทางที่เล่นภาพมีแค่ wmDo (ของเราเอง) กับ wmQueueBot (ตอนเราจบเทิร์น)
+    ทางโพล (wmPeekTurn → fillWorms → wmApply) ได้แค่พิกัดใหม่ ไม่มีใครต่อคิวภาพให้
+
+    ⚠️ ต้องเช็คเลขลำดับ: โพลถามซ้ำทุกไม่กี่วินาที ถ้าไม่เช็คจะเล่นภาพเดิมวนไม่จบ
+ */
+/** จำว่าเทิร์นนี้เล่นภาพไปแล้ว — กัน wmQueueOther มาเล่นซ้ำตอนโพลครั้งถัดไป */
+function wmSeenTurn(d) {
+  const q = d && d.last_turn && d.last_turn.seq;
+  if (q && q > WM_SEEN_TURN) WM_SEEN_TURN = q;
+}
+
+function wmQueueOther(d) {
+  const lt = d && d.last_turn;
+  if (!lt || !lt.seq) return;
+  if (lt.seq <= WM_SEEN_TURN) return;        // ดูไปแล้ว
+  const first = !WM_SEEN_TURN;
+  WM_SEEN_TURN = lt.seq;
+  if (first) return;      // เพิ่งเข้ามาดู ไม่ต้องย้อนของเก่าให้ดูทั้งหมด
+
+  const moves = (lt.moves || []).filter(m => (m.path || []).length);
+  moves.forEach(m => {
+    const fi = WM_ST.fighters.findIndex(f => f.name === lt.by);
+    if (fi < 0) return;
+    wmStep(() => {
+      // ย้อนตัวกลับจุดเริ่ม "ตอนขั้นนี้เริ่มจริง" แบบเดียวกับตาบอท
+      WM_ST.fighters[fi].x = m.path[0][0];
+      WM_ST.fighters[fi].y = m.path[0][1];
+      WM_QUEUE.push({ fi: fi, path: m.path, i: 0 });
+      if (!WM_ANIM) WM_ANIM = WM_QUEUE.shift();
+      wmFocus(WM_ST.fighters[fi], true);     // จับกล้องไปหาคนที่กำลังเล่น
+    }, wmFxIdle);
+  });
+  wmPlayBotShots(lt.shots || []);            // ยิงก็ใช้ตัวเดียวกับบอท
+  (lt.opened || []).forEach(o => wmStep(() => wmOpenChest(o), wmFxIdle));
+  if ((lt.deaths || []).length) wmPlayDeaths(lt.deaths, () => {});
+}
+
+
 function wmQueueBot(d) {
+  wmSeenTurn(d);               // เล่นภาพตาบอทตรงนี้แล้ว อย่าให้โพลมาเล่นซ้ำ
   const bi = WM_ST.fighters.findIndex(f => f.bot);
   const moves = (d.bot_moves || []).filter(m => (m.path || []).length);
   const shots = (d.bot_moves || []).filter(m => m.attack).map(m => m.attack);
