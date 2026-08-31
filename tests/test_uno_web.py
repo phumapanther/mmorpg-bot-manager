@@ -842,7 +842,7 @@ def test_playing_a_card_closes_your_turn_at_once():
 
 def test_the_turn_closes_before_waiting_for_the_server():
     i = JS.index("async function unoDo")
-    body = JS[i:i + 300]
+    body = JS[i:i + 800]
     assert body.index("UNO_SENT = true") < body.index("await api"), \
         "รอคำตอบก่อนค่อยปิดตา — ช่วงนั้นลงไพ่ซ้ำได้"
 
@@ -977,3 +977,55 @@ def test_locked_cards_do_not_glow():
     body = JS[i:JS.index("function unoHit", i)]
     assert "const glow = mine && can" in body, "แสงไม่ได้ผูกกับตัวเดียวกับการล็อก"
     assert "const mine = unoMyTurn()" in body
+
+
+# ── 🔄 วาดใหม่ทันทีที่ลงไพ่ + ฉลองก่อนบอทเล่น (เจ้าของเกมเจอ 08-29) ──
+
+def test_playing_a_card_repaints_at_once():
+    """เจ้าของเกมเจอ: ลงไพ่แล้วไพ่ยังเรืองแสง ยังไม่จัดไพ่ใหม่ และยังขึ้น "ตาคุณ"
+
+    ต้นเหตุ: ตั้งธง UNO_SENT แล้วแต่ไม่ได้วาดใหม่ หน้าจอจึงค้างสภาพเดิมทั้งหมด
+    """
+    i = JS.index("async function unoDo")
+    body = JS[i:i + 700]
+    assert "unoPaint();" in body, "ส่งคำสั่งแล้วไม่วาดใหม่ — แสงกับข้อความค้าง"
+    assert "unoLayout();" in body, "ไม่จัดไพ่ใหม่"
+    assert body.index("UNO_SENT = true") < body.index("unoPaint();"), \
+        "วาดก่อนตั้งธง — วาดออกมาเป็นสภาพเดิม"
+
+
+def test_the_status_line_follows_the_real_turn():
+    """ขึ้น 'ตาคุณ' ทั้งที่ลงไพ่ไปแล้ว = สับสนว่ายังลงได้อีก"""
+    i = JS.index("function unoPaint()")
+    body = JS[i:JS.index("function unoAskSuit", i)]
+    assert "unoMyTurn() ?" in body, "ข้อความยังอ่านจาก UNO.my_turn ดิบ ๆ"
+
+
+def test_the_hand_stays_hidden_while_dealing():
+    """เจ้าของเกมสั่ง: ตอนอนิเมชันแจกไพ่ยังไม่ต้องโชว์ไพ่ในมือ"""
+    i = JS.index("function unoLayout")
+    body = JS[i:JS.index("function unoHit", i)]
+    assert "if (UNO_DEALING) return;" in body, "แจกไพ่ยังไม่จบแต่ไพ่จริงโผล่มาแล้ว"
+
+
+def test_winning_celebrates_before_the_bots_finish():
+    """เจ้าของเกมเจอ: ลงไพ่ใบสุดท้ายแล้วไม่ขึ้นว่าได้ที่เท่าไหร่
+
+    เดิมเล่นภาพบอทก่อน กว่าจะถึง unoApply (ที่จุดอนิเมชัน) ก็ผ่านไปหลายวินาที
+    """
+    i = JS.index("async function unoDo")
+    body = JS[i:JS.index("// 🏁 อนิเมชันตอนมีคนเข้าเส้นชัย", i)]
+    assert "my_place" in body, "ไม่ได้ดูว่าเราเพิ่งเข้าเส้นชัยไหม"
+    assert "if (iWon) {" in body, "เงื่อนไขไม่ได้อ่านค่าจริง — ปิดตายไว้ก็ไม่มีใครรู้"
+    assert "unoWaitFanfare()" in body, "ไม่ได้รอให้ดูอนิเมชันจบ"
+    j = body.index("const iWon")
+    tail = body[j:]
+    assert tail.index("unoApply") < tail.index("unoPlayBotMoves"), \
+        "ยังเล่นภาพบอทก่อนแล้วค่อยฉลอง"
+
+
+def test_the_celebration_wait_has_a_ceiling():
+    i = JS.index("async function unoWaitFanfare")
+    body = JS[i:i + 300]
+    loop = body[body.index("while"):body.index(chr(10), body.index("while"))]
+    assert "Date.now()" in loop, "วนรอไม่มีเพดาน — อนิเมชันค้างแล้วเกมค้างตาม"

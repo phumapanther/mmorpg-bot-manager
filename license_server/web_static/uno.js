@@ -184,7 +184,9 @@ function unoLayout() {
     UNO_CARDS.push({ card: UNO.top, x: t.x, y: t.y, rot: 0,
                      face: 1, sc: 1, pile: true });
   }
-  // ไพ่ในมือเรา
+  // ไพ่ในมือเรา — ระหว่างแจกไพ่ยังไม่โชว์ (เจ้าของเกมสั่ง 08-29)
+  //    ไม่งั้นไพ่จริงโผล่มาก่อนไพ่ที่กำลังแจกจะบินไปถึงมือเสียอีก
+  if (UNO_DEALING) return;
   hand.forEach((card, i) => {
     const f = unoFan(i, hand.length, W, H);
     const pool = keep[`${card.suit}:${card.value}`];
@@ -494,6 +496,12 @@ const unoWait = ms => new Promise(r => setTimeout(r, ms));
 
     มีเพดานกันค้าง — อนิเมชันพังกลางคันต้องไม่ทำให้เกมค้างถาวร
  */
+/** รอจนอนิเมชันแสดงความยินดีเล่นจบ */
+async function unoWaitFanfare(maxMs = 4000) {
+  const until = Date.now() + maxMs;
+  while (UNO_FANFARE && Date.now() < until) await unoWait(50);
+}
+
 async function unoWaitFx(maxMs = 2500) {
   const until = Date.now() + maxMs;
   while (unoBusyFx() && Date.now() < until) await unoWait(30);
@@ -569,6 +577,11 @@ async function unoDealAnim() {
 
 async function unoDo(action, extra) {
   UNO_SENT = true;             // ปิดตาทันที — กดซ้ำระหว่างรอคำตอบไม่ได้
+  // ⚠️ ตั้งธงเฉย ๆ ไม่พอ — ต้องวาดใหม่ด้วย
+  //    ไม่งั้นไพ่ยังเรืองอยู่ ยังไม่จัดไพ่ใหม่ และข้อความยังขึ้น "ตาคุณ"
+  //    (เจ้าของเกมเจอ 08-29)
+  unoLayout();
+  unoPaint();
   try {
     const d = await api('POST', '/api/web/uno', { action, ...(extra || {}) });
     const bots = d.bot_moves || [];
@@ -586,6 +599,17 @@ async function unoDo(action, extra) {
     if (action === 'start') {
       unoApply(d.table);
       await unoDealAnim();               // 🃏 แจกไพ่จากกองให้ทุกคนดูก่อน
+      if (bots.length) await unoPlayBotMoves(bots);
+      unoApply(d.table);
+      return d;
+    }
+    // 🏁 เราเพิ่งเข้าเส้นชัย — ฉลองให้เห็นก่อน อย่าเพิ่งไปตอนบอทเล่นจบ
+    //    เจ้าของเกมเจอ 08-29: "ลงไพ่ใบสุดท้ายแล้วไม่ขึ้นว่าได้ที่เท่าไหร่"
+    //    เดิมเล่นภาพบอทก่อน กว่าจะถึง unoApply ก็ผ่านไปหลายวินาที
+    const iWon = (d.table && d.table.my_place) || 0;
+    if (iWon) {
+      unoApply(d.table);                 // ตั้งสถานะ -> unoCheckFanfare จุดฉลองทันที
+      await unoWaitFanfare();            // ดูจนจบก่อน
       if (bots.length) await unoPlayBotMoves(bots);
       unoApply(d.table);
       return d;
@@ -773,8 +797,9 @@ function unoPaint() {
       ? `🏁 จบเกม — ${unoPlaceText()}`
       : mine ? `🏅 คุณเข้าเส้นชัยอันดับ ${mine} — นั่งดูจนจบเกม`
       : UNO.must_answer ? `⚠️ โดน ${UNO.stack} ใบจ่ออยู่ — วางต่อ หรือกดกองไพ่เพื่อยอมจั่ว`
-      : UNO.my_turn ? (unoMustDraw() ? '📥 ไม่มีไพ่ลงได้ — กดกองไพ่เพื่อจั่ว'
+      : unoMyTurn() ? (unoMustDraw() ? '📥 ไม่มีไพ่ลงได้ — กดกองไพ่เพื่อจั่ว'
                         : 'ตาคุณ — ลากไพ่ไปวางที่กองกลาง')
+      : UNO_DEALING ? '🃏 กำลังแจกไพ่...'
       : 'รอคู่แข่ง...';
   }
   const playing = UNO.my_turn && !over && !mine;      // ทิ้งไพ่หมดแล้วกดอะไรไม่ได้อีก
