@@ -239,7 +239,20 @@ function unoMyTurn() {
   if (UNO_THINK) return false;              // บอทกำลังคิด/ลงไพ่อยู่
   if (UNO_SENT) return false;               // สั่งไปแล้ว รอผลอยู่
   if (UNO_DEALING) return false;            // กำลังแจกไพ่
+  if (unoBusyFx()) return false;            // ไพ่ยังบินอยู่ รอให้สุดก่อน
   return true;
+}
+
+/** ยังมีภาพค้างอยู่ไหม — นับจากอนิเมชันจริง ไม่ใช่การเดาเวลา
+
+    ⚠️ เดิมใช้ setTimeout เดาเอาว่าภาพน่าจะจบแล้ว — วัดจริงแล้วไม่ตรง:
+       ไพ่บินเข้ากอง 22 เฟรม = ~367 ms แต่โค้ดรอแค่ 220 ms
+       เหลือช่องว่าง ~147 ms ที่ไพ่ยังลอยอยู่แต่เป็นตาเราแล้ว
+       (เจ้าของเกมสั่ง 08-29: "ถ้าอนิเมชั่นของแต่ละคนยังไม่จบ ยังไม่ถึงเทิร์นเรา")
+       ดูของจริงแทน — ไม่ต้องมาไล่ปรับตัวเลขเวลาให้ตรงกันทุกครั้ง
+ */
+function unoBusyFx() {
+  return UNO_CARDS.some(c => c.anim && c.flying);
 }
 
 /** ตอนนี้ทำอะไรไม่ได้นอกจากจั่วไหม — ใช้ตัดสินว่าจะเรืองขอบกองจั่วไหม */
@@ -477,14 +490,26 @@ let UNO_DEALING = false;       // กำลังแจกไพ่อยู่ 
 let UNO_THINK = null;          // {seat, t} บอทที่กำลังคิดอยู่
 const unoWait = ms => new Promise(r => setTimeout(r, ms));
 
+/** รอจนไพ่ที่กำลังบินลงจนหมด — ไม่เดาเวลา
+
+    มีเพดานกันค้าง — อนิเมชันพังกลางคันต้องไม่ทำให้เกมค้างถาวร
+ */
+async function unoWaitFx(maxMs = 2500) {
+  const until = Date.now() + maxMs;
+  while (unoBusyFx() && Date.now() < until) await unoWait(30);
+}
+
 /** เล่นภาพตาบอททีละคน — คิดก่อน แล้วไพ่บินเข้ากอง */
 async function unoPlayBotMoves(moves) {
   for (const m of (moves || [])) {
     UNO_THINK = { seat: m.seat, t: 0 };
     await unoWait(UNO_THINK_MS);
     UNO_THINK = null;
-    if (m.card) unoFlyToPile(m.seat, m.card);
-    await unoWait(220);                 // เว้นจังหวะให้ไพ่บินจบก่อนคนถัดไปคิด
+    if (m.card) {
+      unoFlyToPile(m.seat, m.card);
+      await unoWaitFx();                // รอจนไพ่ลงกองจริง ก่อนคนถัดไปคิด
+    }
+    await unoWait(140);                 // เว้นจังหวะสั้น ๆ ให้ตาตามกันไม่ติดกัน
   }
 }
 
@@ -535,7 +560,7 @@ async function unoDealAnim() {
     SFX.play('click');
     await unoWait(UNO_DEAL_MS);
   }
-  await unoWait(260);                 // รอใบสุดท้ายบินถึงก่อนเฉลยไพ่จริง
+  await unoWaitFx();                  // รอใบสุดท้ายบินถึงจริง ก่อนเฉลยไพ่จริง
   UNO_CARDS = UNO_CARDS.filter(c => c.card);   // เก็บไพ่หลอกทิ้ง
   UNO_DEALING = false;
   unoLayout();
@@ -551,7 +576,8 @@ async function unoDo(action, extra) {
     //    เจ้าของเกมสั่ง 08-29: "ถ้ามีดีเลย์ตอนจั่วก็ให้เป็นเทิร์นของคนๆนั้นไปก่อน"
     if ((action === 'draw' || action === 'take') && bots.length) {
       unoApply(d.table);                   // ไพ่ขึ้นมือ + บินออกจากกอง
-      await unoWait(UNO_DRAW_MS);          // รอให้ดูทันก่อน
+      await unoWaitFx();                   // รอไพ่บินเข้ามือจนจบจริง
+      await unoWait(UNO_DRAW_MS);          // แล้วค้างให้ดูอีกหน่อย
       await unoPlayBotMoves(bots);
       unoApply(d.table);                   // เซ็ตสถานะสุดท้ายอีกที
       return d;

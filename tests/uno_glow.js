@@ -3,7 +3,8 @@ const fs = require('fs');
 const src = fs.readFileSync('license_server/web_static/uno.js', 'utf8');
 
 // ยก unoMyTurn มาด้วย — ตัวตัดสินว่าถึงตาเราหรือยัง
-const mtSrc = src.slice(src.indexOf('function unoMyTurn'), src.indexOf('function unoMustDraw'));
+const busyPre = src.slice(src.indexOf('function unoBusyFx'), src.indexOf('/** ตอนนี้ทำอะไรไม่ได้'));
+const mtSrc = busyPre + src.slice(src.indexOf('function unoMyTurn'), src.indexOf('function unoMustDraw'));
 
 const i = src.indexOf('  hand.forEach((card, i) => {');
 const body = src.slice(i, src.indexOf('  });', i));
@@ -12,8 +13,8 @@ const picked = body.split('\n').filter(l =>
   l.includes('const dim') || l.includes('const glow')).join('\n');
 
 const decide = (UNO, idx, THINK) =>
-  new Function('UNO', 'i', 'UNO_THINK', 'UNO_SENT', 'UNO_DEALING',
-    mtSrc + '\n' + picked + '\n return { can, dim, glow };')(UNO, idx, THINK || null, false, false);
+  new Function('UNO', 'i', 'UNO_THINK', 'UNO_SENT', 'UNO_DEALING', 'UNO_CARDS',
+    mtSrc + '\n' + picked + '\n return { can, dim, glow };')(UNO, idx, THINK || null, false, false, []);
 
 let fail = 0;
 const check = (label, got, want) => {

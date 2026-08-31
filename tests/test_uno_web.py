@@ -895,3 +895,59 @@ def test_the_dealt_cards_are_cleared_afterwards():
     i = JS.index("async function unoDealAnim")
     body = JS[i:JS.index("async function unoDo", i)]
     assert "UNO_CARDS.filter" in body, "ไพ่ที่ใช้แจกไม่ถูกเก็บทิ้ง"
+
+
+# ── 🎬 ยังไม่ถึงตาเราจนกว่าภาพจะเล่นจบ (เจ้าของเกมสั่ง 08-29) ──
+
+def test_the_turn_waits_for_the_animation_to_finish():
+    """เจ้าของเกมสั่ง: อนิเมชันของแต่ละคนยังไม่จบ ยังไม่ถึงเทิร์นเรา
+
+    ⚠️ เดิมใช้ setTimeout เดาว่าภาพน่าจะจบแล้ว — วัดจริงแล้วไม่ตรง:
+       ไพ่บินเข้ากอง 22 เฟรม = ~367 ms แต่โค้ดรอแค่ 220 ms
+       เหลือช่องว่าง ~147 ms ที่ไพ่ยังลอยอยู่แต่เป็นตาเราแล้ว
+    """
+    i = JS.index("function unoMyTurn")
+    body = JS[i:JS.index("function unoBusyFx", i)]
+    assert "unoBusyFx()" in body, "ไม่ได้ดูว่าไพ่ยังบินอยู่ไหม"
+
+
+def test_the_busy_check_looks_at_real_animations():
+    i = JS.index("function unoBusyFx")
+    body = JS[i:JS.index("function unoMustDraw", i)]
+    assert "UNO_CARDS.some" in body and "c.anim" in body, "ไม่ได้นับจากอนิเมชันจริง"
+    assert "c.flying" in body, "นับไพ่ในมือที่ขยับด้วย จะค้างตลอด"
+
+
+def test_waiting_follows_the_animation_not_a_timer():
+    """รอด้วยตัวเลขคงที่ = เดาผิดเมื่อไหร่ก็หลุดเมื่อนั้น"""
+    assert "async function unoWaitFx" in JS
+    i = JS.index("async function unoWaitFx")
+    body = JS[i:i + 400]
+    assert "unoBusyFx()" in body, "ไม่ได้รอภาพจริง"
+    # เพดานต้องอยู่ในเงื่อนไขของ while จริง — มีแค่ตัวแปรไม่พอ
+    loop = body[body.index("while"):body.index(chr(10), body.index("while"))]
+    assert "Date.now()" in loop,         "วนรอไม่มีเพดาน — อนิเมชันค้างเมื่อไหร่เกมค้างถาวร"
+
+
+def test_the_bot_move_waits_for_its_card_to_land():
+    i = JS.index("async function unoPlayBotMoves")
+    body = JS[i:JS.index("/** 🃏 ไพ่บินจาก", i)]
+    assert "unoWaitFx()" in body, "บอทลงไพ่แล้วไม่รอให้บินถึงกอง"
+
+
+def test_dealing_waits_for_the_last_card():
+    i = JS.index("async function unoDealAnim")
+    body = JS[i:JS.index("async function unoDo", i)]
+    assert "unoWaitFx()" in body, "แจกไพ่ยังไม่ถึงมือก็เริ่มเกมแล้ว"
+
+
+def test_the_animation_gate_actually_works():
+    """รันตรรกะจริง — เช็คข้อความจับ 'ช่องว่างระหว่างภาพยังเล่น' ไม่ได้"""
+    import shutil
+    import subprocess
+
+    if not shutil.which("node"):
+        pytest.skip("เครื่องนี้ไม่มี node")
+    r = subprocess.run(["node", "tests/uno_anim.js"],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stdout + r.stderr
