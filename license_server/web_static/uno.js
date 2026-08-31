@@ -15,6 +15,11 @@ const UNO_COLOR = {
   light: { c: '#e8b04b', d: '#a2742a', ico: '☀️' },
 };
 const UNO_FACE = { skip: '🛡️', reverse: '🌀', draw2: '⚔️', wild: '🔮', wild4: '🌑' };
+// เหรียญอันดับ — ต้องอยู่บนสุดกับค่าคงที่ตัวอื่น
+// ⚠️ const ใช้ก่อนบรรทัดที่ประกาศไม่ได้ (temporal dead zone)
+//    เคยอยู่กลางไฟล์ แต่โค้ดวาดที่นั่งเรียกก่อน → ReferenceError ทุกเฟรม
+//    ลูปวาดตายคาที่ หน้าจอจึงค้างหมด (เจ้าของเกมเจอ 08-29)
+const UNO_TROPHY = { 1: '🏆', 2: '🥈', 3: '🥉' };
 
 /** จุดกลางของสองกอง — กองจั่วซ้าย กองทิ้งขวา เหมือนโต๊ะจริง */
 function unoPilePos(cv) {
@@ -423,7 +428,21 @@ function unoFrame(now) {
 
   unoDrawSuitCards(ctx, W, H);   // ทับโต๊ะ แต่อยู่ใต้แผงประกาศอันดับ
   unoDrawFanfare(ctx, W, H);     // ทับทุกอย่าง — เป็นประกาศชั้นบนสุด
-  UNO_LOOP = requestAnimationFrame(unoFrame);
+  UNO_LOOP = requestAnimationFrame(unoSafeFrame);
+}
+
+/** กันเฟรมเดียวที่พังไม่ให้ลากทั้งเกมค้าง
+
+    บทเรียนจากสนามรบผลัดเทิร์น: error เฟรมเดียวหยุด requestAnimationFrame
+    ทั้งจอค้างโดยไม่มีอะไรบอกเลย หาสาเหตุยากมาก
+ */
+function unoSafeFrame(now) {
+  try {
+    unoFrame(now);
+  } catch (e) {
+    console.error('[ศึกไพ่รูน] เฟรมนี้พัง — เล่นต่อเฟรมหน้า', e);
+    UNO_LOOP = requestAnimationFrame(unoSafeFrame);
+  }
 }
 
 // 🤔 เล่นตาบอททีละคน พร้อมหน่วงเวลา "กำลังคิด"
@@ -471,7 +490,6 @@ async function unoDo(action, extra) {
 
 // 🏁 อนิเมชันตอนมีคนเข้าเส้นชัย — อลังตามอันดับตามที่เจ้าของเกมสั่ง
 //    ที่ 1 อลังสุด · ที่ 2-3 มีแต่ไม่เด่นเท่า · ที่เหลือไม่มี
-const UNO_TROPHY = { 1: '🏆', 2: '🥈', 3: '🥉' };
 const UNO_PLACE_MS = { 1: 190, 2: 120, 3: 100 };     // ค้างนานแค่ไหน (เฟรมมาตรฐาน)
 let UNO_FANFARE = null;     // {name, place, t, dur} กำลังฉลองอยู่
 let UNO_SEEN_PLACE = 0;     // ฉลองอันดับไหนไปแล้ว (กันฉลองซ้ำตอนโหลดสถานะซ้ำ)
@@ -558,7 +576,7 @@ function unoApply(table, drew) {
   if (gained > 0 && before) unoFlyDraw(gained);
   unoCheckFanfare();
   unoPaint();
-  if (!UNO_LOOP) UNO_LOOP = requestAnimationFrame(unoFrame);
+  if (!UNO_LOOP) UNO_LOOP = requestAnimationFrame(unoSafeFrame);
 }
 
 /** สรุปอันดับทั้งโต๊ะตอนจบเกม */
@@ -785,7 +803,9 @@ unoPaintSeats();
 
 document.getElementById('unoStart')?.addEventListener('click', async () => {
   SFX.play('click'); unoBind();
-  UNO_SEEN_PLACE = 0; UNO_FANFARE = null;    // โต๊ะใหม่ เริ่มนับอันดับใหม่
+  UNO_SEEN_PLACE = 0; UNO_FANFARE = null; UNO_SUIT_CARDS = [];   // โต๊ะใหม่ เริ่มนับอันดับใหม่
+  const overBox = document.getElementById('unoOver');
+  if (overBox) overBox.hidden = true;
   await unoDo('start', { bots: UNO_BOTS });
 });
 document.getElementById('unoPass')?.addEventListener('click', () => {
@@ -794,10 +814,17 @@ document.getElementById('unoPass')?.addEventListener('click', () => {
 document.getElementById('unoAgain')?.addEventListener('click', async () => {
   SFX.play('click');
   UNO_SEEN_PLACE = 0; UNO_FANFARE = null; UNO_SUIT_CARDS = [];
+  // ⚠️ ซ่อนแผงทันที ไม่รอคำตอบจากเซิร์ฟเวอร์
+  //    เน็ตช้าหรือคำขอพลาด แผงก็ต้องหาย ไม่งั้นผู้เล่นติดค้างกดอะไรก็ไม่ได้
+  //    (เจ้าของเกมเจอ 08-29: กดเล่นอีกรอบแล้วหน้าไม่หาย)
+  const box = document.getElementById('unoOver');
+  if (box) box.hidden = true;
   await unoDo('start', { bots: UNO_BOTS });
 });
 document.getElementById('unoLeave')?.addEventListener('click', async () => {
   SFX.play('click');
+  const box = document.getElementById('unoOver');
+  if (box) box.hidden = true;
   await unoDo('quit');
   showPanel('home');
 });

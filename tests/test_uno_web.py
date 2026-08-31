@@ -648,3 +648,49 @@ def test_numbered_bots_are_still_recognised_as_bots():
     assert uno_bot.is_bot("🤖 บอท")
     assert uno_bot.is_bot("🤖 บอท 3"), "บอทที่มีเลขต่อท้ายไม่ถูกนับเป็นบอท"
     assert not uno_bot.is_bot("คุณ")
+
+
+# ── 🐞 ตารางอันดับค้างไม่หาย (เจ้าของเกมเจอ 08-29) ──
+
+def test_the_page_boots_and_draws_without_crashing():
+    """โหลด uno.js จริงแล้ววาดเฟรม — จับ error ที่เทสอ่านข้อความมองไม่เห็น
+
+    รวมถึงลำดับจบเกม -> เปิดโต๊ะใหม่ -> ตารางอันดับต้องหาย
+    """
+    import shutil
+    import subprocess
+
+    if not shutil.which("node"):
+        pytest.skip("เครื่องนี้ไม่มี node")
+    r = subprocess.run(["node", "tests/uno_boot.js"],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_the_buttons_hide_the_panel_immediately():
+    """ไม่รอคำตอบเซิร์ฟเวอร์ — เน็ตช้าหรือคำขอพลาด แผงก็ต้องหาย
+
+    ไม่งั้นผู้เล่นติดค้างกดอะไรก็ไม่ได้ (อาการที่เจ้าของเกมเจอ)
+    """
+    for btn in ("unoAgain", "unoLeave"):
+        i = JS.index(f"getElementById('{btn}')")
+        body = JS[i:i + 500]
+        assert "box.hidden = true" in body, f"ปุ่ม {btn} ไม่ได้ซ่อนแผงทันที"
+        assert body.index("box.hidden = true") < body.index("await unoDo"), \
+            f"ปุ่ม {btn} รอเซิร์ฟเวอร์ก่อนค่อยซ่อน"
+
+
+def test_opening_a_table_also_clears_the_panel():
+    i = JS.index("getElementById('unoStart')")
+    body = JS[i:i + 500]
+    assert "overBox.hidden = true" in body, "กดเปิดโต๊ะแล้วแผงไม่หาย"
+
+
+def test_one_broken_frame_does_not_freeze_the_game():
+    """บทเรียนจากสนามรบผลัดเทิร์น: error เฟรมเดียวหยุด rAF ทั้งจอค้าง"""
+    assert "unoSafeFrame" in JS
+    i = JS.index("function unoSafeFrame")
+    body = JS[i:i + 400]
+    assert "catch" in body and "requestAnimationFrame" in body, \
+        "เฟรมพังแล้วไม่ได้เล่นต่อเฟรมหน้า"
+    assert "console.error" in body, "พังแล้วเงียบ หาสาเหตุไม่ได้"
