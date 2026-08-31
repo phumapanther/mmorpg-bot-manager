@@ -12,8 +12,8 @@ const picked = body.split('\n').filter(l =>
   l.includes('const dim') || l.includes('const glow')).join('\n');
 
 const decide = (UNO, idx, THINK) =>
-  new Function('UNO', 'i', 'UNO_THINK',
-    mtSrc + '\n' + picked + '\n return { can, dim, glow };')(UNO, idx, THINK || null);
+  new Function('UNO', 'i', 'UNO_THINK', 'UNO_SENT', 'UNO_DEALING',
+    mtSrc + '\n' + picked + '\n return { can, dim, glow };')(UNO, idx, THINK || null, false, false);
 
 let fail = 0;
 const check = (label, got, want) => {

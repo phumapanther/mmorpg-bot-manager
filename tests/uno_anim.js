@@ -66,7 +66,8 @@ check('ลากลงล่างสุด = ไม่ลง', nearPile({x:450,
 // unoMustDraw เรียก unoMyTurn ต่อ — ยกมาทั้งคู่
 const mdSrc = src.slice(src.indexOf('function unoMyTurn'), src.indexOf('function unoOnDeck'));
 const mustDraw = (UNO, UNO_THINK) =>
-  new Function('UNO', 'UNO_THINK', mdSrc + '\n return unoMustDraw();')(UNO, UNO_THINK || null);
+  new Function('UNO', 'UNO_THINK', 'UNO_SENT', 'UNO_DEALING',
+    mdSrc + '\n return unoMustDraw();')(UNO, UNO_THINK || null, false, false);
 console.log('กองจั่วเรือง:');
 check('ไม่มีไพ่ลงได้', mustDraw({playing:1,my_turn:1,playable:[],winner:null}), true);
 check('โดนสแตคแล้วสแตคต่อไม่ได้', mustDraw({playing:1,my_turn:1,playable:[],must_answer:1,stack:2,winner:null}), true);
@@ -76,8 +77,9 @@ check('ตาคนอื่น = ไม่เรือง', mustDraw({playing:1
 
 
 // ── 6. ตาใครลงไพ่ได้ ──
-const mtSrc = src.slice(src.indexOf('function unoMyTurn'), src.indexOf('/** ตอนนี้ทำอะไรไม่ได้'));
-const myTurn = (UNO, THINK) => new Function('UNO', 'UNO_THINK', mtSrc + '\n return unoMyTurn();')(UNO, THINK);
+const mtSrc = src.slice(src.indexOf('function unoMyTurn'), src.indexOf('function unoMustDraw'));
+const myTurn = (UNO, THINK) =>
+  new Function('UNO', 'UNO_THINK', 'UNO_SENT', 'UNO_DEALING', mtSrc + '\n return unoMyTurn();')(UNO, THINK, false, false);
 console.log('ตาใครลงไพ่ได้:');
 check('ตาเรา ปกติ', myTurn({playing:1,my_turn:1}, null), true);
 check('ตาคนอื่น', myTurn({playing:1,my_turn:0}, null), false);
@@ -85,4 +87,15 @@ check('บอทกำลังคิด (สถานะยังเก่า)'
 check('เกมจบแล้ว', myTurn({playing:1,my_turn:1,over:true}, null), false);
 check('เราออกไปแล้ว', myTurn({playing:1,my_turn:1,my_place:2}, null), false);
 check('ยังไม่มีโต๊ะ', myTurn(null, null), false);
+
+
+// ── 7. ลงไพ่แล้วต้องจบตาทันที ──
+const mt2 = src.slice(src.indexOf('function unoMyTurn'), src.indexOf('function unoMustDraw'));
+const turnWith = (UNO, THINK, SENT) =>
+  new Function('UNO','UNO_THINK','UNO_SENT', 'UNO_DEALING', mt2 + '\n return unoMyTurn();')(UNO, THINK||null, !!SENT, false);
+console.log('ลงไพ่แล้วจบตาทันที:');
+const t = {playing:1, my_turn:1};
+check('ก่อนลง = ลงได้', turnWith(t, null, false), true);
+check('สั่งไปแล้วรอผล = ลงไม่ได้', turnWith(t, null, true), false);
+check('บอทกำลังเล่น = ลงไม่ได้', turnWith(t, {seat:1}, false), false);
 process.exit(fail ? 1 : 0);

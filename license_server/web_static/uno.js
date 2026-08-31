@@ -35,6 +35,10 @@ let UNO_DRAG = null, UNO_HOVER = null;
 let UNO_PICK = null;         // ไพ่ที่รอเลือกสี (ไวลด์)
 let UNO_PULSE = 0;           // จังหวะเต้นของขอบเรืองแสง
 let UNO_SUIT_CARDS = [];     // ไพ่ธาตุ 4 ใบที่ลอยขึ้นให้เลือก
+// 🛑 สั่งอะไรไปแล้ว = จบตาเราทันที ไม่รอคำตอบจากเซิร์ฟเวอร์
+//    เจ้าของเกมเจอ 08-29: ลงไพ่แล้วยังลงไพ่ต่อได้อีก
+//    เพราะระหว่างรอคำตอบ (~หลักร้อย ms) UNO.my_turn ยังเป็น true อยู่
+let UNO_SENT = false;        // สั่งไปแล้วรอผลอยู่
 
 const unoEase = t => 1 - Math.pow(1 - t, 3);
 const unoEaseIO = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -233,6 +237,8 @@ function unoMyTurn() {
   if (!UNO || !UNO.playing || !UNO.my_turn) return false;
   if (UNO.over || UNO.my_place) return false;
   if (UNO_THINK) return false;              // บอทกำลังคิด/ลงไพ่อยู่
+  if (UNO_SENT) return false;               // สั่งไปแล้ว รอผลอยู่
+  if (UNO_DEALING) return false;            // กำลังแจกไพ่
   return true;
 }
 
@@ -465,7 +471,9 @@ function unoSafeFrame(now) {
 //    เซิร์ฟเวอร์เดินให้จบในคำขอเดียวแล้ว ที่นี่แค่เล่นภาพย้อนหลังให้ดูทัน
 //    ไม่งั้นบอท 3 ตัวเล่นรวดเดียวจบ ผู้เล่นไม่ทันเห็นว่าเกิดอะไรขึ้น
 const UNO_THINK_MS = 620;      // หน่วงต่อตาบอทหนึ่งคน
-const UNO_DRAW_MS = 420;       // รอให้ไพ่ที่จั่วบินเข้ามือจนเห็น ก่อนปล่อยเป็นตาบอท
+const UNO_DRAW_MS = 420;
+const UNO_DEAL_MS = 85;        // ห่างกันกี่ ms ต่อการแจกหนึ่งใบ
+let UNO_DEALING = false;       // กำลังแจกไพ่อยู่ — กดอะไรไม่ได้       // รอให้ไพ่ที่จั่วบินเข้ามือจนเห็น ก่อนปล่อยเป็นตาบอท
 let UNO_THINK = null;          // {seat, t} บอทที่กำลังคิดอยู่
 const unoWait = ms => new Promise(r => setTimeout(r, ms));
 
@@ -495,7 +503,47 @@ function unoFlyToPile(seat, card) {
   SFX.play('click');
 }
 
+/** 🃏 อนิเมชันแจกไพ่ตอนเปิดโต๊ะ — บินออกจากกองไปทีละคน วนรอบโต๊ะ
+
+    เจ้าของเกมสั่ง 08-29: "เริ่มเปิดโต๊ะก็ให้มีอนิเมชั่นแจกไพ่ให้ทุกคน
+    จากเด็กที่อยู่บนโต๊ะ"
+    แจกทีละรอบเหมือนโต๊ะจริง — คนละใบ วนไปเรื่อย ๆ จนครบ 7 ใบ
+ */
+async function unoDealAnim() {
+  const cv = document.getElementById('unoCanvas');
+  if (!cv || !UNO || !UNO.playing) return;
+  const d = unoPilePos(cv).deck;
+  const seats = unoSeats(cv);
+  const hand = UNO.hand || [];
+  const spots = [];
+  // เราอยู่ล่างสุด — เอาตำแหน่งกลางแถวไพ่เป็นจุดหมาย
+  const meSpot = unoFan(Math.floor(hand.length / 2), Math.max(1, hand.length),
+                        cv.width, cv.height);
+  for (let round = 0; round < Math.min(hand.length, 7); round++) {
+    spots.push({ x: meSpot.x, y: meSpot.y, me: true });
+    seats.forEach(s => spots.push({ x: s.x, y: s.y - 44, me: false }));
+  }
+
+  UNO_DEALING = true;
+  for (const spot of spots) {
+    UNO_CARDS.push({
+      card: null, x: d.x, y: d.y, rot: 0, face: 0, sc: .8, flying: true,
+      anim: 'arc', t: 0, dur: 13,
+      from: { x: d.x, y: d.y, rot: 0, face: 0 },
+      to: { x: spot.x, y: spot.y, rot: (Math.random() - .5) * .4, face: 0 },
+    });
+    SFX.play('click');
+    await unoWait(UNO_DEAL_MS);
+  }
+  await unoWait(260);                 // รอใบสุดท้ายบินถึงก่อนเฉลยไพ่จริง
+  UNO_CARDS = UNO_CARDS.filter(c => c.card);   // เก็บไพ่หลอกทิ้ง
+  UNO_DEALING = false;
+  unoLayout();
+  unoPaint();
+}
+
 async function unoDo(action, extra) {
+  UNO_SENT = true;             // ปิดตาทันที — กดซ้ำระหว่างรอคำตอบไม่ได้
   try {
     const d = await api('POST', '/api/web/uno', { action, ...(extra || {}) });
     const bots = d.bot_moves || [];
@@ -509,10 +557,21 @@ async function unoDo(action, extra) {
       return d;
     }
     // เล่นภาพตาบอทก่อน แล้วค่อยเฉลยสถานะใหม่ — ไม่งั้นผลมาก่อนภาพ
+    if (action === 'start') {
+      unoApply(d.table);
+      await unoDealAnim();               // 🃏 แจกไพ่จากกองให้ทุกคนดูก่อน
+      if (bots.length) await unoPlayBotMoves(bots);
+      unoApply(d.table);
+      return d;
+    }
     if (bots.length) await unoPlayBotMoves(bots);
     unoApply(d.table);
     return d;
-  } catch (e) { toast(e.message, true); return null; }
+  } catch (e) {
+    UNO_SENT = false;          // คำขอพลาด = คืนตาให้ ไม่งั้นค้างกดอะไรไม่ได้เลย
+    toast(e.message, true);
+    return null;
+  }
 }
 
 // 🏁 อนิเมชันตอนมีคนเข้าเส้นชัย — อลังตามอันดับตามที่เจ้าของเกมสั่ง
@@ -605,6 +664,7 @@ function unoFlyDraw(count) {
 function unoApply(table, drew) {
   const before = ((UNO || {}).hand || []).length;
   UNO = table || { playing: false };
+  UNO_SENT = false;            // สถานะใหม่มาแล้ว เชื่อคำตอบจากเซิร์ฟเวอร์แทน
   unoLayout();
   // ไพ่ในมือเพิ่มขึ้น = เพิ่งจั่วมา ให้มันบินออกจากกองจริง ๆ
   const gained = ((UNO || {}).hand || []).length - before;
@@ -833,6 +893,7 @@ function unoBind() {
     unoBurst(t.x, t.y + 22, '#c8b48e', 16);
     const card = c.card;
     if (card && (card.value === 'wild' || card.value === 'wild4')) {
+      UNO_SENT = true;                         // กำลังเลือกสี = ลงใบอื่นซ้อนไม่ได้
       unoAskSuit(c.slot);                      // ไวลด์ต้องเลือกสีก่อน
       return;
     }

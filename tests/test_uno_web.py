@@ -825,3 +825,73 @@ def test_the_turn_rules_actually_work():
     r = subprocess.run(["node", "tests/uno_anim.js"],
                        capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+# ── 🛑 ลงไพ่แล้วจบตาทันที + 🃏 อนิเมชันแจกไพ่ (เจ้าของเกมสั่ง 08-29) ──
+
+def test_playing_a_card_closes_your_turn_at_once():
+    """เจ้าของเกมเจอ: ลงไพ่แล้วยังลงต่อได้อีก
+
+    unoMyTurn() เช็ค UNO_THINK อย่างเดียวไม่พอ — ระหว่างรอคำตอบ (~หลักร้อย ms)
+    UNO.my_turn ยังเป็น true อยู่ ต้องปิดตาทันทีที่ "ส่งคำสั่งไป"
+    """
+    i = JS.index("function unoMyTurn")
+    body = JS[i:JS.index("function unoMustDraw", i)]
+    assert "UNO_SENT" in body, "ส่งคำสั่งไปแล้วยังนับเป็นตาเรา ลงไพ่ซ้ำได้"
+
+
+def test_the_turn_closes_before_waiting_for_the_server():
+    i = JS.index("async function unoDo")
+    body = JS[i:i + 300]
+    assert body.index("UNO_SENT = true") < body.index("await api"), \
+        "รอคำตอบก่อนค่อยปิดตา — ช่วงนั้นลงไพ่ซ้ำได้"
+
+
+def test_a_failed_request_gives_the_turn_back():
+    """เน็ตพลาดแล้วไม่คืนตา = ค้างกดอะไรไม่ได้เลย"""
+    i = JS.index("async function unoDo")
+    body = JS[i:JS.index("// 🏁 อนิเมชันตอนมีคนเข้าเส้นชัย", i)]
+    assert "catch" in body and "UNO_SENT = false" in body[body.index("catch"):]
+
+
+def test_a_wild_locks_the_turn_while_choosing_a_colour():
+    """รอเลือกสีอยู่ = ลงไพ่ใบอื่นซ้อนไม่ได้"""
+    i = JS.index("const up = async ()")
+    body = JS[i:JS.index("cv.addEventListener('mousedown'", i)]
+    j = body.index("unoAskSuit")
+    assert "UNO_SENT = true" in body[:j], "วางไวลด์แล้วยังลงไพ่อื่นซ้อนได้"
+
+
+def test_the_turn_reopens_when_new_state_arrives():
+    i = JS.index("function unoApply")
+    body = JS[i:i + 400]
+    assert "UNO_SENT = false" in body, "สถานะใหม่มาแล้วยังกดอะไรไม่ได้"
+
+
+def test_opening_a_table_deals_cards_from_the_deck():
+    """เจ้าของเกมสั่ง: เปิดโต๊ะแล้วมีอนิเมชันแจกไพ่จากเด็คบนโต๊ะ"""
+    assert "unoDealAnim" in JS
+    i = JS.index("async function unoDealAnim")
+    body = JS[i:JS.index("async function unoDo", i)]
+    assert "unoPilePos" in body, "ไพ่ไม่ได้ออกมาจากกองบนโต๊ะ"
+    assert "unoSeats" in body, "แจกให้แต่ที่นั่งไม่ครบ"
+    assert "UNO_DEAL_MS" in body, "แจกรวดเดียว ไม่เห็นว่าแจกทีละใบ"
+
+
+def test_dealing_happens_when_a_table_starts():
+    i = JS.index("async function unoDo")
+    body = JS[i:JS.index("// 🏁 อนิเมชันตอนมีคนเข้าเส้นชัย", i)]
+    assert "action === 'start'" in body and "unoDealAnim()" in body
+
+
+def test_you_cannot_touch_anything_while_dealing():
+    i = JS.index("function unoMyTurn")
+    body = JS[i:JS.index("function unoMustDraw", i)]
+    assert "UNO_DEALING" in body, "กำลังแจกไพ่อยู่แต่กดลงไพ่ได้"
+
+
+def test_the_dealt_cards_are_cleared_afterwards():
+    """ไม่เก็บกวาด = ไพ่หลอกค้างบนจอทับไพ่จริง"""
+    i = JS.index("async function unoDealAnim")
+    body = JS[i:JS.index("async function unoDo", i)]
+    assert "UNO_CARDS.filter" in body, "ไพ่ที่ใช้แจกไม่ถูกเก็บทิ้ง"
