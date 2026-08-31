@@ -120,6 +120,8 @@
           <span class="ic">🎲</span>ไฮโล<span class="sub">สูง-ต่ำ-สิบเอ็ด</span></button>
         <button class="g-tile" data-go="bj">
           <span class="ic">🃏</span>แบล็คแจ็ค 24<span class="sub">ดวลกับ AI เจ้ามือ</span></button>
+        <button class="g-tile" data-go="uno">
+          <span class="ic">🎴</span>ศึกไพ่รูน<span class="sub">ทิ้งไพ่ให้หมดมือก่อนชนะ</span></button>
       </div></div>
 
       <div class="g-sec"><h3>คู่มือ · สมุดสะสม</h3><div class="g-grid">
@@ -496,6 +498,28 @@
       เพราะต้องแท็กอีกฝ่ายให้กดตกลง — หน้านี้ดูสถานะกับโบนัสได้</p>
     </div>
 
+    <!-- ══ ศึกไพ่รูน ══ -->
+    <div class="g-panelview" id="v-uno">
+      <button class="g-back" data-back>← กลับเมนูหลัก</button>
+      <div class="g-head"><h2>🎴 ศึกไพ่รูน</h2>
+        <p>ทิ้งไพ่ในมือให้หมดก่อนชนะ · วางทับได้เมื่อสีตรงหรือเลขตรง ·
+        เหลือใบเดียวอย่าลืมกด UNO</p></div>
+      <div class="g-card">
+        <div class="uno-stage"><canvas id="unoCanvas" width="900" height="500"></canvas>
+          <div class="uno-hud" id="unoHud"></div></div>
+        <div class="casino-result" id="unoMsg">กดเปิดโต๊ะเพื่อเริ่มเล่น</div>
+        <div class="uno-suits" id="unoSuits" hidden></div>
+        <div class="bet-row">
+          <button class="g-tile hot casino-go" id="unoStart"><span class="ic">🎴</span>เปิดโต๊ะ</button>
+          <button class="g-tile casino-go" id="unoDraw"><span class="ic">📥</span>จั่วไพ่</button>
+          <button class="g-tile casino-go" id="unoTake" hidden><span class="ic">😥</span>ยอมจั่ว</button>
+          <button class="g-tile casino-go" id="unoPass" hidden><span class="ic">⏭️</span>ผ่าน</button>
+          <button class="g-tile hot casino-go" id="unoSayUno" hidden><span class="ic">🔔</span>UNO!</button>
+        </div>
+        <div class="uno-log" id="unoLog"></div>
+      </div>
+    </div>
+
     <!-- ══ แบล็กแจ็ค 24 ══ -->
     <div class="g-panelview" id="v-bj">
       <button class="g-back" data-back>← กลับเมนูหลัก</button>
@@ -665,5 +689,6 @@
   <script src="/sprite.js"></script>
 <script src="/scene.js"></script>
 <script src="/play.js"></script>
+<script src="/uno.js"></script>
 </body>
 </html>

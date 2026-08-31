@@ -1087,3 +1087,25 @@ body.bar-min .pbar .money { margin-left: auto; }
   .wm-pad .wm-end { grid-column: span 2; }
   .wm-pad .wm-giveup { grid-column: span 2; }
 }
+
+/* ══ 🎴 ศึกไพ่รูน ══ */
+.uno-stage { background:var(--g-stage); border:1px solid var(--g-line);
+             border-radius:var(--g-r); overflow:hidden; position:relative;
+             margin-bottom:12px; }
+.uno-stage canvas { display:block; width:100%; height:auto; touch-action:manipulation; }
+.uno-hud { position:absolute; top:10px; left:12px; font-family:var(--g-num);
+           font-size:12px; color:var(--g-muted); background:rgba(23,17,13,.72);
+           border:1px solid var(--g-line); border-radius:999px; padding:3px 12px;
+           font-variant-numeric:tabular-nums; pointer-events:none; }
+.uno-suits { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+.uno-suits button { flex:1 1 120px; min-height:48px; border-radius:12px;
+                    border:2px solid var(--g-line); background:var(--g-panel);
+                    color:var(--g-ink); font:inherit; font-weight:600; cursor:pointer; }
+.uno-suits button:hover { border-color:var(--g-gold); }
+.uno-log { margin-top:12px; font-size:13px; color:var(--g-muted);
+           max-height:120px; overflow-y:auto; line-height:1.7; }
+.uno-log div { padding:1px 0; }
+@media (max-width: 720px) {
+  .uno-stage { min-height:220px; }
+  .uno-suits button { min-height:52px; }
+}

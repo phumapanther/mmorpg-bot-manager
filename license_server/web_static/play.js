@@ -195,6 +195,7 @@ function showPanel(id) {
   if (id === 'fgacha') fillFashionGacha().catch(e => toast(e.message, true));
   if (id === 'friends') fillFriends().catch(e => toast(e.message, true));
   if (id === 'worms') fillWorms().catch(e => toast(e.message, true));
+  if (id === 'uno') fillUno();
   if (id === 'market') fillMarket().catch(e => toast(e.message, true));
   if (id === 'season') fillSeason().catch(e => toast(e.message, true));
   if (id === 'partner') fillPartner().catch(e => toast(e.message, true));
@@ -204,7 +205,7 @@ function showPanel(id) {
 
   // เพลงคลอเฉพาะหน้าที่มีบรรยากาศ — หน้าอื่นเงียบ ไม่ต้องมีเสียงตอนนั่งอ่านตาราง
   if (id === 'scene') sceneMusic();
-  else if (id === 'slots' || id === 'hilo' || id === 'bj') SFX.music('casino');
+  else if (id === 'slots' || id === 'hilo' || id === 'bj' || id === 'uno') SFX.music('casino');
   else SFX.music(null);
   window.scrollTo({ top: document.getElementById('shell').offsetTop - 80, behavior: 'smooth' });
 }

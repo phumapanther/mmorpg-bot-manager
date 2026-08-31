@@ -613,6 +613,57 @@ def blackjack(body: BjBody, request: Request):
     return {"ok": ok, "game": out, "money": _money_now(uid)}
 
 
+class UnoBody(BaseModel):
+    action: str = "view"       # start | play | draw | take | pass | uno | quit
+    index: int = 0             # ไพ่ใบที่เท่าไหร่ในมือ
+    suit: str = ""             # สีที่เลือกตอนวางไวลด์
+    bots: int = 1
+
+
+@router.post("/uno")
+def uno(body: UnoBody, request: Request):
+    """🎴 ศึกไพ่รูน — ซ้อมกับบอท
+
+    🔒 เบราว์เซอร์ส่งมาแค่ "กดอะไร" — กติกาทั้งหมดตัดสินที่เซิร์ฟเวอร์
+       ไพ่ในมือคนอื่นไม่เคยถูกส่งลงมา (uno_table.view คัดออกให้แล้ว)
+    """
+    uid = int(require_player(request)["uid"])
+    from bot.cards import uno_table
+
+    with _user_lock(uid):
+        if body.action == "start":
+            return {"ok": True, "table": uno_table.view(uid, uno_table.start(uid, bots=body.bots))}
+        if body.action == "quit":
+            uno_table.clear(uid)
+            return {"ok": True, "table": {"playing": False}}
+        if body.action == "view":
+            return {"ok": True, "table": uno_table.view(uid)}
+
+        if body.action == "play":
+            ok, r = uno_table.play(uid, body.index, suit=body.suit or None)
+        elif body.action == "draw":
+            ok, r = uno_table.draw(uid)
+        elif body.action == "take":
+            ok, r = uno_table.take_stack(uid)
+        elif body.action == "pass":
+            ok, r = uno_table.passes(uid)
+        elif body.action == "uno":
+            ok, r = uno_table.say_uno(uid)
+        else:
+            raise HTTPException(400, "ไม่รู้จักคำสั่งนี้")
+    if not ok:
+        raise HTTPException(400, r["error"])
+    return {"ok": True, **r}
+
+
+@router.get("/uno")
+def uno_current(request: Request):
+    """โต๊ะที่ค้างอยู่ (ถ้ามี) — เปิดหน้าเว็บมาเจอโต๊ะเดิม"""
+    uid = int(require_player(request)["uid"])
+    from bot.cards import uno_table
+    return {"ok": True, "table": uno_table.view(uid)}
+
+
 @router.get("/blackjack")
 def blackjack_current(request: Request):
     """โต๊ะที่ค้างอยู่ (ถ้ามี) — เปิดหน้าเว็บมาเจอมือที่เปิดค้างไว้ในดิสได้"""
