@@ -215,9 +215,11 @@ function unoAt(e, cv) {
 function unoMustDraw() {
   if (!UNO || !UNO.playing || !UNO.my_turn) return false;
   if (UNO.winner !== null && UNO.winner !== undefined) return false;
-  if (UNO.must_answer) return false;      // โดนสแตค — มีปุ่ม "ยอมจั่ว" แยกต่างหาก
   if (UNO.drew) return false;             // จั่วไปแล้วรอบนี้
-  return !(UNO.playable || []).length;    // ไม่มีไพ่ลงได้สักใบ
+  // ไม่มีไพ่ลงได้สักใบ = ต้องจั่ว
+  // โดนสแตคแล้วสแตคต่อไม่ได้ = ต้องยอมจั่ว — เรืองเหมือนกัน
+  // (เจ้าของเกมสั่ง 08-29: "ไม่ว่าจะยอมจั่วหรือต้องจั่วเอง")
+  return !(UNO.playable || []).length;
 }
 
 /** จุดที่กดอยู่โดนกองจั่วไหม */
@@ -226,9 +228,17 @@ function unoOnDeck(p, cv) {
   return Math.abs(p.x - d.x) <= UNO_CW / 2 + 8 && Math.abs(p.y - d.y) <= UNO_CH / 2 + 8;
 }
 
+/** ลากมาถึงจุดที่ถือว่า "จะวาง" แล้วหรือยัง
+
+    เจ้าของเกมเจอ (08-29): "ลากวางบางทีมันไม่ตรงมันไม่ลงเลย"
+    เดิมต้องลากเข้าใกล้กองภายใน 150px — บนมือถือเล็งกว่านั้นมาก
+    ตอนนี้เอา "ลากพ้นแถวไพ่ในมือขึ้นมา" เป็นเกณฑ์แทน — ลากขึ้นมาก็คือจะวาง
+    แล้วค่อยดูดไปที่กองเอง ไม่ต้องเล็งให้ตรง
+ */
 function unoNearPile(c, cv) {
   const t = unoPilePos(cv).pile;
-  return Math.hypot(c.x - t.x, c.y - t.y) < 150;
+  if (Math.hypot(c.x - t.x, c.y - t.y) < 190) return true;   // ใกล้กองอยู่แล้ว
+  return c.y < cv.height - 150;                              // หรือแค่ยกพ้นแถวไพ่ในมือขึ้นมา
 }
 
 function unoFrame(now) {
@@ -296,7 +306,8 @@ function unoFrame(now) {
     ctx.fillStyle = hot ? '#e8b04b' : '#a99274';
     ctx.font = '600 12px Bahnschrift, DIN Alternate, system-ui';
     ctx.textAlign = 'center';
-    ctx.fillText(hot ? 'กดเพื่อจั่ว' : `${UNO.deck_left} ใบ`, 0, UNO_CH / 2 + 18);
+    ctx.fillText(hot ? (UNO.must_answer ? `กดเพื่อยอมจั่ว ${UNO.stack} ใบ` : 'กดเพื่อจั่ว')
+                     : `${UNO.deck_left} ใบ`, 0, UNO_CH / 2 + 18);
     ctx.restore();
   }
 
@@ -514,7 +525,7 @@ function unoPaint() {
     if (msg) msg.textContent = 'กดเปิดโต๊ะเพื่อเริ่มเล่น';
     if (hud) hud.textContent = '';
     if (log) log.innerHTML = '';
-    ['unoDraw', 'unoTake', 'unoPass', 'unoSayUno'].forEach(id => show(id, false));
+    ['unoPass', 'unoSayUno'].forEach(id => show(id, false));
     show('unoSuits', false);
     return;
   }
@@ -529,12 +540,13 @@ function unoPaint() {
     msg.textContent = over
       ? `🏁 จบเกม — ${unoPlaceText()}`
       : mine ? `🏅 คุณเข้าเส้นชัยอันดับ ${mine} — นั่งดูจนจบเกม`
-      : UNO.must_answer ? `⚠️ โดน ${UNO.stack} ใบจ่ออยู่ — วางต่อหรือยอมจั่ว`
-      : UNO.my_turn ? 'ตาคุณ — ลากไพ่ไปวางที่กองกลาง' : 'รอคู่แข่ง...';
+      : UNO.must_answer ? `⚠️ โดน ${UNO.stack} ใบจ่ออยู่ — วางต่อ หรือกดกองไพ่เพื่อยอมจั่ว`
+      : UNO.my_turn ? (unoMustDraw() ? '📥 ไม่มีไพ่ลงได้ — กดกองไพ่เพื่อจั่ว'
+                        : 'ตาคุณ — ลากไพ่ไปวางที่กองกลาง')
+      : 'รอคู่แข่ง...';
   }
   const playing = UNO.my_turn && !over && !mine;      // ทิ้งไพ่หมดแล้วกดอะไรไม่ได้อีก
-  show('unoDraw', playing && !UNO.must_answer && !UNO.drew);
-  show('unoTake', playing && UNO.must_answer);
+  // จั่ว/ยอมจั่วย้ายไปกดที่กองไพ่บนโต๊ะแทนแล้ว (เจ้าของเกมสั่ง 08-29)
   show('unoPass', playing && UNO.drew);
   show('unoSayUno', me.cards === 1 && !me.said_uno && !over && !mine);
   if (log) log.innerHTML = (UNO.log || []).map(l =>
@@ -597,6 +609,10 @@ function unoBind() {
       return;
     }
     const t = unoPilePos(cv).pile;
+    // 🧲 ดูดเข้ากอง — ปล่อยตรงไหนก็ไหลเข้าที่เอง ไม่ต้องเล็งให้ตรง
+    c.anim = 'move'; c.t = 0; c.dur = 8;
+    c.from = { x: c.x, y: c.y, rot: c.rot };
+    c.to = { x: t.x, y: t.y, rot: (Math.random() - .5) * .3 };
     unoBurst(t.x, t.y + 22, '#c8b48e', 16);
     const card = c.card;
     if (card && (card.value === 'wild' || card.value === 'wild4')) {
@@ -632,12 +648,6 @@ document.getElementById('unoStart')?.addEventListener('click', async () => {
   SFX.play('click'); unoBind();
   UNO_SEEN_PLACE = 0; UNO_FANFARE = null;    // โต๊ะใหม่ เริ่มนับอันดับใหม่
   await unoDo('start', { bots: UNO_BOTS });
-});
-document.getElementById('unoDraw')?.addEventListener('click', () => {
-  SFX.play('click'); unoDo('draw');
-});
-document.getElementById('unoTake')?.addEventListener('click', () => {
-  SFX.play('click'); unoDo('take');
 });
 document.getElementById('unoPass')?.addEventListener('click', () => {
   SFX.play('click'); unoDo('pass');

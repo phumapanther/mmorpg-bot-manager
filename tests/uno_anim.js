@@ -48,4 +48,27 @@ for (const n of [2, 3, 4, 6]) {
 }
 // เราต้องไม่มีเหรียญซ้ำ (มีไพ่ในมืออยู่แล้ว)
 check('ไม่มีเหรียญของตัวเอง', seatsFn(mk(4), cv).some(s => s.you), false);
+
+
+// ── 4. ดูดไพ่เข้ากอง ──
+const npSrc = src.slice(src.indexOf('function unoNearPile'), src.indexOf('function unoFrame'));
+const nearPile = new Function('unoPilePos', npSrc + '\n return unoNearPile;')(
+  cv2 => ({ deck:{x:cv2.width/2-80, y:cv2.height/2-20}, pile:{x:cv2.width/2+80, y:cv2.height/2-20} }));
+const CV = { width: 900, height: 500 };
+console.log('ดูดไพ่เข้ากอง:');
+check('ปล่อยตรงกองพอดี', nearPile({x:530,y:230}, CV), true);
+check('ปล่อยเยื้องไป 120px ยังลง', nearPile({x:650,y:230}, CV), true);
+check('ลากขึ้นมากลางจอก็ลง', nearPile({x:200,y:200}, CV), true);
+check('ยังอยู่ในแถวไพ่ในมือ = ไม่ลง', nearPile({x:450,y:430}, CV), false);
+check('ลากลงล่างสุด = ไม่ลง', nearPile({x:450,y:490}, CV), false);
+
+// ── 5. กองจั่วเรืองทั้งสองกรณี ──
+const mdSrc = src.slice(src.indexOf('function unoMustDraw'), src.indexOf('function unoOnDeck'));
+const mustDraw = new Function('UNO', mdSrc + '\n return unoMustDraw();');
+console.log('กองจั่วเรือง:');
+check('ไม่มีไพ่ลงได้', mustDraw({playing:1,my_turn:1,playable:[],winner:null}), true);
+check('โดนสแตคแล้วสแตคต่อไม่ได้', mustDraw({playing:1,my_turn:1,playable:[],must_answer:1,stack:2,winner:null}), true);
+check('มีไพ่ลงได้ = ไม่เรือง', mustDraw({playing:1,my_turn:1,playable:[0],winner:null}), false);
+check('จั่วไปแล้ว = ไม่เรือง', mustDraw({playing:1,my_turn:1,playable:[],drew:1,winner:null}), false);
+check('ตาคนอื่น = ไม่เรือง', mustDraw({playing:1,my_turn:0,playable:[],winner:null}), false);
 process.exit(fail ? 1 : 0);

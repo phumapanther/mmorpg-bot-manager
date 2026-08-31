@@ -354,7 +354,7 @@ def test_the_pile_glows_when_drawing_is_the_only_option():
     body = JS[i:JS.index("function unoOnDeck", i)]
     assert "UNO.playable" in body, "ไม่ได้ดูว่ามีไพ่ลงได้ไหม"
     assert "UNO.drew" in body, "จั่วไปแล้วยังเรืองอยู่อีก"
-    assert "must_answer" in body, "โดนสแตคอยู่ก็เรือง ทั้งที่มีปุ่มยอมจั่วแยก"
+    assert "UNO.my_turn" in body, "ตาคนอื่นก็เรือง"
 
 
 def test_drawing_a_card_makes_it_fly_from_the_pile():
@@ -485,3 +485,61 @@ def test_opponent_cards_are_drawn_from_the_count_only():
     i = JS.index("unoSeats(cv).forEach")
     body = JS[i:JS.index("UNO_CARDS.forEach", i)]
     assert "s.cards" in body
+
+
+# ── 🧲 ดูดไพ่เข้ากอง + ตัดปุ่มจั่ว (เจ้าของเกมสั่ง 08-29) ──
+
+def test_dragging_a_card_off_the_hand_drops_it():
+    """เจ้าของเกมเจอ: ลากวางบางทีไม่ตรงแล้วไม่ลงเลย
+
+    เดิมต้องลากเข้าใกล้กองภายใน 150px — บนมือถือเล็งเล็กกว่านั้นยาก
+    ตอนนี้ลากพ้นแถวไพ่ในมือขึ้นมาก็ถือว่าวาง แล้วไพ่ดูดเข้ากองเอง
+    """
+    i = JS.index("function unoNearPile")
+    body = JS[i:JS.index("function unoFrame", i)]
+    assert "cv.height" in body, "ยังตัดสินจากระยะห่างกองอย่างเดียว"
+
+
+def test_the_card_slides_into_the_pile_by_itself():
+    i = JS.index("const up = async ()")
+    body = JS[i:JS.index("cv.addEventListener('mousedown'", i)]
+    drop = body[body.index("const t = unoPilePos"):body.index("unoBurst")]
+    # ต้องมีครบทั้งชุด: ตั้งท่า ตั้งจุดเริ่ม ตั้งจุดจบ ไม่งั้นไพ่ค้างกลางอากาศ
+    assert "c.anim" in drop, "ปล่อยแล้วไพ่ไม่ดูดเข้ากอง"
+    assert "c.from" in drop and "c.to" in drop, "ตั้งท่าไม่ครบ ไพ่จะค้างกลางอากาศ"
+    assert "t.x" in drop and "t.y" in drop, "ไพ่ไม่ได้ดูดไปที่กองทิ้ง"
+
+
+def test_the_pile_glows_when_you_must_take_a_stack_too():
+    """เจ้าของเกมสั่ง: ไม่ว่าจะยอมจั่วหรือต้องจั่วเอง ก็ให้เรืองแสง"""
+    i = JS.index("function unoMustDraw")
+    body = JS[i:JS.index("function unoOnDeck", i)]
+    assert "if (UNO.must_answer) return false" not in body, \
+        "โดนสแตคแล้วกองไม่เรือง ทั้งที่ต้องยอมจั่ว"
+
+
+def test_the_draw_buttons_are_gone():
+    """เจ้าของเกมสั่ง: เหลือแค่เปิดโต๊ะ ผ่าน และ UNO"""
+    i = HTML.index('id="v-uno"')
+    section = HTML[i:HTML.index("<!-- ══", i + 10)]
+    assert 'id="unoDraw"' not in section, "ยังมีปุ่มจั่วไพ่"
+    assert 'id="unoTake"' not in section, "ยังมีปุ่มยอมจั่ว"
+
+
+def test_the_buttons_that_remain_are_the_three_asked_for():
+    i = HTML.index('id="v-uno"')
+    section = HTML[i:HTML.index("<!-- ══", i + 10)]
+    for keep in ("unoStart", "unoPass", "unoSayUno"):
+        assert f'id="{keep}"' in section, f"ปุ่ม {keep} หายไปด้วย"
+
+
+def test_nothing_still_points_at_the_removed_buttons():
+    """เหลือโค้ดอ้างปุ่มที่ลบไปแล้ว = คลิกไม่ติดโดยไม่มีใครรู้"""
+    for gone in ("unoDraw", "unoTake"):
+        assert f"'{gone}'" not in JS, f"ยังมีโค้ดอ้างถึงปุ่ม {gone}"
+
+
+def test_the_help_tells_you_to_click_the_pile():
+    i = HTML.index('id="unoHelp"')
+    box = HTML[i:HTML.index("</div></div>", i)]
+    assert "กดที่กองไพ่" in box, "คู่มือยังบอกให้กดปุ่มที่ลบไปแล้ว"
