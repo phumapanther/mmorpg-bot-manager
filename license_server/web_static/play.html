@@ -507,6 +507,14 @@
       <div class="g-card">
         <div class="uno-stage"><canvas id="unoCanvas" width="900" height="500"></canvas>
           <div class="uno-hud" id="unoHud"></div>
+          <div class="uno-over" id="unoOver" hidden>
+            <h3>🏁 จบเกม</h3>
+            <table class="uno-rank" id="unoRank"></table>
+            <div class="uno-over-btns">
+              <button class="again" id="unoAgain">🎴 เล่นอีกรอบ</button>
+              <button id="unoLeave">← ออกจากเกม</button>
+            </div>
+          </div>
           <button class="uno-help-btn" id="unoHelpBtn" title="วิธีเล่นและความหมายไพ่">?</button>
           <div class="uno-help" id="unoHelp" hidden>
             <button class="uno-help-x" id="unoHelpClose">✕</button>
@@ -536,7 +544,6 @@
             <p>กด <b>🔔 UNO!</b> เมื่อเหลือไพ่ใบสุดท้าย ตามธรรมเนียมเกมไพ่</p>
           </div></div>
         <div class="casino-result" id="unoMsg">กดเปิดโต๊ะเพื่อเริ่มเล่น</div>
-        <div class="uno-suits" id="unoSuits" hidden></div>
         <div class="uno-seats">
           <span class="lbl">นั่งเล่นกับบอท</span>
           <button data-bots="1">1 ตัว</button>

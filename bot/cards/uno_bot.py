@@ -30,7 +30,12 @@ _ACTION_ORDER = {D.DRAW_TWO: 0, D.SKIP: 1, D.REVERSE: 2,
 
 
 def is_bot(name):
-    return name == BOT_NAME
+    """ชื่อนี้เป็นบอทไหม
+
+    ⚠️ โต๊ะหลายบอทชื่อจะมีเลขต่อท้าย ("🤖 บอท 1")
+       เทียบชื่อเต็ม ๆ จึงตอบ False กับบอททุกตัวบนโต๊ะหลายบอท
+    """
+    return str(name or "").startswith(BOT_NAME)
 
 
 def bot_names(count):

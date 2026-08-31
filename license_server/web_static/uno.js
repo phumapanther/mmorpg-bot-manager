@@ -29,6 +29,7 @@ let UNO_LOOP = 0, UNO_DT = 1, UNO_LAST = 0;
 let UNO_DRAG = null, UNO_HOVER = null;
 let UNO_PICK = null;         // ไพ่ที่รอเลือกสี (ไวลด์)
 let UNO_PULSE = 0;           // จังหวะเต้นของขอบเรืองแสง
+let UNO_SUIT_CARDS = [];     // ไพ่ธาตุ 4 ใบที่ลอยขึ้นให้เลือก
 
 const unoEase = t => 1 - Math.pow(1 - t, 3);
 const unoEaseIO = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -165,7 +166,9 @@ function unoLayout() {
     keep[key].push(c);
   });
 
-  UNO_CARDS = [];
+  // ไพ่ที่กำลังบินเข้ากองอยู่ ปล่อยให้บินจนจบ ไม่งั้นหายกลางอากาศ
+  const flying = UNO_CARDS.filter(c => c.flying && c.anim);
+  UNO_CARDS = flying;
   // กองทิ้ง
   if (UNO.top) {
     const t = unoPilePos(cv).pile;
@@ -322,7 +325,9 @@ function unoFrame(now) {
   // 👥 ที่นั่งล้อมวงโต๊ะ — คนถึงตาจะมีออร่าเรืองรอบตัว ทีละคนเท่านั้น
   if (UNO && UNO.playing) {
     unoSeats(cv).forEach(s => {
-      const turn = s.index === UNO.turn && !UNO.over;
+      const turn = (UNO_THINK ? s.index === UNO_THINK.seat
+                              : s.index === UNO.turn) && !UNO.over;
+      const thinking = UNO_THINK && s.index === UNO_THINK.seat;
       ctx.save();
       ctx.translate(s.x, s.y);
 
@@ -357,6 +362,16 @@ function unoFrame(now) {
       ctx.font = '11px Bahnschrift, DIN Alternate, system-ui';
       ctx.fillStyle = s.cards === 1 ? '#d4553a' : '#a99274';
       ctx.fillText(s.place ? `อันดับ ${s.place}` : `${s.cards} ใบ`, 0, 57);
+      // 💭 กำลังคิด — จุดไล่กันสามจุด ให้รู้ว่าเกมไม่ได้ค้าง
+      if (thinking) {
+        ctx.fillStyle = '#e8b04b';
+        for (let k = 0; k < 3; k++) {
+          const a = .3 + .7 * Math.max(0, Math.sin(UNO_PULSE * 1.6 - k * .7));
+          ctx.globalAlpha = a;
+          ctx.beginPath(); ctx.arc((k - 1) * 9, -38, 3, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
       ctx.restore();
 
       // หลังไพ่ของคู่แข่ง — วาดจากจำนวนที่เซิร์ฟเวอร์บอก ไม่รู้ว่าเป็นไพ่อะไร
@@ -406,13 +421,49 @@ function unoFrame(now) {
     return true;
   });
 
+  unoDrawSuitCards(ctx, W, H);   // ทับโต๊ะ แต่อยู่ใต้แผงประกาศอันดับ
   unoDrawFanfare(ctx, W, H);     // ทับทุกอย่าง — เป็นประกาศชั้นบนสุด
   UNO_LOOP = requestAnimationFrame(unoFrame);
+}
+
+// 🤔 เล่นตาบอททีละคน พร้อมหน่วงเวลา "กำลังคิด"
+//    เซิร์ฟเวอร์เดินให้จบในคำขอเดียวแล้ว ที่นี่แค่เล่นภาพย้อนหลังให้ดูทัน
+//    ไม่งั้นบอท 3 ตัวเล่นรวดเดียวจบ ผู้เล่นไม่ทันเห็นว่าเกิดอะไรขึ้น
+const UNO_THINK_MS = 620;      // หน่วงต่อตาบอทหนึ่งคน
+let UNO_THINK = null;          // {seat, t} บอทที่กำลังคิดอยู่
+const unoWait = ms => new Promise(r => setTimeout(r, ms));
+
+/** เล่นภาพตาบอททีละคน — คิดก่อน แล้วไพ่บินเข้ากอง */
+async function unoPlayBotMoves(moves) {
+  for (const m of (moves || [])) {
+    UNO_THINK = { seat: m.seat, t: 0 };
+    await unoWait(UNO_THINK_MS);
+    UNO_THINK = null;
+    if (m.card) unoFlyToPile(m.seat, m.card);
+    await unoWait(220);                 // เว้นจังหวะให้ไพ่บินจบก่อนคนถัดไปคิด
+  }
+}
+
+/** 🃏 ไพ่บินจากที่นั่งคนนั้นเข้ากองกลาง — เห็นชัดว่าใครลงไพ่ */
+function unoFlyToPile(seat, card) {
+  const cv = document.getElementById('unoCanvas');
+  if (!cv) return;
+  const t = unoPilePos(cv).pile;
+  const from = unoSeats(cv).find(x => x.index === seat) || { x: cv.width / 2, y: 60 };
+  UNO_CARDS.push({
+    card, x: from.x, y: from.y, rot: 0, face: 0, sc: 1, flying: true,
+    anim: 'arc', t: 0, dur: 22,
+    from: { x: from.x, y: from.y, rot: 0, face: 0 },
+    to: { x: t.x, y: t.y, rot: (Math.random() - .5) * .3, face: 1 },
+  });
+  SFX.play('click');
 }
 
 async function unoDo(action, extra) {
   try {
     const d = await api('POST', '/api/web/uno', { action, ...(extra || {}) });
+    // เล่นภาพตาบอทก่อน แล้วค่อยเฉลยสถานะใหม่ — ไม่งั้นผลมาก่อนภาพ
+    if ((d.bot_moves || []).length) await unoPlayBotMoves(d.bot_moves);
     unoApply(d.table);
     return d;
   } catch (e) { toast(e.message, true); return null; }
@@ -516,6 +567,24 @@ function unoPlaceText() {
     .map(f => `${f.place}. ${f.name}${f.you ? ' (คุณ)' : ''}`).join(' · ');
 }
 
+/** 🏁 ตารางอันดับส่งท้าย — ขึ้นตอนจบเกมจริง พร้อมทางไปต่อ */
+function unoPaintOver() {
+  const box = document.getElementById('unoOver');
+  const tbl = document.getElementById('unoRank');
+  if (!box || !tbl) return;
+  const done = (UNO && UNO.finished) || [];
+  const show = !!(UNO && UNO.playing && UNO.over && done.length);
+  box.hidden = !show;
+  if (!show) return;
+  tbl.innerHTML = done.map(f => {
+    const medal = UNO_TROPHY[f.place] || `${f.place}.`;
+    const who = `${f.bot ? '🤖' : '🧑'} ${f.name.replace('🤖 ', '')}`;
+    const left = f.place === 1 ? 'หมดมือ' : `เหลือ ${f.left} แต้ม`;
+    return `<tr class="${f.you ? 'you' : ''}"><td>${medal}</td>` +
+           `<td>${who}${f.you ? ' (คุณ)' : ''}</td><td>${left}</td></tr>`;
+  }).join('');
+}
+
 function unoPaint() {
   const msg = document.getElementById('unoMsg');
   const hud = document.getElementById('unoHud');
@@ -526,12 +595,11 @@ function unoPaint() {
     if (hud) hud.textContent = '';
     if (log) log.innerHTML = '';
     ['unoPass', 'unoSayUno'].forEach(id => show(id, false));
-    show('unoSuits', false);
+    show('unoOver', false);
     return;
   }
   // 🔧 กล่องเลือกสีจะโชว์ก็ต่อเมื่อมีไพ่รอเลือกสีจริง — นอกนั้นซ่อนเสมอ
   //    เคยพลาด: ซ่อนแค่ตอนไม่มีโต๊ะ กดเลือกสีแล้วปุ่มค้างคาหน้าจอตลอด
-  show('unoSuits', UNO_PICK !== null);
   const me = (UNO.players || []).find(p => p.you) || { cards: 0 };
   if (hud) hud.textContent = `กองจั่ว ${UNO.deck_left} ใบ · ${UNO.dir > 0 ? '↻' : '↺'}`;
   const over = !!UNO.over;
@@ -551,23 +619,76 @@ function unoPaint() {
   show('unoSayUno', me.cards === 1 && !me.said_uno && !over && !mine);
   if (log) log.innerHTML = (UNO.log || []).map(l =>
     `<div>${l.replace(/</g, '&lt;')}</div>`).join('');
+  unoPaintOver();
 }
 
 /** ไวลด์ต้องเลือกสีก่อนวาง — โชว์ปุ่มสีแล้วรอกด */
 function unoAskSuit(slot) {
   UNO_PICK = slot;
-  const box = document.getElementById('unoSuits');
-  if (!box) return;
-  box.hidden = false;
-  box.innerHTML = Object.entries(UNO.suits || {}).map(([k, label]) =>
-    `<button data-suit="${k}">${label}</button>`).join('');
-  box.querySelectorAll('[data-suit]').forEach(b => {
-    b.onclick = async () => {
-      const pick = UNO_PICK;
-      UNO_PICK = null;              // ล้างก่อน — unoPaint จะซ่อนกล่องให้เอง
-      box.hidden = true;            // ซ่อนทันทีด้วย ไม่ต้องรอคำตอบจากเซิร์ฟเวอร์
-      await unoDo('play', { index: pick, suit: b.dataset.suit });
-    };
+  const cv = document.getElementById('unoCanvas');
+  if (!cv) return;
+  const y = cv.height / 2 + 30;
+  const keys = Object.keys(UNO_COLOR);
+  // 🃏 ไพ่ธาตุ 4 ใบลอยขึ้นกลางจอ — ชี้แล้วใบนั้นลอยขึ้น กดแล้วเลือกสีนั้น
+  //    แทนปุ่มข้อความด้านล่าง (เจ้าของเกมสั่ง 08-29)
+  UNO_SUIT_CARDS = keys.map((k, i) => ({
+    suit: k,
+    x: cv.width / 2 + (i - (keys.length - 1) / 2) * 96,
+    y: y + 40,                       // ลอยขึ้นจากข้างล่าง
+    ty: y,
+    t: 0,
+    hover: false,
+  }));
+}
+
+/** กดเลือกสีจากไพ่ที่ลอยอยู่ */
+function unoPickSuitAt(p) {
+  return UNO_SUIT_CARDS.find(c =>
+    Math.abs(p.x - c.x) <= UNO_CW / 2 + 6 && Math.abs(p.y - c.y) <= UNO_CH / 2 + 6);
+}
+
+/** วาดไพ่เลือกสีที่ลอยอยู่ */
+function unoDrawSuitCards(ctx, W, H) {
+  if (!UNO_SUIT_CARDS.length) return;
+  ctx.save();
+  ctx.fillStyle = 'rgba(23,17,13,.72)';       // หรี่ฉากหลังให้ไพ่เด่น
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#f2e7d8';
+  ctx.font = '600 17px system-ui'; ctx.textAlign = 'center';
+  ctx.fillText('เลือกธาตุต่อไป', W / 2, UNO_SUIT_CARDS[0].ty - UNO_CH / 2 - 26);
+  ctx.restore();
+
+  UNO_SUIT_CARDS.forEach(c => {
+    c.t = Math.min(1, c.t + .1 * UNO_DT);
+    c.y += (c.ty - (c.hover ? 16 : 0) - c.y) * Math.min(1, .2 * UNO_DT);
+    const sc = (c.hover ? 1.12 : 1) * unoEase(c.t);
+    const s = UNO_COLOR[c.suit];
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.scale(sc, sc);
+    if (c.hover) {                            // ชี้ค้าง = ขอบเรือง
+      ctx.shadowColor = '#e8b04b';
+      ctx.shadowBlur = 20 + Math.sin(UNO_PULSE) * 8;
+      ctx.strokeStyle = '#e8b04b'; ctx.lineWidth = 3;
+      unoRR(ctx, -UNO_CW / 2, -UNO_CH / 2, UNO_CW, UNO_CH, 9);
+      ctx.stroke(); ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+    ctx.shadowColor = 'rgba(0,0,0,.55)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 7;
+    ctx.fillStyle = '#f2e7d8';
+    unoRR(ctx, -UNO_CW / 2, -UNO_CH / 2, UNO_CW, UNO_CH, 9); ctx.fill();
+    ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+    const g = ctx.createLinearGradient(0, -UNO_CH / 2, 0, UNO_CH / 2);
+    g.addColorStop(0, s.c); g.addColorStop(1, s.d);
+    ctx.fillStyle = g;
+    unoRR(ctx, -UNO_CW / 2 + 5, -UNO_CH / 2 + 5, UNO_CW - 10, UNO_CH - 10, 6); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.95)';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '30px system-ui';
+    ctx.fillText(s.ico, 0, -6);
+    ctx.font = '600 12px system-ui';
+    ctx.fillText((UNO.suits || {})[c.suit] || '', 0, 26);
+    ctx.restore();
   });
 }
 
@@ -577,8 +698,21 @@ function unoBind() {
   cv.dataset.bound = '1';
 
   const down = e => {
+    const pt = unoAt(e, cv);
+    // 🃏 กำลังเลือกธาตุอยู่ — กินการกดทั้งหมด จนกว่าจะเลือกสีเสร็จ
+    if (UNO_SUIT_CARDS.length) {
+      const hit = unoPickSuitAt(pt);
+      e.preventDefault();
+      if (!hit) return;
+      SFX.play('click');
+      const pick = UNO_PICK;
+      UNO_PICK = null;
+      UNO_SUIT_CARDS = [];
+      unoDo('play', { index: pick, suit: hit.suit });
+      return;
+    }
     if (!UNO || !UNO.my_turn) return;
-    const p = unoAt(e, cv);
+    const p = pt;
     // 📥 กดกองจั่วบนโต๊ะ = จั่วเลย ไม่ต้องเลื่อนไปหาปุ่มข้างล่าง
     if (unoOnDeck(p, cv)) {
       e.preventDefault();
@@ -594,6 +728,11 @@ function unoBind() {
   };
   const move = e => {
     const p = unoAt(e, cv);
+    if (UNO_SUIT_CARDS.length) {          // ชี้ไพ่ธาตุใบไหน ใบนั้นลอยขึ้น
+      const hit = unoPickSuitAt(p);
+      UNO_SUIT_CARDS.forEach(c => { c.hover = c === hit; });
+      return;
+    }
     if (!UNO_DRAG) { UNO_HOVER = unoHit(p); return; }
     UNO_DRAG.c.x = p.x + UNO_DRAG.ox;
     UNO_DRAG.c.y = p.y + UNO_DRAG.oy;
@@ -651,6 +790,16 @@ document.getElementById('unoStart')?.addEventListener('click', async () => {
 });
 document.getElementById('unoPass')?.addEventListener('click', () => {
   SFX.play('click'); unoDo('pass');
+});
+document.getElementById('unoAgain')?.addEventListener('click', async () => {
+  SFX.play('click');
+  UNO_SEEN_PLACE = 0; UNO_FANFARE = null; UNO_SUIT_CARDS = [];
+  await unoDo('start', { bots: UNO_BOTS });
+});
+document.getElementById('unoLeave')?.addEventListener('click', async () => {
+  SFX.play('click');
+  await unoDo('quit');
+  showPanel('home');
 });
 document.getElementById('unoSayUno')?.addEventListener('click', () => {
   SFX.play('click'); unoDo('uno');

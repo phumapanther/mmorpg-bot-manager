@@ -97,11 +97,21 @@ def _run_bots(st, rng=None):
             break
         if st["turn"] == st["human"] and st["human"] not in st["finished"]:
             break
+        who = st["players"][st["turn"]]["name"]
+        seat = st["turn"]
+        top_before = E.top_card(st)
         before = len(st["log"])
-        ok, _ = B.take_turn(E, st, rng)
+        ok, r = B.take_turn(E, st, rng)
         if not ok:
             break
-        moves += st["log"][before:]
+        # 🎬 เก็บไว้ว่าบอทแต่ละตัวทำอะไร — หน้าเว็บเอาไปเล่นทีละคน พร้อมหน่วงเวลาคิด
+        #    ไม่งั้นบอท 3 ตัวเล่นรวดเดียวจบ ผู้เล่นไม่ทันเห็นว่าเกิดอะไรขึ้น
+        now = E.top_card(st)
+        moves.append({
+            "name": who, "seat": seat,
+            "card": now if now != top_before else None,   # None = จั่วหรือยอมจั่ว
+            "log": st["log"][before:],
+        })
     return moves
 
 
@@ -120,9 +130,9 @@ def _act(uid, fn, rng=None):
     ok, r = fn(st)
     if not ok:
         return False, r
-    _run_bots(st, rng)
+    bots = _run_bots(st, rng)
     save(uid, st)
-    return True, {**r, "table": view(uid, st)}
+    return True, {**r, "bot_moves": bots, "table": view(uid, st)}
 
 
 def play(uid, index, suit=None, rng=None):
@@ -190,8 +200,10 @@ def view(uid, st=None):
         "winner": st["winner"],
         "over": bool(st.get("over")),
         # 🏁 อันดับที่เข้าเส้นชัยแล้ว — หน้าเว็บเอาไปทำอนิเมชันต่างระดับ
+        # แต้มที่เหลือคามือ = แต้มที่ยกให้คนชนะ (น้อยดี — ทิ้งหมดเหลือ 0)
         "finished": [{"name": st["players"][i]["name"], "place": k + 1,
-                      "you": i == me}
+                      "you": i == me, "bot": B.is_bot(st["players"][i]["name"]),
+                      "left": sum(D.points(c) for c in st["players"][i]["hand"])}
                      for k, i in enumerate(st.get("finished", []))],
         "my_place": (st["finished"].index(me) + 1
                      if me in st.get("finished", []) else 0),

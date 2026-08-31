@@ -305,25 +305,16 @@ def test_the_help_scrolls_when_it_is_too_long():
 
 # ── 🐞 บั๊กปุ่มเลือกสีค้าง (เจ้าของเกมเจอ 08-29) ──
 
-def test_the_colour_picker_is_owned_by_the_repaint():
-    """กดเลือกสีแล้วปุ่มต้องหาย
+def test_the_colour_picker_closes_after_choosing():
+    """กดเลือกสีแล้วไพ่ต้องหาย
 
-    บั๊กเดิม: unoPaint ซ่อนกล่องเฉพาะตอน "ไม่มีโต๊ะ" เท่านั้น
-    ระหว่างเล่นจึงไม่มีใครซ่อนให้ — กดเลือกสีแล้วปุ่มค้างคาหน้าจอตลอด
+    บั๊กเก่า (สมัยยังเป็นปุ่ม): กดแล้วปุ่มค้างคาหน้าจอ
+    ตอนนี้เป็นไพ่ลอยบนจอ กดแล้วต้องล้างทั้งไพ่และไพ่ที่รออยู่
     """
-    i = JS.index("function unoPaint")
-    body = JS[i:JS.index("function unoAskSuit", i)]
-    guard = body.index("if (!UNO || !UNO.playing)")
-    ret = body.index("return;", guard)
-    after = body[ret:]
-    assert "unoSuits" in after, "unoPaint ซ่อนกล่องเลือกสีเฉพาะตอนไม่มีโต๊ะ"
-    assert "UNO_PICK" in after, "ไม่ได้ผูกการโชว์กล่องกับว่ามีไพ่รอเลือกสีจริงไหม"
-
-
-def test_choosing_a_colour_clears_the_pending_card():
-    i = JS.index("function unoAskSuit")
-    body = JS[i:JS.index("function unoBind", i)]
-    assert "UNO_PICK = null" in body, "เลือกสีแล้วไม่ได้ล้างไพ่ที่รออยู่"
+    i = JS.index("if (UNO_SUIT_CARDS.length) {")
+    body = JS[i:i + 600]
+    assert "UNO_SUIT_CARDS = []" in body, "เลือกสีแล้วไพ่ยังลอยค้างอยู่"
+    assert "UNO_PICK = null" in body, "ไม่ได้ล้างไพ่ที่รอเลือกสี"
 
 
 # ── 🂠 กองจั่วบนโต๊ะ ──
@@ -543,3 +534,117 @@ def test_the_help_tells_you_to_click_the_pile():
     i = HTML.index('id="unoHelp"')
     box = HTML[i:HTML.index("</div></div>", i)]
     assert "กดที่กองไพ่" in box, "คู่มือยังบอกให้กดปุ่มที่ลบไปแล้ว"
+
+
+# ── 🏁🎴 ตารางอันดับ · ไพ่เลือกสี · บอทคิด (เจ้าของเกมสั่ง 08-29) ──
+
+def test_the_end_shows_a_ranking_table():
+    i = HTML.index('id="v-uno"')
+    section = HTML[i:HTML.index("<!-- ══", i + 10)]
+    assert 'id="unoOver"' in section and 'id="unoRank"' in section, "ไม่มีตารางอันดับตอนจบ"
+
+
+def test_the_ranking_offers_play_again_and_leave():
+    i = HTML.index('id="unoOver"')
+    box = HTML[i:HTML.index("</div>", HTML.index("uno-over-btns", i))]
+    assert 'id="unoAgain"' in box and 'id="unoLeave"' in box, "ไม่มีปุ่มเล่นต่อ/ออกจากเกม"
+
+
+def test_the_ranking_only_shows_when_the_game_is_over():
+    """โผล่กลางเกม = บังจอจนเล่นไม่ได้"""
+    i = JS.index("function unoPaintOver")
+    body = JS[i:JS.index("function unoPaint()", i)]
+    assert "UNO.over" in body, "ตารางอันดับไม่ได้รอให้เกมจบก่อน"
+
+
+def test_the_ranking_marks_which_row_is_you():
+    i = JS.index("function unoPaintOver")
+    body = JS[i:JS.index("function unoPaint()", i)]
+    assert "f.you" in body and "'you'" in body, "หาแถวตัวเองในตารางไม่เจอ"
+
+
+def test_the_ranking_shows_the_points_left_in_hand():
+    i = JS.index("function unoPaintOver")
+    body = JS[i:JS.index("function unoPaint()", i)]
+    assert "f.left" in body, "ไม่ได้โชว์แต้มที่เหลือในมือ"
+
+
+def test_playing_again_resets_the_fanfare():
+    """ไม่รีเซ็ต = รอบใหม่ไม่มีอนิเมชันประกาศอันดับเลย"""
+    i = JS.index("document.getElementById('unoAgain')")
+    body = JS[i:i + 400]
+    assert "UNO_SEEN_PLACE = 0" in body
+
+
+def test_the_colour_picker_is_now_cards_on_the_table():
+    """เจ้าของเกมสั่ง: ให้เป็นไพ่ลอยมาในจอ 4 ใบ แทนปุ่มด้านล่าง"""
+    assert "UNO_SUIT_CARDS" in JS
+    assert 'id="unoSuits"' not in HTML, "ยังมีแถวปุ่มเลือกสีอันเดิม"
+
+
+def test_hovering_a_suit_card_lifts_it():
+    i = JS.index("function unoDrawSuitCards")
+    body = JS[i:JS.index("function unoBind", i)]
+    assert "c.hover" in body, "ชี้ไพ่แล้วไม่มีอะไรเกิดขึ้น"
+
+
+def test_picking_a_suit_plays_the_card():
+    i = JS.index("if (UNO_SUIT_CARDS.length) {")
+    body = JS[i:i + 500]
+    assert "hit.suit" in body and "'play'" in body, "เลือกสีแล้วไม่ได้วางไพ่"
+
+
+def test_the_suit_cards_block_everything_else_while_open():
+    """ไม่ดักก่อน = กดทะลุไปโดนไพ่ในมือข้างหลัง"""
+    i = JS.index("const down = e =>")
+    body = JS[i:JS.index("const move = e =>", i)]
+    assert body.index("UNO_SUIT_CARDS.length") < body.index("unoHit("), \
+        "ไม่ได้ดักการกดตอนกำลังเลือกสี"
+
+
+def test_bots_take_a_moment_to_think():
+    """เจ้าของเกมสั่ง: เพิ่มระยะเวลาพร้อมเอฟเฟกต์คล้ายบอทกำลังคิด"""
+    assert "UNO_THINK_MS" in JS and "unoPlayBotMoves" in JS
+    i = JS.index("async function unoPlayBotMoves")
+    body = JS[i:JS.index("function unoFlyToPile", i)]
+    assert "await unoWait(UNO_THINK_MS)" in body, "บอทเล่นรวดเดียวไม่มีจังหวะคิด"
+    # ต้องตั้งว่า "ใครกำลังคิด" ก่อนหน่วง ไม่งั้นหน่วงเฉย ๆ ไม่มีอะไรให้ดู
+    assert body.index("UNO_THINK = {") < body.index("await unoWait(UNO_THINK_MS)"),         "หน่วงก่อนแล้วค่อยบอกว่าใครคิด — จอจะนิ่งเฉย ๆ ไม่รู้ว่ารออะไร"
+
+
+def test_the_thinking_bot_is_shown_on_its_seat():
+    i = JS.index("unoSeats(cv).forEach")
+    body = JS[i:JS.index("UNO_CARDS.forEach", i)]
+    assert "thinking" in body, "ไม่รู้ว่าบอทตัวไหนกำลังคิด"
+
+
+def test_a_played_card_flies_into_the_pile():
+    assert "unoFlyToPile" in JS
+    i = JS.index("function unoFlyToPile")
+    body = JS[i:JS.index("async function unoDo", i)]
+    assert "unoSeats" in body, "ไพ่ไม่ได้บินออกมาจากที่นั่งคนที่ลง"
+    assert "unoPilePos" in body, "ไพ่ไม่ได้บินไปที่กองทิ้ง"
+
+
+def test_flying_cards_survive_a_state_refresh():
+    """ไม่งั้นสถานะใหม่มาถึงแล้วไพ่ที่กำลังบินหายกลางอากาศ"""
+    i = JS.index("function unoLayout")
+    body = JS[i:JS.index("function unoHit", i)]
+    assert "c.flying" in body, "ไพ่ที่กำลังบินโดนล้างทิ้ง"
+
+
+def test_the_server_reports_each_bot_move_separately():
+    """ต้องรู้ว่าบอทแต่ละตัวทำอะไร ไม่ใช่ก้อนเดียวจบ"""
+    import inspect
+
+    from bot.cards import uno_table
+    src = inspect.getsource(uno_table._run_bots)
+    assert '"seat"' in src and '"card"' in src, "ไม่ได้บอกว่าใครลงไพ่อะไร"
+
+
+def test_numbered_bots_are_still_recognised_as_bots():
+    """โต๊ะหลายบอทชื่อมีเลขต่อท้าย — เทียบชื่อเต็มจะไม่ตรงสักตัว"""
+    from bot.cards import uno_bot
+    assert uno_bot.is_bot("🤖 บอท")
+    assert uno_bot.is_bot("🤖 บอท 3"), "บอทที่มีเลขต่อท้ายไม่ถูกนับเป็นบอท"
+    assert not uno_bot.is_bot("คุณ")
