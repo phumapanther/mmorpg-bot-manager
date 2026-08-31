@@ -1147,3 +1147,16 @@ body.bar-min .pbar .money { margin-left: auto; }
   .uno-help { font-size:13px; padding:16px 16px 20px; }
   .uno-help-tbl td:nth-child(2) { white-space:normal; }
 }
+
+/* ── เลือกจำนวนบอทที่จะนั่งด้วย ── */
+.uno-seats { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+.uno-seats .lbl { color:var(--g-muted); font-size:13px; margin-right:2px; }
+.uno-seats button { min-width:66px; min-height:40px; border-radius:10px;
+                    border:1px solid var(--g-line); background:var(--g-panel);
+                    color:var(--g-ink); font:inherit; font-size:13px; cursor:pointer;
+                    transition:background .16s var(--g-ease), border-color .16s var(--g-ease); }
+.uno-seats button:hover { background:var(--g-hi); }
+.uno-seats button.on { border-color:var(--g-gold); color:var(--g-gold);
+                       background:var(--g-hi); font-weight:600; }
+.uno-seats button:focus-visible { outline:2px solid var(--g-gold); outline-offset:2px; }
+@media (max-width: 720px) { .uno-seats button { flex:1 1 60px; min-height:44px; } }

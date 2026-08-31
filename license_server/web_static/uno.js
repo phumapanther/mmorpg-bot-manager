@@ -105,6 +105,37 @@ function unoDrawCard(ctx, c) {
   ctx.restore();
 }
 
+/** ที่นั่งล้อมวงโต๊ะ — เราอยู่ล่างสุดเสมอ คนอื่นไล่ตามทิศที่เล่น
+
+    วางบนวงรีหนึ่ง เหมือนนั่งล้อมโต๊ะจริง — เราอยู่ที่ 6 นาฬิกา
+    คนอื่นไล่ไปตามเข็ม จะได้ตรงกับลำดับเทิร์นจริง
+ */
+function unoSeats(cv) {
+  if (!UNO || !UNO.playing) return [];
+  const players = UNO.players || [];
+  const n = players.length;
+  const me = players.findIndex(p => p.you);
+  const done = {};
+  ((UNO.finished) || []).forEach(f => { done[f.name] = f.place; });
+
+  return players.map((p, i) => {
+    // นับจากเราไป ๆ เราอยู่ล่างสุด (มุม 90°) ที่เหลือไล่ทวนเข็มขึ้นไป
+    const k = ((i - (me < 0 ? 0 : me)) + n) % n;
+    const a = Math.PI / 2 + (k / n) * Math.PI * 2;
+    return {
+      index: i,
+      name: p.name,
+      cards: p.cards,
+      you: !!p.you,
+      bot: p.name.startsWith('🤖'),
+      place: done[p.name] || 0,
+      out: !!done[p.name],
+      x: cv.width / 2 + Math.cos(a) * (cv.width * .34),
+      y: cv.height / 2 + Math.sin(a) * (cv.height * .33),
+    };
+  }).filter(s => !s.you);        // เรามีไพ่ในมืออยู่แล้ว ไม่ต้องมีเหรียญซ้ำ
+}
+
 function unoFan(i, n, W, H) {
   const spread = Math.min(.15, 1.0 / Math.max(1, n)), a = (i - (n - 1) / 2) * spread;
   return { x: W / 2 + Math.sin(a) * 260, y: H - 96 + (1 - Math.cos(a)) * 240, rot: a };
@@ -124,8 +155,15 @@ function unoLayout() {
   if (!cv || !UNO || !UNO.playing) { UNO_CARDS = []; return; }
   const W = cv.width, H = cv.height;
   const hand = UNO.hand || [];
+  // ⚠️ จำไพ่เก่าด้วย "หน้าไพ่" ไม่ใช่เลขช่อง
+  //    เคยพลาด: วางไพ่ไปใบหนึ่ง ไพ่ที่เหลือเลื่อนช่อง ช่องเดิมจึงกลายเป็นไพ่คนละใบ
+  //    ไพ่ที่กำลังเล่นอนิเมชันอยู่เลยเปลี่ยนธาตุคาตา (เจ้าของเกมเจอ 08-29)
   const keep = {};
-  UNO_CARDS.filter(c => c.slot !== undefined).forEach(c => { keep[c.slot] = c; });
+  UNO_CARDS.filter(c => c.slot !== undefined && c.card).forEach(c => {
+    const key = `${c.card.suit}:${c.card.value}`;
+    if (!keep[key]) keep[key] = [];
+    keep[key].push(c);
+  });
 
   UNO_CARDS = [];
   // กองทิ้ง
@@ -137,14 +175,21 @@ function unoLayout() {
   // ไพ่ในมือเรา
   hand.forEach((card, i) => {
     const f = unoFan(i, hand.length, W, H);
-    const old = keep[i];
+    const pool = keep[`${card.suit}:${card.value}`];
+    const old = pool && pool.length ? pool.shift() : null;   // ใบหน้าเหมือนกันมีหลายใบ หยิบทีละใบ
     const can = (UNO.playable || []).includes(i);
     const dim = UNO.my_turn && !can;
     const glow = UNO.my_turn && can;        // ✨ ลงได้ = ขอบทองเรืองแสง
-    UNO_CARDS.push(old && old.anim
-      ? Object.assign(old, { card, dim, glow, slot: i })
-      : { card, x: f.x, y: f.y, rot: f.rot, face: 1, sc: 1, slot: i, dim, glow,
-          home: { x: f.x, y: f.y, rot: f.rot } });
+    if (old && old.anim) {
+      // กำลังบินอยู่ — ปล่อยให้บินต่อ แค่ย้ายปลายทางไปช่องใหม่
+      old.to = { ...old.to, x: f.x, y: f.y, rot: f.rot };
+      Object.assign(old, { card, dim, glow, slot: i,
+                           home: { x: f.x, y: f.y, rot: f.rot } });
+      UNO_CARDS.push(old);
+    } else {
+      UNO_CARDS.push({ card, x: f.x, y: f.y, rot: f.rot, face: 1, sc: 1, slot: i,
+                       dim, glow, home: { x: f.x, y: f.y, rot: f.rot } });
+    }
   });
 }
 
@@ -263,27 +308,61 @@ function unoFrame(now) {
     ctx.restore();
   }
 
-  // คู่แข่ง — วาดหลังไพ่ตามจำนวนที่เซิร์ฟเวอร์บอก (ไม่รู้ว่าเป็นไพ่อะไร)
+  // 👥 ที่นั่งล้อมวงโต๊ะ — คนถึงตาจะมีออร่าเรืองรอบตัว ทีละคนเท่านั้น
   if (UNO && UNO.playing) {
-    const foes = (UNO.players || []).filter(p => !p.you);
-    foes.forEach((p, k) => {
-      const x = W / 2 + (k - (foes.length - 1) / 2) * 220, y = 76;
+    unoSeats(cv).forEach(s => {
+      const turn = s.index === UNO.turn && !UNO.over;
       ctx.save();
-      ctx.fillStyle = UNO.turn === (UNO.players || []).indexOf(p) ? '#e8b04b' : '#a99274';
-      ctx.font = '600 14px system-ui'; ctx.textAlign = 'center';
-      ctx.fillText(`${p.name} · ${p.cards} ใบ`, x, y - 42);
-      for (let i = 0; i < Math.min(p.cards, 8); i++) {
-        ctx.save();
-        ctx.translate(x + (i - Math.min(p.cards, 8) / 2) * 15, y);
-        ctx.scale(.42, .42);
-        ctx.fillStyle = '#2a211a';
-        unoRR(ctx, -UNO_CW / 2, -UNO_CH / 2, UNO_CW, UNO_CH, 9); ctx.fill();
-        ctx.strokeStyle = '#e8b04b'; ctx.lineWidth = 3;
-        unoRR(ctx, -UNO_CW / 2 + 6, -UNO_CH / 2 + 6, UNO_CW - 12, UNO_CH - 12, 6);
-        ctx.stroke();
-        ctx.restore();
+      ctx.translate(s.x, s.y);
+
+      // ✨ ออร่าโฟกัส — วงแหวนเรืองที่คนกำลังเล่นเท่านั้น
+      if (turn) {
+        const r = 30 + Math.sin(UNO_PULSE) * 3;
+        const gl = ctx.createRadialGradient(0, 0, 6, 0, 0, r + 22);
+        gl.addColorStop(0, 'rgba(232,176,75,.42)');
+        gl.addColorStop(1, 'rgba(232,176,75,0)');
+        ctx.fillStyle = gl;
+        ctx.beginPath(); ctx.arc(0, 0, r + 22, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#e8b04b'; ctx.lineWidth = 2.5;
+        ctx.shadowColor = '#e8b04b'; ctx.shadowBlur = 14 + Math.sin(UNO_PULSE) * 7;
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+        ctx.shadowBlur = 0;
       }
+
+      // เหรียญที่นั่ง — คนที่ออกไปแล้วจางลง
+      ctx.globalAlpha = s.out ? .45 : 1;
+      ctx.fillStyle = turn ? '#362a20' : '#2a211a';
+      ctx.strokeStyle = turn ? '#e8b04b' : '#453528';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(0, 0, 26, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = '22px system-ui';
+      ctx.fillText(s.place ? (UNO_TROPHY[s.place] || '🏅') : (s.bot ? '🤖' : '🧑'), 0, 1);
+
+      ctx.font = '600 12px system-ui';
+      ctx.fillStyle = turn ? '#e8b04b' : '#a99274';
+      ctx.fillText(s.name.replace('🤖 ', ''), 0, 42);
+      ctx.font = '11px Bahnschrift, DIN Alternate, system-ui';
+      ctx.fillStyle = s.cards === 1 ? '#d4553a' : '#a99274';
+      ctx.fillText(s.place ? `อันดับ ${s.place}` : `${s.cards} ใบ`, 0, 57);
       ctx.restore();
+
+      // หลังไพ่ของคู่แข่ง — วาดจากจำนวนที่เซิร์ฟเวอร์บอก ไม่รู้ว่าเป็นไพ่อะไร
+      if (!s.you && !s.place) {
+        const show = Math.min(s.cards, 7);
+        for (let i = 0; i < show; i++) {
+          ctx.save();
+          ctx.translate(s.x + (i - (show - 1) / 2) * 11, s.y - 44);
+          ctx.scale(.3, .3);
+          ctx.fillStyle = '#2a211a';
+          unoRR(ctx, -UNO_CW / 2, -UNO_CH / 2, UNO_CW, UNO_CH, 9); ctx.fill();
+          ctx.strokeStyle = '#e8b04b'; ctx.lineWidth = 4;
+          unoRR(ctx, -UNO_CW / 2 + 6, -UNO_CH / 2 + 6, UNO_CW - 12, UNO_CH - 12, 6);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
     });
   }
 
@@ -294,6 +373,10 @@ function unoFrame(now) {
       c.x = c.from.x + (c.to.x - c.from.x) * e;
       c.y = c.from.y + (c.to.y - c.from.y) * e;
       c.rot = c.from.rot + (c.to.rot - c.from.rot) * e;
+      // ⚠️ ต้องไล่ค่า face ด้วย — ไม่งั้นจั่วแล้วไพ่ค้างคว่ำตลอด
+      if (c.from.face !== undefined && c.to.face !== undefined) {
+        c.face = c.from.face + (c.to.face - c.from.face) * e;
+      }
       if (c.anim === 'arc') c.y -= Math.sin(k * Math.PI) * 60;
       if (c.t >= c.dur) c.anim = null;
     }
@@ -530,8 +613,25 @@ function unoBind() {
   addEventListener('touchend', up);
 }
 
+// 🤖 เลือกจำนวนบอทที่จะนั่งด้วย — มีผลตอนกดเปิดโต๊ะครั้งถัดไป
+let UNO_BOTS = 1;
+function unoPaintSeats() {
+  document.querySelectorAll('[data-bots]').forEach(b =>
+    b.classList.toggle('on', +b.dataset.bots === UNO_BOTS));
+}
+document.querySelectorAll('[data-bots]').forEach(b => {
+  b.addEventListener('click', () => {
+    UNO_BOTS = +b.dataset.bots;
+    SFX.play('click');
+    unoPaintSeats();
+  });
+});
+unoPaintSeats();
+
 document.getElementById('unoStart')?.addEventListener('click', async () => {
-  SFX.play('click'); unoBind(); await unoDo('start', { bots: 1 });
+  SFX.play('click'); unoBind();
+  UNO_SEEN_PLACE = 0; UNO_FANFARE = null;    // โต๊ะใหม่ เริ่มนับอันดับใหม่
+  await unoDo('start', { bots: UNO_BOTS });
 });
 document.getElementById('unoDraw')?.addEventListener('click', () => {
   SFX.play('click'); unoDo('draw');

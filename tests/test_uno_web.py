@@ -406,3 +406,82 @@ def test_a_player_who_is_out_sees_they_are_watching():
 
 def test_the_final_ranking_is_shown_at_the_end():
     assert "unoPlaceText" in JS
+
+
+# ── 🐞🎨 บั๊กไพ่คว่ำ/เปลี่ยนสี + ที่นั่งล้อมวง (เจ้าของเกมเจอ+สั่ง 08-29) ──
+
+def test_the_animation_logic_actually_works():
+    """รันตรรกะจริงจาก uno.js — เทสข้อความจับบั๊กพวกนี้ไม่ได้
+
+    คุม 3 อย่าง: จั่วแล้วไพ่พลิกหงายจริง · ไพ่ไม่เปลี่ยนสีตอนเลื่อนช่อง ·
+    ที่นั่งล้อมวงอยู่ในจอและไม่ทับกัน ตั้งแต่ 2 ถึง 6 คน
+    """
+    import shutil
+    import subprocess
+
+    if not shutil.which("node"):
+        pytest.skip("เครื่องนี้ไม่มี node")
+    r = subprocess.run(["node", "tests/uno_anim.js"],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_drawing_flips_the_card_face_up():
+    """บั๊ก: ลูปวาดไล่ค่า x/y/rot แต่ลืม face — จั่วแล้วไพ่ค้างคว่ำตลอด"""
+    i = JS.index("      c.t = Math.min(c.dur, c.t + UNO_DT);")
+    body = JS[i:JS.index("      if (c.t >= c.dur)", i)]
+    assert "c.face" in body, "อนิเมชันไม่ได้ไล่ค่าหน้าไพ่ จั่วแล้วไพ่คว่ำ"
+
+
+def test_cards_are_matched_by_face_not_by_slot():
+    """บั๊ก: จำไพ่ด้วยเลขช่อง พอไพ่เลื่อนช่องก็กลายเป็นคนละใบ = เปลี่ยนสีเอง"""
+    i = JS.index("function unoLayout")
+    body = JS[i:JS.index("function unoHit", i)]
+    assert "const old = keep[i]" not in body, "ยังจำไพ่ด้วยเลขช่องอยู่"
+    assert "c.card.suit}:${c.card.value" in body, "ไม่ได้จำด้วยหน้าไพ่"
+
+
+def test_you_can_choose_how_many_bots_to_play_with():
+    i = HTML.index('id="v-uno"')
+    section = HTML[i:HTML.index("<!-- ══", i + 10)]
+    assert 'data-bots="1"' in section and 'data-bots="5"' in section, "เลือกจำนวนบอทไม่ได้"
+    assert "UNO_BOTS" in JS, "ไม่ได้ส่งจำนวนบอทไปให้เซิร์ฟเวอร์"
+
+
+def test_the_chosen_bot_count_is_actually_used():
+    i = JS.index("document.getElementById('unoStart')")
+    body = JS[i:i + 400]
+    assert "bots: UNO_BOTS" in body, "กดเปิดโต๊ะแล้วยังใช้จำนวนบอทค่าตายตัว"
+
+
+def test_players_sit_around_the_table():
+    assert "unoSeats" in JS
+    i = JS.index("function unoSeats")
+    body = JS[i:JS.index("function unoFan", i)]
+    assert "Math.cos(a)" in body and "Math.sin(a)" in body, "ที่นั่งไม่ได้วางเป็นวง"
+
+
+def test_the_seat_shows_a_person_or_a_bot_icon():
+    assert "'🤖'" in JS and "'🧑'" in JS, "ไม่มีไอคอนคน/บอทที่ที่นั่ง"
+
+
+def test_only_the_player_whose_turn_it_is_gets_an_aura():
+    """เจ้าของเกมสั่ง: ออร่าโฟกัสทีละคน"""
+    i = JS.index("unoSeats(cv).forEach")
+    body = JS[i:JS.index("UNO_CARDS.forEach", i)]
+    assert "s.index === UNO.turn" in body, "ออร่าไม่ได้ผูกกับคนที่ถึงตา"
+    assert "createRadialGradient" in body, "ไม่มีออร่าเรือง"
+
+
+def test_a_player_who_is_out_is_shown_faded_with_their_place():
+    i = JS.index("unoSeats(cv).forEach")
+    body = JS[i:JS.index("UNO_CARDS.forEach", i)]
+    assert "s.out" in body, "คนที่ออกไปแล้วยังดูเหมือนกำลังเล่น"
+    assert "s.place" in body, "ไม่ได้โชว์อันดับที่ที่นั่ง"
+
+
+def test_opponent_cards_are_drawn_from_the_count_only():
+    """ยังต้องวาดหลังไพ่จากจำนวน ไม่ใช่ตัวไพ่ (ซึ่งไม่เคยถูกส่งมา)"""
+    i = JS.index("unoSeats(cv).forEach")
+    body = JS[i:JS.index("UNO_CARDS.forEach", i)]
+    assert "s.cards" in body
