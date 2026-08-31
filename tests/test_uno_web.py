@@ -716,3 +716,24 @@ def test_there_is_a_way_to_diagnose_a_stuck_panel():
     body = JS[i:i + 600]
     for key in ("hidden", "over", "finished", "UNO_LOOP"):
         assert key in body, f"unoWhy() ไม่ได้บอก {key}"
+
+
+def test_everything_hidden_in_the_html_can_actually_hide():
+    """สั่ง hidden แล้วต้องหายจากจอจริง
+
+    🐞 เจ้าของเกมเจอ 08-29: JS ซ่อนสำเร็จ (DOM มี hidden="" จริง ๆ)
+       แต่แผงยังโชว์อยู่ กดปุ่มไหนก็ไม่หาย
+       ต้นเหตุ: CSS ตั้ง display:grid ซึ่งทับกฎ [hidden]{display:none} ของเบราว์เซอร์
+       แผงอื่นในไฟล์มีกฎคู่กันหมด (wm-over, #wmAim) — ของศึกไพ่รูนตกหล่นไป
+
+    เทสนี้กวาดทั้งไฟล์ ไม่ใช่เช็คเฉพาะแผงเดียว เพราะตอนเขียนเจออีก 3 จุด
+    ที่พลาดแบบเดียวกัน (.g-tile ทำให้ปุ่มผ่าน/UNO ซ่อนไม่ได้ด้วย)
+    """
+    import shutil
+    import subprocess
+
+    if not shutil.which("node"):
+        pytest.skip("เครื่องนี้ไม่มี node")
+    r = subprocess.run(["node", "tests/uno_hidden.js"],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stdout + r.stderr

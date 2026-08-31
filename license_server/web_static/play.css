@@ -1189,3 +1189,15 @@ body.bar-min .pbar .money { margin-left: auto; }
   .uno-rank td { padding:6px 9px; }
   .uno-over-btns button { flex:1 1 130px; }
 }
+
+/* ⚠️ display: ใด ๆ ทับกฎ [hidden] ของเบราว์เซอร์ ต้องสั่งซ่อนเองทุกตัว
+   เจ้าของเกมเจอ 08-29: JS สั่ง hidden แล้วแต่แผงยังโชว์อยู่ กดอะไรก็ไม่หาย
+   (แผงอื่นในไฟล์นี้มีกฎคู่กันหมด — ของศึกไพ่รูนตกหล่นไป) */
+.uno-over[hidden],
+.uno-help[hidden],
+.uno-suits[hidden],
+.uno-seats[hidden],
+.uno-help-btn[hidden],
+.wm-room[hidden],
+.bet-row[hidden],
+.g-tile[hidden] { display: none !important; }
