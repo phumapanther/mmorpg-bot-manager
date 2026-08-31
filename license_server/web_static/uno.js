@@ -187,7 +187,20 @@ function unoLayout() {
   // ไพ่ในมือเรา — ระหว่างแจกไพ่ยังไม่โชว์ (เจ้าของเกมสั่ง 08-29)
   //    ไม่งั้นไพ่จริงโผล่มาก่อนไพ่ที่กำลังแจกจะบินไปถึงมือเสียอีก
   if (UNO_DEALING) return;
+
+  // ⚠️ ไพ่ที่เพิ่งทิ้งลงกองต้องหายจากมือทันที
+  //    เจ้าของเกมเจอ 08-29: ทิ้งไพ่ 3 ไปแล้วไพ่ 3 ยังอยู่บนมือ
+  //    จนกว่าบอทจะเล่นครบ — เพราะ UNO.hand ยังเป็นมือเก่าจนกว่าสถานะใหม่จะมา
+  //    นับจำนวนที่กำลังบินต่อหน้าไพ่ แล้วตัดออกตามนั้น
+  const gone = {};
+  flying.filter(c => c.card && c.toPile).forEach(c => {
+    const key = `${c.card.suit}:${c.card.value}`;
+    gone[key] = (gone[key] || 0) + 1;
+  });
+
   hand.forEach((card, i) => {
+    const key = `${card.suit}:${card.value}`;
+    if (gone[key]) { gone[key]--; return; }   // ใบนี้กำลังบินไปกองอยู่
     const f = unoFan(i, hand.length, W, H);
     const pool = keep[`${card.suit}:${card.value}`];
     const old = pool && pool.length ? pool.shift() : null;   // ใบหน้าเหมือนกันมีหลายใบ หยิบทีละใบ
@@ -434,6 +447,7 @@ function unoFrame(now) {
     });
   }
 
+  UNO_CARDS = UNO_CARDS.filter(c => !c.dead);
   UNO_CARDS.forEach(c => {
     if (c.anim) {
       c.t = Math.min(c.dur, c.t + UNO_DT);
@@ -446,7 +460,10 @@ function unoFrame(now) {
         c.face = c.from.face + (c.to.face - c.from.face) * e;
       }
       if (c.anim === 'arc') c.y -= Math.sin(k * Math.PI) * 60;
-      if (c.t >= c.dur) c.anim = null;
+      if (c.t >= c.dur) {
+        c.anim = null;
+        if (c.toPile) c.dead = true;     // ถึงกองแล้ว — เก็บทิ้ง ปล่อยให้กองจริงวาดแทน
+      }
     }
     const want = (UNO_DRAG && UNO_DRAG.c === c) ? 1 : (!UNO_DRAG && UNO_HOVER === c ? .45 : 0);
     c.lift = (c.lift || 0) + (want - (c.lift || 0)) * Math.min(1, .22 * UNO_DT);
@@ -597,6 +614,9 @@ async function unoDo(action, extra) {
     }
     // เล่นภาพตาบอทก่อน แล้วค่อยเฉลยสถานะใหม่ — ไม่งั้นผลมาก่อนภาพ
     if (action === 'start') {
+      // ⚠️ ตั้งธงก่อน unoApply — ไม่งั้นไพ่จริง 7 ใบโผล่มาก่อน
+      //    แล้วไพ่ที่กำลังแจกจะบินมาทับข้างบน (เจ้าของเกมเจอ 08-29)
+      UNO_DEALING = true;
       unoApply(d.table);
       await unoDealAnim();               // 🃏 แจกไพ่จากกองให้ทุกคนดูก่อน
       if (bots.length) await unoPlayBotMoves(bots);
@@ -944,12 +964,14 @@ function unoBind() {
     const t = unoPilePos(cv).pile;
     // 🧲 ดูดเข้ากอง — ปล่อยตรงไหนก็ไหลเข้าที่เอง ไม่ต้องเล็งให้ตรง
     c.anim = 'move'; c.t = 0; c.dur = 8;
+    c.flying = true; c.toPile = true;    // ทิ้งไปแล้ว — อย่าวาดซ้ำในมืออีก
     c.from = { x: c.x, y: c.y, rot: c.rot };
     c.to = { x: t.x, y: t.y, rot: (Math.random() - .5) * .3 };
     unoBurst(t.x, t.y + 22, '#c8b48e', 16);
     const card = c.card;
     if (card && (card.value === 'wild' || card.value === 'wild4')) {
       UNO_SENT = true;                         // กำลังเลือกสี = ลงใบอื่นซ้อนไม่ได้
+      c.flying = true; c.toPile = true;        // ออกจากมือแล้วเช่นกัน
       unoAskSuit(c.slot);                      // ไวลด์ต้องเลือกสีก่อน
       return;
     }

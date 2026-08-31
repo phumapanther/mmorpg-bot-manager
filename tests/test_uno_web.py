@@ -1029,3 +1029,56 @@ def test_the_celebration_wait_has_a_ceiling():
     body = JS[i:i + 300]
     loop = body[body.index("while"):body.index(chr(10), body.index("while"))]
     assert "Date.now()" in loop, "วนรอไม่มีเพดาน — อนิเมชันค้างแล้วเกมค้างตาม"
+
+
+# ── 🃏 ไพ่ที่ทิ้งแล้ว/กำลังแจก ต้องไม่โผล่บนมือ (เจ้าของเกมเจอ 08-29) ──
+
+def test_a_played_card_leaves_the_hand_at_once():
+    """เจ้าของเกมเจอ: ทิ้งไพ่ 3 ไปแล้ว ไพ่ 3 ยังอยู่บนมือจนบอทเล่นจบ
+
+    ต้นเหตุ: UNO.hand ยังเป็นมือเก่าจากเซิร์ฟเวอร์จนกว่าสถานะใหม่จะมา
+    แก้: นับใบที่กำลังบินไปกอง แล้วตัดออกจากมือตอนวาด
+    """
+    i = JS.index("function unoLayout")
+    body = JS[i:JS.index("function unoHit", i)]
+    assert "c.toPile" in body, "ไม่ได้แยกว่าใบไหนกำลังบินไปกอง"
+    assert "gone[key]--" in body, "ไม่ได้ตัดใบที่ทิ้งแล้วออกจากมือ"
+
+
+def test_the_played_card_is_marked_when_dropped():
+    i = JS.index("const up = async ()")
+    body = JS[i:JS.index("cv.addEventListener('mousedown'", i)]
+    # ต้องทำเครื่องหมายตั้งแต่ตอนดูดเข้ากอง — ไม่ใช่เฉพาะทางไวลด์
+    snap = body[body.index("const t = unoPilePos"):body.index("unoBurst")]
+    assert "c.toPile = true" in snap, "ปล่อยไพ่ลงกองแล้วไม่ได้ทำเครื่องหมาย"
+
+
+def test_a_wild_also_leaves_the_hand_while_choosing():
+    """วางไวลด์รอเลือกสีอยู่ ไพ่ก็ต้องหายจากมือแล้ว"""
+    i = JS.index("const up = async ()")
+    body = JS[i:JS.index("cv.addEventListener('mousedown'", i)]
+    j = body.index("unoAskSuit")
+    assert "c.toPile = true" in body[:j], "ไวลด์ยังค้างบนมือระหว่างเลือกสี"
+
+
+def test_cards_that_reached_the_pile_are_cleaned_up():
+    """ไม่เก็บทิ้ง = ไพ่ค้างทับกองกลางไปเรื่อย ๆ"""
+    assert "c.dead = true" in JS
+    i = JS.index("UNO_CARDS = UNO_CARDS.filter(c => !c.dead)")
+    assert i > 0, "ไพ่ที่บินถึงกองแล้วไม่ถูกเก็บทิ้ง"
+
+
+def test_dealing_starts_before_the_hand_is_applied():
+    """เจ้าของเกมเจอ: เห็นไพ่ 7 ใบอยู่แล้ว แล้วอนิเมชันแจกมาทับข้างบน
+
+    ต้นเหตุ: unoApply วาดมือเต็มก่อน แล้ว unoDealAnim ค่อยตั้งธง — สายไป
+    """
+    # ตัดเฉพาะบล็อก start — มี unoApply ของทางจั่วไพ่อยู่ข้างบนด้วย
+    i = JS.index("if (action === 'start') {")
+    body = JS[i:JS.index("return d;", i)]
+    # ตัดคอมเมนต์ทิ้งก่อน ไม่งั้นคำว่า unoApply ในคอมเมนต์จะนับด้วย
+    code = "".join(l for l in body.splitlines(True)
+                   if not l.strip().startswith("//"))
+    assert "UNO_DEALING = true" in code, "ไม่ได้ตั้งธงก่อนเริ่ม"
+    assert code.index("UNO_DEALING = true") < code.index("unoApply"), \
+        "วาดมือเต็มก่อนตั้งธง — ไพ่จริงโผล่มาก่อน"

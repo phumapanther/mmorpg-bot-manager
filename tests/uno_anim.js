@@ -126,4 +126,24 @@ check('ดักก่อนจับไพ่ (ไม่ใช่แค่ dim)
 const iSent = downSrc.indexOf('UNO_SENT');
 const iHit = downSrc.indexOf('unoHit(p)');
 check('เช็คก่อนหาไพ่ที่จับ', iSent >= 0 && iSent < iHit, true);
+
+
+// ── 10. ไพ่ที่เพิ่งทิ้งต้องหายจากมือทันที ──
+// (เจ้าของเกมเจอ 08-29: ทิ้งไพ่ 3 ไปแล้ว ไพ่ 3 ยังอยู่บนมือจนบอทเล่นจบ)
+const goneSrc = src.slice(src.indexOf('  const gone = {};'),
+                          src.indexOf('    const f = unoFan'));
+const countShown = (hand, flying) => {
+  let n = 0;
+  new Function('hand', 'flying', 'tick', goneSrc + '  tick(); });')(
+    hand, flying, () => n++);
+  return n;
+};
+const C = (v) => ({ suit: 'fire', value: v });
+const inAir = (v) => [{ card: C(v), toPile: true, anim: 'move', flying: true }];
+console.log('ไพ่ที่เพิ่งทิ้ง:');
+check('มือ 5 ใบ ทิ้งใบ 3 -> เหลือ 4', countShown([C(1),C(2),C(3),C(4),C(5)], inAir(3)), 4);
+check('ไพ่ซ้ำ 2 ใบ ทิ้งไป 1 -> เหลือ 1', countShown([C(3),C(3)], inAir(3)), 1);
+check('ไม่มีไพ่บิน -> ครบทุกใบ', countShown([C(1),C(2)], []), 2);
+check('ไพ่บินแต่ไม่ได้ไปกอง -> ไม่ซ่อน',
+      countShown([C(1)], [{card:C(1), anim:'move', flying:true}]), 1);
 process.exit(fail ? 1 : 0);
