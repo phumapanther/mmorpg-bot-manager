@@ -39,4 +39,17 @@ console.log('บอทกำลังคิด (สถานะยังเก�
 check('ไม่เรือง', decide(mine, 0, { seat: 1 }).glow, false);
 check('หรี่ไว้', decide(mine, 0, { seat: 1 }).dim, true);
 
+
+
+// เจ้าของเกมสั่ง 08-29: ตอนล็อกไพ่ไม่ให้ขยับ ก็ไม่ต้องเรืองแสงด้วย
+const decideLocked = (UNO, idx, opts) =>
+  new Function('UNO', 'i', 'UNO_THINK', 'UNO_SENT', 'UNO_DEALING', 'UNO_CARDS',
+    mtSrc + '\n' + picked + '\n return { can, dim, glow };')(
+      UNO, idx, opts.think || null, !!opts.sent, !!opts.dealing, opts.cards || []);
+
+console.log('ล็อกมือแล้วต้องไม่เรือง:');
+check('สั่งลงไพ่ไปแล้ว รอผล', decideLocked(mine, 0, { sent: true }).glow, false);
+check('กำลังแจกไพ่', decideLocked(mine, 0, { dealing: true }).glow, false);
+check('ไพ่บอทยังบินอยู่', decideLocked(mine, 0, { cards: [{ anim: 'arc', flying: true }] }).glow, false);
+check('ปกติ = ยังเรืองอยู่', decideLocked(mine, 0, {}).glow, true);
 process.exit(fail ? 1 : 0);

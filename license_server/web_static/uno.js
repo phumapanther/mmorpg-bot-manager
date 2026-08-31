@@ -884,6 +884,11 @@ function unoBind() {
       else if (!UNO.drew) unoDo('draw');
       return;
     }
+    // 🔒 สั่งลงไพ่ไปแล้ว = ล็อกมือทันที ห้ามจับไพ่ขยับต่อ
+    //    เจ้าของเกมสั่ง 08-29: "พอลงไพ่แล้วก็ควรล็อคไพ่ทันทีเลย
+    //    ไม่ให้ขยับไพ่ เพื่อลงต่อ"
+    //    ต่างจาก dim ที่บอกแค่ "ใบนี้ลงไม่ได้" — อันนั้นยังจับจัดตำแหน่งได้
+    if (UNO_SENT || UNO_DEALING || UNO_THINK) return;
     const c = unoHit(p);
     if (!c || c.dim) return;
     UNO_DRAG = { c, ox: c.x - unoAt(e, cv).x, oy: c.y - unoAt(e, cv).y };
@@ -923,6 +928,7 @@ function unoBind() {
       unoAskSuit(c.slot);                      // ไวลด์ต้องเลือกสีก่อน
       return;
     }
+    UNO_HOVER = null;                          // เลิกชี้ค้าง ไพ่จะได้ไม่ลอยค้าง
     await unoDo('play', { index: c.slot });
   };
   cv.addEventListener('mousedown', down);

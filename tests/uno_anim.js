@@ -116,4 +116,14 @@ const turnFx = (cards) => new Function('UNO','UNO_THINK','UNO_SENT','UNO_DEALING
   busySrc + mt3 + '\n return unoMyTurn();')({playing:1,my_turn:1}, null, false, false, cards);
 check('ไพ่บอทยังบิน = ยังไม่ถึงตาเรา', turnFx([{anim:'arc', flying:true}]), false);
 check('บินจบแล้ว = ถึงตาเรา', turnFx([{anim:null, flying:true}]), true);
+
+
+// ── 9. ลงไพ่แล้วล็อกมือทันที ──
+const downSrc = src.slice(src.indexOf('    const c = unoHit(p);') - 400,
+                          src.indexOf('  const move = e =>'));
+console.log('ล็อกมือหลังลงไพ่:');
+check('ดักก่อนจับไพ่ (ไม่ใช่แค่ dim)', /if \(UNO_SENT \|\| UNO_DEALING \|\| UNO_THINK\) return;/.test(downSrc), true);
+const iSent = downSrc.indexOf('UNO_SENT');
+const iHit = downSrc.indexOf('unoHit(p)');
+check('เช็คก่อนหาไพ่ที่จับ', iSent >= 0 && iSent < iHit, true);
 process.exit(fail ? 1 : 0);

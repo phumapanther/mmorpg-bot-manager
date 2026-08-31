@@ -951,3 +951,29 @@ def test_the_animation_gate_actually_works():
     r = subprocess.run(["node", "tests/uno_anim.js"],
                        capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_the_hand_locks_the_moment_a_card_is_played():
+    """เจ้าของเกมสั่ง: ลงไพ่แล้วล็อกไพ่ทันที ไม่ให้ขยับไพ่เพื่อลงต่อ
+
+    ⚠️ ตัวกันเดิม (c.dim) บอกแค่ "ใบนี้ลงไม่ได้" — ยังจับลากจัดตำแหน่งได้อยู่
+       ต้องดักตั้งแต่ก่อนจับไพ่ ไม่งั้นระหว่างรอคำตอบยังหยิบไพ่ใบใหม่มาจ่อได้
+    """
+    i = JS.index("const down = e =>")
+    body = JS[i:JS.index("const move = e =>", i)]
+    assert "UNO_SENT || UNO_DEALING || UNO_THINK" in body, "ส่งคำสั่งแล้วยังจับไพ่ได้"
+    assert body.index("UNO_SENT") < body.index("unoHit(p)"), \
+        "ดักหลังจับไพ่แล้ว — สายไป"
+
+
+def test_locked_cards_do_not_glow():
+    """เจ้าของเกมสั่ง: ตอนล็อกไพ่ไม่ให้ขยับ ก็ไม่ต้องเรืองแสงด้วย
+
+    ทั้งขอบเรืองและการล็อกมาจาก unoMyTurn() ตัวเดียวกัน
+    ล็อกเมื่อไหร่แสงก็ดับตามเอง — เทสนี้กันไม่ให้ใครแยกสองอย่างนี้ออกจากกัน
+    (uno_glow.js รันตรรกะจริงตรวจครบทั้งสามกรณี: สั่งไปแล้ว/แจกไพ่/ไพ่ยังบิน)
+    """
+    i = JS.index("function unoLayout")
+    body = JS[i:JS.index("function unoHit", i)]
+    assert "const glow = mine && can" in body, "แสงไม่ได้ผูกกับตัวเดียวกับการล็อก"
+    assert "const mine = unoMyTurn()" in body
