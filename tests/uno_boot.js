@@ -85,7 +85,9 @@ try {
   sandbox.unoApply({ ...table, over: true, my_turn: false,
     finished: [{ name: 'คุณ', place: 1, you: true, bot: false, left: 0 },
                { name: '🤖 บอท 1', place: 2, you: false, bot: true, left: 25 }] });
-  if (overBox.hidden) throw new Error('จบเกมแล้วตารางไม่ขึ้น');
+  // ตารางรออนิเมชันแสดงความยินดีเล่นจบก่อน — เดินเวลาให้มันจบ
+  for (let k = 0; k < 400 && overBox.hidden; k++) sandbox.unoFrame(k * 16.7);
+  if (overBox.hidden) throw new Error('อนิเมชันจบแล้วตารางยังไม่ขึ้น');
   sandbox.unoApply(table);                      // เปิดโต๊ะใหม่
   if (lastErr) throw lastErr;
   if (!overBox.hidden) throw new Error('เปิดโต๊ะใหม่แล้วตารางอันดับยังค้างอยู่');

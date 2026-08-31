@@ -185,9 +185,12 @@ function unoLayout() {
     const f = unoFan(i, hand.length, W, H);
     const pool = keep[`${card.suit}:${card.value}`];
     const old = pool && pool.length ? pool.shift() : null;   // ใบหน้าเหมือนกันมีหลายใบ หยิบทีละใบ
-    const can = (UNO.playable || []).includes(i);
-    const dim = UNO.my_turn && !can;
-    const glow = UNO.my_turn && can;        // ✨ ลงได้ = ขอบทองเรืองแสง
+    const mine = unoMyTurn();
+    const can = mine && (UNO.playable || []).includes(i);
+    // ยังไม่ถึงตา = หรี่ทั้งมือ (เจ้าของเกมสั่ง 08-29)
+    // แต่ยังหยิบจัดตำแหน่งไพ่ได้ — แค่ลงกองไม่ได้
+    const dim = !mine || !can;
+    const glow = mine && can;               // ✨ ลงได้ = ขอบทองเรืองแสง
     if (old && old.anim) {
       // กำลังบินอยู่ — ปล่อยให้บินต่อ แค่ย้ายปลายทางไปช่องใหม่
       old.to = { ...old.to, x: f.x, y: f.y, rot: f.rot };
@@ -219,10 +222,23 @@ function unoAt(e, cv) {
            y: (t.clientY - r.top) * cv.height / r.height };
 }
 
+/** ตอนนี้เราสั่งอะไรได้ไหม — ตัวตัดสินตัวเดียวของทั้งหน้า
+
+    ⚠️ ต้องเช็ค UNO_THINK ด้วย — ระหว่างเล่นภาพตาบอท
+       UNO ยังเป็นสถานะเก่าที่ my_turn ยัง true อยู่
+       ไม่เช็ค = ลงไพ่ทับตาบอทได้ (เจ้าของเกมเจอ 08-29)
+       รวมถึงตอนอนิเมชันจั่วไพ่ของเราเองยังเล่นไม่จบ — ยังนับเป็นตาเราอยู่
+ */
+function unoMyTurn() {
+  if (!UNO || !UNO.playing || !UNO.my_turn) return false;
+  if (UNO.over || UNO.my_place) return false;
+  if (UNO_THINK) return false;              // บอทกำลังคิด/ลงไพ่อยู่
+  return true;
+}
+
 /** ตอนนี้ทำอะไรไม่ได้นอกจากจั่วไหม — ใช้ตัดสินว่าจะเรืองขอบกองจั่วไหม */
 function unoMustDraw() {
-  if (!UNO || !UNO.playing || !UNO.my_turn) return false;
-  if (UNO.winner !== null && UNO.winner !== undefined) return false;
+  if (!unoMyTurn()) return false;
   if (UNO.drew) return false;             // จั่วไปแล้วรอบนี้
   // ไม่มีไพ่ลงได้สักใบ = ต้องจั่ว
   // โดนสแตคแล้วสแตคต่อไม่ได้ = ต้องยอมจั่ว — เรืองเหมือนกัน
@@ -449,6 +465,7 @@ function unoSafeFrame(now) {
 //    เซิร์ฟเวอร์เดินให้จบในคำขอเดียวแล้ว ที่นี่แค่เล่นภาพย้อนหลังให้ดูทัน
 //    ไม่งั้นบอท 3 ตัวเล่นรวดเดียวจบ ผู้เล่นไม่ทันเห็นว่าเกิดอะไรขึ้น
 const UNO_THINK_MS = 620;      // หน่วงต่อตาบอทหนึ่งคน
+const UNO_DRAW_MS = 420;       // รอให้ไพ่ที่จั่วบินเข้ามือจนเห็น ก่อนปล่อยเป็นตาบอท
 let UNO_THINK = null;          // {seat, t} บอทที่กำลังคิดอยู่
 const unoWait = ms => new Promise(r => setTimeout(r, ms));
 
@@ -481,8 +498,18 @@ function unoFlyToPile(seat, card) {
 async function unoDo(action, extra) {
   try {
     const d = await api('POST', '/api/web/uno', { action, ...(extra || {}) });
+    const bots = d.bot_moves || [];
+    // 📥 จั่วไพ่หรือยอมจั่ว — ให้ไพ่บินเข้ามือเราให้เห็นก่อน แล้วค่อยเป็นตาบอท
+    //    เจ้าของเกมสั่ง 08-29: "ถ้ามีดีเลย์ตอนจั่วก็ให้เป็นเทิร์นของคนๆนั้นไปก่อน"
+    if ((action === 'draw' || action === 'take') && bots.length) {
+      unoApply(d.table);                   // ไพ่ขึ้นมือ + บินออกจากกอง
+      await unoWait(UNO_DRAW_MS);          // รอให้ดูทันก่อน
+      await unoPlayBotMoves(bots);
+      unoApply(d.table);                   // เซ็ตสถานะสุดท้ายอีกที
+      return d;
+    }
     // เล่นภาพตาบอทก่อน แล้วค่อยเฉลยสถานะใหม่ — ไม่งั้นผลมาก่อนภาพ
-    if ((d.bot_moves || []).length) await unoPlayBotMoves(d.bot_moves);
+    if (bots.length) await unoPlayBotMoves(bots);
     unoApply(d.table);
     return d;
   } catch (e) { toast(e.message, true); return null; }
@@ -521,7 +548,11 @@ function unoDrawFanfare(ctx, W, H) {
   if (!UNO_FANFARE) return;
   const f = UNO_FANFARE;
   f.t += UNO_DT;
-  if (f.t >= f.dur) { UNO_FANFARE = null; return; }
+  if (f.t >= f.dur) {
+    UNO_FANFARE = null;
+    unoPaintOver();          // อนิเมชันจบแล้วค่อยเฉลยตารางอันดับ
+    return;
+  }
   const k = f.t / f.dur;
   const fade = Math.min(1, k * 6) * Math.min(1, (1 - k) * 6);   // จางเข้า/ออกสั้น ๆ
   const big = f.place === 1;
@@ -543,7 +574,11 @@ function unoDrawFanfare(ctx, W, H) {
   ctx.fillText(f.name, 0, big ? 18 : 12);
   ctx.fillStyle = '#a99274';
   ctx.font = big ? '600 16px system-ui' : '13px system-ui';
-  ctx.fillText(big ? 'ชนะ! — อันดับ 1' : `อันดับ ${f.place}`, 0, big ? 46 : 32);
+  // เป็นเราเอง = แสดงความยินดี · เป็นคนอื่น = บอกเฉย ๆ ว่าเขาเข้าเส้นชัยแล้ว
+  const line = f.you
+    ? (big ? '🎉 ยินดีด้วย! คุณได้อันดับ 1' : `🎉 คุณได้อันดับ ${f.place}`)
+    : (big ? 'ชนะ! — อันดับ 1' : `อันดับ ${f.place}`);
+  ctx.fillText(line, 0, big ? 46 : 32);
   ctx.restore();
   ctx.restore();
 }
@@ -603,7 +638,10 @@ function unoPaintOver() {
   const tbl = document.getElementById('unoRank');
   if (!box || !tbl) return;
   const done = (UNO && UNO.finished) || [];
-  const show = !!(UNO && UNO.playing && UNO.over && done.length);
+  // ⚠️ รออนิเมชันแสดงความยินดีเล่นจบก่อน — ตารางคลุมเต็มจอ ขึ้นเร็วไปจะบังหมด
+  //    เจ้าของเกมเจอ 08-29: "ลงไพ่ใบท้ายแล้วไม่มีอะไรขึ้น"
+  //    (เล่น 2 คน ลงใบสุดท้าย = จบทันที ตารางขึ้นทับอนิเมชันพอดี)
+  const show = !!(UNO && UNO.playing && UNO.over && done.length && !UNO_FANFARE);
   box.hidden = !show;
   if (!show) return;
   // ⚠️ ข้อมูลขาดฟิลด์สักตัวต้องไม่ทำให้ทั้งแผงพัง
@@ -751,10 +789,9 @@ function unoBind() {
       unoDo('play', { index: pick, suit: hit.suit });
       return;
     }
-    if (!UNO || !UNO.my_turn) return;
     const p = pt;
     // 📥 กดกองจั่วบนโต๊ะ = จั่วเลย ไม่ต้องเลื่อนไปหาปุ่มข้างล่าง
-    if (unoOnDeck(p, cv)) {
+    if (unoOnDeck(p, cv) && unoMyTurn()) {
       e.preventDefault();
       SFX.play('click');
       if (UNO.must_answer) unoDo('take');     // โดนสแตคอยู่ = ยอมจั่วทั้งกอง
@@ -782,7 +819,8 @@ function unoBind() {
   const up = async () => {
     if (!UNO_DRAG) return;
     const c = UNO_DRAG.c; UNO_DRAG = null;
-    if (!unoNearPile(c, cv)) {                 // ลากไม่ถึง = เด้งกลับ
+    // ยังไม่ถึงตา = เด้งกลับเสมอ ไม่ส่งคำสั่งไปให้เซิร์ฟเวอร์ปฏิเสธ
+    if (!unoMyTurn() || !unoNearPile(c, cv)) {   // ลากไม่ถึง = เด้งกลับ
       c.anim = 'move'; c.t = 0; c.dur = 18;
       c.from = { x: c.x, y: c.y, rot: c.rot }; c.to = { ...c.home };
       return;

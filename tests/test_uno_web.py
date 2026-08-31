@@ -345,7 +345,8 @@ def test_the_pile_glows_when_drawing_is_the_only_option():
     body = JS[i:JS.index("function unoOnDeck", i)]
     assert "UNO.playable" in body, "ไม่ได้ดูว่ามีไพ่ลงได้ไหม"
     assert "UNO.drew" in body, "จั่วไปแล้วยังเรืองอยู่อีก"
-    assert "UNO.my_turn" in body, "ตาคนอื่นก็เรือง"
+    # เช็คตาผ่าน unoMyTurn() แล้ว (รวม UNO_THINK ด้วย)
+    assert "unoMyTurn()" in body, "ตาคนอื่นก็เรือง"
 
 
 def test_drawing_a_card_makes_it_fly_from_the_pile():
@@ -735,5 +736,92 @@ def test_everything_hidden_in_the_html_can_actually_hide():
     if not shutil.which("node"):
         pytest.skip("เครื่องนี้ไม่มี node")
     r = subprocess.run(["node", "tests/uno_hidden.js"],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+# ── 🎯 ตาใครลงได้ · แสดงความยินดี · ดีเลย์จั่ว (เจ้าของเกมสั่ง 08-29) ──
+
+def test_you_cannot_play_on_someone_elses_turn():
+    """เจ้าของเกมเจอ: ถึงเทิร์นคนอื่นแล้วยังลงไพ่ได้
+
+    ต้นเหตุ: ระหว่างเล่นภาพตาบอท UNO ยังเป็นสถานะเก่าที่ my_turn เป็น true
+    unoMyTurn() จึงต้องเช็ค UNO_THINK ด้วย
+    """
+    assert "function unoMyTurn" in JS
+    i = JS.index("function unoMyTurn")
+    body = JS[i:JS.index("function unoMustDraw", i)]
+    assert "UNO_THINK" in body, "บอทเล่นอยู่แต่ยังนับเป็นตาเรา"
+    assert "UNO.over" in body and "my_place" in body
+
+
+def test_dropping_a_card_out_of_turn_bounces_back():
+    i = JS.index("const up = async ()")
+    body = JS[i:JS.index("cv.addEventListener('mousedown'", i)]
+    assert "!unoMyTurn()" in body, "ยังไม่ถึงตาแล้วยังปล่อยลงกองได้"
+
+
+def test_the_whole_hand_greys_out_until_your_turn():
+    """เจ้าของเกมสั่ง: ยังไม่ถึงเทิร์นตัวเองให้เป็นสีเทา"""
+    i = JS.index("function unoLayout")
+    body = JS[i:JS.index("function unoHit", i)]
+    assert "const dim = !mine || !can" in body, "ตาคนอื่นแล้วไพ่ไม่หรี่"
+
+
+def test_you_can_still_rearrange_cards_when_it_is_not_your_turn():
+    """เจ้าของเกมสั่ง: แต่สามารถจัดตำแหน่งไพ่บนมือได้"""
+    i = JS.index("const down = e =>")
+    body = JS[i:JS.index("const move = e =>", i)]
+    assert "if (!unoMyTurn()) return;" not in body, "ยังไม่ถึงตาแล้วจับไพ่ไม่ได้เลย"
+
+
+def test_the_deck_can_only_be_clicked_on_your_turn():
+    i = JS.index("const down = e =>")
+    body = JS[i:JS.index("const move = e =>", i)]
+    assert "unoOnDeck(p, cv) && unoMyTurn()" in body, "ตาคนอื่นแล้วยังกดจั่วได้"
+
+
+def test_the_ranking_waits_for_the_congratulations():
+    """เจ้าของเกมเจอ: ลงไพ่ใบท้ายแล้วไม่มีอะไรขึ้น
+
+    ต้นเหตุ: เล่น 2 คน ลงใบสุดท้าย = จบทันที ตารางขึ้นทับอนิเมชันพอดี
+    """
+    i = JS.index("function unoPaintOver")
+    body = JS[i:JS.index("function unoPaint()", i)]
+    assert "!UNO_FANFARE" in body, "ตารางขึ้นทับอนิเมชันแสดงความยินดี"
+
+
+def test_the_ranking_appears_after_the_animation_ends():
+    """ไม่เรียกตอนจบ = รอไปตลอด ตารางไม่ขึ้นเลย"""
+    i = JS.index("function unoDrawFanfare")
+    body = JS[i:i + 900]
+    assert "unoPaintOver()" in body, "อนิเมชันจบแล้วตารางไม่โผล่"
+
+
+def test_the_winner_is_congratulated_by_name():
+    """เจ้าของเกมสั่ง: ขึ้นว่าคุณได้อันดับ 1 2 3"""
+    i = JS.index("function unoDrawFanfare")
+    body = JS[i:i + 2000]
+    assert "f.you" in body and "ยินดี" in body, "ชนะแล้วไม่ได้แสดงความยินดีกับเรา"
+
+
+def test_drawing_shows_the_card_before_the_bots_move():
+    """เจ้าของเกมสั่ง: มีดีเลย์ตอนจั่วก็ให้เป็นเทิร์นคนนั้นจนกว่าอนิเมชันจะจบ"""
+    assert "UNO_DRAW_MS" in JS
+    i = JS.index("async function unoDo")
+    body = JS[i:JS.index("// 🏁 อนิเมชันตอนมีคนเข้าเส้นชัย", i)]
+    assert "'draw'" in body and "UNO_DRAW_MS" in body
+    assert body.index("unoApply(d.table)") < body.index("unoPlayBotMoves(bots)"), \
+        "บอทเล่นก่อนไพ่ที่จั่วจะขึ้นมือ"
+
+
+def test_the_turn_rules_actually_work():
+    """รันตรรกะจริง — เช็คข้อความอย่างเดียวจับตรรกะผิดไม่ได้"""
+    import shutil
+    import subprocess
+
+    if not shutil.which("node"):
+        pytest.skip("เครื่องนี้ไม่มี node")
+    r = subprocess.run(["node", "tests/uno_anim.js"],
                        capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, r.stdout + r.stderr

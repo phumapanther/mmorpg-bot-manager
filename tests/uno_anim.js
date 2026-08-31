@@ -63,12 +63,26 @@ check('ยังอยู่ในแถวไพ่ในมือ = ไม่�
 check('ลากลงล่างสุด = ไม่ลง', nearPile({x:450,y:490}, CV), false);
 
 // ── 5. กองจั่วเรืองทั้งสองกรณี ──
-const mdSrc = src.slice(src.indexOf('function unoMustDraw'), src.indexOf('function unoOnDeck'));
-const mustDraw = new Function('UNO', mdSrc + '\n return unoMustDraw();');
+// unoMustDraw เรียก unoMyTurn ต่อ — ยกมาทั้งคู่
+const mdSrc = src.slice(src.indexOf('function unoMyTurn'), src.indexOf('function unoOnDeck'));
+const mustDraw = (UNO, UNO_THINK) =>
+  new Function('UNO', 'UNO_THINK', mdSrc + '\n return unoMustDraw();')(UNO, UNO_THINK || null);
 console.log('กองจั่วเรือง:');
 check('ไม่มีไพ่ลงได้', mustDraw({playing:1,my_turn:1,playable:[],winner:null}), true);
 check('โดนสแตคแล้วสแตคต่อไม่ได้', mustDraw({playing:1,my_turn:1,playable:[],must_answer:1,stack:2,winner:null}), true);
 check('มีไพ่ลงได้ = ไม่เรือง', mustDraw({playing:1,my_turn:1,playable:[0],winner:null}), false);
 check('จั่วไปแล้ว = ไม่เรือง', mustDraw({playing:1,my_turn:1,playable:[],drew:1,winner:null}), false);
 check('ตาคนอื่น = ไม่เรือง', mustDraw({playing:1,my_turn:0,playable:[],winner:null}), false);
+
+
+// ── 6. ตาใครลงไพ่ได้ ──
+const mtSrc = src.slice(src.indexOf('function unoMyTurn'), src.indexOf('/** ตอนนี้ทำอะไรไม่ได้'));
+const myTurn = (UNO, THINK) => new Function('UNO', 'UNO_THINK', mtSrc + '\n return unoMyTurn();')(UNO, THINK);
+console.log('ตาใครลงไพ่ได้:');
+check('ตาเรา ปกติ', myTurn({playing:1,my_turn:1}, null), true);
+check('ตาคนอื่น', myTurn({playing:1,my_turn:0}, null), false);
+check('บอทกำลังคิด (สถานะยังเก่า)', myTurn({playing:1,my_turn:1}, {seat:1}), false);
+check('เกมจบแล้ว', myTurn({playing:1,my_turn:1,over:true}, null), false);
+check('เราออกไปแล้ว', myTurn({playing:1,my_turn:1,my_place:2}, null), false);
+check('ยังไม่มีโต๊ะ', myTurn(null, null), false);
 process.exit(fail ? 1 : 0);
