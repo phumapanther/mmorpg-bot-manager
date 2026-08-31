@@ -146,4 +146,17 @@ check('ไพ่ซ้ำ 2 ใบ ทิ้งไป 1 -> เหลือ 1', c
 check('ไม่มีไพ่บิน -> ครบทุกใบ', countShown([C(1),C(2)], []), 2);
 check('ไพ่บินแต่ไม่ได้ไปกอง -> ไม่ซ่อน',
       countShown([C(1)], [{card:C(1), anim:'move', flying:true}]), 1);
+
+
+// ── 11. ไพ่ที่เราทิ้งเองต้องไม่บล็อกตาเรา ──
+// (เจ้าของเกมเจอ 08-29: เล่น 2 คน วางไพ่ข้ามตา บอทถูกข้าม กลับมาเป็นตาเรา
+//  แต่จอค้าง "รอคู่แข่ง..." เพราะไพ่ที่เราเพิ่งทิ้งยังบินอยู่)
+const busy2 = src.slice(src.indexOf('function unoBusyFx'), src.indexOf('/** ตอนนี้ทำอะไรไม่ได้'));
+const isBusy = cards => new Function('UNO_CARDS', busy2 + '\n return unoBusyFx();')(cards);
+console.log('ไพ่ของใครบล็อกตาเรา:');
+check('ไพ่บอทบินอยู่ = บล็อก', isBusy([{anim:'arc', flying:true}]), true);
+check('ไพ่ที่เราทิ้งเอง = ไม่บล็อก', isBusy([{anim:'move', flying:true, mine:true}]), false);
+check('ไพ่แจกตอนเปิดโต๊ะ = บล็อก', isBusy([{anim:'arc', flying:true}]), true);
+check('ทั้งของเราและของบอท = บล็อก',
+      isBusy([{anim:'move', flying:true, mine:true}, {anim:'arc', flying:true}]), true);
 process.exit(fail ? 1 : 0);

@@ -267,7 +267,11 @@ function unoMyTurn() {
        ดูของจริงแทน — ไม่ต้องมาไล่ปรับตัวเลขเวลาให้ตรงกันทุกครั้ง
  */
 function unoBusyFx() {
-  return UNO_CARDS.some(c => c.anim && c.flying);
+  // ⚠️ นับเฉพาะภาพของ "คนอื่น" — ไพ่ที่เราเพิ่งทิ้งเองไม่นับ
+  //    เจ้าของเกมเจอ 08-29: เล่น 2 คน วางไพ่ข้ามตา บอทถูกข้าม
+  //    กลับมาเป็นตาเราทันที แต่ไพ่ที่เราเพิ่งทิ้งยังบินอยู่
+  //    ถ้านับด้วย unoMyTurn() จะเป็น false ค้างที่ "รอคู่แข่ง..."
+  return UNO_CARDS.some(c => c.anim && c.flying && !c.mine);
 }
 
 /** ตอนนี้ทำอะไรไม่ได้นอกจากจั่วไหม — ใช้ตัดสินว่าจะเรืองขอบกองจั่วไหม */
@@ -964,14 +968,14 @@ function unoBind() {
     const t = unoPilePos(cv).pile;
     // 🧲 ดูดเข้ากอง — ปล่อยตรงไหนก็ไหลเข้าที่เอง ไม่ต้องเล็งให้ตรง
     c.anim = 'move'; c.t = 0; c.dur = 8;
-    c.flying = true; c.toPile = true;    // ทิ้งไปแล้ว — อย่าวาดซ้ำในมืออีก
+    c.flying = true; c.toPile = true; c.mine = true;   // ทิ้งไปแล้ว — อย่าวาดซ้ำในมืออีก
     c.from = { x: c.x, y: c.y, rot: c.rot };
     c.to = { x: t.x, y: t.y, rot: (Math.random() - .5) * .3 };
     unoBurst(t.x, t.y + 22, '#c8b48e', 16);
     const card = c.card;
     if (card && (card.value === 'wild' || card.value === 'wild4')) {
       UNO_SENT = true;                         // กำลังเลือกสี = ลงใบอื่นซ้อนไม่ได้
-      c.flying = true; c.toPile = true;        // ออกจากมือแล้วเช่นกัน
+      c.flying = true; c.toPile = true; c.mine = true;   // ออกจากมือแล้วเช่นกัน
       unoAskSuit(c.slot);                      // ไวลด์ต้องเลือกสีก่อน
       return;
     }

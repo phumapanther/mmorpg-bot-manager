@@ -1082,3 +1082,29 @@ def test_dealing_starts_before_the_hand_is_applied():
     assert "UNO_DEALING = true" in code, "ไม่ได้ตั้งธงก่อนเริ่ม"
     assert code.index("UNO_DEALING = true") < code.index("unoApply"), \
         "วาดมือเต็มก่อนตั้งธง — ไพ่จริงโผล่มาก่อน"
+
+
+def test_your_own_played_card_does_not_block_your_next_turn():
+    """เจ้าของเกมเจอ: เล่น 2 คน วางไพ่ข้ามตา แล้วจอค้าง "รอคู่แข่ง..."
+
+    ต้นเหตุ: 2 คน + ไพ่ข้ามตา = บอทถูกข้าม กลับมาเป็นตาเราทันที (ไม่มี bot_moves)
+    แต่ไพ่ที่เราเพิ่งทิ้งยังบินอยู่ unoBusyFx() จึงยังเป็น true
+    -> unoMyTurn() เป็น false ค้าง ทั้งที่เซิร์ฟเวอร์บอกว่าเป็นตาเราแล้ว
+    (กดกองจั่วได้เพราะ unoDo วาดใหม่ ทำให้หลุดจากสภาพค้าง — จึงดูเหมือนได้ไพ่ฟรี)
+    """
+    i = JS.index("function unoBusyFx")
+    body = JS[i:JS.index("function unoMustDraw", i)]
+    assert "!c.mine" in body, "ไพ่ที่เราทิ้งเองยังบล็อกตาเราอยู่"
+
+
+def test_the_card_we_play_is_marked_as_ours():
+    i = JS.index("const up = async ()")
+    body = JS[i:JS.index("cv.addEventListener('mousedown'", i)]
+    assert body.count("c.mine = true") >= 2, "ทั้งไพ่ปกติและไวลด์ต้องทำเครื่องหมาย"
+
+
+def test_other_peoples_cards_still_block():
+    """ของบอทกับไพ่ที่กำลังแจกต้องยังบล็อกอยู่ ไม่งั้นกดแทรกได้"""
+    i = JS.index("function unoFlyToPile")
+    body = JS[i:JS.index("async function unoDo", i)]
+    assert "c.mine" not in body, "ไพ่บอทถูกทำเครื่องหมายเป็นของเรา"
