@@ -579,6 +579,18 @@ function unoApply(table, drew) {
   if (!UNO_LOOP) UNO_LOOP = requestAnimationFrame(unoSafeFrame);
 }
 
+/** 🔧 เรียกจาก Console เพื่อดูว่าทำไมแผงถึงค้าง — พิมพ์ unoWhy() ใน F12 */
+function unoWhy() {
+  const box = document.getElementById('unoOver');
+  console.log('แผงสรุปซ่อนอยู่ไหม:', box && box.hidden);
+  console.log('สถานะล่าสุด:', UNO && {
+    playing: UNO.playing, over: UNO.over,
+    finished: (UNO.finished || []).length, my_turn: UNO.my_turn,
+  });
+  console.log('ลูปวาดทำงานอยู่ไหม:', !!UNO_LOOP);
+  return { fix: () => { if (box) box.hidden = true; return 'ซ่อนแล้ว'; } };
+}
+
 /** สรุปอันดับทั้งโต๊ะตอนจบเกม */
 function unoPlaceText() {
   return ((UNO && UNO.finished) || [])
@@ -594,13 +606,23 @@ function unoPaintOver() {
   const show = !!(UNO && UNO.playing && UNO.over && done.length);
   box.hidden = !show;
   if (!show) return;
-  tbl.innerHTML = done.map(f => {
-    const medal = UNO_TROPHY[f.place] || `${f.place}.`;
-    const who = `${f.bot ? '🤖' : '🧑'} ${f.name.replace('🤖 ', '')}`;
-    const left = f.place === 1 ? 'หมดมือ' : `เหลือ ${f.left} แต้ม`;
-    return `<tr class="${f.you ? 'you' : ''}"><td>${medal}</td>` +
-           `<td>${who}${f.you ? ' (คุณ)' : ''}</td><td>${left}</td></tr>`;
-  }).join('');
+  // ⚠️ ข้อมูลขาดฟิลด์สักตัวต้องไม่ทำให้ทั้งแผงพัง
+  //    เกมที่ค้างใน DB จากก่อนเพิ่มฟิลด์ bot/left จะไม่มีค่าเหล่านี้
+  //    ถ้า throw กลางคัน แผงจะโชว์ค้างโดยตารางว่างเปล่า กดอะไรก็ไม่หาย (เจ้าของเกมเจอ 08-29)
+  try {
+    tbl.innerHTML = done.map(f => {
+      const place = f.place || 0;
+      const name = String(f.name || 'ผู้เล่น');
+      const medal = UNO_TROPHY[place] || `${place}.`;
+      const who = `${f.bot ? '🤖' : '🧑'} ${name.replace('🤖 ', '')}`;
+      const left = place === 1 ? 'หมดมือ' : `เหลือ ${f.left || 0} แต้ม`;
+      return `<tr class="${f.you ? 'you' : ''}"><td>${medal}</td>` +
+             `<td>${who}${f.you ? ' (คุณ)' : ''}</td><td>${left}</td></tr>`;
+    }).join('');
+  } catch (e) {
+    console.error('[ศึกไพ่รูน] สร้างตารางอันดับไม่สำเร็จ', e, done);
+    box.hidden = true;                  // สร้างไม่ได้ก็อย่าบังจอไว้
+  }
 }
 
 function unoPaint() {

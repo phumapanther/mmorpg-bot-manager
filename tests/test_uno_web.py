@@ -694,3 +694,25 @@ def test_one_broken_frame_does_not_freeze_the_game():
     assert "catch" in body and "requestAnimationFrame" in body, \
         "เฟรมพังแล้วไม่ได้เล่นต่อเฟรมหน้า"
     assert "console.error" in body, "พังแล้วเงียบ หาสาเหตุไม่ได้"
+
+
+def test_a_broken_ranking_row_hides_the_panel_instead_of_sticking():
+    """ข้อมูลอันดับขาดฟิลด์ต้องไม่ทำให้แผงค้างคาจอ
+
+    เกมที่ค้างใน DB จากก่อนเพิ่มฟิลด์ bot/left จะไม่มีค่าเหล่านี้
+    ถ้า throw กลางคัน แผงจะโชว์ค้างโดยตารางว่างเปล่า กดอะไรก็ไม่หาย
+    """
+    i = JS.index("function unoPaintOver")
+    body = JS[i:JS.index("function unoPaint()", i)]
+    assert "try {" in body and "catch" in body, "สร้างตารางพังแล้วแผงค้าง"
+    assert "box.hidden = true" in body[body.index("catch"):], \
+        "พังแล้วไม่ได้ซ่อนแผงทิ้ง"
+
+
+def test_there_is_a_way_to_diagnose_a_stuck_panel():
+    """ยังหาต้นเหตุไม่เจอ — ต้องมีทางถามจากเบราว์เซอร์จริง"""
+    assert "function unoWhy" in JS
+    i = JS.index("function unoWhy")
+    body = JS[i:i + 600]
+    for key in ("hidden", "over", "finished", "UNO_LOOP"):
+        assert key in body, f"unoWhy() ไม่ได้บอก {key}"
