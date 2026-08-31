@@ -293,10 +293,33 @@ def test_emptying_your_hand_wins_the_game():
 
 
 def test_a_finished_game_takes_no_more_moves():
-    st = rig(game(), hand=[c("fire", 5)], top=c("fire", 2), spare=False)
+    """จบจริงตอนเหลือคนเดียว — มีคนชนะแล้วยังเล่นต่อได้"""
+    st = rig(game(names=("ก", "ข")), hand=[c("fire", 5)], top=c("fire", 2), spare=False)
     E.play(st, 0)
+    assert st["over"], "เล่น 2 คน คนหนึ่งหมดมือ = จบทันที"
     assert not E.play(st, 0)[0]
     assert not E.draw(st)[0]
+
+
+def test_the_game_keeps_going_after_the_first_winner():
+    """เจ้าของเกมสั่ง: คนชนะนั่งดูเพื่อนเล่นต่อจนเหลือ 2 คนสุดท้าย"""
+    st = rig(game(), hand=[c("fire", 5)], top=c("fire", 2), spare=False)
+    E.play(st, 0)
+    assert st["winner"] == 0
+    assert not st["over"], "เล่น 3 คน คนแรกหมดมือแล้วไม่ควรจบ"
+    assert st["finished"] == [0]
+    assert st["turn"] != 0, "คนที่เข้าเส้นชัยแล้วต้องไม่มีตาอีก"
+
+
+def test_the_finishing_order_is_remembered():
+    """ต้องรู้ว่าใครที่ 1 2 3 — อนิเมชันตอนจบต่างกันตามอันดับ"""
+    st = game()
+    p1 = E._finish(st, 1)
+    p2 = E._finish(st, 2)
+    assert (p1, p2) == (1, 2)
+    assert st["winner"] == 1, "คนที่หนึ่งคือผู้ชนะ"
+    assert st["over"], "เหลือคนเดียวแล้วต้องจบ"
+    assert st["finished"] == [1, 2, 0], "คนสุดท้ายต้องถูกเติมเข้าอันดับสุดท้ายให้เอง"
 
 
 def test_winning_scores_the_cards_left_in_everyone_elses_hands():
@@ -402,3 +425,30 @@ def test_a_stack_can_always_be_answered_somehow():
     ok, r = E.take_stack(st)
     assert ok, "ถือ +4 แต่ยอมจั่วไม่ได้ = เกมค้าง"
     assert len(r["drew"]) == 4 and st["stack"] == 0
+
+
+def test_the_turn_skips_players_who_already_went_out():
+    """คนที่ทิ้งไพ่หมดแล้วต้องไม่มีตาอีก — ไม่งั้นตาไปหยุดที่คนมือเปล่า เกมค้าง"""
+    st = game(names=("ก", "ข", "ค"))
+    st["finished"] = [1]                 # ข ออกไปแล้ว
+    st["turn"] = 0
+    E._advance(st)
+    assert st["turn"] == 2, "ตาไปหยุดที่คนที่ออกไปแล้ว"
+
+
+def test_the_turn_skips_several_finished_players_in_a_row():
+    st = E.new_game(["ก", "ข", "ค", "ง"], rng=random.Random(1))
+    st["finished"] = [1, 2]              # ข กับ ค ออกไปแล้ว
+    st["turn"] = 0
+    E._advance(st)
+    assert st["turn"] == 3
+
+
+def test_skipping_still_works_backwards():
+    """ย้อนทางแล้วก็ต้องข้ามคนที่ออกไปแล้วเหมือนกัน"""
+    st = game(names=("ก", "ข", "ค"))
+    st["finished"] = [2]
+    st["dir"] = -1
+    st["turn"] = 0
+    E._advance(st)
+    assert st["turn"] == 1

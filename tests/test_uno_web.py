@@ -301,3 +301,108 @@ def test_the_help_scrolls_when_it_is_too_long():
     i = CSS.index(".uno-help {")
     block = CSS[i:CSS.index("}", i)]
     assert "overflow-y:auto" in block, "เนื้อหายาวเกินจอแล้วเลื่อนดูไม่ได้"
+
+
+# ── 🐞 บั๊กปุ่มเลือกสีค้าง (เจ้าของเกมเจอ 08-29) ──
+
+def test_the_colour_picker_is_owned_by_the_repaint():
+    """กดเลือกสีแล้วปุ่มต้องหาย
+
+    บั๊กเดิม: unoPaint ซ่อนกล่องเฉพาะตอน "ไม่มีโต๊ะ" เท่านั้น
+    ระหว่างเล่นจึงไม่มีใครซ่อนให้ — กดเลือกสีแล้วปุ่มค้างคาหน้าจอตลอด
+    """
+    i = JS.index("function unoPaint")
+    body = JS[i:JS.index("function unoAskSuit", i)]
+    guard = body.index("if (!UNO || !UNO.playing)")
+    ret = body.index("return;", guard)
+    after = body[ret:]
+    assert "unoSuits" in after, "unoPaint ซ่อนกล่องเลือกสีเฉพาะตอนไม่มีโต๊ะ"
+    assert "UNO_PICK" in after, "ไม่ได้ผูกการโชว์กล่องกับว่ามีไพ่รอเลือกสีจริงไหม"
+
+
+def test_choosing_a_colour_clears_the_pending_card():
+    i = JS.index("function unoAskSuit")
+    body = JS[i:JS.index("function unoBind", i)]
+    assert "UNO_PICK = null" in body, "เลือกสีแล้วไม่ได้ล้างไพ่ที่รออยู่"
+
+
+# ── 🂠 กองจั่วบนโต๊ะ ──
+
+def test_there_is_a_draw_pile_on_the_table():
+    assert "unoPilePos" in JS, "ไม่มีจุดวางกองจั่ว"
+    assert "deck_left" in JS, "ไม่ได้ใช้จำนวนไพ่ที่เหลือมาวาดกอง"
+
+
+def test_clicking_the_pile_draws_a_card():
+    i = JS.index("const down = e =>")
+    body = JS[i:JS.index("const move = e =>", i)]
+    assert "unoOnDeck" in body, "กดกองจั่วแล้วไม่มีอะไรเกิดขึ้น"
+    assert "'draw'" in body, "กดกองจั่วแล้วไม่ได้สั่งจั่ว"
+
+
+def test_clicking_the_pile_answers_a_stack_too():
+    """โดนสแตคอยู่แล้วกดกอง = ยอมจั่วทั้งกอง ไม่ใช่จั่วใบเดียว"""
+    i = JS.index("const down = e =>")
+    body = JS[i:JS.index("const move = e =>", i)]
+    assert "'take'" in body
+
+
+def test_the_pile_glows_when_drawing_is_the_only_option():
+    """เจ้าของเกมสั่ง: ทำอะไรไม่ได้นอกจากจั่ว ให้ขึ้นขอบเหลืองที่กองไพ่"""
+    assert "unoMustDraw" in JS
+    i = JS.index("function unoMustDraw")
+    body = JS[i:JS.index("function unoOnDeck", i)]
+    assert "UNO.playable" in body, "ไม่ได้ดูว่ามีไพ่ลงได้ไหม"
+    assert "UNO.drew" in body, "จั่วไปแล้วยังเรืองอยู่อีก"
+    assert "must_answer" in body, "โดนสแตคอยู่ก็เรือง ทั้งที่มีปุ่มยอมจั่วแยก"
+
+
+def test_drawing_a_card_makes_it_fly_from_the_pile():
+    assert "unoFlyDraw" in JS, "จั่วไพ่แล้วไม่มีอนิเมชัน"
+    i = JS.index("function unoFlyDraw")
+    body = JS[i:JS.index("function unoApply", i)]
+    assert "unoPilePos" in body, "ไพ่ไม่ได้บินออกมาจากกองจั่ว"
+
+
+# ── 🏁 อนิเมชันประกาศอันดับ ──
+
+def test_finishing_shows_a_fanfare():
+    assert "unoCheckFanfare" in JS and "unoDrawFanfare" in JS
+
+
+def test_first_place_is_grander_than_second_and_third():
+    """เจ้าของเกมสั่ง: ที่ 1 อลัง · ที่ 2-3 มีแต่ไม่เด่นเท่า"""
+    i = JS.index("function unoCheckFanfare")
+    body = JS[i:JS.index("function unoDrawFanfare", i)]
+    assert "place === 1 ? 90" in body, "ที่ 1 ไม่ได้อลังกว่าคนอื่น"
+    i2 = JS.index("const UNO_PLACE_MS")
+    line = JS[i2:JS.index("\n", i2)]
+    assert "1: 190" in line and "2: 120" in line, "ที่ 1 ไม่ได้ค้างนานกว่า"
+
+
+def test_fourth_place_gets_no_fanfare():
+    """เจ้าของเกมสั่ง: ส่วนที่เหลือไม่มีอนิเมชัน"""
+    i = JS.index("function unoCheckFanfare")
+    body = JS[i:JS.index("function unoDrawFanfare", i)]
+    assert "place > 3) return" in body, "ที่ 4 ขึ้นไปก็ยังมีอนิเมชัน"
+
+
+def test_each_place_is_only_celebrated_once():
+    """ไม่งั้นทุกครั้งที่วาดใหม่จะฉลองซ้ำไม่จบ"""
+    assert "UNO_SEEN_PLACE" in JS
+
+
+def test_the_fanfare_fades_away_by_itself():
+    """เจ้าของเกมสั่ง: ขึ้นมาแล้วหายไป ให้คนที่เหลือเล่นต่อ"""
+    i = JS.index("function unoDrawFanfare")
+    body = JS[i:JS.index("function unoFlyDraw", i)] if "function unoFlyDraw" in JS[i:] else JS[i:i + 2000]
+    assert "UNO_FANFARE = null" in body, "แผงประกาศค้างจอไม่หายเอง"
+
+
+def test_a_player_who_is_out_sees_they_are_watching():
+    assert "my_place" in JS, "ไม่ได้บอกว่าเราเข้าเส้นชัยอันดับไหน"
+    assert "นั่งดู" in JS, "ไม่ได้บอกว่ากำลังนั่งดูเพื่อนเล่น"
+
+
+def test_the_final_ranking_is_shown_at_the_end():
+    assert "unoPlaceText" in JS

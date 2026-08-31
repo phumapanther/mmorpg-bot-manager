@@ -90,8 +90,12 @@ def _run_bots(st, rng=None):
     """
     rng = rng or random.Random()
     moves = []
-    for _ in range(len(st["players"]) * 40):     # เพดานกันวนไม่รู้จบ
-        if st["winner"] is not None or st["turn"] == st["human"]:
+    for _ in range(len(st["players"]) * 60):     # เพดานกันวนไม่รู้จบ
+        # ⚠️ เราทิ้งไพ่หมดแล้ว = นั่งดูเฉย ๆ บอทต้องเล่นกันเองจนจบ
+        #    ไม่งั้นเกมจะค้างตรงที่เราออกไปแล้วไม่มีใครกดอะไรได้อีก
+        if st.get("over"):
+            break
+        if st["turn"] == st["human"] and st["human"] not in st["finished"]:
             break
         before = len(st["log"])
         ok, _ = B.take_turn(E, st, rng)
@@ -106,8 +110,10 @@ def _act(uid, fn, rng=None):
     st = load(uid)
     if not st:
         return False, {"error": "ยังไม่ได้เปิดโต๊ะ — กดเปิดโต๊ะก่อน"}
-    if st["winner"] is not None:
+    if st.get("over"):
         return False, {"error": "เกมนี้จบแล้ว — กดเปิดโต๊ะใหม่ได้เลย"}
+    if st["human"] in st["finished"]:
+        return False, {"error": "คุณทิ้งไพ่หมดแล้ว — นั่งดูเพื่อนเล่นจนจบ"}
     if st["turn"] != st["human"]:
         return False, {"error": "ยังไม่ถึงตาคุณ"}
 
@@ -168,7 +174,10 @@ def view(uid, st=None):
         "suit": st["suit"],
         "suits": {k: v["label"] for k, v in D.SUITS.items()},
         "turn": st["turn"],
-        "my_turn": st["turn"] == me and st["winner"] is None,
+        # ⚠️ เทียบกับ over ไม่ใช่ winner — มีคนชนะแล้วคนที่เหลือต้องเล่นต่อได้
+        #    (เคยพลาด: บอทชนะก่อนแล้วคนจริงกดอะไรไม่ได้เลย เกมค้าง)
+        "my_turn": (st["turn"] == me and not st.get("over")
+                    and me not in st.get("finished", [])),
         "dir": st["dir"],
         "stack": st["stack"],
         "stack_kind": st["stack_kind"],
@@ -179,6 +188,13 @@ def view(uid, st=None):
                      "you": i == me, "said_uno": p["said_uno"]}
                     for i, p in enumerate(st["players"])],
         "winner": st["winner"],
+        "over": bool(st.get("over")),
+        # 🏁 อันดับที่เข้าเส้นชัยแล้ว — หน้าเว็บเอาไปทำอนิเมชันต่างระดับ
+        "finished": [{"name": st["players"][i]["name"], "place": k + 1,
+                      "you": i == me}
+                     for k, i in enumerate(st.get("finished", []))],
+        "my_place": (st["finished"].index(me) + 1
+                     if me in st.get("finished", []) else 0),
         "winner_name": (st["players"][st["winner"]]["name"]
                         if st["winner"] is not None else ""),
         "score": E.score(st),

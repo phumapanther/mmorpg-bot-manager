@@ -57,6 +57,10 @@ def new_game(names, rng=None, start_cards=START_CARDS):
         "stack_kind": None,         # สแตคอยู่คือแบบไหน (+2 ต่อ +2 เท่านั้น)
         "drew": False,              # เทิร์นนี้จั่วไปแล้วหรือยัง (จั่วได้ครั้งเดียว)
         "winner": None,
+        # 🏁 ลำดับที่ทิ้งไพ่หมด — คนแรกคือที่ 1 ที่เหลือเล่นต่อจนเหลือคนสุดท้าย
+        #    (เจ้าของเกมสั่ง: คนชนะนั่งดูเพื่อนเล่นจนกว่าจะเหลือ 2 คนสุดท้าย)
+        "finished": [],
+        "over": False,          # จบจริงตอนเหลือคนเดียว ไม่ใช่ตอนมีคนชนะ
         "log": [],
     }
 
@@ -98,9 +102,18 @@ def must_answer_stack(st):
 # ── เดินตา ──
 
 def _advance(st, extra_skip=0):
-    """ส่งตาให้คนถัดไป — extra_skip=1 คือข้ามไปอีกหนึ่งคน"""
-    st["turn"] = next_index(st, 1 + extra_skip)
+    """ส่งตาให้คนถัดไป — extra_skip=1 คือข้ามไปอีกหนึ่งคน
+
+    ⚠️ ข้ามคนที่ทิ้งไพ่หมดไปแล้วเสมอ — เขานั่งดูอยู่ ไม่มีตาแล้ว
+       ไม่ข้าม = ตาไปหยุดที่คนมือเปล่า เกมค้างทันที
+    """
     st["drew"] = False
+    n = len(st["players"])
+    for _ in range(n * 2 + 2):
+        st["turn"] = next_index(st, 1 + extra_skip)
+        extra_skip = 0                      # ข้ามเพิ่มใช้ครั้งเดียว ที่เหลือคือข้ามคนที่ออกไปแล้ว
+        if st["turn"] not in st["finished"]:
+            return
 
 
 def _reshuffle(st, rng):
@@ -138,7 +151,7 @@ def _draw(st, i, count, rng):
 def play(st, index, chosen_suit=None, rng=None):
     """วางไพ่ใบที่ index ในมือของคนที่ถึงตา — คืน (ok, ผล)"""
     rng = rng or random.Random()
-    if st["winner"] is not None:
+    if st.get("over"):
         return False, {"error": "เกมนี้จบแล้ว"}
     hand = current(st)["hand"]
     if not 0 <= index < len(hand):
@@ -171,10 +184,32 @@ def play(st, index, chosen_suit=None, rng=None):
     won = st["turn"] if not hand else None    # จำไว้ก่อน — _apply_action กำลังจะเปลี่ยน turn
     _apply_action(st, card)
     if won is not None:
-        st["winner"] = won
-        st["log"].append(f"🎉 {who} ชนะ!")
-        return True, {"card": card, "winner": won, "stack": st["stack"]}
+        place = _finish(st, won)
+        return True, {"card": card, "winner": st["winner"], "finished": won,
+                      "place": place, "stack": st["stack"]}
     return True, {"card": card, "stack": st["stack"]}
+
+
+def _finish(st, i):
+    """คนที่ i ทิ้งไพ่หมดมือ — คืนอันดับที่ได้ (1 = ที่หนึ่ง)
+
+    เกมไม่จบทันที — คนที่เหลือเล่นต่อจนกว่าจะเหลือคนสุดท้ายคนเดียว
+    """
+    if i in st["finished"]:
+        return st["finished"].index(i) + 1
+    st["finished"].append(i)
+    place = len(st["finished"])
+    name = st["players"][i]["name"]
+    st["log"].append(f"{'🏆' if place == 1 else '🏅'} {name} เข้าเส้นชัยอันดับ {place}")
+    if place == 1:
+        st["winner"] = i                     # ผู้ชนะคือคนแรกที่หมดมือ
+    # เหลือคนเดียวที่ยังมีไพ่ = จบเกม ส่งเขาเข้าเส้นชัยเป็นอันดับสุดท้ายด้วย
+    left = [k for k in range(len(st["players"])) if k not in st["finished"]]
+    if len(left) <= 1:
+        for k in left:
+            st["finished"].append(k)
+        st["over"] = True
+    return place
 
 
 def _apply_action(st, card):
@@ -217,7 +252,7 @@ def take_stack(st, rng=None):
 def draw(st, rng=None):
     """จั่วหนึ่งใบตอนไม่มีไพ่วางได้ — จั่วแล้ววางได้เลยถ้าใบนั้นวางได้"""
     rng = rng or random.Random()
-    if st["winner"] is not None:
+    if st.get("over"):
         return False, {"error": "เกมนี้จบแล้ว"}
     if st["stack"]:
         return False, {"error": "ต้องเลือกวางต่อหรือยอมจั่วกองก่อน"}

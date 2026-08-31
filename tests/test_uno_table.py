@@ -175,6 +175,7 @@ def test_a_finished_table_takes_no_more_moves(world):
     T.start(UID, rng=random.Random(1))
     st = T.load(UID)
     st["winner"] = 0
+    st["over"] = True                 # จบจริงตอนเหลือคนเดียว ไม่ใช่ตอนมีคนชนะ
     T.save(UID, st)
     ok, r = T.draw(UID)
     assert not ok and "จบแล้ว" in r["error"]
@@ -290,3 +291,74 @@ def test_two_players_keep_separate_tables(world, tmp_path, monkeypatch):
     T.start(UID, rng=random.Random(1))
     T.start(UID + 1, rng=random.Random(2))
     assert T.view(UID)["hand"] != T.view(UID + 1)["hand"]
+
+
+# ── 🏁 อันดับที่เข้าเส้นชัย (เจ้าของเกมสั่ง 08-29) ──
+
+def test_finishing_first_does_not_end_a_three_player_game(world):
+    """คนชนะนั่งดูเพื่อนเล่นต่อ จนเหลือ 2 คนสุดท้าย"""
+    T.start(UID, bots=2, rng=random.Random(1))
+    st = T.load(UID)
+    E._finish(st, 1)
+    T.save(UID, st)
+    v = T.view(UID)
+    assert not v["over"], "คนแรกหมดมือแล้วเกมจบเลย"
+    assert v["finished"][0]["place"] == 1
+
+
+def test_a_player_who_is_out_can_still_watch(world):
+    """เราออกไปแล้วต้องยังเห็นสถานะโต๊ะ ไม่ใช่จอดับ"""
+    T.start(UID, bots=2, rng=random.Random(1))
+    st = T.load(UID)
+    E._finish(st, st["human"])
+    T.save(UID, st)
+    v = T.view(UID)
+    assert v["playing"] and v["my_place"] == 1
+    assert not v["my_turn"], "ออกไปแล้วยังมีตาให้เล่นอีก"
+
+
+def test_a_player_who_is_out_cannot_keep_playing(world):
+    T.start(UID, bots=2, rng=random.Random(1))
+    st = T.load(UID)
+    E._finish(st, st["human"])
+    st["turn"] = st["human"]
+    T.save(UID, st)
+    ok, r = T.draw(UID)
+    assert not ok and "ทิ้งไพ่หมดแล้ว" in r["error"]
+
+
+def test_the_last_player_left_is_added_to_the_order(world):
+    """เหลือคนเดียว = จบ และคนนั้นต้องได้อันดับสุดท้าย ไม่ใช่ตกหล่น"""
+    T.start(UID, bots=2, rng=random.Random(1))
+    st = T.load(UID)
+    E._finish(st, 1)
+    E._finish(st, 2)
+    T.save(UID, st)
+    v = T.view(UID)
+    assert v["over"]
+    assert len(v["finished"]) == 3, "คนสุดท้ายไม่ได้อันดับ"
+    assert v["finished"][2]["you"], "คนสุดท้ายควรเป็นเรา"
+
+
+def test_the_game_always_reaches_a_full_ranking(world):
+    """เล่นจริงจนจบ — ต้องได้อันดับครบทุกคนเสมอ ไม่ค้างกลางทาง"""
+    for seed in range(8):
+        T.clear(UID)
+        T.start(UID, bots=2, rng=random.Random(seed))
+        rng = random.Random(seed)
+        for _ in range(500):
+            v = T.view(UID)
+            if v["over"] or not v["my_turn"]:
+                break
+            if v["must_answer"] and not v["playable"]:
+                T.take_stack(UID, rng)
+            elif v["playable"]:
+                T.play(UID, v["playable"][0], suit="fire", rng=rng)
+            else:
+                ok, _ = T.draw(UID, rng)
+                if ok and T.view(UID)["drew"]:
+                    T.passes(UID, rng)
+        v = T.view(UID)
+        assert v["over"], f"seed {seed}: เกมค้าง ไม่จบ"
+        assert len(v["finished"]) == 3, f"seed {seed}: อันดับไม่ครบ"
+        assert [f["place"] for f in v["finished"]] == [1, 2, 3]
