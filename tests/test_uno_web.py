@@ -199,3 +199,105 @@ def test_cards_can_be_dragged_onto_the_pile():
 def test_unplayable_cards_are_dimmed():
     """ไม่หรี่ = ลากแล้วเด้งกลับโดยไม่รู้ว่าทำไม"""
     assert "dim" in JS and "playable" in JS
+
+
+# ── ✨ ขอบเรืองแสงบอกไพ่ที่ลงได้ (เจ้าของเกมสั่ง 08-29) ──
+
+def test_playable_cards_get_a_glowing_border():
+    """ไพ่ที่ลงได้ต้องมีขอบทองเรืองแสง ไม่ใช่แค่หรี่ใบที่ลงไม่ได้"""
+    assert "glow" in JS, "ไม่มีขอบเรืองแสงเลย"
+    i = JS.index("function unoDrawCard")
+    body = JS[i:JS.index("function unoFan", i)]
+    assert "c.glow" in body, "วาดไพ่แล้วไม่ได้เช็คว่าต้องเรืองแสงไหม"
+    assert "shadowBlur" in body and "#e8b04b" in body, "ขอบไม่ได้เรืองแสงสีทอง"
+
+
+def test_the_glow_marks_exactly_the_playable_cards():
+    """รันตรรกะจริงจาก uno.js — เช็คข้อความอย่างเดียวจับตรรกะผิดไม่ได้
+
+    เคยพลาด: เทสที่ดูแค่ว่าโค้ดมีคำว่า glow ไหม ผ่านหมดแม้จะเรืองทุกใบ
+    หรือไม่เรืองสักใบก็ตาม
+    """
+    import shutil
+    import subprocess
+
+    if not shutil.which("node"):
+        pytest.skip("เครื่องนี้ไม่มี node")
+    r = subprocess.run(["node", "tests/uno_glow.js"],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_the_glow_is_drawn_under_the_card_not_over_it():
+    """วาดทับหน้าไพ่ = อ่านเลขไม่ออก ต้องวาดก่อนตัวไพ่"""
+    i = JS.index("function unoDrawCard")
+    body = JS[i:JS.index("function unoFan", i)]
+    assert body.index("c.glow") < body.index("showFace ? '#f2e7d8'"), \
+        "วาดขอบเรืองทับหน้าไพ่"
+
+
+def test_the_pulse_follows_real_time():
+    """แสงเต้นต้องเดินตามเวลาจริง ไม่งั้นจอ 144 Hz เต้นเร็วกว่า 2 เท่า"""
+    assert "UNO_PULSE += 0.07 * UNO_DT" in JS
+
+
+# ── ❓ ปุ่มคู่มือไพ่ ──
+
+def test_there_is_a_help_button_on_the_game_screen():
+    i = HTML.index('id="v-uno"')
+    section = HTML[i:HTML.index('<!-- ══', i + 10)]
+    assert 'id="unoHelpBtn"' in section, "ไม่มีปุ่ม ? ในหน้าเกม"
+    assert ">?<" in section, "ปุ่มไม่ได้เขียนว่า ?"
+
+
+def test_the_help_box_starts_hidden():
+    """เปิดเกมมาต้องไม่มีกล่องบังจอ ต้องกดถึงจะขึ้น"""
+    i = HTML.index('id="unoHelp"')
+    assert "hidden" in HTML[i:i + 60], "กล่องคู่มือโผล่ทับจอตั้งแต่เปิดเกม"
+
+
+def test_the_help_button_opens_and_closes_the_box():
+    assert "unoHelpBtn" in JS and "unoHelpClose" in JS
+    assert "unoHelp(true)" in JS and "unoHelp(false)" in JS
+
+
+def test_escape_also_closes_the_help():
+    """คนชินคีย์บอร์ดจะกด Esc ก่อนหาปุ่มกากบาท"""
+    assert "'Escape'" in JS
+
+
+def test_the_help_explains_every_action_card():
+    """ไพ่ท่าพิเศษทุกใบต้องมีคำอธิบาย ไม่งั้นเจอใบที่ไม่รู้จักแล้วงง"""
+    i = HTML.index('id="unoHelp"')
+    box = HTML[i:HTML.index("</div></div>", i)]
+    for name in ("ม่านสะกด", "วาร์ปกลับทาง", "ทัณฑ์สองใบ",
+                 "ศิลาเปลี่ยนธาตุ", "ประตูนิรันดร์"):
+        assert name in box, f"คู่มือไม่ได้อธิบาย {name}"
+
+
+def test_the_help_explains_how_to_play_a_card():
+    i = HTML.index('id="unoHelp"')
+    box = HTML[i:HTML.index("</div></div>", i)]
+    assert "สีตรง" in box and "ลาก" in box, "ไม่ได้บอกวิธีลงไพ่"
+    assert "เรืองแสง" in box, "ไม่ได้บอกว่าขอบเรืองแสงแปลว่าลงได้"
+
+
+def test_the_help_explains_stacking():
+    """สแตคเป็นกติกาที่งงที่สุด ต้องอธิบาย"""
+    i = HTML.index('id="unoHelp"')
+    box = HTML[i:HTML.index("</div></div>", i)]
+    assert "สแตค" in box and "ยอมจั่ว" in box
+
+
+def test_the_help_box_is_translucent_but_readable():
+    """เจ้าของเกมสั่ง: กล่องโปร่งใสแต่สีทึบพอ"""
+    i = CSS.index(".uno-help {")
+    block = CSS[i:CSS.index("}", i)]
+    assert "rgba(23,17,13,.90)" in block, "พื้นกล่องไม่โปร่ง หรือทึบเกินไป"
+    assert "backdrop-filter" in block, "ไม่ได้เบลอฉากหลัง อ่านยาก"
+
+
+def test_the_help_scrolls_when_it_is_too_long():
+    i = CSS.index(".uno-help {")
+    block = CSS[i:CSS.index("}", i)]
+    assert "overflow-y:auto" in block, "เนื้อหายาวเกินจอแล้วเลื่อนดูไม่ได้"

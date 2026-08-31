@@ -1109,3 +1109,41 @@ body.bar-min .pbar .money { margin-left: auto; }
   .uno-stage { min-height:220px; }
   .uno-suits button { min-height:52px; }
 }
+
+/* ── ปุ่ม ? กับกล่องคำอธิบายไพ่ ── */
+.uno-help-btn { position:absolute; top:10px; right:12px; width:34px; height:34px;
+                border-radius:50%; border:1px solid var(--g-line);
+                background:rgba(23,17,13,.78); color:var(--g-gold);
+                font:600 17px/1 var(--g-num); cursor:pointer; z-index:2;
+                display:grid; place-items:center;
+                transition:background .16s var(--g-ease), transform .16s var(--g-ease); }
+.uno-help-btn:hover { background:var(--g-hi); transform:scale(1.08); }
+.uno-help-btn:focus-visible { outline:2px solid var(--g-gold); outline-offset:2px; }
+
+.uno-help { position:absolute; inset:0; z-index:3; overflow-y:auto;
+            padding:20px 22px 24px;
+            background:rgba(23,17,13,.90);            /* โปร่งแต่ทึบพอให้อ่านออก */
+            -webkit-backdrop-filter:blur(7px); backdrop-filter:blur(7px);
+            color:var(--g-ink); font-size:14px; line-height:1.75; }
+.uno-help h3 { margin:0 0 4px; font-size:17px; color:var(--g-gold); }
+.uno-help h4 { margin:16px 0 6px; font-size:14px; color:var(--g-gold);
+               border-bottom:1px solid var(--g-line); padding-bottom:4px; }
+.uno-help p { margin:0 0 6px; }
+.uno-help .lead { color:var(--g-muted); }
+.uno-help ul { margin:0; padding-left:20px; }
+.uno-help li { margin:3px 0; }
+.uno-help .hint { color:var(--g-gold); text-shadow:0 0 8px rgba(232,176,75,.7); }
+.uno-help-tbl { border-collapse:collapse; width:100%; }
+.uno-help-tbl td { padding:4px 8px 4px 0; vertical-align:top;
+                   border-bottom:1px solid rgba(69,53,40,.55); }
+.uno-help-tbl td:first-child { font-size:18px; width:30px; }
+.uno-help-tbl td:nth-child(2) { white-space:nowrap; }
+.uno-help-x { position:absolute; top:12px; right:14px; width:32px; height:32px;
+              border-radius:50%; border:1px solid var(--g-line);
+              background:var(--g-panel); color:var(--g-ink);
+              font-size:15px; cursor:pointer; }
+.uno-help-x:hover { background:var(--g-hi); }
+@media (max-width: 720px) {
+  .uno-help { font-size:13px; padding:16px 16px 20px; }
+  .uno-help-tbl td:nth-child(2) { white-space:normal; }
+}

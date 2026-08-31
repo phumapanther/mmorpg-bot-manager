@@ -22,6 +22,7 @@ let UNO_BITS = [];           // อนุภาค
 let UNO_LOOP = 0, UNO_DT = 1, UNO_LAST = 0;
 let UNO_DRAG = null, UNO_HOVER = null;
 let UNO_PICK = null;         // ไพ่ที่รอเลือกสี (ไวลด์)
+let UNO_PULSE = 0;           // จังหวะเต้นของขอบเรืองแสง
 
 const unoEase = t => 1 - Math.pow(1 - t, 3);
 const unoEaseIO = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -47,6 +48,18 @@ function unoDrawCard(ctx, c) {
   ctx.translate(c.x + (c.jx || 0), c.y + (c.jy || 0) - (c.lift || 0) * 20);
   ctx.rotate(c.rot);
   ctx.scale(Math.max(.02, flat) * (c.sc || 1), c.sc || 1);
+  // ✨ ไพ่ที่ลงได้ = ขอบทองเรืองแสง เต้นช้า ๆ ให้สังเกตง่ายโดยไม่รบกวนสายตา
+  //    วาดก่อนตัวไพ่ เพราะเงาเรืองต้องอยู่ "ใต้" ใบไพ่ ไม่ใช่ทับหน้าไพ่
+  if (c.glow) {
+    ctx.save();
+    ctx.shadowColor = '#e8b04b';
+    ctx.shadowBlur = 16 + Math.sin(UNO_PULSE) * 8;
+    ctx.strokeStyle = '#e8b04b';
+    ctx.lineWidth = 3;
+    unoRR(ctx, -UNO_CW / 2, -UNO_CH / 2, UNO_CW, UNO_CH, 9);
+    ctx.stroke(); ctx.stroke();       // ซ้ำสองครั้งให้แสงเข้มพอเห็นชัด
+    ctx.restore();
+  }
   ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 6;
   ctx.fillStyle = showFace ? '#f2e7d8' : '#2a211a';
   unoRR(ctx, -UNO_CW / 2, -UNO_CH / 2, UNO_CW, UNO_CH, 9); ctx.fill();
@@ -118,10 +131,12 @@ function unoLayout() {
   hand.forEach((card, i) => {
     const f = unoFan(i, hand.length, W, H);
     const old = keep[i];
-    const dim = UNO.my_turn && !(UNO.playable || []).includes(i);
+    const can = (UNO.playable || []).includes(i);
+    const dim = UNO.my_turn && !can;
+    const glow = UNO.my_turn && can;        // ✨ ลงได้ = ขอบทองเรืองแสง
     UNO_CARDS.push(old && old.anim
-      ? Object.assign(old, { card, dim, slot: i })
-      : { card, x: f.x, y: f.y, rot: f.rot, face: 1, sc: 1, slot: i, dim,
+      ? Object.assign(old, { card, dim, glow, slot: i })
+      : { card, x: f.x, y: f.y, rot: f.rot, face: 1, sc: 1, slot: i, dim, glow,
           home: { x: f.x, y: f.y, rot: f.rot } });
   });
 }
@@ -153,6 +168,7 @@ function unoFrame(now) {
   if (!cv) { UNO_LOOP = 0; return; }
   const ctx = cv.getContext('2d'), W = cv.width, H = cv.height;
   unoClock(now);
+  UNO_PULSE += 0.07 * UNO_DT;      // เดินตามเวลาจริง จอเร็วจอช้าเต้นเท่ากัน
   ctx.fillStyle = '#1f1813'; ctx.fillRect(0, 0, W, H);
 
   // โต๊ะ
@@ -353,6 +369,22 @@ document.getElementById('unoPass')?.addEventListener('click', () => {
 });
 document.getElementById('unoSayUno')?.addEventListener('click', () => {
   SFX.play('click'); unoDo('uno');
+});
+
+// ❓ คู่มือไพ่ — เปิดค้างไว้ก็เล่นต่อได้ ไม่บังคับให้ปิดก่อน
+function unoHelp(on) {
+  const box = document.getElementById('unoHelp');
+  if (box) box.hidden = !on;
+}
+document.getElementById('unoHelpBtn')?.addEventListener('click', () => {
+  SFX.play('click'); unoHelp(true);
+});
+document.getElementById('unoHelpClose')?.addEventListener('click', () => {
+  SFX.play('click'); unoHelp(false);
+});
+// กด Esc ก็ปิดได้ — คนที่ชินคีย์บอร์ดจะหาปุ่มกากบาทไม่เจอ
+addEventListener('keydown', e => {
+  if (e.key === 'Escape') unoHelp(false);
 });
 
 /** เปิดหน้ามาเจอโต๊ะที่ค้างไว้ */
