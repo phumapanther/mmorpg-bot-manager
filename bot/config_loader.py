@@ -136,12 +136,21 @@ def get_gacha_price():
 def get_gacha_pool_price():
     return int(get_config().get("auto_trade_roles", {}).get("gacha_pool_price", 20000000))
 
+def _secret(env_key, cfg_key):
+    """ค่าลับ: env var มาก่อน ไม่มีค่อยอ่าน config.json
+
+    บนคลาวด์ไม่มี config.json (มันอยู่ใน .gitignore) จึงส่งค่าผ่าน env แทน
+    รันในเครื่องตัวเองเหมือนเดิม — ไม่ตั้ง env ก็อ่าน config.json ต่อได้
+    """
+    return os.environ.get(env_key) or get_config().get(cfg_key, "")
+
+
 def get_token():
-    return get_config().get("bot_token", "")
+    return _secret("DISCORD_BOT_TOKEN", "bot_token")
 
 def get_guest_token():
     """โทเค็นบอทแจก (P8) — บอทสำหรับเซิร์ฟรอง เล่นผจญภัยได้อย่างเดียว"""
-    return get_config().get("guest_bot_token", "")
+    return _secret("DISCORD_GUEST_TOKEN", "guest_bot_token")
 
 def get_main_guild_id():
     """ไอดีเซิร์ฟหลัก — None = ยังไม่ตั้ง (ถือว่าทุกเซิร์ฟเป็นเซิร์ฟหลัก = พฤติกรรมเดิม)"""
@@ -152,7 +161,7 @@ def get_main_server_invite():
     return get_config().get("main_server_invite", "")
 
 def get_license_key():
-    return get_config().get("license_key", "")
+    return _secret("LICENSE_KEY", "license_key")
 
 def get_guild_id():
     return get_config().get("guild_id")

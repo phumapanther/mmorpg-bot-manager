@@ -9,7 +9,9 @@ from app_paths import get_app_root
 
 # path เต็มเสมอ — โปรเซสที่ cwd ต่างกัน (เว็บ/พาแนล/บอท) ต้องเห็น game_data.db ไฟล์เดียวกัน
 # ถ้าปล่อยเป็น path สัมพัทธ์ ฝั่งที่ cwd ไม่ตรงจะไปสร้างไฟล์เปล่าใหม่เงียบๆ เงินผู้เล่นหาย
-DB_NAME = os.path.join(get_app_root(), "game_data.db")
+# บนคลาวด์ชี้มาที่ /app/data (volume) ไม่งั้นข้อมูลหายทุกครั้งที่ deploy ใหม่
+# ไม่ตั้ง env = ใช้ที่เดิม (รันในเครื่องตัวเองเหมือนเดิมเป๊ะ)
+DB_NAME = os.environ.get("GAME_DB_PATH") or os.path.join(get_app_root(), "game_data.db")
 
 # ดึง player_model เข้ามาใช้ เพื่อให้ใช้ระบบเงิน (Cash) แบบเดียวกับเกมส่วนอื่นๆ
 import bot.models.player_model as player_model

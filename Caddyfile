@@ -1,0 +1,5 @@
+# HTTPS อัตโนมัติ ต่ออายุเองตลอด — แก้ชื่อโดเมนตรง DOMAIN ใน .env
+{$DOMAIN} {
+	reverse_proxy game:8790
+	encode gzip
+}

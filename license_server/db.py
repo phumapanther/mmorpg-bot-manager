@@ -5,7 +5,9 @@ import sqlite3
 import time
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(_HERE, "licenses.db")
+# บนคลาวด์ชี้มาที่ /app/data (volume) ไม่งั้นข้อมูลหายทุกครั้งที่ deploy ใหม่
+# ไม่ตั้ง env = ใช้ที่เดิม (รันในเครื่องตัวเองเหมือนเดิมเป๊ะ)
+DB_PATH = os.environ.get("LICENSE_DB_PATH") or os.path.join(_HERE, "licenses.db")
 
 
 def init_db():

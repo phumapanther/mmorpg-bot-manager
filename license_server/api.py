@@ -12,6 +12,10 @@ _SECRET_PATH = os.path.join(_HERE, "admin_secret.txt")
 
 
 def get_or_create_admin_secret():
+    # บนคลาวด์ส่งค่าผ่าน env — ไม่ต้องฝากไฟล์ลงดิสก์ใน container
+    env_secret = os.environ.get("ADMIN_SECRET", "").strip()
+    if env_secret:
+        return env_secret
     if os.path.exists(_SECRET_PATH):
         return open(_SECRET_PATH, encoding="utf-8").read().strip()
     secret = secrets.token_hex(16)

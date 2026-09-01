@@ -1,0 +1,39 @@
+# รันทั้งระบบด้วยคำสั่งเดียว:  docker compose up -d
+services:
+  game:
+    build: .
+    restart: always          # รีบูตเครื่องแล้วขึ้นเอง / crash แล้วขึ้นเอง
+    env_file: .env           # ค่าลับอยู่ในนี้ ไม่เข้า git
+    environment:
+      # ชี้ฐานข้อมูลทุกตัวเข้า volume — ขาดข้อนี้ข้อมูลหายทุกครั้งที่ deploy
+      GAME_DB_PATH: /app/data/game_data.db
+      WEB_DB_PATH: /app/data/web.db
+      LICENSE_DB_PATH: /app/data/licenses.db
+      UPLOAD_DIR: /app/data/web_uploads
+    ports:
+      - "127.0.0.1:8790:8790"   # ให้ Caddy ต่อเท่านั้น ไม่เปิดตรงออกเน็ต
+    volumes:
+      # ⚠️ ข้อมูลผู้เล่นอยู่ในนี้ — ห้ามลบ ไม่งั้นหายหมด
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8790/"]
+      interval: 60s
+      timeout: 10s
+      start_period: 40s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data      # ใบรับรอง HTTPS — หายแล้วต้องขอใหม่ (มีลิมิต)
+      - caddy_config:/config
+    depends_on:
+      - game
+
+volumes:
+  caddy_data:
+  caddy_config:

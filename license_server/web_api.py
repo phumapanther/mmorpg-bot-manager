@@ -9,6 +9,7 @@ auth ทั้งหมดเป็น cookie ลงชื่อ HMAC-SHA256 (�
 import base64
 import hashlib
 import hmac
+import os
 import json
 import time
 
@@ -948,7 +949,7 @@ def topup_qr(topup_id: int, request: Request):
 
 
 # สลิปหลักฐานโอน — เก็บเป็นไฟล์ตามเลขรายการ (ไม่ต้องแก้ schema): web_uploads/slip_<id>.jpg
-UPLOAD_DIR = Path(__file__).resolve().parent / "web_uploads"
+UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR") or (Path(__file__).resolve().parent / "web_uploads"))
 _SLIP_MAX = 5 * 1024 * 1024
 
 

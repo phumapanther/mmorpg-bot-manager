@@ -139,7 +139,7 @@ def website_url():
 
 # ── เติมเงินจากในเกม — ใช้ web.db/คิวแอดมิน ชุดเดียวกับหน้าเว็บทุกประการ ──
 
-UPLOAD_DIR = os.path.join(_ROOT, "license_server", "web_uploads")
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR") or os.path.join(_ROOT, "license_server", "web_uploads")
 
 
 def create_topup(discord_id, amount_thb):

@@ -1,0 +1,22 @@
+# ของหนักที่ไม่ต้องขึ้นคลาวด์ (253M -> ~10M)
+dist/
+build/
+dist_nuitka/
+*.build/
+*.onefile-build/
+license_server/tools/
+backups/
+.git/
+
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+
+# ค่าลับ — ส่งผ่าน env แทน ห้ามฝังใน image
+config.json
+license_server/admin_secret.txt
+LICENSE_SERVER_URL.txt
+
+# ฐานข้อมูล — อยู่ใน volume ไม่ใช่ใน image
+*.db

@@ -8,7 +8,10 @@ import sqlite3
 import time
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent / "web.db"
+# บนคลาวด์ชี้มาที่ /app/data (volume) ไม่งั้นข้อมูลหายทุกครั้งที่ deploy ใหม่
+# ไม่ตั้ง env = ใช้ที่เดิม (รันในเครื่องตัวเองเหมือนเดิมเป๊ะ)
+import os
+DB_PATH = Path(os.environ.get("WEB_DB_PATH") or (Path(__file__).resolve().parent / "web.db"))
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS news (
