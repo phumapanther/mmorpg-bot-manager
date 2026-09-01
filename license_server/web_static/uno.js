@@ -180,18 +180,23 @@ function unoLayout() {
   //    ไวลด์ต้องรอเราเลือกสี กว่าจะกดก็บินจบไปนานแล้ว
   //    ถ้ากรองด้วย anim จะหลุด — ไพ่กลับมาโชว์ในมือ (เจ้าของเกมเจอ 08-29)
   const flying = UNO_CARDS.filter(c => c.flying && (c.anim || c.toPile));
-  UNO_CARDS = flying.slice();     // สำเนา — ไม่ใช่ตัวเดียวกับ flying
+  // ⚠️ วาดตามลำดับใน array — ใบท้ายอยู่บนสุด
+  //    ไพ่ที่เราวางต้องอยู่ท้ายสุด ไม่งั้นจะดูเหมือนมุดใต้ไพ่ก่อนหน้า
+  //    (เจ้าของเกมเจอ 08-29: "เหมือนไปวางใต้ไพ่ก่อนหน้า")
+  const toPile = flying.filter(c => c.toPile);
+  UNO_CARDS = flying.filter(c => !c.toPile);
 
   // ไพ่ที่เราเพิ่งวางทับอยู่ (ยังไม่ได้สถานะใหม่) — มันคือใบบนสุดแทน
   // ⚠️ มันอยู่ใน UNO_CARDS แล้ว ห้าม push ซ้ำ
   //    เจ้าของเกมเจอ 08-29: มีประตูนิรันดร์ 2 ใบ วางไป 1 แต่หายจากมือ 2 ใบ
   //    เพราะไพ่ใบเดียวถูกนับสองครั้งตอนตัดออกจากมือ
-  const onPile = UNO_CARDS.find(c => c.onPile && c.card);
+  const onPile = toPile.find(c => c.onPile && c.card);
   if (UNO.top && !onPile) {
     const t = unoPilePos(cv).pile;
     UNO_CARDS.push({ card: UNO.top, x: t.x, y: t.y, rot: 0,
                      face: 1, sc: 1, pile: true });
   }
+  UNO_CARDS.push(...toPile);      // ไพ่ที่เราเพิ่งวาง — ท้ายสุด = บนสุดเสมอ
   // ไพ่ในมือเรา — ระหว่างแจกไพ่ยังไม่โชว์ (เจ้าของเกมสั่ง 08-29)
   //    ไม่งั้นไพ่จริงโผล่มาก่อนไพ่ที่กำลังแจกจะบินไปถึงมือเสียอีก
   if (UNO_DEALING) return;
@@ -201,7 +206,7 @@ function unoLayout() {
   //    จนกว่าบอทจะเล่นครบ — เพราะ UNO.hand ยังเป็นมือเก่าจนกว่าสถานะใหม่จะมา
   //    นับจำนวนที่กำลังบินต่อหน้าไพ่ แล้วตัดออกตามนั้น
   const gone = {};
-  flying.filter(c => c.card && c.toPile).forEach(c => {
+  toPile.filter(c => c.card).forEach(c => {
     const key = `${c.card.suit}:${c.card.value}`;
     gone[key] = (gone[key] || 0) + 1;
   });
@@ -959,7 +964,10 @@ function unoBind() {
     //    เจ้าของเกมสั่ง 08-29: "พอลงไพ่แล้วก็ควรล็อคไพ่ทันทีเลย
     //    ไม่ให้ขยับไพ่ เพื่อลงต่อ"
     //    ต่างจาก dim ที่บอกแค่ "ใบนี้ลงไม่ได้" — อันนั้นยังจับจัดตำแหน่งได้
-    if (UNO_SENT || UNO_DEALING || UNO_THINK) return;
+    //    ⚠️ ใช้ unoMyTurn() ตัวเดียวกับด่านอื่น — ไล่เช็คธงทีละตัวจะตกหล่น
+    //    เจ้าของเกมเจอ 08-29: จั่วไพ่แล้วบอทเล่นต่อ แต่ยังลากไพ่ได้
+    //    เพราะเดิมเช็คแค่ 3 ธง ขาด unoBusyFx() กับตัวล็อกไวลด์ไป
+    if (!unoMyTurn()) return;
     const c = unoHit(p);
     if (!c || c.dim) return;
     UNO_DRAG = { c, ox: c.x - unoAt(e, cv).x, oy: c.y - unoAt(e, cv).y };

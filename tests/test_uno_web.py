@@ -1224,3 +1224,32 @@ def test_the_gate_covers_every_blocking_case():
     r = subprocess.run(["node", "tests/uno_guard.js"],
                        capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_you_cannot_even_pick_up_a_card_on_someone_elses_turn():
+    """เจ้าของเกมเจอ: จั่วไพ่แล้วบอทเล่นต่อ แต่ยังลากไพ่ได้ (ถึงจะเด้งกลับก็ตาม)
+
+    ต้นเหตุ: ตัวกันตอนจับไพ่ไล่เช็คธงเอง 3 ตัว (SENT/DEALING/THINK)
+    ขาด unoBusyFx() กับตัวล็อกไวลด์ที่ unoMyTurn() มีให้อยู่แล้ว
+    เพิ่มเงื่อนไขใหม่ทีไรก็ต้องมาไล่เติมตรงนี้ด้วย — พลาดง่าย
+    """
+    i = JS.index("const down = e =>")
+    body = JS[i:JS.index("const move = e =>", i)]
+    assert "if (!unoMyTurn()) return;" in body, "ยังไล่เช็คธงเอง ไม่ได้ใช้ตัวกลาง"
+    assert "UNO_SENT || UNO_DEALING || UNO_THINK" not in body, \
+        "ยังมีการไล่เช็คธงทีละตัวหลงเหลืออยู่"
+
+
+def test_the_card_you_play_is_drawn_last_so_it_sits_on_top():
+    """เจ้าของเกมเจอ: วางไพ่แล้วเหมือนไปวางใต้ไพ่ก่อนหน้า
+
+    UNO_CARDS วาดตามลำดับใน array — ใบท้ายอยู่บนสุด
+    ไพ่ที่เราวางเคยอยู่ต้น array (มาจาก flying) จึงถูกไพ่กองเดิมวาดทับ
+    """
+    i = JS.index("const flying = UNO_CARDS.filter")
+    body = JS[i:JS.index("if (UNO_DEALING) return;", i)]
+    assert "const toPile = flying.filter(c => c.toPile)" in body, \
+        "ไม่ได้แยกไพ่ที่เราวางออกมา"
+    assert "UNO_CARDS.push(...toPile)" in body, "ไม่ได้ดันไพ่ที่เราวางไปท้ายสุด"
+    assert body.index("UNO.top && !onPile") < body.index("push(...toPile)"), \
+        "วาดไพ่เราก่อนกองเดิม — กองเดิมจะทับ"

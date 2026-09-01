@@ -132,10 +132,10 @@ check('เช็คก่อนหาไพ่ที่จับ', iSent >= 0 &&
 // (เจ้าของเกมเจอ 08-29: ทิ้งไพ่ 3 ไปแล้ว ไพ่ 3 ยังอยู่บนมือจนบอทเล่นจบ)
 const goneSrc = src.slice(src.indexOf('  const gone = {};'),
                           src.indexOf('    const f = unoFan'));
-const countShown = (hand, flying) => {
+const countShown = (hand, toPile) => {
   let n = 0;
-  new Function('hand', 'flying', 'tick', goneSrc + '  tick(); });')(
-    hand, flying, () => n++);
+  new Function('hand', 'toPile', 'tick', goneSrc + '  tick(); });')(
+    hand, toPile, () => n++);
   return n;
 };
 const C = (v) => ({ suit: 'fire', value: v });
@@ -165,7 +165,7 @@ check('ทั้งของเราและของบอท = บล็อ�
 // (เจ้าของเกมเจอ 08-29: ไวลด์ประตูนิรันดร์ เลือกสีเสร็จแล้วไพ่ยังอยู่บนมือ
 //  เพราะ dur=8 บินจบก่อนเราจะกดเลือกสี -> c.anim=null -> หลุดจากรายการ flying)
 const flySrc = src.slice(src.indexOf('  const flying = UNO_CARDS.filter'),
-                         src.indexOf('  UNO_CARDS = flying.slice();'));
+                         src.indexOf('  const toPile = flying.filter'));
 const flyList = cards => new Function('UNO_CARDS', flySrc + '\n return flying;')(cards);
 console.log('ไพ่ที่ถือว่าออกจากมือแล้ว:');
 check('กำลังบิน', flyList([{flying:true, anim:'move', toPile:true}]).length, 1);
@@ -190,5 +190,11 @@ check('วางแล้ว -> เห็นไพ่ที่เราวาง
 check('ไม่ถูกนับซ้ำ', out.filter(c => c.card && c.card.value === 'wild4').length, 1);
 const clean = layoutPile([], { suit: 'water', value: 1 });
 check('ยังไม่วาง -> เห็นไพ่จากเซิร์ฟเวอร์', clean[clean.length - 1].card.value, 1);
+
+// เจ้าของเกมเจอ 08-29: "เหมือนไปวางใต้ไพ่ก่อนหน้า"
+// ไพ่ที่เราวางต้องอยู่ "ท้ายสุด" ของ array เสมอ = วาดทีหลัง = อยู่บนสุด
+const withOld = layoutPile([played], { suit: 'water', value: 1 });
+check('ไพ่ที่เราวางอยู่ท้ายสุด (บนสุด)',
+      withOld[withOld.length - 1].onPile === true, true);
 
 process.exit(fail ? 1 : 0);
