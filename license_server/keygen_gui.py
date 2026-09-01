@@ -4,8 +4,8 @@
 ถ้าปิดโปรแกรมนี้ บอทของลูกค้าจะสตาร์ทไม่ได้ (เช็คคีย์ไม่ผ่าน)
 
 ถ้ามี license_server/tools/cloudflared.exe จะเปิด quick tunnel ให้อัตโนมัติ และโชว์ลิงก์ปัจจุบัน
-ในหน้าต่างนี้ ลิงก์ใน LICENSE_SERVER_URL.txt จะอยู่คงเดิม ไม่โดนทับตอนเปิดใหม่
-จะเปลี่ยนก็ต่อเมื่อกดปุ่ม "🔄 ขอลิงก์ใหม่" เอง (กดแล้วต้อง build ชุดใหม่แจกลูกค้า)
+ในหน้าต่างนี้ (ลิงก์เปลี่ยนทุกครั้งที่เปิดโปรแกรมใหม่ — โปรแกรมจะเขียนลิงก์ใหม่ลง
+LICENSE_SERVER_URL.txt ที่ root โปรเจ็คให้อัตโนมัติ เหลือแค่กด build ใหม่แจกลูกค้า)
 
 รัน: python -m license_server.keygen_gui
 """
@@ -57,8 +57,6 @@ class KeygenApp:
     def __init__(self, root):
         self.root = root
         self.tunnel_proc = None
-        self.want_new_url = False    # True เฉพาะตอนคนกด "ขอลิงก์ใหม่" เอง
-        self.live_url = ""           # ลิงก์จริงของ tunnel รอบนี้ (อาจต่างจากที่โชว์)
         self.launcher_proc = None
         root.title("License Server / Key Generator")
         root.geometry("820x460")
@@ -77,8 +75,6 @@ class KeygenApp:
         self.tunnel_var = tk.StringVar(value="กำลังเปิด tunnel...")
         tk.Entry(tunnel_row, textvariable=self.tunnel_var, width=55, state="readonly").pack(side="left", padx=6)
         tk.Button(tunnel_row, text="📋 คัดลอก", command=self.copy_tunnel_url).pack(side="left")
-        tk.Button(tunnel_row, text="🔄 ขอลิงก์ใหม่",
-                  command=self.renew_tunnel).pack(side="left", padx=(6, 0))
 
         self.url_status_var = tk.StringVar(value="")
         tk.Label(root, textvariable=self.url_status_var, anchor="w", fg="#006400", wraplength=800).pack(fill="x", padx=8)
@@ -134,63 +130,8 @@ class KeygenApp:
             if match:
                 url = match.group(0)
                 print(f"[Tunnel URL] {url}", flush=True)
-                self.root.after(0, self._got_tunnel_url, url)
-
-    def _got_tunnel_url(self, url):
-        """ได้ลิงก์ใหม่จาก cloudflared — จะทับของเดิมก็ต่อเมื่อตั้งใจเปลี่ยน
-
-        ⚠️ Cloudflare quick tunnel สุ่มชื่อใหม่ทุกครั้งที่เปิด ขอชื่อเดิมไม่ได้
-           จึงทำได้แค่ "ไม่เอาลิงก์ใหม่ไปทับของเดิม" — ลิงก์ที่แจกไปแล้วจึงยังใช้ได้
-           ตราบที่โปรแกรมนี้ยังเปิดอยู่ (เจ้าของเกมสั่ง 09-01)
-        """
-        self.live_url = url
-        if self.want_new_url or not self._saved_url():
-            self.want_new_url = False
-            status = self._save_url_file(url)
-            self.tunnel_var.set(url)
-            self.url_status_var.set(status)
-            return
-        # ใช้ลิงก์เดิมต่อ — ลูกค้าที่ถือลิงก์เก่าจะได้ไม่ต้องโหลดชุดใหม่
-        self.tunnel_var.set(self._saved_url())
-        self.url_status_var.set(
-            "🔒 ใช้ลิงก์เดิมอยู่ — กด 🔄 ขอลิงก์ใหม่ ถ้าต้องการเปลี่ยน "
-            "(ลิงก์เก่าที่แจกไปแล้วจะใช้ไม่ได้อีก)")
-
-    def _saved_url(self):
-        """ลิงก์ที่เคยบันทึกไว้ — ไม่มี/ไม่ใช่ลิงก์ tunnel ก็คืนค่าว่าง"""
-        try:
-            with open(URL_FILE, encoding="utf-8") as f:
-                saved = f.read().strip()
-        except OSError:
-            return ""
-        return saved if TUNNEL_URL_PATTERN.fullmatch(saved) else ""
-
-    def renew_tunnel(self):
-        """กดขอลิงก์ใหม่ — ปิด tunnel เดิมแล้วเปิดใหม่ Cloudflare จะสุ่มชื่อมาให้"""
-        if not os.path.exists(CLOUDFLARED_PATH):
-            messagebox.showwarning("ไม่มี cloudflared",
-                                   "ไม่พบ cloudflared.exe — เปลี่ยนลิงก์ไม่ได้")
-            return
-        if not messagebox.askyesno(
-            "ขอลิงก์ใหม่?",
-            "ลิงก์เก่าจะใช้ไม่ได้ทันที\n"
-            "ลูกค้าที่ถือตัวเกมเก่าจะเข้าเกมไม่ได้ จนกว่าจะ build ชุดใหม่แจก\n\n"
-            "ขอลิงก์ใหม่จริงไหม?",
-        ):
-            return
-        self.want_new_url = True
-        self.url_status_var.set("⏳ กำลังขอลิงก์ใหม่...")
-        self._stop_tunnel()
-        self.start_tunnel()
-
-    def _stop_tunnel(self):
-        if self.tunnel_proc and self.tunnel_proc.poll() is None:
-            self.tunnel_proc.terminate()
-            try:
-                self.tunnel_proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self.tunnel_proc.kill()
-        self.tunnel_proc = None
+                status = self._save_url_file(url)
+                self.root.after(0, lambda u=url, s=status: (self.tunnel_var.set(u), self.url_status_var.set(s)))
 
     def _save_url_file(self, url):
         """เขียน tunnel URL ล่าสุดทับ LICENSE_SERVER_URL.txt — คืนข้อความสถานะไว้โชว์ในหน้าต่าง"""
@@ -317,7 +258,8 @@ class KeygenApp:
         os.startfile(dist_dir)
 
     def on_close(self):
-        self._stop_tunnel()
+        if self.tunnel_proc and self.tunnel_proc.poll() is None:
+            self.tunnel_proc.terminate()
         self.root.destroy()
 
     def generate_key(self):
