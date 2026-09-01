@@ -1062,10 +1062,12 @@ def test_a_wild_also_leaves_the_hand_while_choosing():
 
 
 def test_cards_that_reached_the_pile_are_cleaned_up():
-    """ไม่เก็บทิ้ง = ไพ่ค้างทับกองกลางไปเรื่อย ๆ"""
-    assert "c.dead = true" in JS
-    i = JS.index("UNO_CARDS = UNO_CARDS.filter(c => !c.dead)")
-    assert i > 0, "ไพ่ที่บินถึงกองแล้วไม่ถูกเก็บทิ้ง"
+    """ไพ่ที่บินถึงกองต้องกลายเป็นใบบนสุด แล้วหายตอนสถานะใหม่มา
+
+    ไม่เก็บกวาด = ไพ่ค้างทับกองจริงไปเรื่อย ๆ
+    """
+    assert "c.onPile = true" in JS, "ไพ่ที่บินถึงกองไม่ได้กลายเป็นใบบนสุด"
+    assert "filter(c => !c.onPile)" in JS, "ไพ่ค้างทับกองไม่ถูกล้าง"
 
 
 def test_dealing_starts_before_the_hand_is_applied():
@@ -1108,3 +1110,50 @@ def test_other_peoples_cards_still_block():
     i = JS.index("function unoFlyToPile")
     body = JS[i:JS.index("async function unoDo", i)]
     assert "c.mine" not in body, "ไพ่บอทถูกทำเครื่องหมายเป็นของเรา"
+
+
+# ── 🔮 ไวลด์ค้างบนมือ + ไพ่ที่วางต้องอยู่บนสุดกอง (เจ้าของเกมเจอ 08-29) ──
+
+def test_a_finished_flight_still_counts_as_out_of_hand():
+    """เจ้าของเกมเจอ: 🌑 ประตูนิรันดร์ เลือกสีเสร็จแล้วไพ่ยังอยู่บนมือ
+
+    ต้นเหตุ: ไพ่บินจบใน 8 เฟรม (~133 ms) แต่ไวลด์ต้องรอเราเลือกสี
+    พอ anim จบ c.anim = null -> หลุดจากรายการ flying -> ไม่ถูกตัดออกจากมือ
+    ไพ่ปกติไม่เจอเพราะเซิร์ฟเวอร์ตอบกลับก่อนภาพจะจบ
+    """
+    i = JS.index("const flying = UNO_CARDS.filter")
+    line = JS[i:JS.index(chr(10), i)]
+    assert "c.toPile" in line, "ไพ่ที่บินจบแล้วหลุดจากรายการ ไพ่เลยกลับมาโชว์ในมือ"
+
+
+def test_the_card_you_played_becomes_the_top_of_the_pile():
+    """เจ้าของเกมสั่ง: วางไพ่แล้วต้องเห็นไพ่ที่วางใหม่บนสุด
+
+    เดิมพอไพ่บินถึงกองก็ลบทิ้ง (c.dead) กองเลยกลับไปโชว์ไพ่เก่า
+    จนกว่าสถานะใหม่จะมาถึง — ซึ่งคือหลังบอทเล่นจบ
+    """
+    assert "c.onPile" in JS, "ไม่ได้เก็บไพ่ที่วางไว้เป็นใบบนสุด"
+    # ตอนไพ่บินถึงกองต้องตั้ง onPile — ไม่ใช่ลบทิ้ง (c.dead)
+    assert "if (c.toPile) c.onPile = true;" in JS,         "ไพ่ที่บินถึงกองโดนลบทิ้ง — กองกลับไปโชว์ไพ่เก่า"
+    i = JS.index("const onPile = UNO_CARDS.find")
+    body = JS[i:i + 500]
+    assert "UNO.top && !onPile" in body, "ยังวาดไพ่เก่าทับไพ่ที่เราเพิ่งวาง"
+
+
+def test_the_pile_card_is_cleared_when_new_state_arrives():
+    """ไม่ล้าง = ไพ่เราค้างทับกองจริงตลอดไป"""
+    i = JS.index("function unoApply")
+    body = JS[i:i + 600]
+    assert "filter(c => !c.onPile)" in body, "ไพ่ที่วางค้างทับกองไม่ถูกล้าง"
+
+
+def test_the_pile_and_hand_logic_actually_works():
+    """รันตรรกะจริง — เช็คข้อความจับ 'ไพ่บินจบแล้วหลุด' ไม่ได้"""
+    import shutil
+    import subprocess
+
+    if not shutil.which("node"):
+        pytest.skip("เครื่องนี้ไม่มี node")
+    r = subprocess.run(["node", "tests/uno_anim.js"],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stdout + r.stderr
