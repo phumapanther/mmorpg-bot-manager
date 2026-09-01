@@ -13,8 +13,8 @@ const picked = body.split('\n').filter(l =>
   l.includes('const dim') || l.includes('const glow')).join('\n');
 
 const decide = (UNO, idx, THINK) =>
-  new Function('UNO', 'i', 'UNO_THINK', 'UNO_SENT', 'UNO_DEALING', 'UNO_CARDS',
-    mtSrc + '\n' + picked + '\n return { can, dim, glow };')(UNO, idx, THINK || null, false, false, []);
+  new Function('UNO', 'i', 'UNO_THINK', 'UNO_SENT', 'UNO_DEALING', 'UNO_CARDS', 'UNO_SUIT_CARDS',
+    mtSrc + '\n' + picked + '\n return { can, dim, glow };')(UNO, idx, THINK || null, false, false, [], []);
 
 let fail = 0;
 const check = (label, got, want) => {
@@ -43,9 +43,9 @@ check('หรี่ไว้', decide(mine, 0, { seat: 1 }).dim, true);
 
 // เจ้าของเกมสั่ง 08-29: ตอนล็อกไพ่ไม่ให้ขยับ ก็ไม่ต้องเรืองแสงด้วย
 const decideLocked = (UNO, idx, opts) =>
-  new Function('UNO', 'i', 'UNO_THINK', 'UNO_SENT', 'UNO_DEALING', 'UNO_CARDS',
+  new Function('UNO', 'i', 'UNO_THINK', 'UNO_SENT', 'UNO_DEALING', 'UNO_CARDS', 'UNO_SUIT_CARDS',
     mtSrc + '\n' + picked + '\n return { can, dim, glow };')(
-      UNO, idx, opts.think || null, !!opts.sent, !!opts.dealing, opts.cards || []);
+      UNO, idx, opts.think || null, !!opts.sent, !!opts.dealing, opts.cards || [], []);
 
 console.log('ล็อกมือแล้วต้องไม่เรือง:');
 check('สั่งลงไพ่ไปแล้ว รอผล', decideLocked(mine, 0, { sent: true }).glow, false);

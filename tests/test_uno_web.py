@@ -856,10 +856,11 @@ def test_a_failed_request_gives_the_turn_back():
 
 def test_a_wild_locks_the_turn_while_choosing_a_colour():
     """รอเลือกสีอยู่ = ลงไพ่ใบอื่นซ้อนไม่ได้"""
-    i = JS.index("const up = async ()")
-    body = JS[i:JS.index("cv.addEventListener('mousedown'", i)]
-    j = body.index("unoAskSuit")
-    assert "UNO_SENT = true" in body[:j], "วางไวลด์แล้วยังลงไพ่อื่นซ้อนได้"
+    # ล็อกด้วย "กำลังเลือกสีอยู่" แทน UNO_SENT
+    # เพราะ UNO_SENT จะทำให้ด่านใน unoDo บล็อกการวางไวลด์เอง
+    i = JS.index("function unoMyTurn")
+    body = JS[i:JS.index("function unoMustDraw", i)]
+    assert "UNO_SUIT_CARDS.length" in body, "กำลังเลือกสีอยู่แต่ยังลงไพ่อื่นซ้อนได้"
 
 
 def test_the_turn_reopens_when_new_state_arrives():
@@ -1169,3 +1170,57 @@ def test_two_identical_cards_only_lose_one_when_you_play_one():
     body = JS[i:JS.index("if (UNO_DEALING) return;", i)]
     assert "flying.slice()" in body, "ใช้ array ตัวเดียวกับ flying — push แล้วนับซ้ำ"
     assert "UNO_CARDS.push(onPile)" not in body, "ยัง push ไพ่ที่อยู่ใน array อยู่แล้ว"
+
+
+# ── 🔒 ด่านกันเล่นนอกตา ต้องคุมทุกทาง (เจ้าของเกมสั่ง 08-29) ──
+
+def test_every_command_goes_through_one_gate():
+    """เจ้าของเกมเจอ: "เงื่อนไขกันวางไพ่ในเทิร์นคนอื่นยังมีหลุดอยู่บ้าง"
+
+    เดิมดักทีละจุด (ลากไพ่ / กดกองจั่ว) แต่ปุ่มผ่านกับ UNO! ไม่ได้ดักเลย
+    ย้ายด่านมาไว้ใน unoDo ที่เดียว — ทุกคำสั่งลอดผ่านตรงนั้นหมด
+    """
+    i = JS.index("async function unoDo")
+    head = JS[i:JS.index("try {", i)]
+    assert "!unoMyTurn()" in head, "ไม่มีด่านกลางใน unoDo"
+    assert head.index("unoMyTurn()") < head.index("UNO_SENT = true"), \
+        "ด่านอยู่หลังตั้งธง — สายไป"
+
+
+def test_only_harmless_commands_bypass_the_gate():
+    """เปิดโต๊ะ/ออกจากเกม ต้องทำได้เสมอ · คำสั่งที่เปลี่ยนเกมต้องผ่านด่าน"""
+    i = JS.index("const UNO_ANYTIME")
+    line = JS[i:JS.index(chr(10), i)]
+    for ok in ("start", "quit"):
+        assert f"'{ok}'" in line, f"{ok} ควรทำได้ตลอด"
+    for guarded in ("play", "draw", "take", "pass", "uno"):
+        assert f"'{guarded}'" not in line, f"{guarded} หลุดด่าน"
+
+
+def test_nothing_calls_the_api_behind_the_gate():
+    """มีทางลัดยิง api ตรง ๆ = ด่านไร้ความหมาย"""
+    assert JS.count("api('POST', '/api/web/uno'") == 1, "มีทางลัดข้ามด่าน"
+
+
+def test_choosing_a_wild_colour_still_gets_through():
+    """ด่านต้องไม่บล็อกการวางไวลด์เอง
+
+    ระหว่างรอเลือกสี UNO_SUIT_CARDS มีของ = ล็อก (ลงไพ่อื่นไม่ได้)
+    แต่ตอนกดเลือกต้องล้างก่อนเรียก unoDo ไม่งั้นด่านบล็อกตัวเอง
+    """
+    i = JS.index("if (UNO_SUIT_CARDS.length) {")
+    body = JS[i:i + 600]
+    assert body.index("UNO_SUIT_CARDS = []") < body.index("unoDo('play'"), \
+        "ไม่ได้ล้างก่อนเรียก — วางไวลด์ไม่ได้เลย"
+
+
+def test_the_gate_covers_every_blocking_case():
+    """รันตรรกะจริง 10 กรณี — เช็คข้อความไล่ครบทุกทางไม่ได้"""
+    import shutil
+    import subprocess
+
+    if not shutil.which("node"):
+        pytest.skip("เครื่องนี้ไม่มี node")
+    r = subprocess.run(["node", "tests/uno_guard.js"],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stdout + r.stderr

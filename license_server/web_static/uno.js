@@ -262,6 +262,7 @@ function unoMyTurn() {
   if (UNO_THINK) return false;              // บอทกำลังคิด/ลงไพ่อยู่
   if (UNO_SENT) return false;               // สั่งไปแล้ว รอผลอยู่
   if (UNO_DEALING) return false;            // กำลังแจกไพ่
+  if (UNO_SUIT_CARDS.length) return false;  // กำลังเลือกสีให้ไวลด์
   if (unoBusyFx()) return false;            // ไพ่ยังบินอยู่ รอให้สุดก่อน
   return true;
 }
@@ -941,7 +942,7 @@ function unoBind() {
       SFX.play('click');
       const pick = UNO_PICK;
       UNO_PICK = null;
-      UNO_SUIT_CARDS = [];
+      UNO_SUIT_CARDS = [];       // ล้างก่อน — ไม่งั้นด่านใน unoDo จะบล็อกคำสั่งนี้เอง
       unoDo('play', { index: pick, suit: hit.suit });
       return;
     }
@@ -995,7 +996,10 @@ function unoBind() {
     unoBurst(t.x, t.y + 22, '#c8b48e', 16);
     const card = c.card;
     if (card && (card.value === 'wild' || card.value === 'wild4')) {
-      UNO_SENT = true;                         // กำลังเลือกสี = ลงใบอื่นซ้อนไม่ได้
+      // กำลังเลือกสี = ลงใบอื่นซ้อนไม่ได้
+      // ⚠️ ใช้ UNO_SUIT_CARDS เป็นตัวล็อก ไม่ใช่ UNO_SENT
+      //    เพราะ UNO_SENT จะทำให้ unoMyTurn() เป็น false
+      //    แล้วด่านใน unoDo จะบล็อกการวางไวลด์เอง
       c.flying = true; c.toPile = true; c.mine = true;   // ออกจากมือแล้วเช่นกัน
       unoAskSuit(c.slot);                      // ไวลด์ต้องเลือกสีก่อน
       return;

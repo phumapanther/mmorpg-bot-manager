@@ -67,8 +67,8 @@ check('ลากลงล่างสุด = ไม่ลง', nearPile({x:450,
 const busyPre = src.slice(src.indexOf('function unoBusyFx'), src.indexOf('/** ตอนนี้ทำอะไรไม่ได้'));
 const mdSrc = busyPre + src.slice(src.indexOf('function unoMyTurn'), src.indexOf('function unoOnDeck'));
 const mustDraw = (UNO, UNO_THINK) =>
-  new Function('UNO', 'UNO_THINK', 'UNO_SENT', 'UNO_DEALING', 'UNO_CARDS',
-    mdSrc + '\n return unoMustDraw();')(UNO, UNO_THINK || null, false, false, []);
+  new Function('UNO', 'UNO_THINK', 'UNO_SENT', 'UNO_DEALING', 'UNO_CARDS', 'UNO_SUIT_CARDS',
+    mdSrc + '\n return unoMustDraw();')(UNO, UNO_THINK || null, false, false, [], []);
 console.log('กองจั่วเรือง:');
 check('ไม่มีไพ่ลงได้', mustDraw({playing:1,my_turn:1,playable:[],winner:null}), true);
 check('โดนสแตคแล้วสแตคต่อไม่ได้', mustDraw({playing:1,my_turn:1,playable:[],must_answer:1,stack:2,winner:null}), true);
@@ -80,7 +80,7 @@ check('ตาคนอื่น = ไม่เรือง', mustDraw({playing:1
 // ── 6. ตาใครลงไพ่ได้ ──
 const mtSrc = busyPre + src.slice(src.indexOf('function unoMyTurn'), src.indexOf('function unoMustDraw'));
 const myTurn = (UNO, THINK) =>
-  new Function('UNO', 'UNO_THINK', 'UNO_SENT', 'UNO_DEALING', 'UNO_CARDS', mtSrc + '\n return unoMyTurn();')(UNO, THINK, false, false, []);
+  new Function('UNO', 'UNO_THINK', 'UNO_SENT', 'UNO_DEALING', 'UNO_CARDS', 'UNO_SUIT_CARDS', mtSrc + '\n return unoMyTurn();')(UNO, THINK, false, false, [], []);
 console.log('ตาใครลงไพ่ได้:');
 check('ตาเรา ปกติ', myTurn({playing:1,my_turn:1}, null), true);
 check('ตาคนอื่น', myTurn({playing:1,my_turn:0}, null), false);
@@ -93,7 +93,7 @@ check('ยังไม่มีโต๊ะ', myTurn(null, null), false);
 // ── 7. ลงไพ่แล้วต้องจบตาทันที ──
 const mt2 = busyPre + src.slice(src.indexOf('function unoMyTurn'), src.indexOf('function unoMustDraw'));
 const turnWith = (UNO, THINK, SENT) =>
-  new Function('UNO','UNO_THINK','UNO_SENT', 'UNO_DEALING', 'UNO_CARDS', mt2 + '\n return unoMyTurn();')(UNO, THINK||null, !!SENT, false, []);
+  new Function('UNO','UNO_THINK','UNO_SENT', 'UNO_DEALING', 'UNO_CARDS', 'UNO_SUIT_CARDS', mt2 + '\n return unoMyTurn();')(UNO, THINK||null, !!SENT, false, [], []);
 console.log('ลงไพ่แล้วจบตาทันที:');
 const t = {playing:1, my_turn:1};
 check('ก่อนลง = ลงได้', turnWith(t, null, false), true);
@@ -112,8 +112,8 @@ check('ไพ่ในมือขยับ ไม่นับ', busy([{anim:'mo
 
 // ตาเราต้องยังไม่เปิดระหว่างไพ่บอทบินอยู่
 const mt3 = src.slice(src.indexOf('function unoMyTurn'), src.indexOf('function unoMustDraw'));
-const turnFx = (cards) => new Function('UNO','UNO_THINK','UNO_SENT','UNO_DEALING','UNO_CARDS',
-  busySrc + mt3 + '\n return unoMyTurn();')({playing:1,my_turn:1}, null, false, false, cards);
+const turnFx = (cards) => new Function('UNO','UNO_THINK','UNO_SENT','UNO_DEALING','UNO_CARDS','UNO_SUIT_CARDS',
+  busySrc + mt3 + '\n return unoMyTurn();')({playing:1,my_turn:1}, null, false, false, cards, []);
 check('ไพ่บอทยังบิน = ยังไม่ถึงตาเรา', turnFx([{anim:'arc', flying:true}]), false);
 check('บินจบแล้ว = ถึงตาเรา', turnFx([{anim:null, flying:true}]), true);
 
