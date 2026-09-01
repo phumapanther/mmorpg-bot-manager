@@ -122,7 +122,9 @@ check('บินจบแล้ว = ถึงตาเรา', turnFx([{anim:nu
 const downSrc = src.slice(src.indexOf('    const c = unoHit(p);') - 400,
                           src.indexOf('  const move = e =>'));
 console.log('ล็อกมือหลังลงไพ่:');
-check('ดักก่อนจับไพ่ (ไม่ใช่แค่ dim)', /if \(UNO_SENT \|\| UNO_DEALING \|\| UNO_THINK\) return;/.test(downSrc), true);
+// ต้องคุมครบทุกเงื่อนไข ไม่ใช่แค่ 3 ธงเดิม
+['UNO_SENT', 'UNO_DEALING', 'UNO_THINK', 'unoBusyFx()', 'UNO_SUIT_CARDS'].forEach(c =>
+  check('ดัก ' + c, downSrc.includes(c), true));
 const iSent = downSrc.indexOf('UNO_SENT');
 const iHit = downSrc.indexOf('unoHit(p)');
 check('เช็คก่อนหาไพ่ที่จับ', iSent >= 0 && iSent < iHit, true);
@@ -144,8 +146,8 @@ console.log('ไพ่ที่เพิ่งทิ้ง:');
 check('มือ 5 ใบ ทิ้งใบ 3 -> เหลือ 4', countShown([C(1),C(2),C(3),C(4),C(5)], inAir(3)), 4);
 check('ไพ่ซ้ำ 2 ใบ ทิ้งไป 1 -> เหลือ 1', countShown([C(3),C(3)], inAir(3)), 1);
 check('ไม่มีไพ่บิน -> ครบทุกใบ', countShown([C(1),C(2)], []), 2);
-check('ไพ่บินแต่ไม่ได้ไปกอง -> ไม่ซ่อน',
-      countShown([C(1)], [{card:C(1), anim:'move', flying:true}]), 1);
+// ตอนนี้ countShown รับ toPile ที่กรองมาแล้ว — ไพ่ที่ไม่ได้ไปกองจะไม่อยู่ในนั้น
+check('รายการว่าง -> โชว์ครบทุกใบ', countShown([C(1), C(2)], []), 2);
 
 
 // ── 11. ไพ่ที่เราทิ้งเองต้องไม่บล็อกตาเรา ──

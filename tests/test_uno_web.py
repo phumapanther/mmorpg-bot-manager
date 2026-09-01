@@ -1136,7 +1136,7 @@ def test_the_card_you_played_becomes_the_top_of_the_pile():
     assert "c.onPile" in JS, "ไม่ได้เก็บไพ่ที่วางไว้เป็นใบบนสุด"
     # ตอนไพ่บินถึงกองต้องตั้ง onPile — ไม่ใช่ลบทิ้ง (c.dead)
     assert "if (c.toPile) c.onPile = true;" in JS,         "ไพ่ที่บินถึงกองโดนลบทิ้ง — กองกลับไปโชว์ไพ่เก่า"
-    i = JS.index("const onPile = UNO_CARDS.find")
+    i = JS.index("const onPile = toPile.find")
     body = JS[i:i + 500]
     assert "UNO.top && !onPile" in body, "ยังวาดไพ่เก่าทับไพ่ที่เราเพิ่งวาง"
 
@@ -1168,8 +1168,10 @@ def test_two_identical_cards_only_lose_one_when_you_play_one():
     """
     i = JS.index("const flying = UNO_CARDS.filter")
     body = JS[i:JS.index("if (UNO_DEALING) return;", i)]
-    assert "flying.slice()" in body, "ใช้ array ตัวเดียวกับ flying — push แล้วนับซ้ำ"
-    assert "UNO_CARDS.push(onPile)" not in body, "ยัง push ไพ่ที่อยู่ใน array อยู่แล้ว"
+    # ไพ่ที่เราวางถูกแยกออกมากองเดียว (toPile) แล้วต่อท้ายครั้งเดียว
+    # ไม่มีทางที่ไพ่ใบเดียวจะอยู่ใน array สองที่อีกต่อไป
+    assert "UNO_CARDS = flying.filter(c => !c.toPile)" in body,         "ไม่ได้แยกไพ่ที่วางออก — เสี่ยงนับซ้ำ"
+    assert body.count("push(...toPile)") == 1, "เติมไพ่ที่วางกลับเข้ามากกว่าหนึ่งครั้ง"
 
 
 # ── 🔒 ด่านกันเล่นนอกตา ต้องคุมทุกทาง (เจ้าของเกมสั่ง 08-29) ──
@@ -1235,9 +1237,11 @@ def test_you_cannot_even_pick_up_a_card_on_someone_elses_turn():
     """
     i = JS.index("const down = e =>")
     body = JS[i:JS.index("const move = e =>", i)]
-    assert "if (!unoMyTurn()) return;" in body, "ยังไล่เช็คธงเอง ไม่ได้ใช้ตัวกลาง"
-    assert "UNO_SENT || UNO_DEALING || UNO_THINK" not in body, \
-        "ยังมีการไล่เช็คธงทีละตัวหลงเหลืออยู่"
+    # ต้องคุมครบทุกเงื่อนไขที่ "มีอะไรกำลังเกิดขึ้น" ไม่ใช่แค่ 3 ธงเดิม
+    # (ตาคนอื่นเฉย ๆ ยังจับจัดตำแหน่งไพ่ได้ ตามที่เจ้าของเกมสั่งไว้ก่อนหน้า)
+    for cond in ("UNO_SENT", "UNO_DEALING", "UNO_THINK",
+                 "unoBusyFx()", "UNO_SUIT_CARDS"):
+        assert cond in body, f"ขาดเงื่อนไข {cond} — แตะไพ่ได้ตอนที่ไม่ควร"
 
 
 def test_the_card_you_play_is_drawn_last_so_it_sits_on_top():
