@@ -1,734 +1,1352 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="th">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>เล่นเกม — Fragment Rift</title>
-  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/style.css">
-  <link rel="stylesheet" href="/play.css">
-</head>
-<body>
-<div class="nav-wrap"><header id="navbar"></header></div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>เล่นเกม — Fragment Rift</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/play.css" />
+  </head>
+  <body>
+    <div class="nav-wrap"><header id="navbar"></header></div>
 
-<section class="block"><div class="container">
-  <h2 class="sec">🎮 เล่นเกม</h2>
-  <p class="sec-sub">เล่นได้ทั้งใน Discord และบนเว็บ — ไอดีเดียว ข้อมูลชุดเดียว สลับไปมาได้ทุกเมื่อ</p>
+    <section class="block">
+      <div class="container">
+        <h2 class="sec">🎮 เล่นเกม</h2>
+        <p class="sec-sub">
+          เล่นได้ทั้งใน Discord และบนเว็บ — ไอดีเดียว ข้อมูลชุดเดียว
+          สลับไปมาได้ทุกเมื่อ
+        </p>
 
-  <div id="needLogin" class="hidden">
-    <p class="notice">ต้องล็อกอินก่อนเล่น — <a href="/login">ล็อกอินด้วยไอดี Discord</a></p>
-  </div>
-
-  <div class="play-shell hidden" id="shell">
-
-    <!-- ── แถบตัวละคร ── -->
-    <div class="pbar">
-      <div class="avatar"><canvas id="pfp" width="64" height="76"></canvas></div>
-      <div class="idbox">
-        <div class="nm"><b id="pName">—</b><span class="lv" id="pLv">Lv —</span></div>
-        <div class="sub" id="pSub">กำลังโหลดข้อมูลตัวละคร...</div>
-      </div>
-      <div class="money">
-        <span class="pill"><i class="c-gold"></i><span id="pCash">—</span></span>
-        <span class="pill"><i class="c-bank"></i><span id="pBank">—</span></span>
-      
-        <button class="g-logout" id="playMin" title="ย่อแถบข้อมูล">▴</button>
-        <button class="g-logout" id="playFull" title="ขยายเต็มจอ">⛶</button>
-        <button class="g-logout" id="playSfx" title="เปิด/ปิดเสียงเอฟเฟกต์">🔊</button>
-        <button class="g-logout" id="playBgm" title="เปิด/ปิดเพลงพื้นหลัง">🎵</button>
-        <button class="g-logout" id="playLogout" title="ออกจากระบบ">🚪</button></div>
-    </div>
-
-    <!-- ══ หน้าเมนูหลัก ══ -->
-    <div class="g-panelview on" id="v-home">
-
-      <div class="g-sec"><h3>ออกผจญภัย</h3><div class="g-grid">
-        <button class="g-tile hot" data-go="scene">
-          <span class="ic">🧭</span>เริ่มออกเดินทาง<span class="sub">ผจญภัยหาของ ล่ามอน</span></button>
-        <button class="g-tile" data-go="scene">
-          <span class="ic">⏩</span>เดินเร็ว ×5<span class="sub">ข้ามช่วงที่ไม่มีอะไร</span></button>
-        <button class="g-tile" data-go="atlas">
-          <span class="ic">🗺️</span>สรุปทุกทวีป<span class="sub">9 ทวีป 7 ธาตุ</span></button>
-      </div></div>
-
-      <div class="g-sec"><h3>ตัวละคร</h3><div class="g-grid">
-        <button class="g-tile" data-go="profile">
-          <span class="ic">🪪</span>โปรไฟล์<span class="sub">ค่าสถานะ อุปกรณ์สวมใส่</span></button>
-        <button class="g-tile" data-go="bag">
-          <span class="ic">🎒</span>กระเป๋า<span class="sub">ดูของในกระเป๋า</span></button>
-        <button class="g-tile" data-go="craft">
-          <span class="ic">🔨</span>คราฟของ<span class="sub">รวมวัสดุเป็นของใหม่</span></button>
-        <button class="g-tile" id="tileJunk">
-          <span class="ic">🧱</span>ขายวัสดุทั้งหมด<span class="sub">เทขายของขยะรวดเดียว</span></button>
-        <button class="g-tile" data-go="pets">
-          <span class="ic">🐾</span>สัตว์เลี้ยง<span class="sub">เลือกตัวที่พาไปด้วย</span></button>
-        <button class="g-tile" data-go="partner">
-          <span class="ic">💍</span>คู่หู<span class="sub">ระบบแต่งงาน</span></button>
-        <button class="g-tile" data-go="fashion">
-          <span class="ic">👗</span>แฟชั่น<span class="sub">ชุด · อาวุธ · ออร่า</span></button>
-        <button class="g-tile" data-go="friends">
-          <span class="ic">👥</span>เพื่อน<span class="sub">เพิ่มด้วยไอดี Discord</span></button>
-        <button class="g-tile soon" disabled title="แอดกันเป็นลูกได้ผ่านดิสคอร์ด แล้วดูผังตั้งแต่ทวดถึงเหลนบนเว็บ"><span class="tag">เร็ว ๆ นี้</span>
-          <span class="ic">👨‍👩‍👧</span>ครอบครัว<span class="sub">ผังเครือญาติ 7 ชั้น</span></button>
-      </div></div>
-
-      <div class="g-sec"><h3>เศรษฐกิจ</h3><div class="g-grid">
-        <button class="g-tile" data-go="bank">
-          <span class="ic">🏦</span>ธนาคาร<span class="sub">ฝาก ถอน โอน</span></button>
-        <button class="g-tile" data-go="goldbar">
-          <span class="ic">🧈</span>ทองคำแท่ง<span class="sub">แลกเก็บมูลค่า</span></button>
-        <button class="g-tile" data-go="shop">
-          <span class="ic">🏪</span>ร้านค้าไอเทม<span class="sub">ซื้อ-ขายของใช้</span></button>
-        <button class="g-tile" data-go="market">
-          <span class="ic">🛒</span>ตลาดผู้เล่น<span class="sub">ซื้อขายกับเพื่อน</span></button>
-        <button class="g-tile soon" disabled title="Lv100 แล้ว EXP ที่เกินไม่ทิ้ง เก็บไว้แลกเป็นเหรียญพร้อมทองคำแท่ง"><span class="tag">เร็ว ๆ นี้</span>
-          <span class="ic">🪙</span>เหรียญ<span class="sub">แลกจาก EXP ส่วนเกิน</span></button>
-        <a class="g-tile" href="/topup"><span class="ic">💎</span>เติมเกม<span class="sub">พร้อมใช้งาน</span></a>
-      </div></div>
-
-      <div class="g-sec"><h3>ร้านค้า</h3><div class="g-grid">
-        <button class="g-tile" data-go="roleshop"><span class="ic">👑</span>ร้านขายยศ<span class="sub">ซื้อยศเผ่า/คลาสตรงๆ</span></button>
-        <button class="g-tile" data-go="gacha">
-          <span class="ic">🎰</span>กาชาสุ่มยศ<span class="sub">เสี่ยงดวงลุ้นยศหายาก</span></button>
-        <button class="g-tile hot" data-go="fgacha" title="ทางเดียวที่จะได้แฟชั่น — ได้ซ้ำแปลงเป็นอัญมณีการันตี · 10 เม็ดแลกได้ 1 ชิ้น">
-          <span class="ic">🎁</span>กาชาแฟชั่น<span class="sub">ทางเดียวที่ได้แฟชั่น</span></button>
-      </div></div>
-
-      <div class="g-sec"><h3>รางวัล</h3><div class="g-grid">
-        <button class="g-tile hot" data-go="rewards"><span class="ic">🎲</span>ทอยเต๋ารับของ<span class="sub">วันละ 3 ครั้ง</span></button>
-        <button class="g-tile" data-go="daily">
-          <span class="ic">📅</span>ภารกิจวันนี้<span class="sub">เควสรายวัน</span></button>
-        <button class="g-tile" data-go="season">
-          <span class="ic">🎟️</span>ซีซั่นพาส<span class="sub" id="tileSeasonSub">รางวัล + สายพรีเมียม</span></button>
-        <button class="g-tile" data-go="achv">
-          <span class="ic">🏅</span>ความสำเร็จ<span class="sub">รับรางวัลที่ทำครบ</span></button>
-      </div></div>
-
-      <div class="g-sec"><h3>PVP</h3><div class="g-grid">
-        <button class="g-tile hot" data-go="worms" title="สนามรบผลัดเทิร์น แผนที่พังได้ · ซ้อมกับบอท หรือชวนเพื่อนลงสนามพร้อมกันสูงสุด 6 คน">
-          <span class="ic">🪱</span>สนามรบผลัดเทิร์น<span class="sub">ซ้อมกับบอท · ชวนเพื่อน 6 คน</span></button>
-        <button class="g-tile soon" disabled title="ดวลกับผู้เล่นคนอื่น ผลัดกันเดินและยิง แผนที่พังได้ ใกล้หมดเวลามีภัยพิบัติ"><span class="tag">เร็ว ๆ นี้</span>
-          <span class="ic">⚔️</span>ดวล 1v1<span class="sub">สนามรบผลัดเทิร์น</span></button>
-        <button class="g-tile soon" disabled title="กิลด์ปะทะกิลด์ในสนามรบผลัดเทิร์น"><span class="tag">เร็ว ๆ นี้</span>
-          <span class="ic">🏰</span>ศึกกิลด์<span class="sub">กิลด์วอร์โฉมใหม่</span></button>
-      </div></div>
-
-      <div class="g-sec"><h3>คาสิโน</h3><div class="g-grid">
-        <button class="g-tile" data-go="slots">
-          <span class="ic">🎰</span>สล็อต<span class="sub">หมุนลุ้นสามช่องตรง</span></button>
-        <button class="g-tile" data-go="hilo">
-          <span class="ic">🎲</span>ไฮโล<span class="sub">สูง-ต่ำ-สิบเอ็ด</span></button>
-        <button class="g-tile" data-go="bj">
-          <span class="ic">🃏</span>แบล็คแจ็ค 24<span class="sub">ดวลกับ AI เจ้ามือ</span></button>
-        <button class="g-tile" data-go="uno">
-          <span class="ic">🎴</span>ศึกไพ่รูน<span class="sub">ทิ้งไพ่ให้หมดมือก่อนชนะ</span></button>
-      </div></div>
-
-      <div class="g-sec"><h3>คู่มือ · สมุดสะสม</h3><div class="g-grid">
-        <button class="g-tile" data-go="books">
-          <span class="ic">📕</span>สมุดมอน<span class="sub">มอนที่เคยล้ม</span></button>
-        <button class="g-tile" data-go="elembook">
-          <span class="ic">🧬</span>สมุดธาตุ<span class="sub">สะสมครบ 7 ธาตุ</span></button>
-        <button class="g-tile soon" disabled title="คอลเลกชันแฟชั่นแยกตามประเภท — เก็บครบชุดได้รางวัลเป็นไอเทม"><span class="tag">เร็ว ๆ นี้</span>
-          <span class="ic">👗</span>สะสมแฟชั่น<span class="sub">คอลเลกชันทั้ง 5 ประเภท</span></button>
-        <a class="g-tile" href="/game"><span class="ic">📖</span>คู่มือเกม<span class="sub">พร้อมใช้งาน</span></a>
-        <button class="g-tile soon" disabled title="ย้ายไปเล่นเซิร์ฟเวอร์รอง (ยังไม่มีระบบ)"><span class="tag">เร็ว ๆ นี้</span>
-          <span class="ic">🌏</span>ไปต่างโลก<span class="sub">ย้ายเซิร์ฟรอง</span></button>
-      </div></div>
-
-      <p class="g-note">ปุ่มที่จางยังกดไม่ได้ — ระบบนั้นยังไม่เปิด ที่เหลือเล่นได้ครบแล้ว
-      ตัวละคร เงิน และกระเป๋าเป็นตัวเดียวกับในดิสคอร์ด สลับเล่นสองที่ได้ตลอด</p>
-    </div>
-
-
-    <!-- ══ โปรไฟล์ ══ -->
-    <div class="g-panelview" id="v-profile">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🪪 โปรไฟล์</h2>
-        <p>ข้อมูลทั้งหมดดึงจากตัวละครจริงของคุณ — ตรงกับที่เห็นในดิสเสมอ</p></div>
-      <div class="sheet2">
-        <div class="portrait">
-          <canvas id="bigChar" width="140" height="170"></canvas>
-          <div class="nameplate"><b id="prName">—</b><span id="prRace">—</span></div>
+        <div id="needLogin" class="hidden">
+          <p class="notice">
+            ต้องล็อกอินก่อนเล่น — <a href="/login">ล็อกอินด้วยไอดี Discord</a>
+          </p>
         </div>
-        <div class="col">
-          <div class="g-card">
-            <h3 style="margin-bottom:12px">ค่าสถานะ</h3>
-            <div class="statrow">
-              <div class="lbl"><span>พลังชีวิต</span><span id="prHpTxt">—</span></div>
-              <div class="hpbar"><i class="fill" id="prHp"></i><span class="txt" id="prHpIn"></span></div>
+
+        <div class="play-shell hidden" id="shell">
+          <!-- ── แถบตัวละคร ── -->
+          <div class="pbar">
+            <div class="avatar">
+              <canvas id="pfp" width="64" height="76"></canvas>
             </div>
-            <div class="statrow">
-              <div class="lbl"><span>ประสบการณ์</span><span id="prExpTxt">—</span></div>
-              <div class="hpbar exp"><i class="fill" id="prExp"></i><span class="txt" id="prExpIn"></span></div>
+            <div class="idbox">
+              <div class="nm">
+                <b id="pName">—</b><span class="lv" id="pLv">Lv —</span>
+              </div>
+              <div class="sub" id="pSub">กำลังโหลดข้อมูลตัวละคร...</div>
             </div>
-            <div class="kv"><span>แรงค์</span><b id="prRank">—</b></div>
-            <div class="kv"><span>สติ</span><b id="prSan">—</b></div>
-            <div class="kv"><span>ทวีปปัจจุบัน</span><b id="prCont">—</b></div>
-            <div class="kv"><span>ช่องอาร์ติแฟกต์</span><b id="prArt">—</b></div>
-            <div class="kv"><span>🎲 ลูกเต๋าที่ทอย</span><b id="prDice">—</b></div>
-            <div id="prDiceDetail" class="dice-detail"></div>
-          </div>
-          <div class="g-card">
-            <h3 style="margin-bottom:12px">อุปกรณ์สวมใส่</h3>
-            <div class="slots" id="prGear"></div>
-          </div>
-          <div class="g-card" id="prBuffCard">
-            <h3 style="margin-bottom:10px">บัฟ / สถานะติดตัว</h3>
-            <div class="buffline" id="prBuffs"></div>
-          </div>
-        </div>
-      </div>
-    </div>
+            <div class="money">
+              <span class="pill"
+                ><i class="c-gold"></i><span id="pCash">—</span></span
+              >
+              <span class="pill"
+                ><i class="c-bank"></i><span id="pBank">—</span></span
+              >
 
-    <!-- ══ กระเป๋า ══ -->
-    <div class="g-panelview" id="v-bag">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🎒 กระเป๋า</h2>
-        <p>ของทั้งหมดในกระเป๋าของคุณ — กดที่ของเพื่อใช้ สวมใส่ หรือทิ้ง</p></div>
-      <div class="g-card">
-        <div class="capbar"><span>ความจุ</span><span class="track"><i id="bagCap"></i></span>
-          <b id="bagCapTxt" style="font-family:var(--g-num);color:var(--g-gold)">—</b></div>
-        <div class="items" id="bagItems"></div>
-      </div>
-    </div>
-
-
-
-
-
-    <!-- ══ สล็อต ══ -->
-    <div class="g-panelview" id="v-slots">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🎰 สล็อตแมชชีน</h2>
-        <p>ตรงกัน 3 ตัวได้ ×5 ถึง ×15 · ตรงกัน 2 ตัวได้ ×1.5 — ยิ่งเดิมพันสูง เจ้ามือยิ่งตุกติก</p></div>
-      <div class="g-card">
-        <div class="slot-stage">
-          <div class="reels">
-            <div class="reel" id="sr0"><span>🌀</span></div>
-            <div class="reel" id="sr1"><span>🌀</span></div>
-            <div class="reel" id="sr2"><span>🌀</span></div>
-          </div>
-          <div class="casino-result" id="slotMsg">เลือกเดิมพันแล้วกดหมุน</div>
-        </div>
-        <div class="bet-row">
-          <div class="chips" data-chips="slots"></div>
-          <button class="g-tile hot casino-go" id="spinBtn">
-            <span class="ic">🎰</span>หมุน</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ══ ไฮโล ══ -->
-    <div class="g-panelview" id="v-hilo">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🎲 ไฮโล</h2>
-        <p>สูง (12-18) หรือ ต่ำ (3-10) ได้ ×2 · แทง 11 พอดีได้ ×7</p></div>
-      <div class="g-card">
-        <div class="dice-stage" id="diceStage">
-          <div class="d6" id="d0">?</div><div class="d6" id="d1">?</div><div class="d6" id="d2">?</div>
-        </div>
-        <div class="casino-result" id="hiloMsg">เลือกเดิมพันแล้วเลือกว่าจะแทงอะไร</div>
-        <div class="bet-row">
-          <div class="chips" data-chips="hilo"></div>
-        </div>
-        <div class="hilo-btns">
-          <button class="g-tile casino-go" data-hilo="low"><span class="ic">⬇️</span>ต่ำ 3-10 <span class="sub">×2</span></button>
-          <button class="g-tile hot casino-go" data-hilo="11hilo"><span class="ic">🎯</span>11 พอดี <span class="sub">×7</span></button>
-          <button class="g-tile casino-go" data-hilo="high"><span class="ic">⬆️</span>สูง 12-18 <span class="sub">×2</span></button>
-        </div>
-      </div>
-    </div>
-
-
-
-    <!-- ══ ผจญภัย ══ -->
-    <div class="g-panelview" id="v-scene">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🧭 ออกผจญภัย</h2>
-        <p>เดินทางด้วยตรรกะเดียวกับปุ่ม <b>!play</b> ในดิสคอร์ด — ตัวละคร เงิน
-        และเหตุการณ์เป็นข้อมูลจริงชุดเดียวกัน เล่นสลับสองแพลตฟอร์มได้</p></div>
-
-      <div class="stage-wrap">
-        <canvas id="scene" width="320" height="132" aria-label="ฉากผจญภัย"></canvas>
-        <div class="stage-tag"><i class="dot"></i><span id="sceneTag">—</span></div>
-        <div class="foe-bar" id="foeBar" hidden>
-          <div class="foe-name"><b id="foeName">—</b><span id="foeRank"></span></div>
-          <div class="hpbar foe"><i class="fill" id="foeHp"></i></div>
-          <div class="foe-num" id="foeHpTxt">—</div>
-        </div>
-      </div>
-      <div class="adv-hud">
-        <canvas id="advFace" width="52" height="52" aria-hidden="true"></canvas>
-        <div class="hud-col">
-          <div class="hud-top">
-            <b id="advName">—</b>
-            <span class="lvchip" id="advLv">Lv —</span>
-            <span class="hud-mana" id="advMana" title="เม็ดคริสตัล — ใช้สกิลแล้วทอยแพ้ถึงเสีย">—</span>
-            <span class="hud-cash">🪙 <b id="advCash">—</b></span>
-          </div>
-          <div class="hud-bar"><span class="k">HP</span>
-            <div class="hpbar"><i class="fill" id="advHp"></i></div>
-            <em id="advHpTxt">—</em></div>
-          <div class="hud-bar"><span class="k">EXP</span>
-            <div class="hpbar exp"><i class="fill" id="advExp"></i></div>
-            <em id="advExpTxt">—</em></div>
-          <div class="hud-gear" id="advGear"></div>
-          <div class="hud-buffs" id="advBuffs"></div>
-        </div>
-      </div>
-
-      <div class="g-card" style="margin-top:14px">
-        <!-- ปุ่มอยู่บนสุดเสมอ ข้อความยาวแค่ไหนก็ไม่ดันปุ่มหนีมือ -->
-        <div class="bet-row" id="advActions"></div>
-        <div class="adv-log" id="advLog">
-          <div class="adv-text" id="advText">กดปุ่มออกเดินทางเพื่อเริ่มก้าวแรก</div>
-          <div class="adv-notes" id="advNotes"></div>
-        </div>
-      </div>
-
-    </div>
-
-
-    <!-- ══ สัตว์เลี้ยง ══ -->
-    <div class="g-panelview" id="v-pets">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🐾 สัตว์เลี้ยง</h2>
-        <p>จับได้จากมอนที่ล้ม — ติดได้ทีละตัว ช่วยหนุนแต้มเต๋าตอนสู้</p></div>
-      <div class="g-cards" id="petList"></div>
-      <p class="g-note"><span class="tag-soon">เร็ว ๆ นี้</span> <b>🧬 อีโวสัตว์เลี้ยง</b> —
-      พัฒนาตัวที่จับมาแล้วให้แกร่งขึ้น หนุนแต้มเต๋าได้มากกว่าเดิม
-      <small>(ตัวที่จับไว้ตอนนี้ไม่หายไปไหน เก็บไว้อีโวได้เลย)</small></p>
-    </div>
-
-    <!-- ══ ภารกิจวันนี้ ══ -->
-    <div class="g-panelview" id="v-daily">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>📅 ภารกิจวันนี้</h2>
-        <p>ทำครบรับทอง+EXP · รีเซ็ตเที่ยงคืน · ความคืบหน้านับร่วมกับในดิส</p></div>
-      <div class="g-card"><div id="dailyStreak" class="rolls-left"></div>
-        <div id="dailyList" class="stat-list"></div>
-        <div class="bet-row"><button class="g-tile hot casino-go" id="dailyClaim"
-          ><span class="ic">🎁</span>รับรางวัลที่ทำครบ</button></div></div>
-    </div>
-
-    <!-- ══ ความสำเร็จ ══ -->
-    <div class="g-panelview" id="v-achv">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🏅 ความสำเร็จ</h2>
-        <p>ทำครบเป้าได้ทอง + ปลดฉายาไปสวมโชว์หน้าโปรไฟล์</p></div>
-      <div class="g-card"><div class="field-row"><label>ฉายาที่สวมอยู่</label>
-        <div class="chips" id="titleChips"></div></div></div>
-      <div id="achvList" class="stat-list" style="margin-top:14px"></div>
-    </div>
-
-    <!-- ══ สมุดมอน ══ -->
-    <div class="g-panelview" id="v-books">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>📕 สมุดมอน</h2>
-        <p>นับจำนวนที่ล้มไปแล้วแยกตามทวีปและแรงค์ — ดูว่ายังไม่เคยแตะทวีปไหน แรงค์ไหน</p></div>
-      <div id="bookSummary" class="rolls-left" style="margin-bottom:14px"></div>
-      <div id="bookList"></div>
-    </div>
-
-    <!-- ══ สมุดธาตุ ══ -->
-    <div class="g-panelview" id="v-elembook">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🧬 สมุดธาตุ</h2>
-        <p>ต้องล้มมอน <b>ครบทั้ง 7 ธาตุ</b> ของแต่ละแรงค์ในแต่ละทวีป —
-        ครบแรงค์ได้ทอง · ครบทั้งทวีปได้อาร์ติแฟกต์ · ครบ 9 ทวีปได้สัตว์เลี้ยงขั้นสูงสุด</p></div>
-      <div id="elemSummary" class="rolls-left" style="margin-bottom:14px"></div>
-      <div id="elemList"></div>
-    </div>
-
-    <!-- ══ ตลาดผู้เล่น ══ -->
-    <div class="g-panelview" id="v-market">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🛒 ตลาดผู้เล่น</h2>
-        <p>ฝากขายไอเทมให้ผู้เล่นคนอื่นซื้อด้วยทองในเกม — เงินเข้าธนาคารคนขาย ตายแล้วไม่หาย</p></div>
-      <div id="marketHead" class="g-card"></div>
-      <div class="chips" id="marketTabs" style="margin:14px 0">
-        <button data-mk="buy" aria-pressed="true">🛍️ แผงขาย</button>
-        <button data-mk="mine" aria-pressed="false">📦 ของที่ฝากขาย</button>
-        <button data-mk="sell" aria-pressed="false">🏷️ ลงขายเพิ่ม</button>
-      </div>
-      <div id="marketList"></div>
-    </div>
-
-    <!-- ══ แฟชั่น ══ -->
-    <div class="g-panelview" id="v-fashion">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>👗 ตู้เสื้อผ้า</h2>
-        <p>เปลี่ยนแค่หน้าตา — ค่าต่อสู้ ค่าเกราะ ความคงทน เหมือนเดิมทุกอย่าง</p></div>
-      <div class="fash-wrap">
-        <div class="fash-preview">
-          <canvas id="fashChar" width="160" height="220"></canvas>
-          <div class="fash-hint" id="fashHint">แตะที่ชุดเพื่อลองใส่ดูก่อนได้</div>
-        </div>
-        <div class="fash-list" id="fashList"></div>
-      </div>
-    </div>
-
-    <!-- ══ สนามรบผลัดเทิร์น ══ -->
-    <div class="g-panelview" id="v-worms">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🪱 สนามรบผลัดเทิร์น</h2>
-        <p>เกาะลอยที่ยิงจนพังได้ — ตัวละครของคุณลงสนามเอง ใช้สกิลอาชีพแทนอาวุธ</p></div>
-      <div class="wm-stage"><canvas id="wmCanvas" width="720" height="270"></canvas>
-        <div class="wm-zoom">
-          <button id="wmOut" title="ซูมออก">−</button><b id="wmZoom">×3</b>
-          <button id="wmIn" title="ซูมเข้า">+</button>
-          <button id="wmFit" title="เห็นทั้งแผนที่">⛶</button>
-        </div>
-        <div class="wm-hud"><b id="wmClock" class="wm-clock">⏱️ 1:00</b><span id="wmTurn"></span>
-          <span class="wm-mv"><i><b id="wmMoves"></b></i><small id="wmMovesTxt"></small></span>
-          <span class="wm-wind" title="ลม — เป่ากระสุนที่ลอยเป็นวิถีโค้งให้เบนไป">
-            <i><b id="wmWind"></b></i><small id="wmWindTxt">🌬️ —</small></span></div>
-        <div class="wm-over" id="wmOver" hidden></div>
-      </div>
-      <div class="wm-bar">
-        <span class="wm-seed">รหัสแผนที่ <b id="wmSeed">—</b></span><span id="wmWhere"></span>
-      </div>
-      <div class="wm-who" id="wmWho"></div>
-      <div class="wm-pad">
-        <button data-wm="left" title="เดินซ้าย (ปุ่มลูกศรซ้าย)">◀</button>
-        <button data-wm="jumpL" title="กระโดดซ้าย">↖</button>
-        <button data-wm="jumpR" title="กระโดดขวา (Space)">↗</button>
-        <button data-wm="right" title="เดินขวา (ปุ่มลูกศรขวา)">▶</button>
-        <button data-wm="end" class="wm-end" title="จบเทิร์น (Enter)">จบเทิร์น ⏭️</button>
-        <button id="wmGiveUp" class="wm-giveup" title="ยอมแพ้ — ระเบิดตัวเองทิ้ง">🏳️ ยอมแพ้</button>
-      </div>
-      <div class="wm-skills" id="wmSkills"></div>
-      <div class="wm-items" id="wmItems"></div>
-      <div class="wm-aim" id="wmAim" hidden></div>
-      <div class="wm-log" id="wmLog"></div>
-      <div class="g-grid wm-buttons">
-        <button class="g-tile hot" id="wmNew"><span class="ic">🎲</span>ซ้อมกับบอท
-          <span class="sub">สุ่มแผนที่แล้วลงสนามคนเดียว</span></button>
-        <button class="g-tile" id="wmSame"><span class="ic">📋</span>เปิดจากรหัสแผนที่
-          <span class="sub">รหัสเดียวกันได้แผนที่เดียวกันเป๊ะ</span></button>
-      </div>
-      <!-- 🎪 ชวนเพื่อน — เจ้าของเกมสั่งให้แยกปุ่มออกจากซ้อมกับบอทให้ชัด -->
-      <div class="g-grid wm-buttons">
-        <button class="g-tile hot" id="wmRoomOpen"><span class="ic">🎪</span>ชวนเพื่อนเล่น
-          <span class="sub">สูงสุด 6 คน · แบ่งทีม 3-3 หรือ 2-2-2</span></button>
-        <button class="g-tile" id="wmRoomJoin"><span class="ic">🚪</span>เข้าห้องด้วยรหัส
-          <span class="sub">ใส่รหัสห้องที่เพื่อนส่งมา</span></button>
-      </div>
-      <div class="wm-room" id="wmRoom" hidden></div>
-      <p class="g-note">กดค้างที่ ◀ ▶ เพื่อเดินต่อเนื่อง · ลากบนจอเพื่อเลื่อนดู · ล้อ/สองนิ้วเพื่อซูม
-      <br><b>เลือกสกิลแล้วกดค้างบนแผนที่ฝั่งที่จะยิง</b> — ค้างนานยิ่งไกล เลื่อนขึ้นลงปรับองศา ปล่อยเพื่อยิง
-      <br>แรงเดินหมดจะจบเทิร์นให้เอง</p>
-    </div>
-
-    <!-- ══ เพื่อน ══ -->
-    <div class="g-panelview" id="v-friends">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>👥 เพื่อน</h2>
-        <p>เพิ่มเพื่อนด้วยไอดี Discord — เป็นเพื่อนแล้วชวนเข้าห้อง PVP กันได้</p></div>
-      <div class="g-card">
-        <div class="field-row"><label for="frInput">ไอดี Discord ของเพื่อน</label>
-          <input id="frInput" inputmode="numeric" autocomplete="off"
-                 placeholder="วางไอดีที่คัดลอกมา เช่น 123456789012345678"></div>
-        <div class="bet-row" style="margin-top:10px">
-          <button class="g-tile hot casino-go" id="frAdd">
-            <span class="ic">➕</span>เพิ่มเพื่อน</button></div>
-        <p class="g-note" style="margin-top:10px">หาไอดีไม่เจอ? ในดิสคอร์ดเปิด
-          <b>ตั้งค่า → ขั้นสูง → โหมดนักพัฒนา</b> แล้วคลิกขวาที่ชื่อคน → <b>คัดลอกไอดีผู้ใช้</b>
-          <br>ไอดีของคุณเอง: <b id="frMyId">—</b></p>
-      </div>
-      <div id="frList" style="margin-top:14px"></div>
-    </div>
-
-    <!-- ══ โปรไฟล์เพื่อน ══ -->
-    <div class="g-panelview" id="v-friendcard">
-      <button class="g-back" data-friends-back>← กลับรายชื่อเพื่อน</button>
-      <div id="frCard"></div>
-    </div>
-
-    <!-- ══ กาชาแฟชั่น ══ -->
-    <div class="g-panelview" id="v-fgacha">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🎁 กาชาแฟชั่น</h2>
-        <p>ทางเดียวที่จะได้แฟชั่น — จ่ายด้วยทอง ได้ซ้ำแปลงเป็น 💎 อัญมณีการันตี</p></div>
-      <div class="g-card fg-top">
-        <div class="fg-banner">
-          <canvas id="fgFeat" width="120" height="170"></canvas>
-          <div><div class="fg-tag">✨ ของหน้าตู้สัปดาห์นี้</div>
-            <div class="fg-name" id="fgFeatName">—</div>
-            <div class="fg-desc" id="fgFeatDesc"></div></div>
-        </div>
-        <div class="fg-gems"><b id="fgGems">0</b> 💎 <span id="fgGemNote"></span></div>
-      </div>
-      <div class="g-grid fg-buttons" id="fgTiers"></div>
-      <div id="fgResult"></div>
-      <div class="g-card" id="fgExchange"></div>
-      <p class="g-note">แฟชั่น<b>ไม่บวกค่าต่อสู้อะไรเลย</b> เปลี่ยนแค่หน้าตา —
-      จ่ายค่าหมุน ไม่ใช่จ่ายค่าของ จึงไม่มีคืนเงิน</p>
-    </div>
-
-    <!-- ══ สรุปทุกทวีป ══ -->
-    <div class="g-panelview" id="v-atlas">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🗺️ สรุปทุกทวีป</h2>
-        <p>ข้ามทวีปมีทางเดียว — สุ่มเจอพาหนะระหว่างผจญภัย (รู้ปลายทางตอนไปถึงเท่านั้น)</p></div>
-      <div id="atlasList"></div>
-    </div>
-
-    <!-- ══ ซีซั่นพาส + สายพรีเมียม ══ -->
-    <div class="g-panelview" id="v-season">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🎟️ ซีซั่นพาส</h2>
-        <p>สะสมแต้มจาก EXP ที่ได้ทั้งซีซั่น — สายฟรีทุกคนได้ สายพรีเมียมได้เพิ่มอีกชั้น</p></div>
-      <div class="g-card sp-top">
-        <div id="seasonHead"></div>
-        <div class="bet-row"><button class="g-tile hot casino-go" id="seasonClaim"
-            ><span class="ic">🎁</span>รับรางวัล<span class="sub" id="seasonClaimSub"></span></button>
-          <button class="g-tile casino-go" id="seasonBuy"><span class="ic">⭐</span>ซื้อสายพรีเมียม</button></div></div>
-      <div id="seasonList" style="margin-top:14px"></div>
-    </div>
-
-    <!-- ══ คู่หู ══ -->
-    <div class="g-panelview" id="v-partner">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>💍 คู่หู</h2>
-        <p>แต่งงานแล้วออกผจญภัยวันเดียวกันได้โบนัสทั้งคู่</p></div>
-      <div class="g-card" id="partnerCard"></div>
-      <p class="g-note">การ<b>ขอแต่งงาน/หย่า</b>ยังต้องทำในดิสคอร์ด (<code>!marry @คน</code>)
-      เพราะต้องแท็กอีกฝ่ายให้กดตกลง — หน้านี้ดูสถานะกับโบนัสได้</p>
-    </div>
-
-    <!-- ══ ศึกไพ่รูน ══ -->
-    <div class="g-panelview" id="v-uno">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🎴 ศึกไพ่รูน</h2>
-        <p>ทิ้งไพ่ในมือให้หมดก่อนชนะ · วางทับได้เมื่อสีตรงหรือเลขตรง ·
-        เหลือใบเดียวอย่าลืมกด UNO</p></div>
-      <div class="g-card">
-        <div class="uno-stage"><canvas id="unoCanvas" width="900" height="500"></canvas>
-          <div class="uno-hud" id="unoHud"></div>
-          <div class="uno-over" id="unoOver" hidden>
-            <h3>🏁 จบเกม</h3>
-            <table class="uno-rank" id="unoRank"></table>
-            <div class="uno-over-btns">
-              <button class="again" id="unoAgain">🎴 เล่นอีกรอบ</button>
-              <button id="unoLeave">← ออกจากเกม</button>
+              <button class="g-logout" id="playMin" title="ย่อแถบข้อมูล">
+                ▴
+              </button>
+              <button class="g-logout" id="playFull" title="ขยายเต็มจอ">
+                ⛶
+              </button>
+              <button
+                class="g-logout"
+                id="playSfx"
+                title="เปิด/ปิดเสียงเอฟเฟกต์"
+              >
+                🔊
+              </button>
+              <button
+                class="g-logout"
+                id="playBgm"
+                title="เปิด/ปิดเพลงพื้นหลัง"
+              >
+                🎵
+              </button>
+              <button class="g-logout" id="playLogout" title="ออกจากระบบ">
+                🚪
+              </button>
             </div>
           </div>
-          <button class="uno-help-btn" id="unoHelpBtn" title="วิธีเล่นและความหมายไพ่">?</button>
-          <div class="uno-help" id="unoHelp" hidden>
-            <button class="uno-help-x" id="unoHelpClose">✕</button>
-            <h3>🎴 วิธีเล่นศึกไพ่รูน</h3>
-            <p class="lead">ทิ้งไพ่ในมือให้หมดก่อนคนอื่น — คนชนะได้แต้มจากไพ่ที่เหลือในมือคนอื่น</p>
-            <h4>วางไพ่ยังไง</h4>
-            <ul>
-              <li><b>สีตรง</b> กับสีของกอง — หรือ <b>เลข/ท่าตรงกัน</b> ก็วางข้ามสีได้</li>
-              <li>ไพ่ที่วางได้จะมี <b class="hint">ขอบทองเรืองแสง</b> · ที่วางไม่ได้จะหรี่ลง</li>
-              <li>ลากไพ่ขึ้นมาจากมือแล้วปล่อย — ไพ่จะดูดเข้ากองเอง ไม่ต้องเล็งให้ตรง</li>
-              <li>ไม่มีไพ่วางได้เลย → <b>กดที่กองไพ่</b> บนโต๊ะ (จะมีขอบเหลืองเรืองบอก)</li>
-            </ul>
-            <h4>ไพ่ท่าพิเศษ</h4>
-            <table class="uno-help-tbl">
-              <tr><td>🛡️</td><td><b>ม่านสะกด</b></td><td>คนถัดไปอดเล่นหนึ่งตา</td></tr>
-              <tr><td>🌀</td><td><b>วาร์ปกลับทาง</b></td><td>สลับทิศวน (เล่น 2 คน = ข้ามตา)</td></tr>
-              <tr><td>⚔️</td><td><b>ทัณฑ์สองใบ</b></td><td>คนถัดไปจั่ว 2 แล้วอดเล่น</td></tr>
-              <tr><td>🔮</td><td><b>ศิลาเปลี่ยนธาตุ</b></td><td>วางทับอะไรก็ได้ แล้วเลือกสีใหม่</td></tr>
-              <tr><td>🌑</td><td><b>ประตูนิรันดร์</b></td><td>วางทับได้ + คนถัดไปจั่ว 4 + เลือกสี</td></tr>
-            </table>
-            <h4>โดนจั่วหลายใบ (สแตค)</h4>
-            <p>โดน <b>⚔️ ทัณฑ์สองใบ</b> แล้วมีใบเดียวกันในมือ → วางต่อได้
-               โยนโทษไปให้คนถัดไป (2+2=4 ใบ) · ไม่อยากวางก็
-               <b>กดที่กองไพ่</b> เพื่อยอมจั่ว เก็บไพ่ไว้ใช้ทีหลังก็ได้<br>
-               ⚠️ ⚔️ กับ 🌑 สแตครวมกันไม่ได้ — ต้องชนิดเดียวกันเท่านั้น</p>
-            <h4>เหลือใบเดียว</h4>
-            <p>กด <b>🔔 UNO!</b> เมื่อเหลือไพ่ใบสุดท้าย ตามธรรมเนียมเกมไพ่</p>
-          </div></div>
-        <div class="casino-result" id="unoMsg">กดเปิดโต๊ะเพื่อเริ่มเล่น</div>
-        <div class="uno-seats">
-          <span class="lbl">นั่งเล่นกับบอท</span>
-          <button data-bots="1">1 ตัว</button>
-          <button data-bots="2">2 ตัว</button>
-          <button data-bots="3">3 ตัว</button>
-          <button data-bots="5">5 ตัว</button>
-        </div>
-        <div class="bet-row">
-          <button class="g-tile hot casino-go" id="unoStart"><span class="ic">🎴</span>เปิดโต๊ะ</button>
-          <button class="g-tile casino-go" id="unoPass" hidden><span class="ic">⏭️</span>ผ่าน</button>
-          <button class="g-tile hot casino-go" id="unoSayUno" hidden><span class="ic">🔔</span>UNO!</button>
-        </div>
-        <div class="uno-log" id="unoLog"></div>
-      </div>
-    </div>
 
-    <!-- ══ แบล็กแจ็ค 24 ══ -->
-    <div class="g-panelview" id="v-bj">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🃏 แบล็กแจ็ค 24</h2>
-        <p>ทำแต้มให้ใกล้ 24 ที่สุดโดยไม่เกิน — ดวลกับ AI ที่เรียนรู้จากทุกตาที่เล่น ·
-        โต๊ะเดียวกับในดิส เปิดค้างไว้แล้วมาเล่นต่อที่นี่ได้</p></div>
-      <div class="g-card">
-        <div class="bj-table">
-          <div class="bj-side">
-            <div class="bj-label">🤖 บอท <span id="bjBotScore"></span></div>
-            <div class="cards" id="bjBot"></div>
+          <!-- ══ หน้าเมนูหลัก ══ -->
+          <div class="g-panelview on" id="v-home">
+            <div class="g-sec">
+              <h3>ออกผจญภัย</h3>
+              <div class="g-grid">
+                <button class="g-tile hot" data-go="scene">
+                  <span class="ic">🧭</span>เริ่มออกเดินทาง<span class="sub"
+                    >ผจญภัยหาของ ล่ามอน</span
+                  >
+                </button>
+                <button class="g-tile" data-go="atlas">
+                  <span class="ic">🗺️</span>สรุปทุกทวีป<span class="sub"
+                    >9 ทวีป 7 ธาตุ</span
+                  >
+                </button>
+              </div>
+            </div>
+
+            <div class="g-sec">
+              <h3>ตัวละคร</h3>
+              <div class="g-grid">
+                <button class="g-tile" data-go="profile">
+                  <span class="ic">🪪</span>โปรไฟล์<span class="sub"
+                    >ค่าสถานะ อุปกรณ์สวมใส่</span
+                  >
+                </button>
+                <button class="g-tile" data-go="bag">
+                  <span class="ic">🎒</span>กระเป๋า<span class="sub"
+                    >ดูของในกระเป๋า</span
+                  >
+                </button>
+                <button class="g-tile" data-go="craft">
+                  <span class="ic">🔨</span>คราฟของ<span class="sub"
+                    >รวมวัสดุเป็นของใหม่</span
+                  >
+                </button>
+                <button class="g-tile" id="tileJunk">
+                  <span class="ic">🧱</span>ขายวัสดุทั้งหมด<span class="sub"
+                    >เทขายของขยะรวดเดียว</span
+                  >
+                </button>
+                <button class="g-tile" data-go="pets">
+                  <span class="ic">🐾</span>สัตว์เลี้ยง<span class="sub"
+                    >เลือกตัวที่พาไปด้วย</span
+                  >
+                </button>
+                <button class="g-tile" data-go="partner">
+                  <span class="ic">💍</span>คู่หู<span class="sub"
+                    >ระบบแต่งงาน</span
+                  >
+                </button>
+                <button class="g-tile" data-go="fashion">
+                  <span class="ic">👗</span>แฟชั่น<span class="sub"
+                    >ชุด · อาวุธ · ออร่า</span
+                  >
+                </button>
+                <button class="g-tile" data-go="friends">
+                  <span class="ic">👥</span>เพื่อน<span class="sub"
+                    >เพิ่มด้วยไอดี Discord</span
+                  >
+                </button>
+                <button
+                  class="g-tile soon"
+                  disabled
+                  title="แอดกันเป็นลูกได้ผ่านดิสคอร์ด แล้วดูผังตั้งแต่ทวดถึงเหลนบนเว็บ"
+                >
+                  <span class="tag">เร็ว ๆ นี้</span>
+                  <span class="ic">👨‍👩‍👧</span>ครอบครัว<span class="sub"
+                    >ผังเครือญาติ 7 ชั้น</span
+                  >
+                </button>
+              </div>
+            </div>
+
+            <div class="g-sec">
+              <h3>เศรษฐกิจ</h3>
+              <div class="g-grid">
+                <button class="g-tile" data-go="bank">
+                  <span class="ic">🏦</span>ธนาคาร<span class="sub"
+                    >ฝาก ถอน โอน</span
+                  >
+                </button>
+                <button class="g-tile" data-go="goldbar">
+                  <span class="ic">🧈</span>ทองคำแท่ง<span class="sub"
+                    >แลกเก็บมูลค่า</span
+                  >
+                </button>
+                <button class="g-tile" data-go="shop">
+                  <span class="ic">🏪</span>ร้านค้าไอเทม<span class="sub"
+                    >ซื้อ-ขายของใช้</span
+                  >
+                </button>
+                <button class="g-tile" data-go="market">
+                  <span class="ic">🛒</span>ตลาดผู้เล่น<span class="sub"
+                    >ซื้อขายกับเพื่อน</span
+                  >
+                </button>
+                <button
+                  class="g-tile soon"
+                  disabled
+                  title="Lv100 แล้ว EXP ที่เกินไม่ทิ้ง เก็บไว้แลกเป็นเหรียญพร้อมทองคำแท่ง"
+                >
+                  <span class="tag">เร็ว ๆ นี้</span>
+                  <span class="ic">🪙</span>เหรียญ<span class="sub"
+                    >แลกจาก EXP ส่วนเกิน</span
+                  >
+                </button>
+                <a class="g-tile" href="/topup"
+                  ><span class="ic">💎</span>เติมเกม<span class="sub"
+                    >พร้อมใช้งาน</span
+                  ></a
+                >
+              </div>
+            </div>
+
+            <div class="g-sec">
+              <h3>ร้านค้า</h3>
+              <div class="g-grid">
+                <button class="g-tile" data-go="roleshop">
+                  <span class="ic">👑</span>ร้านขายยศ<span class="sub"
+                    >ซื้อยศเผ่า/คลาสตรงๆ</span
+                  >
+                </button>
+                <button class="g-tile" data-go="gacha">
+                  <span class="ic">🎰</span>กาชาสุ่มยศ<span class="sub"
+                    >เสี่ยงดวงลุ้นยศหายาก</span
+                  >
+                </button>
+                <button
+                  class="g-tile hot"
+                  data-go="fgacha"
+                  title="ทางเดียวที่จะได้แฟชั่น — ได้ซ้ำแปลงเป็นอัญมณีการันตี · 10 เม็ดแลกได้ 1 ชิ้น"
+                >
+                  <span class="ic">🎁</span>กาชาแฟชั่น<span class="sub"
+                    >ทางเดียวที่ได้แฟชั่น</span
+                  >
+                </button>
+              </div>
+            </div>
+
+            <div class="g-sec">
+              <h3>รางวัล</h3>
+              <div class="g-grid">
+                <button class="g-tile hot" data-go="rewards">
+                  <span class="ic">🎲</span>ทอยเต๋ารับของ<span class="sub"
+                    >วันละ 3 ครั้ง</span
+                  >
+                </button>
+                <button class="g-tile" data-go="daily">
+                  <span class="ic">📅</span>ภารกิจวันนี้<span class="sub"
+                    >เควสรายวัน</span
+                  >
+                </button>
+                <button class="g-tile" data-go="season">
+                  <span class="ic">🎟️</span>ซีซั่นพาส<span
+                    class="sub"
+                    id="tileSeasonSub"
+                    >รางวัล + สายพรีเมียม</span
+                  >
+                </button>
+                <button class="g-tile" data-go="achv">
+                  <span class="ic">🏅</span>ความสำเร็จ<span class="sub"
+                    >รับรางวัลที่ทำครบ</span
+                  >
+                </button>
+              </div>
+            </div>
+
+            <div class="g-sec">
+              <h3>PVP</h3>
+              <div class="g-grid">
+                <button
+                  class="g-tile hot"
+                  data-go="worms"
+                  title="สนามรบผลัดเทิร์น แผนที่พังได้ · ซ้อมกับบอท หรือชวนเพื่อนลงสนามพร้อมกันสูงสุด 6 คน"
+                >
+                  <span class="ic">🪱</span>สนามรบผลัดเทิร์น<span class="sub"
+                    >ซ้อมกับบอท · ชวนเพื่อน 6 คน</span
+                  >
+                </button>
+                <button
+                  class="g-tile soon"
+                  disabled
+                  title="ดวลกับผู้เล่นคนอื่น ผลัดกันเดินและยิง แผนที่พังได้ ใกล้หมดเวลามีภัยพิบัติ"
+                >
+                  <span class="tag">เร็ว ๆ นี้</span>
+                  <span class="ic">⚔️</span>ดวล 1v1<span class="sub"
+                    >สนามรบผลัดเทิร์น</span
+                  >
+                </button>
+                <button
+                  class="g-tile soon"
+                  disabled
+                  title="กิลด์ปะทะกิลด์ในสนามรบผลัดเทิร์น"
+                >
+                  <span class="tag">เร็ว ๆ นี้</span>
+                  <span class="ic">🏰</span>ศึกกิลด์<span class="sub"
+                    >กิลด์วอร์โฉมใหม่</span
+                  >
+                </button>
+              </div>
+            </div>
+
+            <div class="g-sec">
+              <h3>คาสิโน</h3>
+              <div class="g-grid">
+                <button class="g-tile" data-go="slots">
+                  <span class="ic">🎰</span>สล็อต<span class="sub"
+                    >หมุนลุ้นสามช่องตรง</span
+                  >
+                </button>
+                <button class="g-tile" data-go="hilo">
+                  <span class="ic">🎲</span>ไฮโล<span class="sub"
+                    >สูง-ต่ำ-สิบเอ็ด</span
+                  >
+                </button>
+                <button class="g-tile" data-go="bj">
+                  <span class="ic">🃏</span>แบล็คแจ็ค 24<span class="sub"
+                    >ดวลกับ AI เจ้ามือ</span
+                  >
+                </button>
+                <button class="g-tile hot" data-go="uno">
+                  <span class="ic">🎴</span>ศึกไพ่รูน<span class="sub"
+                    >ทิ้งไพ่ให้หมดมือก่อนชนะ</span
+                  >
+                </button>
+              </div>
+            </div>
+
+            <div class="g-sec">
+              <h3>คู่มือ · สมุดสะสม</h3>
+              <div class="g-grid">
+                <button class="g-tile" data-go="books">
+                  <span class="ic">📕</span>สมุดมอน<span class="sub"
+                    >มอนที่เคยล้ม</span
+                  >
+                </button>
+                <button class="g-tile" data-go="elembook">
+                  <span class="ic">🧬</span>สมุดธาตุ<span class="sub"
+                    >สะสมครบ 7 ธาตุ</span
+                  >
+                </button>
+                <button
+                  class="g-tile soon"
+                  disabled
+                  title="คอลเลกชันแฟชั่นแยกตามประเภท — เก็บครบชุดได้รางวัลเป็นไอเทม"
+                >
+                  <span class="tag">เร็ว ๆ นี้</span>
+                  <span class="ic">👗</span>สะสมแฟชั่น<span class="sub"
+                    >คอลเลกชันทั้ง 5 ประเภท</span
+                  >
+                </button>
+                <a class="g-tile" href="/game"
+                  ><span class="ic">📖</span>คู่มือเกม<span class="sub"
+                    >พร้อมใช้งาน</span
+                  ></a
+                >
+                <button
+                  class="g-tile soon"
+                  disabled
+                  title="ย้ายไปเล่นเซิร์ฟเวอร์รอง (ยังไม่มีระบบ)"
+                >
+                  <span class="tag">เร็ว ๆ นี้</span>
+                  <span class="ic">🌏</span>ไปต่างโลก<span class="sub"
+                    >ย้ายเซิร์ฟรอง</span
+                  >
+                </button>
+              </div>
+            </div>
+
+            <p class="g-note">
+              ปุ่มที่จางยังกดไม่ได้ — ระบบนั้นยังไม่เปิด ที่เหลือเล่นได้ครบแล้ว
+              ตัวละคร เงิน และกระเป๋าเป็นตัวเดียวกับในดิสคอร์ด
+              สลับเล่นสองที่ได้ตลอด
+            </p>
           </div>
-          <div class="bj-side">
-            <div class="bj-label">👤 คุณ <span id="bjMyScore"></span></div>
-            <div class="cards" id="bjMe"></div>
+
+          <!-- ══ โปรไฟล์ ══ -->
+          <div class="g-panelview" id="v-profile">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>🪪 โปรไฟล์</h2>
+              <p>
+                ข้อมูลทั้งหมดดึงจากตัวละครจริงของคุณ — ตรงกับที่เห็นในดิสเสมอ
+              </p>
+            </div>
+            <div class="sheet2">
+              <div class="portrait">
+                <canvas id="bigChar" width="140" height="170"></canvas>
+                <div class="nameplate">
+                  <b id="prName">—</b><span id="prRace">—</span>
+                </div>
+              </div>
+              <div class="col">
+                <div class="g-card">
+                  <h3 style="margin-bottom: 12px">ค่าสถานะ</h3>
+                  <div class="statrow">
+                    <div class="lbl">
+                      <span>พลังชีวิต</span><span id="prHpTxt">—</span>
+                    </div>
+                    <div class="hpbar">
+                      <i class="fill" id="prHp"></i
+                      ><span class="txt" id="prHpIn"></span>
+                    </div>
+                  </div>
+                  <div class="statrow">
+                    <div class="lbl">
+                      <span>ประสบการณ์</span><span id="prExpTxt">—</span>
+                    </div>
+                    <div class="hpbar exp">
+                      <i class="fill" id="prExp"></i
+                      ><span class="txt" id="prExpIn"></span>
+                    </div>
+                  </div>
+                  <div class="kv"><span>แรงค์</span><b id="prRank">—</b></div>
+                  <div class="kv"><span>สติ</span><b id="prSan">—</b></div>
+                  <div class="kv">
+                    <span>ทวีปปัจจุบัน</span><b id="prCont">—</b>
+                  </div>
+                  <div class="kv">
+                    <span>ช่องอาร์ติแฟกต์</span><b id="prArt">—</b>
+                  </div>
+                  <div class="kv">
+                    <span>🎲 ลูกเต๋าที่ทอย</span><b id="prDice">—</b>
+                  </div>
+                  <div id="prDiceDetail" class="dice-detail"></div>
+                </div>
+                <div class="g-card">
+                  <h3 style="margin-bottom: 12px">อุปกรณ์สวมใส่</h3>
+                  <div class="slots" id="prGear"></div>
+                </div>
+                <div class="g-card" id="prBuffCard">
+                  <h3 style="margin-bottom: 10px">บัฟ / สถานะติดตัว</h3>
+                  <div class="buffline" id="prBuffs"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ══ กระเป๋า ══ -->
+          <div class="g-panelview" id="v-bag">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>🎒 กระเป๋า</h2>
+              <p>
+                ของทั้งหมดในกระเป๋าของคุณ — กดที่ของเพื่อใช้ สวมใส่ หรือทิ้ง
+              </p>
+            </div>
+            <div class="g-card">
+              <div class="capbar">
+                <span>ความจุ</span
+                ><span class="track"><i id="bagCap"></i></span>
+                <b
+                  id="bagCapTxt"
+                  style="font-family: var(--g-num); color: var(--g-gold)"
+                  >—</b
+                >
+              </div>
+              <div class="items" id="bagItems"></div>
+            </div>
+          </div>
+
+          <!-- ══ สล็อต ══ -->
+          <div class="g-panelview" id="v-slots">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>🎰 สล็อตแมชชีน</h2>
+              <p>
+                ตรงกัน 3 ตัวได้ ×5 ถึง ×15 · ตรงกัน 2 ตัวได้ ×1.5 —
+                ยิ่งเดิมพันสูง เจ้ามือยิ่งตุกติก
+              </p>
+            </div>
+            <div class="g-card">
+              <div class="slot-stage">
+                <div class="reels">
+                  <div class="reel" id="sr0"><span>🌀</span></div>
+                  <div class="reel" id="sr1"><span>🌀</span></div>
+                  <div class="reel" id="sr2"><span>🌀</span></div>
+                </div>
+                <div class="casino-result" id="slotMsg">
+                  เลือกเดิมพันแล้วกดหมุน
+                </div>
+              </div>
+              <div class="bet-row">
+                <div class="chips" data-chips="slots"></div>
+                <button class="g-tile hot casino-go" id="spinBtn">
+                  <span class="ic">🎰</span>หมุน
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ══ ไฮโล ══ -->
+          <div class="g-panelview" id="v-hilo">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>🎲 ไฮโล</h2>
+              <p>สูง (12-18) หรือ ต่ำ (3-10) ได้ ×2 · แทง 11 พอดีได้ ×7</p>
+            </div>
+            <div class="g-card">
+              <div class="dice-stage" id="diceStage">
+                <div class="d6" id="d0">?</div>
+                <div class="d6" id="d1">?</div>
+                <div class="d6" id="d2">?</div>
+              </div>
+              <div class="casino-result" id="hiloMsg">
+                เลือกเดิมพันแล้วเลือกว่าจะแทงอะไร
+              </div>
+              <div class="bet-row">
+                <div class="chips" data-chips="hilo"></div>
+              </div>
+              <div class="hilo-btns">
+                <button class="g-tile casino-go" data-hilo="low">
+                  <span class="ic">⬇️</span>ต่ำ 3-10 <span class="sub">×2</span>
+                </button>
+                <button class="g-tile hot casino-go" data-hilo="11hilo">
+                  <span class="ic">🎯</span>11 พอดี <span class="sub">×7</span>
+                </button>
+                <button class="g-tile casino-go" data-hilo="high">
+                  <span class="ic">⬆️</span>สูง 12-18
+                  <span class="sub">×2</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ══ ผจญภัย ══ -->
+          <div class="g-panelview" id="v-scene">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>🧭 ออกผจญภัย</h2>
+              <p>
+                เดินทางด้วยตรรกะเดียวกับปุ่ม <b>!play</b> ในดิสคอร์ด — ตัวละคร
+                เงิน และเหตุการณ์เป็นข้อมูลจริงชุดเดียวกัน
+                เล่นสลับสองแพลตฟอร์มได้
+              </p>
+            </div>
+
+            <div class="stage-wrap">
+              <canvas
+                id="scene"
+                width="320"
+                height="132"
+                aria-label="ฉากผจญภัย"
+              ></canvas>
+              <div class="stage-tag">
+                <i class="dot"></i><span id="sceneTag">—</span>
+              </div>
+              <div class="foe-bar" id="foeBar" hidden>
+                <div class="foe-name">
+                  <b id="foeName">—</b><span id="foeRank"></span>
+                </div>
+                <div class="hpbar foe"><i class="fill" id="foeHp"></i></div>
+                <div class="foe-num" id="foeHpTxt">—</div>
+              </div>
+            </div>
+            <div class="adv-hud">
+              <canvas
+                id="advFace"
+                width="52"
+                height="52"
+                aria-hidden="true"
+              ></canvas>
+              <div class="hud-col">
+                <div class="hud-top">
+                  <b id="advName">—</b>
+                  <span class="lvchip" id="advLv">Lv —</span>
+                  <span
+                    class="hud-mana"
+                    id="advMana"
+                    title="เม็ดคริสตัล — ใช้สกิลแล้วทอยแพ้ถึงเสีย"
+                    >—</span
+                  >
+                  <span class="hud-cash">🪙 <b id="advCash">—</b></span>
+                </div>
+                <div class="hud-bar">
+                  <span class="k">HP</span>
+                  <div class="hpbar"><i class="fill" id="advHp"></i></div>
+                  <em id="advHpTxt">—</em>
+                </div>
+                <div class="hud-bar">
+                  <span class="k">EXP</span>
+                  <div class="hpbar exp"><i class="fill" id="advExp"></i></div>
+                  <em id="advExpTxt">—</em>
+                </div>
+                <div class="hud-gear" id="advGear"></div>
+                <div class="hud-buffs" id="advBuffs"></div>
+              </div>
+            </div>
+
+            <div class="g-card" style="margin-top: 14px">
+              <!-- ปุ่มอยู่บนสุดเสมอ ข้อความยาวแค่ไหนก็ไม่ดันปุ่มหนีมือ -->
+              <div class="bet-row" id="advActions"></div>
+              <div class="adv-log" id="advLog">
+                <div class="adv-text" id="advText">
+                  กดปุ่มออกเดินทางเพื่อเริ่มก้าวแรก
+                </div>
+                <div class="adv-notes" id="advNotes"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ══ สัตว์เลี้ยง ══ -->
+          <div class="g-panelview" id="v-pets">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>🐾 สัตว์เลี้ยง</h2>
+              <p>จับได้จากมอนที่ล้ม — ติดได้ทีละตัว ช่วยหนุนแต้มเต๋าตอนสู้</p>
+            </div>
+            <div class="g-cards" id="petList"></div>
+            <p class="g-note">
+              <span class="tag-soon">เร็ว ๆ นี้</span>
+              <b>🧬 อีโวสัตว์เลี้ยง</b> — พัฒนาตัวที่จับมาแล้วให้แกร่งขึ้น
+              หนุนแต้มเต๋าได้มากกว่าเดิม
+              <small>(ตัวที่จับไว้ตอนนี้ไม่หายไปไหน เก็บไว้อีโวได้เลย)</small>
+            </p>
+          </div>
+
+          <!-- ══ ภารกิจวันนี้ ══ -->
+          <div class="g-panelview" id="v-daily">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>📅 ภารกิจวันนี้</h2>
+              <p>
+                ทำครบรับทอง+EXP · รีเซ็ตเที่ยงคืน · ความคืบหน้านับร่วมกับในดิส
+              </p>
+            </div>
+            <div class="g-card">
+              <div id="dailyStreak" class="rolls-left"></div>
+              <div id="dailyList" class="stat-list"></div>
+              <div class="bet-row">
+                <button class="g-tile hot casino-go" id="dailyClaim">
+                  <span class="ic">🎁</span>รับรางวัลที่ทำครบ
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ══ ความสำเร็จ ══ -->
+          <div class="g-panelview" id="v-achv">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>🏅 ความสำเร็จ</h2>
+              <p>ทำครบเป้าได้ทอง + ปลดฉายาไปสวมโชว์หน้าโปรไฟล์</p>
+            </div>
+            <div class="g-card">
+              <div class="field-row">
+                <label>ฉายาที่สวมอยู่</label>
+                <div class="chips" id="titleChips"></div>
+              </div>
+            </div>
+            <div id="achvList" class="stat-list" style="margin-top: 14px"></div>
+          </div>
+
+          <!-- ══ สมุดมอน ══ -->
+          <div class="g-panelview" id="v-books">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>📕 สมุดมอน</h2>
+              <p>
+                นับจำนวนที่ล้มไปแล้วแยกตามทวีปและแรงค์ —
+                ดูว่ายังไม่เคยแตะทวีปไหน แรงค์ไหน
+              </p>
+            </div>
+            <div
+              id="bookSummary"
+              class="rolls-left"
+              style="margin-bottom: 14px"
+            ></div>
+            <div id="bookList"></div>
+          </div>
+
+          <!-- ══ สมุดธาตุ ══ -->
+          <div class="g-panelview" id="v-elembook">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>🧬 สมุดธาตุ</h2>
+              <p>
+                ต้องล้มมอน <b>ครบทั้ง 7 ธาตุ</b> ของแต่ละแรงค์ในแต่ละทวีป —
+                ครบแรงค์ได้ทอง · ครบทั้งทวีปได้อาร์ติแฟกต์ · ครบ 9
+                ทวีปได้สัตว์เลี้ยงขั้นสูงสุด
+              </p>
+            </div>
+            <div
+              id="elemSummary"
+              class="rolls-left"
+              style="margin-bottom: 14px"
+            ></div>
+            <div id="elemList"></div>
+          </div>
+
+          <!-- ══ ตลาดผู้เล่น ══ -->
+          <div class="g-panelview" id="v-market">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>🛒 ตลาดผู้เล่น</h2>
+              <p>
+                ฝากขายไอเทมให้ผู้เล่นคนอื่นซื้อด้วยทองในเกม —
+                เงินเข้าธนาคารคนขาย ตายแล้วไม่หาย
+              </p>
+            </div>
+            <div id="marketHead" class="g-card"></div>
+            <div class="chips" id="marketTabs" style="margin: 14px 0">
+              <button data-mk="buy" aria-pressed="true">🛍️ แผงขาย</button>
+              <button data-mk="mine" aria-pressed="false">
+                📦 ของที่ฝากขาย
+              </button>
+              <button data-mk="sell" aria-pressed="false">🏷️ ลงขายเพิ่ม</button>
+            </div>
+            <div id="marketList"></div>
+          </div>
+
+          <!-- ══ แฟชั่น ══ -->
+          <div class="g-panelview" id="v-fashion">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>👗 ตู้เสื้อผ้า</h2>
+              <p>
+                เปลี่ยนแค่หน้าตา — ค่าต่อสู้ ค่าเกราะ ความคงทน
+                เหมือนเดิมทุกอย่าง
+              </p>
+            </div>
+            <div class="fash-wrap">
+              <div class="fash-preview">
+                <canvas id="fashChar" width="160" height="220"></canvas>
+                <div class="fash-hint" id="fashHint">
+                  แตะที่ชุดเพื่อลองใส่ดูก่อนได้
+                </div>
+              </div>
+              <div class="fash-list" id="fashList"></div>
+            </div>
+          </div>
+
+          <!-- ══ สนามรบผลัดเทิร์น ══ -->
+          <div class="g-panelview" id="v-worms">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>🪱 สนามรบผลัดเทิร์น</h2>
+              <p>
+                เกาะลอยที่ยิงจนพังได้ — ตัวละครของคุณลงสนามเอง
+                ใช้สกิลอาชีพแทนอาวุธ
+              </p>
+            </div>
+            <div class="wm-stage">
+              <canvas id="wmCanvas" width="720" height="270"></canvas>
+              <div class="wm-zoom">
+                <button id="wmOut" title="ซูมออก">−</button
+                ><b id="wmZoom">×3</b>
+                <button id="wmIn" title="ซูมเข้า">+</button>
+                <button id="wmFit" title="เห็นทั้งแผนที่">⛶</button>
+              </div>
+              <div class="wm-hud">
+                <b id="wmClock" class="wm-clock">⏱️ 1:00</b
+                ><span id="wmTurn"></span>
+                <span class="wm-mv"
+                  ><i><b id="wmMoves"></b></i><small id="wmMovesTxt"></small
+                ></span>
+                <span
+                  class="wm-wind"
+                  title="ลม — เป่ากระสุนที่ลอยเป็นวิถีโค้งให้เบนไป"
+                >
+                  <i><b id="wmWind"></b></i
+                  ><small id="wmWindTxt">🌬️ —</small></span
+                >
+              </div>
+              <div class="wm-over" id="wmOver" hidden></div>
+            </div>
+            <div class="wm-bar">
+              <span class="wm-seed">รหัสแผนที่ <b id="wmSeed">—</b></span
+              ><span id="wmWhere"></span>
+            </div>
+            <div class="wm-who" id="wmWho"></div>
+            <div class="wm-pad">
+              <button data-wm="left" title="เดินซ้าย (ปุ่มลูกศรซ้าย)">◀</button>
+              <button data-wm="jumpL" title="กระโดดซ้าย">↖</button>
+              <button data-wm="jumpR" title="กระโดดขวา (Space)">↗</button>
+              <button data-wm="right" title="เดินขวา (ปุ่มลูกศรขวา)">▶</button>
+              <button data-wm="end" class="wm-end" title="จบเทิร์น (Enter)">
+                จบเทิร์น ⏭️
+              </button>
+              <button
+                id="wmGiveUp"
+                class="wm-giveup"
+                title="ยอมแพ้ — ระเบิดตัวเองทิ้ง"
+              >
+                🏳️ ยอมแพ้
+              </button>
+            </div>
+            <div class="wm-skills" id="wmSkills"></div>
+            <div class="wm-items" id="wmItems"></div>
+            <div class="wm-aim" id="wmAim" hidden></div>
+            <div class="wm-log" id="wmLog"></div>
+            <div class="g-grid wm-buttons">
+              <button class="g-tile hot" id="wmNew">
+                <span class="ic">🎲</span>ซ้อมกับบอท
+                <span class="sub">สุ่มแผนที่แล้วลงสนามคนเดียว</span>
+              </button>
+              <button class="g-tile" id="wmSame">
+                <span class="ic">📋</span>เปิดจากรหัสแผนที่
+                <span class="sub">รหัสเดียวกันได้แผนที่เดียวกันเป๊ะ</span>
+              </button>
+            </div>
+            <!-- 🎪 ชวนเพื่อน — เจ้าของเกมสั่งให้แยกปุ่มออกจากซ้อมกับบอทให้ชัด -->
+            <div class="g-grid wm-buttons">
+              <button class="g-tile hot" id="wmRoomOpen">
+                <span class="ic">🎪</span>ชวนเพื่อนเล่น
+                <span class="sub">สูงสุด 6 คน · แบ่งทีม 3-3 หรือ 2-2-2</span>
+              </button>
+              <button class="g-tile" id="wmRoomJoin">
+                <span class="ic">🚪</span>เข้าห้องด้วยรหัส
+                <span class="sub">ใส่รหัสห้องที่เพื่อนส่งมา</span>
+              </button>
+            </div>
+            <div class="wm-room" id="wmRoom" hidden></div>
+            <p class="g-note">
+              กดค้างที่ ◀ ▶ เพื่อเดินต่อเนื่อง · ลากบนจอเพื่อเลื่อนดู ·
+              ล้อ/สองนิ้วเพื่อซูม <br /><b
+                >เลือกสกิลแล้วกดค้างบนแผนที่ฝั่งที่จะยิง</b
+              >
+              — ค้างนานยิ่งไกล เลื่อนขึ้นลงปรับองศา ปล่อยเพื่อยิง
+              <br />แรงเดินหมดจะจบเทิร์นให้เอง
+            </p>
+          </div>
+
+          <!-- ══ เพื่อน ══ -->
+          <div class="g-panelview" id="v-friends">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>👥 เพื่อน</h2>
+              <p>
+                เพิ่มเพื่อนด้วยไอดี Discord — เป็นเพื่อนแล้วชวนเข้าห้อง PVP
+                กันได้
+              </p>
+            </div>
+            <div class="g-card">
+              <div class="field-row">
+                <label for="frInput">ไอดี Discord ของเพื่อน</label>
+                <input
+                  id="frInput"
+                  inputmode="numeric"
+                  autocomplete="off"
+                  placeholder="วางไอดีที่คัดลอกมา เช่น 123456789012345678"
+                />
+              </div>
+              <div class="bet-row" style="margin-top: 10px">
+                <button class="g-tile hot casino-go" id="frAdd">
+                  <span class="ic">➕</span>เพิ่มเพื่อน
+                </button>
+              </div>
+              <p class="g-note" style="margin-top: 10px">
+                หาไอดีไม่เจอ? ในดิสคอร์ดเปิด
+                <b>ตั้งค่า → ขั้นสูง → โหมดนักพัฒนา</b> แล้วคลิกขวาที่ชื่อคน →
+                <b>คัดลอกไอดีผู้ใช้</b> <br />ไอดีของคุณเอง:
+                <b id="frMyId">—</b>
+              </p>
+            </div>
+            <div id="frList" style="margin-top: 14px"></div>
+          </div>
+
+          <!-- ══ โปรไฟล์เพื่อน ══ -->
+          <div class="g-panelview" id="v-friendcard">
+            <button class="g-back" data-friends-back>
+              ← กลับรายชื่อเพื่อน
+            </button>
+            <div id="frCard"></div>
+          </div>
+
+          <!-- ══ กาชาแฟชั่น ══ -->
+          <div class="g-panelview" id="v-fgacha">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>🎁 กาชาแฟชั่น</h2>
+              <p>
+                ทางเดียวที่จะได้แฟชั่น — จ่ายด้วยทอง ได้ซ้ำแปลงเป็น 💎
+                อัญมณีการันตี
+              </p>
+            </div>
+            <div class="g-card fg-top">
+              <div class="fg-banner">
+                <canvas id="fgFeat" width="120" height="170"></canvas>
+                <div>
+                  <div class="fg-tag">✨ ของหน้าตู้สัปดาห์นี้</div>
+                  <div class="fg-name" id="fgFeatName">—</div>
+                  <div class="fg-desc" id="fgFeatDesc"></div>
+                </div>
+              </div>
+              <div class="fg-gems">
+                <b id="fgGems">0</b> 💎 <span id="fgGemNote"></span>
+              </div>
+            </div>
+            <div class="g-grid fg-buttons" id="fgTiers"></div>
+            <div id="fgResult"></div>
+            <div class="g-card" id="fgExchange"></div>
+            <p class="g-note">
+              แฟชั่น<b>ไม่บวกค่าต่อสู้อะไรเลย</b> เปลี่ยนแค่หน้าตา — จ่ายค่าหมุน
+              ไม่ใช่จ่ายค่าของ จึงไม่มีคืนเงิน
+            </p>
+          </div>
+
+          <!-- ══ สรุปทุกทวีป ══ -->
+          <div class="g-panelview" id="v-atlas">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>🗺️ สรุปทุกทวีป</h2>
+              <p>
+                ข้ามทวีปมีทางเดียว — สุ่มเจอพาหนะระหว่างผจญภัย
+                (รู้ปลายทางตอนไปถึงเท่านั้น)
+              </p>
+            </div>
+            <div id="atlasList"></div>
+          </div>
+
+          <!-- ══ ซีซั่นพาส + สายพรีเมียม ══ -->
+          <div class="g-panelview" id="v-season">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>🎟️ ซีซั่นพาส</h2>
+              <p>
+                สะสมแต้มจาก EXP ที่ได้ทั้งซีซั่น — สายฟรีทุกคนได้
+                สายพรีเมียมได้เพิ่มอีกชั้น
+              </p>
+            </div>
+            <div class="g-card sp-top">
+              <div id="seasonHead"></div>
+              <div class="bet-row">
+                <button class="g-tile hot casino-go" id="seasonClaim">
+                  <span class="ic">🎁</span>รับรางวัล<span
+                    class="sub"
+                    id="seasonClaimSub"
+                  ></span>
+                </button>
+                <button class="g-tile casino-go" id="seasonBuy">
+                  <span class="ic">⭐</span>ซื้อสายพรีเมียม
+                </button>
+              </div>
+            </div>
+            <div id="seasonList" style="margin-top: 14px"></div>
+          </div>
+
+          <!-- ══ คู่หู ══ -->
+          <div class="g-panelview" id="v-partner">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>💍 คู่หู</h2>
+              <p>แต่งงานแล้วออกผจญภัยวันเดียวกันได้โบนัสทั้งคู่</p>
+            </div>
+            <div class="g-card" id="partnerCard"></div>
+            <p class="g-note">
+              การ<b>ขอแต่งงาน/หย่า</b>ยังต้องทำในดิสคอร์ด (<code
+                >!marry @คน</code
+              >) เพราะต้องแท็กอีกฝ่ายให้กดตกลง — หน้านี้ดูสถานะกับโบนัสได้
+            </p>
+          </div>
+
+          <!-- ══ ศึกไพ่รูน ══ -->
+          <div class="g-panelview" id="v-uno">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>🎴 ศึกไพ่รูน</h2>
+              <p>
+                ทิ้งไพ่ในมือให้หมดก่อนชนะ · วางทับได้เมื่อสีตรงหรือเลขตรง ·
+                เหลือใบเดียวอย่าลืมกด UNO
+              </p>
+            </div>
+            <div class="g-card">
+              <div class="uno-stage">
+                <canvas id="unoCanvas" width="900" height="500"></canvas>
+                <div class="uno-hud" id="unoHud"></div>
+                <div class="uno-over" id="unoOver" hidden>
+                  <h3>🏁 จบเกม</h3>
+                  <table class="uno-rank" id="unoRank"></table>
+                  <div class="uno-over-btns">
+                    <button class="again" id="unoAgain">🎴 เล่นอีกรอบ</button>
+                    <button id="unoLeave">← ออกจากเกม</button>
+                  </div>
+                </div>
+                <button
+                  class="uno-help-btn"
+                  id="unoHelpBtn"
+                  title="วิธีเล่นและความหมายไพ่"
+                >
+                  ?
+                </button>
+                <div class="uno-help" id="unoHelp" hidden>
+                  <button class="uno-help-x" id="unoHelpClose">✕</button>
+                  <h3>🎴 วิธีเล่นศึกไพ่รูน</h3>
+                  <p class="lead">
+                    ทิ้งไพ่ในมือให้หมดก่อนคนอื่น —
+                    คนชนะได้แต้มจากไพ่ที่เหลือในมือคนอื่น
+                  </p>
+                  <h4>วางไพ่ยังไง</h4>
+                  <ul>
+                    <li>
+                      <b>สีตรง</b> กับสีของกอง — หรือ
+                      <b>เลข/ท่าตรงกัน</b> ก็วางข้ามสีได้
+                    </li>
+                    <li>
+                      ไพ่ที่วางได้จะมี <b class="hint">ขอบทองเรืองแสง</b> ·
+                      ที่วางไม่ได้จะหรี่ลง
+                    </li>
+                    <li>
+                      ลากไพ่ขึ้นมาจากมือแล้วปล่อย — ไพ่จะดูดเข้ากองเอง
+                      ไม่ต้องเล็งให้ตรง
+                    </li>
+                    <li>
+                      ไม่มีไพ่วางได้เลย → <b>กดที่กองไพ่</b> บนโต๊ะ
+                      (จะมีขอบเหลืองเรืองบอก)
+                    </li>
+                  </ul>
+                  <h4>ไพ่ท่าพิเศษ</h4>
+                  <table class="uno-help-tbl">
+                    <tr>
+                      <td>🛡️</td>
+                      <td><b>ม่านสะกด</b></td>
+                      <td>คนถัดไปอดเล่นหนึ่งตา</td>
+                    </tr>
+                    <tr>
+                      <td>🌀</td>
+                      <td><b>วาร์ปกลับทาง</b></td>
+                      <td>สลับทิศวน (เล่น 2 คน = ข้ามตา)</td>
+                    </tr>
+                    <tr>
+                      <td>⚔️</td>
+                      <td><b>ทัณฑ์สองใบ</b></td>
+                      <td>คนถัดไปจั่ว 2 แล้วอดเล่น</td>
+                    </tr>
+                    <tr>
+                      <td>🔮</td>
+                      <td><b>ศิลาเปลี่ยนธาตุ</b></td>
+                      <td>วางทับอะไรก็ได้ แล้วเลือกสีใหม่</td>
+                    </tr>
+                    <tr>
+                      <td>🌑</td>
+                      <td><b>ประตูนิรันดร์</b></td>
+                      <td>วางทับได้ + คนถัดไปจั่ว 4 + เลือกสี</td>
+                    </tr>
+                  </table>
+                  <h4>โดนจั่วหลายใบ (สแตค)</h4>
+                  <p>
+                    โดน <b>⚔️ ทัณฑ์สองใบ</b> แล้วมีใบเดียวกันในมือ → วางต่อได้
+                    โยนโทษไปให้คนถัดไป (2+2=4 ใบ) · ไม่อยากวางก็
+                    <b>กดที่กองไพ่</b> เพื่อยอมจั่ว เก็บไพ่ไว้ใช้ทีหลังก็ได้<br />
+                    ⚠️ ⚔️ กับ 🌑 สแตครวมกันไม่ได้ — ต้องชนิดเดียวกันเท่านั้น
+                  </p>
+                  <h4>เหลือใบเดียว</h4>
+                  <p>
+                    กด <b>🔔 UNO!</b> เมื่อเหลือไพ่ใบสุดท้าย ตามธรรมเนียมเกมไพ่
+                  </p>
+                </div>
+              </div>
+              <div class="casino-result" id="unoMsg">
+                กดเปิดโต๊ะเพื่อเริ่มเล่น
+              </div>
+              <div class="uno-seats">
+                <span class="lbl">นั่งเล่นกับบอท</span>
+                <button data-bots="1">1 ตัว</button>
+                <button data-bots="2">2 ตัว</button>
+                <button data-bots="3">3 ตัว</button>
+                <button data-bots="5">5 ตัว</button>
+              </div>
+              <div class="bet-row">
+                <button class="g-tile hot casino-go" id="unoStart">
+                  <span class="ic">🎴</span>เปิดโต๊ะ
+                </button>
+                <button class="g-tile casino-go" id="unoPass" hidden>
+                  <span class="ic">⏭️</span>ผ่าน
+                </button>
+                <button class="g-tile hot casino-go" id="unoSayUno" hidden>
+                  <span class="ic">🔔</span>UNO!
+                </button>
+              </div>
+              <div class="uno-log" id="unoLog"></div>
+            </div>
+          </div>
+
+          <!-- ══ แบล็กแจ็ค 24 ══ -->
+          <div class="g-panelview" id="v-bj">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>🃏 แบล็กแจ็ค 24</h2>
+              <p>
+                ทำแต้มให้ใกล้ 24 ที่สุดโดยไม่เกิน — ดวลกับ AI
+                ที่เรียนรู้จากทุกตาที่เล่น · โต๊ะเดียวกับในดิส
+                เปิดค้างไว้แล้วมาเล่นต่อที่นี่ได้
+              </p>
+            </div>
+            <div class="g-card">
+              <div class="bj-table">
+                <div class="bj-side">
+                  <div class="bj-label">
+                    🤖 บอท <span id="bjBotScore"></span>
+                  </div>
+                  <div class="cards" id="bjBot"></div>
+                </div>
+                <div class="bj-side">
+                  <div class="bj-label">
+                    👤 คุณ <span id="bjMyScore"></span>
+                  </div>
+                  <div class="cards" id="bjMe"></div>
+                </div>
+              </div>
+              <div class="casino-result" id="bjMsg">
+                เลือกเดิมพันแล้วกดเปิดโต๊ะ
+              </div>
+              <div class="bet-row" id="bjBetRow">
+                <div class="chips" data-chips="bj"></div>
+                <button class="g-tile hot casino-go" id="bjStart">
+                  <span class="ic">🃏</span>เปิดโต๊ะ
+                </button>
+              </div>
+              <div class="bet-row hidden" id="bjPlayRow">
+                <button class="g-tile casino-go" id="bjHit">
+                  <span class="ic">👇</span>จั่วไพ่
+                </button>
+                <button class="g-tile hot casino-go" id="bjStand">
+                  <span class="ic">✋</span>พอแค่นี้
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ══ ร้านค้าไอเทม ══ -->
+          <div class="g-panelview" id="v-shop">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>🏪 ร้านค้าไอเทม</h2>
+              <p>ซื้อของใช้และอุปกรณ์ — ขายของในกระเป๋าคืนร้านได้ที่แท็บขาย</p>
+            </div>
+            <div class="shop-tabs">
+              <button class="shop-tab" data-shop="buy" aria-pressed="true">
+                💰 ซื้อ
+              </button>
+              <button class="shop-tab" data-shop="sell" aria-pressed="false">
+                📦 ขาย
+              </button>
+            </div>
+            <div class="items" id="shopList"></div>
+          </div>
+
+          <!-- ══ คราฟของ ══ -->
+          <div class="g-panelview" id="v-craft">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>🔨 คราฟของ</h2>
+              <p>
+                แสดงเฉพาะสูตรที่วัตถุดิบครบพร้อมคราฟตอนนี้ —
+                คราฟมีโอกาสล้มเหลวและเสียวัตถุดิบ
+              </p>
+            </div>
+            <div class="g-cards" id="craftList"></div>
+          </div>
+
+          <!-- ══ ธนาคาร ══ -->
+          <div class="g-panelview" id="v-bank">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>🏦 ธนาคาร</h2>
+              <p>
+                ทุกธุรกรรมมีค่าธรรมเนียมตามยอด —
+                ระบบจะแสดงให้ดูก่อนยืนยันทุกครั้ง
+              </p>
+            </div>
+            <div class="g-card">
+              <div class="bank-actions">
+                <button
+                  class="g-tile"
+                  data-bank="deposit"
+                  style="min-height: auto; align-items: center"
+                >
+                  <span class="ic">💰</span>ฝากเงิน
+                </button>
+                <button
+                  class="g-tile"
+                  data-bank="withdraw"
+                  style="min-height: auto; align-items: center"
+                >
+                  <span class="ic">💸</span>ถอนเงิน
+                </button>
+                <button
+                  class="g-tile"
+                  data-bank="transfer"
+                  style="min-height: auto; align-items: center"
+                >
+                  <span class="ic">🤝</span>โอนให้เพื่อน
+                </button>
+              </div>
+              <div class="field-row">
+                <label>จำนวนเงิน</label>
+                <input
+                  type="number"
+                  id="bankAmt"
+                  min="1"
+                  placeholder="เช่น 50000"
+                  inputmode="numeric"
+                />
+                <div class="quick" id="bankQuick"></div>
+              </div>
+              <div class="field-row" id="bankTargetRow" style="display: none">
+                <label>ไอดี Discord ของผู้รับ</label>
+                <input
+                  type="text"
+                  id="bankTarget"
+                  placeholder="ตัวเลขไอดี เช่น 123456789012345678"
+                  inputmode="numeric"
+                />
+              </div>
+              <p class="g-note" style="margin: 0">
+                💡 ค่าธรรมเนียมยิ่งโอนเยอะยิ่งแพง (5% ถึง 50%) —
+                แบ่งโอนหลายครั้งเสียถูกกว่าโอนก้อนใหญ่ครั้งเดียว
+              </p>
+            </div>
+          </div>
+
+          <!-- ══ ทองคำแท่ง ══ -->
+          <div class="g-panelview" id="v-goldbar">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>🧈 ทองคำแท่ง</h2>
+              <p>
+                แปลงเงินในธนาคารเป็นแท่งทองเก็บในกระเป๋า —
+                ขายคืนที่นี่ได้ราคาดีกว่าร้านค้า
+              </p>
+            </div>
+            <div class="g-cards" id="barList"></div>
+            <p class="g-note">
+              ⚠️ ทองคำแท่งอยู่ในกระเป๋า จึงมีโอกาสถูกโจรฉกระหว่างผจญภัย
+              ต่างจากเงินในธนาคารที่โจรปล้นได้แต่ไม่หมดเกลี้ยง
+            </p>
+          </div>
+
+          <!-- ══ ร้านขายยศ ══ -->
+          <div class="g-panelview" id="v-roleshop">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>👑 ร้านขายยศ</h2>
+              <p>
+                ซื้อยศเผ่าพันธุ์และคลาสอาชีพด้วยทองในเกม — ยศจะถูกมอบให้ในเซิร์ฟ
+                Discord อัตโนมัติ
+              </p>
+            </div>
+            <div class="field-row">
+              <label>เลือกฝ่าย</label>
+              <div class="chips" id="roleFactions"></div>
+            </div>
+            <div class="g-cards" id="roleList"></div>
+            <p class="g-note">
+              ยศถูกมอบโดยบอทในเซิร์ฟ Discord (เว็บแจกยศเองไม่ได้) —
+              กดซื้อแล้วรอไม่กี่วินาที ถ้าบอทมอบไม่สำเร็จระบบ<b
+                >คืนเงินให้อัตโนมัติ</b
+              >
+            </p>
+          </div>
+
+          <!-- ══ กาชา ══ -->
+          <div class="g-panelview" id="v-gacha">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>🎰 กาชาสุ่มยศ</h2>
+              <p>
+                จ่ายทองหนึ่งครั้ง สุ่มยศหายากจากตู้ — ได้ของซ้ำก็มี ลุ้นกันไป
+              </p>
+            </div>
+            <div class="g-card">
+              <div class="field-row">
+                <label>เลือกฝ่าย</label>
+                <div class="chips" id="gachaFactions"></div>
+              </div>
+              <div id="gachaOffline"></div>
+              <div class="gacha-wrap">
+                <div class="gacha-machine" id="gachaMachine">
+                  <div class="gacha-orb"></div>
+                  <div class="gacha-slot"></div>
+                </div>
+                <div class="gacha-card" id="gachaCard" hidden>
+                  <div class="gc-inner">
+                    <div class="gc-glow"></div>
+                    <div class="gc-label" id="gachaWon">—</div>
+                    <div class="gc-sub" id="gachaState">กำลังมอบยศ...</div>
+                  </div>
+                </div>
+                <button
+                  class="g-tile hot"
+                  style="
+                    min-height: auto;
+                    flex-direction: row;
+                    align-items: center;
+                    gap: 10px;
+                    padding: 14px 26px;
+                  "
+                  id="gachaBtn"
+                >
+                  <span class="ic">🎲</span>หมุนกาชา<span
+                    class="sub"
+                    id="gachaPrice"
+                  ></span>
+                </button>
+              </div>
+            </div>
+            <p class="g-note">
+              ตู้กาชามีเฉพาะยศระดับหายาก — <b>สุ่มได้ของซ้ำก็มี</b> (เกลือ)
+              ไม่มีคืนเงินเพราะจ่ายค่าหมุน ไม่ใช่ค่ายศ ·
+              ยศถูกมอบโดยบอทในดิสคอร์ด
+            </p>
+          </div>
+
+          <!-- ══ รางวัล / ทอยเต๋า ══ -->
+          <div class="g-panelview" id="v-rewards">
+            <button class="g-back" data-back>← กลับเมนูหลัก</button>
+            <div class="g-head">
+              <h2>🎲 ทอยเต๋ารับของรายวัน</h2>
+              <p>
+                ทอยเต๋าเดินบนกระดาน ตกช่องไหนได้ของช่องนั้น —
+                เดินครบรอบรับรางวัลใหญ่
+              </p>
+            </div>
+            <div class="g-card">
+              <div class="rolls-left" style="margin-bottom: 14px">
+                🎲 ทอยได้อีก <b id="rollsLeft">—</b> ครั้งวันนี้ ·
+                รีเซ็ตเที่ยงคืน · โควตาใช้ร่วมกับในดิส
+                <span class="board-theme" id="boardTheme"></span>
+              </div>
+              <div class="dice-roller" id="diceRoller">🎲</div>
+              <div class="board" id="board"></div>
+              <button
+                class="g-tile hot"
+                style="
+                  min-height: auto;
+                  flex-direction: row;
+                  align-items: center;
+                  gap: 10px;
+                  padding: 14px 26px;
+                  margin-top: 16px;
+                "
+                id="rollBtn"
+              >
+                <span class="ic">🎲</span>ทอยเต๋า
+              </button>
+            </div>
+            <div class="board-result" id="boardResult" hidden></div>
+            <p class="g-note">
+              กระดานเปลี่ยนหน้าตาและรางวัลตาม<b>ธีมอีเวนต์ประจำสัปดาห์</b> ·
+              ของรางวัลตั้งใจให้เล็ก (ทองจิปาถะ · EXP · บัฟชั่วคราว ·
+              ไอเทมที่มีอยู่แล้ว) · <b>เดินครบหนึ่งรอบรับโบนัสก้อนใหญ่</b>
+            </p>
           </div>
         </div>
-        <div class="casino-result" id="bjMsg">เลือกเดิมพันแล้วกดเปิดโต๊ะ</div>
-        <div class="bet-row" id="bjBetRow">
-          <div class="chips" data-chips="bj"></div>
-          <button class="g-tile hot casino-go" id="bjStart"><span class="ic">🃏</span>เปิดโต๊ะ</button>
-        </div>
-        <div class="bet-row hidden" id="bjPlayRow">
-          <button class="g-tile casino-go" id="bjHit"><span class="ic">👇</span>จั่วไพ่</button>
-          <button class="g-tile hot casino-go" id="bjStand"><span class="ic">✋</span>พอแค่นี้</button>
-        </div>
+      </div>
+    </section>
+
+    <div
+      id="confirmWrap"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="cfTitle"
+    >
+      <div class="confirm-box">
+        <h3 id="cfTitle"></h3>
+        <p class="msg" id="cfMsg"></p>
+        <div class="confirm-lines" id="cfLines"></div>
+        <div class="confirm-btns" id="cfBtns"></div>
       </div>
     </div>
+    <div id="toast" role="status" aria-live="polite"></div>
 
-    <!-- ══ ร้านค้าไอเทม ══ -->
-    <div class="g-panelview" id="v-shop">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🏪 ร้านค้าไอเทม</h2>
-        <p>ซื้อของใช้และอุปกรณ์ — ขายของในกระเป๋าคืนร้านได้ที่แท็บขาย</p></div>
-      <div class="shop-tabs">
-        <button class="shop-tab" data-shop="buy" aria-pressed="true">💰 ซื้อ</button>
-        <button class="shop-tab" data-shop="sell" aria-pressed="false">📦 ขาย</button>
-      </div>
-      <div class="items" id="shopList"></div>
-    </div>
+    <footer id="footer"></footer>
 
-    <!-- ══ คราฟของ ══ -->
-    <div class="g-panelview" id="v-craft">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🔨 คราฟของ</h2>
-        <p>แสดงเฉพาะสูตรที่วัตถุดิบครบพร้อมคราฟตอนนี้ — คราฟมีโอกาสล้มเหลวและเสียวัตถุดิบ</p></div>
-      <div class="g-cards" id="craftList"></div>
-    </div>
-
-    <!-- ══ ธนาคาร ══ -->
-    <div class="g-panelview" id="v-bank">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🏦 ธนาคาร</h2>
-        <p>ทุกธุรกรรมมีค่าธรรมเนียมตามยอด — ระบบจะแสดงให้ดูก่อนยืนยันทุกครั้ง</p></div>
-      <div class="g-card">
-        <div class="bank-actions">
-          <button class="g-tile" data-bank="deposit" style="min-height:auto;align-items:center">
-            <span class="ic">💰</span>ฝากเงิน</button>
-          <button class="g-tile" data-bank="withdraw" style="min-height:auto;align-items:center">
-            <span class="ic">💸</span>ถอนเงิน</button>
-          <button class="g-tile" data-bank="transfer" style="min-height:auto;align-items:center">
-            <span class="ic">🤝</span>โอนให้เพื่อน</button>
-        </div>
-        <div class="field-row">
-          <label>จำนวนเงิน</label>
-          <input type="number" id="bankAmt" min="1" placeholder="เช่น 50000" inputmode="numeric">
-          <div class="quick" id="bankQuick"></div>
-        </div>
-        <div class="field-row" id="bankTargetRow" style="display:none">
-          <label>ไอดี Discord ของผู้รับ</label>
-          <input type="text" id="bankTarget" placeholder="ตัวเลขไอดี เช่น 123456789012345678" inputmode="numeric">
-        </div>
-        <p class="g-note" style="margin:0">💡 ค่าธรรมเนียมยิ่งโอนเยอะยิ่งแพง (5% ถึง 50%) —
-        แบ่งโอนหลายครั้งเสียถูกกว่าโอนก้อนใหญ่ครั้งเดียว</p>
-      </div>
-    </div>
-
-    <!-- ══ ทองคำแท่ง ══ -->
-    <div class="g-panelview" id="v-goldbar">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🧈 ทองคำแท่ง</h2>
-        <p>แปลงเงินในธนาคารเป็นแท่งทองเก็บในกระเป๋า — ขายคืนที่นี่ได้ราคาดีกว่าร้านค้า</p></div>
-      <div class="g-cards" id="barList"></div>
-      <p class="g-note">⚠️ ทองคำแท่งอยู่ในกระเป๋า จึงมีโอกาสถูกโจรฉกระหว่างผจญภัย
-      ต่างจากเงินในธนาคารที่โจรปล้นได้แต่ไม่หมดเกลี้ยง</p>
-    </div>
-
-    <!-- ══ ร้านขายยศ ══ -->
-    <div class="g-panelview" id="v-roleshop">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>👑 ร้านขายยศ</h2>
-        <p>ซื้อยศเผ่าพันธุ์และคลาสอาชีพด้วยทองในเกม — ยศจะถูกมอบให้ในเซิร์ฟ Discord อัตโนมัติ</p></div>
-      <div class="field-row"><label>เลือกฝ่าย</label>
-        <div class="chips" id="roleFactions"></div></div>
-      <div class="g-cards" id="roleList"></div>
-      <p class="g-note">ยศถูกมอบโดยบอทในเซิร์ฟ Discord (เว็บแจกยศเองไม่ได้) —
-      กดซื้อแล้วรอไม่กี่วินาที ถ้าบอทมอบไม่สำเร็จระบบ<b>คืนเงินให้อัตโนมัติ</b></p>
-    </div>
-
-    <!-- ══ กาชา ══ -->
-    <div class="g-panelview" id="v-gacha">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🎰 กาชาสุ่มยศ</h2>
-        <p>จ่ายทองหนึ่งครั้ง สุ่มยศหายากจากตู้ — ได้ของซ้ำก็มี ลุ้นกันไป</p></div>
-      <div class="g-card">
-        <div class="field-row"><label>เลือกฝ่าย</label>
-          <div class="chips" id="gachaFactions"></div></div>
-        <div id="gachaOffline"></div>
-        <div class="gacha-wrap">
-          <div class="gacha-machine" id="gachaMachine">
-            <div class="gacha-orb"></div><div class="gacha-slot"></div></div>
-          <div class="gacha-card" id="gachaCard" hidden>
-            <div class="gc-inner"><div class="gc-glow"></div>
-              <div class="gc-label" id="gachaWon">—</div>
-              <div class="gc-sub" id="gachaState">กำลังมอบยศ...</div></div>
-          </div>
-          <button class="g-tile hot" style="min-height:auto;flex-direction:row;align-items:center;
-                  gap:10px;padding:14px 26px" id="gachaBtn">
-            <span class="ic">🎲</span>หมุนกาชา<span class="sub" id="gachaPrice"></span></button>
-        </div>
-      </div>
-      <p class="g-note">ตู้กาชามีเฉพาะยศระดับหายาก — <b>สุ่มได้ของซ้ำก็มี</b> (เกลือ)
-      ไม่มีคืนเงินเพราะจ่ายค่าหมุน ไม่ใช่ค่ายศ · ยศถูกมอบโดยบอทในดิสคอร์ด</p>
-    </div>
-
-    <!-- ══ รางวัล / ทอยเต๋า ══ -->
-    <div class="g-panelview" id="v-rewards">
-      <button class="g-back" data-back>← กลับเมนูหลัก</button>
-      <div class="g-head"><h2>🎲 ทอยเต๋ารับของรายวัน</h2>
-        <p>ทอยเต๋าเดินบนกระดาน ตกช่องไหนได้ของช่องนั้น — เดินครบรอบรับรางวัลใหญ่</p></div>
-      <div class="g-card">
-        <div class="rolls-left" style="margin-bottom:14px">
-          🎲 ทอยได้อีก <b id="rollsLeft">—</b> ครั้งวันนี้ · รีเซ็ตเที่ยงคืน · โควตาใช้ร่วมกับในดิส
-          <span class="board-theme" id="boardTheme"></span>
-        </div>
-        <div class="dice-roller" id="diceRoller">🎲</div>
-        <div class="board" id="board"></div>
-        <button class="g-tile hot" style="min-height:auto;flex-direction:row;align-items:center;
-                gap:10px;padding:14px 26px;margin-top:16px" id="rollBtn">
-          <span class="ic">🎲</span>ทอยเต๋า</button>
-      </div>
-      <div class="board-result" id="boardResult" hidden></div>
-      <p class="g-note">กระดานเปลี่ยนหน้าตาและรางวัลตาม<b>ธีมอีเวนต์ประจำสัปดาห์</b> ·
-      ของรางวัลตั้งใจให้เล็ก (ทองจิปาถะ · EXP · บัฟชั่วคราว · ไอเทมที่มีอยู่แล้ว) ·
-      <b>เดินครบหนึ่งรอบรับโบนัสก้อนใหญ่</b></p>
-    </div>
-
-  </div>
-</div></section>
-
-<div id="confirmWrap" role="dialog" aria-modal="true" aria-labelledby="cfTitle">
-  <div class="confirm-box">
-    <h3 id="cfTitle"></h3>
-    <p class="msg" id="cfMsg"></p>
-    <div class="confirm-lines" id="cfLines"></div>
-    <div class="confirm-btns" id="cfBtns"></div>
-  </div>
-</div>
-<div id="toast" role="status" aria-live="polite"></div>
-
-<footer id="footer"></footer>
-
-<script src="/web.js"></script>
-<script src="/sfx.js"></script>
-<script src="/worms.js"></script>
-<script src="/walk.js"></script>
-  <script src="/sprite.js"></script>
-<script src="/scene.js"></script>
-<script src="/play.js"></script>
-<script src="/uno.js"></script>
-</body>
+    <script src="/web.js"></script>
+    <script src="/sfx.js"></script>
+    <script src="/worms.js"></script>
+    <script src="/walk.js"></script>
+    <script src="/sprite.js"></script>
+    <script src="/scene.js"></script>
+    <script src="/play.js"></script>
+    <script src="/uno.js"></script>
+  </body>
 </html>
