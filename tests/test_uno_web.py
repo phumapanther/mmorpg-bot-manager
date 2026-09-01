@@ -1157,3 +1157,15 @@ def test_the_pile_and_hand_logic_actually_works():
     r = subprocess.run(["node", "tests/uno_anim.js"],
                        capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_two_identical_cards_only_lose_one_when_you_play_one():
+    """เจ้าของเกมเจอ: มี 🌑 ประตูนิรันดร์ 2 ใบ วางไป 1 แต่หายจากมือ 2 ใบ
+
+    ต้นเหตุ: UNO_CARDS = flying (ตัวเดียวกัน) แล้ว push(onPile) ทับเข้าไปอีก
+    ไพ่ใบเดียวจึงอยู่ใน array สองที่ ตัวนับ gone เลยนับซ้ำ ตัดออก 2 ใบ
+    """
+    i = JS.index("const flying = UNO_CARDS.filter")
+    body = JS[i:JS.index("if (UNO_DEALING) return;", i)]
+    assert "flying.slice()" in body, "ใช้ array ตัวเดียวกับ flying — push แล้วนับซ้ำ"
+    assert "UNO_CARDS.push(onPile)" not in body, "ยัง push ไพ่ที่อยู่ใน array อยู่แล้ว"

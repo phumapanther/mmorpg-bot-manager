@@ -180,16 +180,17 @@ function unoLayout() {
   //    ไวลด์ต้องรอเราเลือกสี กว่าจะกดก็บินจบไปนานแล้ว
   //    ถ้ากรองด้วย anim จะหลุด — ไพ่กลับมาโชว์ในมือ (เจ้าของเกมเจอ 08-29)
   const flying = UNO_CARDS.filter(c => c.flying && (c.anim || c.toPile));
-  UNO_CARDS = flying;
-  // กองทิ้ง
+  UNO_CARDS = flying.slice();     // สำเนา — ไม่ใช่ตัวเดียวกับ flying
+
   // ไพ่ที่เราเพิ่งวางทับอยู่ (ยังไม่ได้สถานะใหม่) — มันคือใบบนสุดแทน
+  // ⚠️ มันอยู่ใน UNO_CARDS แล้ว ห้าม push ซ้ำ
+  //    เจ้าของเกมเจอ 08-29: มีประตูนิรันดร์ 2 ใบ วางไป 1 แต่หายจากมือ 2 ใบ
+  //    เพราะไพ่ใบเดียวถูกนับสองครั้งตอนตัดออกจากมือ
   const onPile = UNO_CARDS.find(c => c.onPile && c.card);
   if (UNO.top && !onPile) {
     const t = unoPilePos(cv).pile;
     UNO_CARDS.push({ card: UNO.top, x: t.x, y: t.y, rot: 0,
                      face: 1, sc: 1, pile: true });
-  } else if (onPile) {
-    UNO_CARDS.push(onPile);          // คงไพ่ที่เราวางไว้เป็นใบบนสุด
   }
   // ไพ่ในมือเรา — ระหว่างแจกไพ่ยังไม่โชว์ (เจ้าของเกมสั่ง 08-29)
   //    ไม่งั้นไพ่จริงโผล่มาก่อนไพ่ที่กำลังแจกจะบินไปถึงมือเสียอีก

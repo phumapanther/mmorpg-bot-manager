@@ -165,26 +165,30 @@ check('ทั้งของเราและของบอท = บล็อ�
 // (เจ้าของเกมเจอ 08-29: ไวลด์ประตูนิรันดร์ เลือกสีเสร็จแล้วไพ่ยังอยู่บนมือ
 //  เพราะ dur=8 บินจบก่อนเราจะกดเลือกสี -> c.anim=null -> หลุดจากรายการ flying)
 const flySrc = src.slice(src.indexOf('  const flying = UNO_CARDS.filter'),
-                         src.indexOf('  UNO_CARDS = flying;'));
+                         src.indexOf('  UNO_CARDS = flying.slice();'));
 const flyList = cards => new Function('UNO_CARDS', flySrc + '\n return flying;')(cards);
 console.log('ไพ่ที่ถือว่าออกจากมือแล้ว:');
 check('กำลังบิน', flyList([{flying:true, anim:'move', toPile:true}]).length, 1);
 check('บินจบแล้วแต่ยังค้างบนกอง', flyList([{flying:true, anim:null, toPile:true}]).length, 1);
 check('ไพ่ในมือธรรมดา ไม่นับ', flyList([{anim:'move'}]).length, 0);
 
-// ── 13. ไพ่ที่เราวางต้องเป็นใบบนสุดของกอง ──
-console.log('ไพ่บนสุดของกอง:');
-const topSrc = src.slice(src.indexOf('  const onPile = UNO_CARDS.find'),
+// ── 13. ไพ่ที่เราวางต้องเป็นใบบนสุด และต้องไม่ถูกนับซ้ำ ──
+// (เจ้าของเกมเจอ 08-29: มีประตูนิรันดร์ 2 ใบ วางไป 1 แต่หายจากมือ 2 ใบ
+//  เพราะ UNO_CARDS = flying แล้ว push(onPile) ทับ = ตัวเดียวกันอยู่สองที่)
+const pileSrc = src.slice(src.indexOf('  const flying = UNO_CARDS.filter'),
                           src.indexOf('  // ไพ่ในมือเรา'));
-const topOf = (cards, serverTop) => {
-  const out = [];
-  new Function('UNO_CARDS', 'UNO', 'unoPilePos', 'cv', 'push',
-    topSrc.replace(/UNO_CARDS\.push/g, 'push') + '\n')(
-      cards, { top: serverTop }, () => ({ pile: { x: 0, y: 0 } }), {}, c => out.push(c));
-  return out[0];
-};
-const played = { card: { suit: 'fire', value: 9 }, onPile: true };
-const serverTop = { suit: 'water', value: 1 };
-check('วางไพ่แล้ว -> เห็นไพ่ที่เราวาง', topOf([played], serverTop).card.value, 9);
-check('ยังไม่วาง -> เห็นไพ่จากเซิร์ฟเวอร์', topOf([], serverTop).card.value, 1);
+const layoutPile = (cards, serverTop) =>
+  new Function('UNO_CARDS', 'UNO', 'unoPilePos', 'cv', 'UNO_DEALING',
+    pileSrc + '\n return UNO_CARDS;')(
+      cards, { top: serverTop }, () => ({ pile: { x: 0, y: 0 } }), {}, false);
+
+console.log('ไพ่บนสุดของกอง:');
+const wild4 = { suit: null, value: 'wild4' };
+const played = { card: wild4, flying: true, toPile: true, onPile: true, anim: null };
+const out = layoutPile([played], { suit: 'water', value: 1 });
+check('วางแล้ว -> เห็นไพ่ที่เราวาง', out[out.length - 1].card.value, 'wild4');
+check('ไม่ถูกนับซ้ำ', out.filter(c => c.card && c.card.value === 'wild4').length, 1);
+const clean = layoutPile([], { suit: 'water', value: 1 });
+check('ยังไม่วาง -> เห็นไพ่จากเซิร์ฟเวอร์', clean[clean.length - 1].card.value, 1);
+
 process.exit(fail ? 1 : 0);
