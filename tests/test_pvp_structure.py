@@ -24,6 +24,16 @@ MATCH_UNDERSCORE_NAMES = [
 TERRAIN_UNDERSCORE_NAMES = ["_building", "_open_spots", "_standable", "_tree"]
 PHYSICS_UNDERSCORE_NAMES = ["_blocks"]
 
+# ฟังก์ชันสาธารณะตัวแทนของแต่ละไฟล์ - ใช้เช็คว่าสะพาน "import *" ดึงของจริงมา
+# ไม่ใช่แค่ import สำเร็จเฉย ๆ (ไฟล์เปล่าก็ import สำเร็จได้เหมือนกัน)
+ANCHOR_NAME = {
+    "match": "move",
+    "terrain": "generate",
+    "physics": "walk",
+    "weapons": "spec",
+    "rooms": "create",
+}
+
 
 # ── 1. โฟลเดอร์ใหม่มีจริงและ import ได้ ──
 
@@ -42,6 +52,13 @@ def test_สะพานเก่ายังใช้ได้และเป�
     old = importlib.import_module(f"bot.pvp.{modname}")
     new = importlib.import_module(f"bot.games.pvp.{modname}")
     assert old is not None
+    # เช็คฟังก์ชันตัวแทนก่อน - กันกรณีสะพานว่างเปล่าที่ import สำเร็จ
+    # แบบไม่มีเนื้อ (test ด้านล่างที่วน dir() จะไม่จับกรณีนี้เพราะไม่มีอะไรให้เทียบ)
+    anchor = ANCHOR_NAME[modname]
+    assert hasattr(old, anchor), (
+        f"bot.pvp.{modname} ไม่มี {anchor} - สะพานไม่ได้ import * จากของใหม่จริง")
+    assert getattr(old, anchor) is getattr(new, anchor), (
+        f"bot.pvp.{modname}.{anchor} ไม่ใช่ตัวเดียวกับ bot.games.pvp.{modname}.{anchor}")
     # เทียบตัวแทนของสองโมดูล (ไม่ใช่ตัว module object เอง เพราะสะพานคือคนละ
     # module object กับของใหม่จริง ๆ - แต่ฟังก์ชัน/ค่าที่ import * ดึงมาต้อง
     # เป็นตัวเดียวกันเป๊ะ)
