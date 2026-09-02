@@ -135,7 +135,8 @@ def test_a_stranger_cannot_touch_the_table(web):
 
 def test_the_casino_menu_has_a_card_game_button():
     i = HTML.index("<h3>คาสิโน</h3>")
-    section = HTML[i:HTML.index("</div></div>", i)]
+    # ตัดถึง <h3> ของหมวดถัดไป — ทนการจัดรูปแบบ HTML ใหม่ (ไม่พึ่ง </div></div> ติดกัน)
+    section = HTML[i:HTML.index("<h3>", i + 4)]
     assert 'data-go="uno"' in section, "ไม่มีปุ่มเกมไพ่ในหมวดคาสิโน"
     assert "ศึกไพ่รูน" in section
 
@@ -247,7 +248,9 @@ def test_there_is_a_help_button_on_the_game_screen():
     i = HTML.index('id="v-uno"')
     section = HTML[i:HTML.index('<!-- ══', i + 10)]
     assert 'id="unoHelpBtn"' in section, "ไม่มีปุ่ม ? ในหน้าเกม"
-    assert ">?<" in section, "ปุ่มไม่ได้เขียนว่า ?"
+    # ทนช่องว่าง/ขึ้นบรรทัดใหม่จากการจัดรูปแบบ IDE — เดิมเช็คแบบเป๊ะ ">?<"
+    btn = section[section.index('id="unoHelpBtn"'):section.index("</button>", section.index('id="unoHelpBtn"'))]
+    assert "?" in btn, "ปุ่มไม่ได้เขียนว่า ?"
 
 
 def test_the_help_box_starts_hidden():
@@ -269,7 +272,8 @@ def test_escape_also_closes_the_help():
 def test_the_help_explains_every_action_card():
     """ไพ่ท่าพิเศษทุกใบต้องมีคำอธิบาย ไม่งั้นเจอใบที่ไม่รู้จักแล้วงง"""
     i = HTML.index('id="unoHelp"')
-    box = HTML[i:HTML.index("</div></div>", i)]
+    # ใช้ marker หมวดถัดไปเป็นขอบเขต — ทนการจัดรูปแบบ HTML ใหม่
+    box = HTML[i:HTML.index("<!-- ══", i + 10)]
     for name in ("ม่านสะกด", "วาร์ปกลับทาง", "ทัณฑ์สองใบ",
                  "ศิลาเปลี่ยนธาตุ", "ประตูนิรันดร์"):
         assert name in box, f"คู่มือไม่ได้อธิบาย {name}"
@@ -277,7 +281,7 @@ def test_the_help_explains_every_action_card():
 
 def test_the_help_explains_how_to_play_a_card():
     i = HTML.index('id="unoHelp"')
-    box = HTML[i:HTML.index("</div></div>", i)]
+    box = HTML[i:HTML.index("<!-- ══", i + 10)]
     assert "สีตรง" in box and "ลาก" in box, "ไม่ได้บอกวิธีลงไพ่"
     assert "เรืองแสง" in box, "ไม่ได้บอกว่าขอบเรืองแสงแปลว่าลงได้"
 
@@ -285,7 +289,7 @@ def test_the_help_explains_how_to_play_a_card():
 def test_the_help_explains_stacking():
     """สแตคเป็นกติกาที่งงที่สุด ต้องอธิบาย"""
     i = HTML.index('id="unoHelp"')
-    box = HTML[i:HTML.index("</div></div>", i)]
+    box = HTML[i:HTML.index("<!-- ══", i + 10)]
     assert "สแตค" in box and "ยอมจั่ว" in box
 
 
@@ -533,7 +537,7 @@ def test_nothing_still_points_at_the_removed_buttons():
 
 def test_the_help_tells_you_to_click_the_pile():
     i = HTML.index('id="unoHelp"')
-    box = HTML[i:HTML.index("</div></div>", i)]
+    box = HTML[i:HTML.index("<!-- ══", i + 10)]
     assert "กดที่กองไพ่" in box, "คู่มือยังบอกให้กดปุ่มที่ลบไปแล้ว"
 
 

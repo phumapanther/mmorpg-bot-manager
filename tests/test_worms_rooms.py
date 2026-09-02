@@ -12,6 +12,7 @@
   4. ทางเล่นคนเดียว (ซ้อมกับบอท) ต้องไม่พังตาม
 """
 import pathlib
+import re
 
 import pytest
 
@@ -352,9 +353,13 @@ def test_the_menu_tile_says_what_the_mode_actually_is():
     tile = tile[:tile.index("</button>")]
     # ⚠️ ต้องดู "ชื่อปุ่ม" คือข้อความก่อน <span class="sub"> ไม่ใช่ค้นทั้งปุ่ม
     #    ของเดิมมีคำว่าสนามรบผลัดเทิร์นอยู่ในบรรทัดคำอธิบายอยู่แล้ว ค้นรวม ๆ เลยผ่านทุกที
-    label = tile[tile.index("</span>") + 7:tile.index('<span class="sub">')]
+    # ใช้ regex แทน index() ตรง ๆ — IDE จัดรูปแบบใหม่แยก ">" ของ <span class="sub"
+    #    ไปคนละบรรทัดได้ (</span\n  >), ยอมให้มีช่องว่าง/ขึ้นบรรทัดใหม่ก่อน ">"
+    m = re.search(r'</span>(.*?)<span class="sub"\s*>', tile, re.S)
+    assert m, f"หาโครงสร้าง <span class=\"sub\"> ไม่เจอ: {tile!r}"
+    label = m.group(1)
     assert label.strip() == "สนามรบผลัดเทิร์น", f"ชื่อปุ่มคือ {label.strip()!r}"
-    sub = tile[tile.index('<span class="sub">') + 18:]
+    sub = tile[m.end():]
     assert "ชวนเพื่อน" in sub, f"คำอธิบายไม่ได้บอกว่าชวนเพื่อนได้: {sub!r}"
 
 
