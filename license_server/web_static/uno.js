@@ -1086,9 +1086,119 @@ addEventListener('keydown', e => {
   if (e.key === 'Escape') unoHelp(false);
 });
 
-/** เปิดหน้ามาเจอโต๊ะที่ค้างไว้ */
-async function fillUno() {
+/** เปิดหน้ามาเจอโต๊ะที่ค้างไว้ (โหมดบอท) */
+async function unoBotFill() {
   unoBind();
   try { unoApply((await api('GET', '/api/web/uno')).table); }
   catch (e) { /* ยังไม่ได้ล็อกอินหรือเน็ตสะดุด — ไม่ต้องรบกวน */ }
 }
+
+// ══════════ 🚪 หน้าเลือกโหมด (บอท / เพื่อน) ══════════
+// เจ้าของเกมสั่ง: เข้า "ศึกไพ่รูน" ต้องเจอหน้าเลือกโหมดก่อน ไม่ใช่โดดเข้าเกมทันที
+
+function unoShowGate() {
+  unoRoomWatch(false);
+  document.getElementById('unoModeGate')?.classList.remove('hidden');
+  document.getElementById('unoBotMode')?.classList.add('hidden');
+  document.getElementById('unoFriendMode')?.classList.add('hidden');
+}
+
+document.getElementById('unoModeBot')?.addEventListener('click', async () => {
+  SFX.play('click');
+  document.getElementById('unoModeGate')?.classList.add('hidden');
+  document.getElementById('unoBotMode')?.classList.remove('hidden');
+  await unoBotFill();
+});
+
+document.getElementById('unoModeFriend')?.addEventListener('click', async () => {
+  SFX.play('click');
+  document.getElementById('unoModeGate')?.classList.add('hidden');
+  document.getElementById('unoFriendMode')?.classList.remove('hidden');
+  await unoRoomRefresh();
+});
+
+document.getElementById('unoFriendBack')?.addEventListener('click', () => {
+  SFX.play('click'); unoShowGate();
+});
+
+/** เปิดหน้าล็อบบี้ไพ่รูน — เจอหน้าเลือกโหมดก่อนเสมอ */
+async function fillUno() {
+  unoShowGate();
+}
+
+// ══════════ 👥 โต๊ะเดิมพัน ชวนเพื่อนเล่น ══════════
+
+let UNO_ROOM = null;
+let UNO_ROOM_POLL = 0;
+
+async function unoRoomDo(action, extra) {
+  try {
+    UNO_ROOM = await api('POST', '/api/web/uno/room', { action, ...(extra || {}) });
+    unoPaintRoom();
+    if (action === 'start' && UNO_ROOM.started) unoRoomWatch(false);
+  } catch (e) { toast(e.message, true); }
+}
+
+async function unoRoomRefresh() {
+  try { UNO_ROOM = await api('GET', '/api/web/uno/room'); }
+  catch (e) { UNO_ROOM = { in_room: false }; }
+  unoPaintRoom();
+}
+
+/** ถามสถานะห้องซ้ำเป็นระยะ — ไม่งั้นเพื่อนเข้ามาแล้วเราไม่เห็น */
+function unoRoomWatch(on) {
+  clearInterval(UNO_ROOM_POLL);
+  UNO_ROOM_POLL = 0;
+  if (!on) return;
+  UNO_ROOM_POLL = setInterval(async () => {
+    try {
+      const r = await api('GET', '/api/web/uno/room');
+      const changed = JSON.stringify(r) !== JSON.stringify(UNO_ROOM);
+      UNO_ROOM = r;
+      if (changed) unoPaintRoom();
+    } catch (e) { /* เน็ตสะดุดครั้งเดียวไม่ต้องปิดห้องทิ้ง */ }
+  }, 2500);
+}
+
+function unoPaintRoom() {
+  const box = document.getElementById('unoRoom');
+  if (!box) return;
+  const r = UNO_ROOM;
+  if (!r || !r.in_room) {
+    box.hidden = true;
+    unoRoomWatch(false);
+    return;
+  }
+  box.hidden = false;
+  if (!r.started) unoRoomWatch(true);
+  box.innerHTML = `
+    <div class="code">${esc(r.code)}</div>
+    <div class="why">ส่งรหัสนี้ให้เพื่อนกด "เข้าร่วม" · ${r.seats.length}/${r.max} คน
+      · กองกลาง ${r.pot || 0} ทอง</div>
+    <div class="seats">${r.seats.map(s => `
+      <div class="seat${s.you ? ' you' : ''}">
+        ${s.host ? '👑' : '🙋'} ${esc(s.name)}
+        <span class="tag">${s.you ? '· คุณ' : ''}</span>
+      </div>`).join('')}</div>
+    ${r.started ? '<div class="why">🎴 เกมเริ่มแล้ว</div>' : ''}
+    <button class="go" id="unoRoomGo" ${!r.started && r.host ? '' : 'disabled'}>
+      ${r.started ? '🎴 กำลังเล่น' : (r.host ? '🚀 เริ่มเกม' : '⏳ รอหัวห้องกดเริ่ม')}</button>
+    <button class="go" id="unoRoomOut" style="background:none;color:var(--g-muted);
+      border-color:var(--g-line)">🚪 ออกจากห้อง</button>`;
+  document.getElementById('unoRoomGo').onclick = () => unoRoomDo('start');
+  document.getElementById('unoRoomOut').onclick = async () => {
+    await unoRoomDo('leave');
+    await unoRoomRefresh();
+  };
+}
+
+document.getElementById('unoRoomOpen')?.addEventListener('click', () => {
+  SFX.play('click');
+  const bet = +(document.getElementById('unoBetInput')?.value || 0);
+  unoRoomDo('create', { bet });
+});
+document.getElementById('unoRoomJoin')?.addEventListener('click', () => {
+  SFX.play('click');
+  const code = (document.getElementById('unoJoinInput')?.value || '').trim().toUpperCase();
+  if (code) unoRoomDo('join', { code });
+});

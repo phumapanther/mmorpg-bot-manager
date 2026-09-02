@@ -665,6 +665,53 @@ def uno_current(request: Request):
     return {"ok": True, "table": uno_table.view(uid)}
 
 
+class UnoRoomBody(BaseModel):
+    action: str = "view"       # view | create | join | leave | start
+    code: str = ""             # รหัสห้องตอน join
+    bet: int = 0                # เดิมพันตอน create
+
+
+@router.post("/uno/room")
+def uno_room_do(body: UnoRoomBody, request: Request):
+    """🎴 โต๊ะ UNO เดิมพัน — ชวนเพื่อนเล่น แยกขาดจากปุ่มซ้อมกับบอท
+
+    🔒 ทุกคำสั่งผูกกับ uid ที่ล็อกอินอยู่เท่านั้น เบราว์เซอร์ระบุแทนคนอื่นไม่ได้
+    ตอบกลับด้วย uno_room.view(uid) เท่านั้น — ไม่ส่ง state ดิบ
+    """
+    uid = int(require_player(request)["uid"])
+    from bot.cards import uno_room
+
+    def _name():
+        p = player_model_get(uid)
+        return p.get("rank") or f"ผู้เล่น {uid}"
+
+    with _user_lock(uid):
+        if body.action == "create":
+            ok, r = uno_room.open_table(uid, _name(), body.bet)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action == "join":
+            ok, r = uno_room.sit(uid, _name(), body.code)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action == "leave":
+            uno_room.stand(uid)
+        elif body.action == "start":
+            ok, r = uno_room.begin(uid)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action != "view":
+            raise HTTPException(400, "ไม่รู้จักคำสั่งนี้")
+        return uno_room.view(uid)
+
+
+@router.get("/uno/room")
+def uno_room_state(request: Request):
+    uid = int(require_player(request)["uid"])
+    from bot.cards import uno_room
+    return uno_room.view(uid)
+
+
 @router.get("/blackjack")
 def blackjack_current(request: Request):
     """โต๊ะที่ค้างอยู่ (ถ้ามี) — เปิดหน้าเว็บมาเจอมือที่เปิดค้างไว้ในดิสได้"""
