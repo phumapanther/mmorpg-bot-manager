@@ -72,6 +72,10 @@ def stand(uid):
     if st:
         mine = next((s for s in st["seats"] if s["uid"] == str(uid)), None)
         paid = mine.get("paid", 0) if mine else 0
+        # เกมเริ่มแล้วและนี่คือคนสุดท้ายที่เหลือ — ไม่มีคู่แข่งให้ชนะแล้ว
+        # ต้องจ่าย pot คืนให้เขา *ก่อน* lobby.leave() ลบห้องทิ้ง ไม่งั้นเงินหายถาวร
+        if started and len(st["seats"]) == 1:
+            _payout(st, str(uid))
     result = lobby.leave(GAME, uid)
     if not started and paid:
         player_model.increment_player_field(uid, "cash", paid)
@@ -136,12 +140,9 @@ def view(uid):
     out["turn"] = game["turn"]
     out["dir"] = game["dir"]
     out["suit"] = game["suit"]
-    top = game["pile"][-1] if game["pile"] else None
-    # ไพ่บนสุดกอง = ข้อมูลสาธารณะ (ทุกคนเห็นบนโต๊ะจริงอยู่แล้ว) ไม่ใช่ของลับ
-    # ส่งเป็น top_suit/top_value แยกคีย์ ไม่ใช่ dict {suit,value} เพื่อไม่ให้ปนกับ
-    # ตัวตรวจ "ไพ่คนอื่นหลุด" ที่จับรูปทรงไพ่ล้วน ๆ (เทสยึดรูปทรงนี้เป็นสัญญา)
-    out["top_suit"] = top["suit"] if top else None
-    out["top_value"] = top["value"] if top else None
+    # ไพ่บนสุดกอง = ข้อมูลสาธารณะ ทุกคนเห็นบนโต๊ะจริงอยู่แล้ว ไม่ใช่ของลับ
+    # ส่งรูปทรงเดียวกับไพ่ในมือ {"suit","value"} ให้หน้าเว็บ render ด้วยโค้ดเดียวกันได้
+    out["top"] = game["pile"][-1] if game["pile"] else None
     out["over"] = bool(game.get("over"))
     out["winner"] = game.get("winner")
     for i, seat in enumerate(out["seats"]):
