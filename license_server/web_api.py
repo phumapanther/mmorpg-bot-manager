@@ -859,7 +859,7 @@ def market_action(body: MarketBody, request: Request):
 def craft_list(request: Request):
     """สูตรที่วัตถุดิบครบพร้อมคราฟตอนนี้ — craftable_now() ตัวเดียวกับปุ่ม 🔨 ในดิส"""
     uid = require_player(request)["uid"]
-    from bot.cogs.player_commands import craftable_now
+    from core.services.crafting import craftable_now
     rows = craftable_now(int(uid))
     return {"recipes": [{"id": i, "name": n, "materials": m} for i, n, m in rows]}
 
@@ -873,7 +873,7 @@ def craft(body: CraftBody, request: Request):
     """คราฟของ — craft_for() ตัวเดียวกับในดิส (มีโอกาสล้มเหลวตามสูตร)"""
     uid = require_player(request)["uid"]
     from bot import adventure_core
-    from bot.cogs.player_commands import craft_for
+    from core.services.crafting import craft_for
     with _user_lock(uid):
         ok, msg = craft_for(int(uid), str(body.item_id))
         adventure_core.touch_pending(int(uid))    # แวะคราฟระหว่างสู้ = ยังอยู่กับไฟต์นั้น
