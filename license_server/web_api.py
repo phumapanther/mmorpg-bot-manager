@@ -490,7 +490,7 @@ def bank(body: BankBody, request: Request):
             raise HTTPException(400, "ใส่ไอดี Discord ของผู้รับเป็นตัวเลข")
         target = int(body.target_id)
 
-    from bot.cogs.player_commands import bank_action
+    from core.services.bank import bank_action
     with _user_lock(uid):
         ok, msg = bank_action(int(uid), body.action, body.amount, target_id=target)
     return {"ok": ok, "message": msg, "money": _money_now(uid)}
@@ -505,7 +505,7 @@ def bank_fee_preview(amount: int, request: Request):
     require_player(request)
     if amount <= 0:
         raise HTTPException(400, "จำนวนเงินต้องมากกว่า 0")
-    from bot.cogs.player_commands import bank_fee
+    from core.services.bank import bank_fee
     fee, pct = bank_fee(amount)
     return {"amount": amount, "fee": fee, "pct": pct, "net": amount - fee}
 
