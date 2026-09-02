@@ -358,7 +358,7 @@ def me_game(request: Request):
     from bot import config_loader, game_modifiers
     from bot.game_data import CONTINENTS
     from bot.models.player_model import MAX_LEVEL, exp_required, load_inventory
-    from bot.cogs.player_commands import usable_kind
+    from core.services.items import usable_kind
     from bot import season as _season
     from bot import fashion as _fashion
 
@@ -551,7 +551,7 @@ def item_use(body: UseBody, request: Request):
     """ใช้ไอเทมจากกระเป๋า — เรียก apply_item_effect() ตัวเดียวกับปุ่ม 🧪 ในดิส"""
     uid = require_player(request)["uid"]
     from bot import adventure_core
-    from bot.cogs.player_commands import apply_item_effect
+    from core.services.items import apply_item_effect
     with _user_lock(uid):
         ok, msg = apply_item_effect(int(uid), str(body.item_id))
         # แวะกินยาระหว่างสู้ = ยังอยู่กับไฟต์นั้น ต่ออายุให้ ไม่งั้นกลับมาแล้วมอนหายไป
@@ -750,7 +750,7 @@ def shop_items(request: Request):
     """ของที่ร้านขาย — กรอง purchasable เหมือนหน้าร้านในดิสเป๊ะ"""
     require_player(request)
     from bot import config_loader
-    from bot.cogs.player_commands import usable_kind
+    from core.services.items import usable_kind
     out = [{"id": iid, "name": d.get("name", iid), "buy": int(d.get("buy", 0)),
             "sell": int(d.get("sell", 0)), "type": d.get("type", ""),
             "kind": usable_kind(d), "usable": bool(usable_kind(d))}
@@ -777,7 +777,7 @@ def shop(body: ShopBody, request: Request):
         raise HTTPException(400, "ไม่รู้จักคำสั่งนี้")
 
     from bot import adventure_core
-    from bot.cogs.player_commands import buy_item_for, sell_item_for
+    from core.services.items import buy_item_for, sell_item_for
     with _user_lock(uid):
         if body.action == "buy":
             ok, msg = buy_item_for(int(uid), body.item_id, body.count)
@@ -795,7 +795,7 @@ def market_list(request: Request):
     """
     uid = int(require_player(request)["uid"])
     from bot import config_loader, market
-    from bot.cogs.player_commands import usable_kind
+    from core.services.items import usable_kind
     from bot.models.player_model import get_player, load_inventory
 
     items = config_loader.get_all_items()
@@ -884,7 +884,7 @@ def craft(body: CraftBody, request: Request):
 def sell_junk(request: Request):
     """เทขายวัสดุ/ของขยะทั้งกระเป๋า — sell_all_junk() ตัวเดียวกับปุ่ม 🧱 ในดิส"""
     uid = require_player(request)["uid"]
-    from bot.cogs.player_commands import sell_all_junk
+    from core.services.items import sell_all_junk
     with _user_lock(uid):
         sold, gold, msg = sell_all_junk(int(uid))
     return {"ok": sold > 0, "sold": sold, "gold": gold, "message": msg,
@@ -939,7 +939,7 @@ def item_drop(body: DropBody, request: Request):
     uid = require_player(request)["uid"]
     if body.amount <= 0:
         raise HTTPException(400, "จำนวนต้องมากกว่า 0")
-    from bot.cogs.player_commands import drop_item_for
+    from core.services.items import drop_item_for
     with _user_lock(uid):
         ok, msg = drop_item_for(int(uid), str(body.item_id), body.amount)
     return {"ok": ok, "message": msg}

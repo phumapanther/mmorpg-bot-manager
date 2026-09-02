@@ -66,11 +66,12 @@ def test_hooks_wired():
     """ต้องมี hook นับเควสจริงในเกม ไม่ใช่แค่มีระบบ"""
     import pathlib
     gv = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
-    pc = pathlib.Path("bot/cogs/player_commands.py").read_text(encoding="utf-8")
     # นับล้มมอนย้ายไป adventure_core แล้ว (เว็บเกม เฟส 5.6c)
     core = pathlib.Path("bot/adventure_core.py").read_text(encoding="utf-8")
     assert '_daily.track(user_id, "kill"' in core and '"boss"' in core
     # นับก้าวเดินย้ายไป adventure_core แล้ว (เว็บเกม เฟส 5.4) — เดินบนเว็บก็ต้องนับเควสด้วย
     core = pathlib.Path("bot/adventure_core.py").read_text(encoding="utf-8")
     assert '_daily.track(user_id, "walk"' in core
-    assert '_daily.track(user_id, "item"' in pc
+    # นับใช้ไอเทมย้ายไป core/services/items.py แล้ว (ก้อนรื้อ core/services)
+    items_svc = pathlib.Path("core/services/items.py").read_text(encoding="utf-8")
+    assert '_daily.track(user_id, "item"' in items_svc

@@ -205,7 +205,8 @@ def test_ring_exists_in_shop_and_is_not_usable():
 
     from bot.cogs.player_commands import apply_item_effect
     import bot.models.player_model as _pm
-    src = pathlib.Path("bot/cogs/player_commands.py").read_text(encoding="utf-8")
+    # ตรรกะ apply_item_effect ย้ายไป core/services/items.py แล้ว (ก้อนรื้อ core/services) — เช็คที่ไฟล์ใหม่
+    src = pathlib.Path("core/services/items.py").read_text(encoding="utf-8")
     assert '"wedding_ring"' in src and "!marry @คนที่อยากขอ" in src, "กด !use แหวนต้องบอกทางให้ถูก"
 
 
