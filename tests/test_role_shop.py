@@ -120,7 +120,7 @@ def test_a_duplicate_gacha_is_salt_not_a_refund():
 
 
 def test_both_platforms_share_the_same_money_logic():
-    cog = pathlib.Path("bot/cogs/role_shop.py").read_text(encoding="utf-8")
+    cog = pathlib.Path("bot/apps/bot_game/role_shop.py").read_text(encoding="utf-8")
     api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
     for fn in ("prepare_buy", "prepare_gacha"):
         assert f"role_shop_core.{fn}(" in cog, f"ดิสยังไม่ได้เรียก {fn}"

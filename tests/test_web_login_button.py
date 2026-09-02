@@ -12,7 +12,7 @@ import pytest
 
 import bot.cogs.web_link as wl
 
-COG = pathlib.Path("bot/cogs/web_link.py").read_text(encoding="utf-8")
+COG = pathlib.Path("bot/apps/bot_game/web_link.py").read_text(encoding="utf-8")
 
 
 @pytest.fixture

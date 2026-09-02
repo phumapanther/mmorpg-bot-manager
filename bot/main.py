@@ -101,13 +101,13 @@ def create_bot(bot_type: str):
         try:
             # 🔄 [โหมดบายพาส] ถ้าเป็นบอทเกม (Arthur) ให้โหลดทั้งระบบเกม, ระบบแอดมิน และระบบเสียงควบรวมกันเลย!
             if bot_type == "game":
-                await bot.load_extension("bot.cogs.game_commands")
+                await bot.load_extension("bot.apps.bot_game.game_commands")
                 print("⚔️ [Game Bot] โหลดระบบคำสั่งคอมแบทและร้านค้าสำเร็จ!")
                 
                 await bot.load_extension("bot.apps.bot_admin.admin_commands")
                 print("👑 [Admin Commands] โหลดระบบคำสั่งผู้ดูแลระบบสำเร็จ!")
 
-                await bot.load_extension("bot.cogs.player_commands")
+                await bot.load_extension("bot.apps.bot_game.player_commands")
                 print("🕺[Player Commands] โหลดระบบคำสั่งผู้เล่นสำเร็จ!")
 
                 await bot.load_extension("bot.apps.bot_worker.voice_chat_tracker")
@@ -116,34 +116,34 @@ def create_bot(bot_type: str):
                 await bot.load_extension('bot.apps.bot_admin.owner_announce')
                 print("📢 [Owner Announce] โหลดระบบประกาศข่าวสารสำเร็จ!")
 
-                await bot.load_extension('bot.cogs.adventure_zone')
+                await bot.load_extension('bot.apps.bot_game.adventure_zone')
                 print("🌌 [Adventure Zone] โหลดระบบห้องผจญภัยส่วนตัวสำเร็จ!")
 
-                await bot.load_extension("bot.cogs.private_room")
+                await bot.load_extension("bot.apps.bot_game.private_room")
                 print("🏠 [Private Room Bot] โหลดระบบคำสั่ง สร้างห้อง สำเร็จ!")
                 
-                await bot.load_extension("bot.cogs.pvp_duel")
+                await bot.load_extension("bot.apps.bot_game.pvp_duel")
                 print("⚔️ [PVP Commands] โหลดระบบคำสั่ง PVP สำเร็จ!")
 
-                await bot.load_extension("bot.cogs.world_boss")
+                await bot.load_extension("bot.apps.bot_game.world_boss")
                 print("👿[World Boss Commands] โหลดระบบคำสั่ง Boss สำเร็จ!")
 
-                await bot.load_extension("bot.cogs.casino")
+                await bot.load_extension("bot.apps.bot_game.casino")
                 print("🎰[Casino] โหลดระบบคำสั่ง casino สำเร็จ!")
 
-                await bot.load_extension("bot.cogs.blackjack")
+                await bot.load_extension("bot.apps.bot_game.blackjack")
                 print("🃏[Blackjack Commands] โหลดระบบคำสั่ง เทรนบอท blackjack ")
 
-                await bot.load_extension("bot.cogs.role_shop")
+                await bot.load_extension("bot.apps.bot_game.role_shop")
                 print("💸[Buy] โหลดระบบคำสั่ง ซื้อยศออนไลน์!")
 
                 await bot.load_extension("bot.apps.bot_worker.role_grant_worker")
                 print("🌉[RoleQueue] โหลดสะพานแจกยศจากเว็บ สำเร็จ!")
 
-                await bot.load_extension("bot.cogs.dice_board_cmd")
+                await bot.load_extension("bot.apps.bot_game.dice_board_cmd")
                 print("🎲[Board] โหลดกระดานทอยเต๋ารายวัน สำเร็จ!")
 
-                await bot.load_extension("bot.cogs.payment")
+                await bot.load_extension("bot.apps.bot_game.payment")
                 print("💳[Payment] โหลดระบบคำสั่ง เติมเงิน สำเร็จ!")
 
                 await bot.load_extension("bot.apps.bot_worker.weekly_event")
@@ -155,16 +155,16 @@ def create_bot(bot_type: str):
                 await bot.load_extension("bot.apps.bot_worker.db_backup")
                 print("💾[DB Backup] โหลดระบบสำรองฐานข้อมูลรายวันสำเร็จ!")
 
-                await bot.load_extension("bot.cogs.guild")
+                await bot.load_extension("bot.apps.bot_game.guild")
                 print("🏰[Guild] โหลดระบบกิลด์สำเร็จ!")
 
                 await bot.load_extension("bot.apps.bot_worker.server_status")
                 print("📡[Server Status] โหลดระบบแจ้งเตือนเปิด-ปิดเซิร์ฟสำเร็จ!")
 
-                await bot.load_extension("bot.cogs.guild_war")
+                await bot.load_extension("bot.apps.bot_game.guild_war")
                 print("⚔️[Guild War] โหลดระบบกิลด์วอร์สำเร็จ!")
 
-                await bot.load_extension("bot.cogs.web_link")
+                await bot.load_extension("bot.apps.bot_game.web_link")
                 print("🌐[Web] โหลดสะพานเว็บไซต์ (!web / !weblogin) สำเร็จ!")
 
                 await bot.load_extension("bot.apps.bot_worker.lobby_invite")
@@ -172,10 +172,10 @@ def create_bot(bot_type: str):
 
             # 🌍 [P8] บอทแจกสำหรับเซิร์ฟรอง — เล่นผจญภัยได้อย่างเดียว ไม่มีร้านค้า/คาสิโน/กิลด์/แอดมิน
             elif bot_type == "guest":
-                await bot.load_extension("bot.cogs.game_commands")     # !play (+ !shop ล็อกเซิร์ฟหลักในตัว)
-                await bot.load_extension("bot.cogs.player_commands")   # !bag !use !codex !bestiary (คำสั่งเซิร์ฟหลักถูกล็อกรายตัว)
-                await bot.load_extension("bot.cogs.adventure_zone")    # !adv
-                await bot.load_extension("bot.cogs.web_link")          # 🌐 !web !weblogin !slip + ปุ่มเติมเงิน (เครื่องไม่มี license_server = ข้ามเอง)
+                await bot.load_extension("bot.apps.bot_game.game_commands")     # !play (+ !shop ล็อกเซิร์ฟหลักในตัว)
+                await bot.load_extension("bot.apps.bot_game.player_commands")   # !bag !use !codex !bestiary (คำสั่งเซิร์ฟหลักถูกล็อกรายตัว)
+                await bot.load_extension("bot.apps.bot_game.adventure_zone")    # !adv
+                await bot.load_extension("bot.apps.bot_game.web_link")          # 🌐 !web !weblogin !slip + ปุ่มเติมเงิน (เครื่องไม่มี license_server = ข้ามเอง)
                 await bot.load_extension("bot.apps.bot_admin.guest_server")      # ด่านห้อง + !set_adv_channel
                 print("🌍 [Guest Bot] โหลดโหมดเซิร์ฟรอง (ผจญภัยอย่างเดียว) สำเร็จ!")
 
