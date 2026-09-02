@@ -1233,17 +1233,19 @@ function unoRoomWatch(on) {
   }, 2500);
 }
 
-function unoPaintRoom() {
+async function unoPaintRoom() {
   const box = document.getElementById('unoRoom');
   if (!box) return;
   const r = UNO_ROOM;
   if (!r || !r.in_room) {
     box.hidden = true;
     unoRoomWatch(false);
+    INVITE_FRIENDS = null;                       // ออกห้องแล้ว — เข้าห้องใหม่ค่อยดึงเพื่อนใหม่
     return;
   }
   box.hidden = false;
   if (!r.started) unoRoomWatch(true);
+  const invite = await inviteFriendsHtml(r.started);
   box.innerHTML = `
     <div class="code">${esc(r.code)}</div>
     <div class="why">ส่งรหัสนี้ให้เพื่อนกด "เข้าร่วม" · ${r.seats.length}/${r.max} คน
@@ -1254,10 +1256,12 @@ function unoPaintRoom() {
         <span class="tag">${s.you ? '· คุณ' : ''}</span>
       </div>`).join('')}</div>
     ${r.started ? '<div class="why">🎴 เกมเริ่มแล้ว</div>' : ''}
+    ${invite}
     <button class="go" id="unoRoomGo" ${!r.started && r.host ? '' : 'disabled'}>
       ${r.started ? '🎴 กำลังเล่น' : (r.host ? '🚀 เริ่มเกม' : '⏳ รอหัวห้องกดเริ่ม')}</button>
     <button class="go" id="unoRoomOut" style="background:none;color:var(--g-muted);
       border-color:var(--g-line)">🚪 ออกจากห้อง</button>`;
+  bindInviteButtons(box, 'uno');
   document.getElementById('unoRoomGo').onclick = () => unoRoomDo('start');
   document.getElementById('unoRoomOut').onclick = async () => {
     await unoRoomDo('leave');

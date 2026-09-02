@@ -4159,6 +4159,39 @@ function wmPeekTurn() {
   fillWorms().catch(() => {});                   // เน็ตสะดุดครั้งเดียวไม่ต้องทำอะไร
 }
 
+// ══════════ 📨 ชวนเพื่อนเข้าห้องผ่าน DM (งานที่ 5) — ใช้ร่วมทุกเกมที่มีห้อง ══════════
+
+let INVITE_FRIENDS = null;   // แคชรายชื่อเพื่อน — ดึงครั้งเดียวต่อการเปิดห้อง พอสำหรับกดชวนสด ๆ
+
+/** วาดรายชื่อเพื่อน + ปุ่มชวน ให้ห้องที่ยังไม่เริ่ม — คืน "" ถ้าเริ่มเกมไปแล้ว */
+async function inviteFriendsHtml(started) {
+  if (started) return '';
+  if (!INVITE_FRIENDS) {
+    try { INVITE_FRIENDS = (await api('GET', '/api/web/me/friends')).friends; }
+    catch (e) { INVITE_FRIENDS = []; }
+  }
+  if (!INVITE_FRIENDS.length) {
+    return '<div class="why">ยังไม่มีเพื่อน — ไปเพิ่มเพื่อนก่อนถึงจะชวนเข้าห้องได้</div>';
+  }
+  return `<div class="invite-list">${INVITE_FRIENDS.map(f => `
+    <div class="invite-row">
+      <span>${esc(f.name)}</span>
+      <button data-invite="${esc(f.id)}">📨 ชวน</button>
+    </div>`).join('')}</div>`;
+}
+
+/** ผูกปุ่มชวนหลังวาด — เรียกเสมอหลัง innerHTML มี .invite-list (เรียกเฉยๆ ถ้าไม่มีก็ไม่มีผล) */
+function bindInviteButtons(box, game) {
+  box.querySelectorAll('[data-invite]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try {
+      const r = await api('POST', '/api/web/lobby/invite', { game, to: b.dataset.invite });
+      toast(r.message || '📨 ส่งคำเชิญแล้ว');
+    } catch (e) { toast(e.message, true); }
+    finally { b.disabled = false; }
+  });
+}
+
 let WM_ROOM = null;          // สถานะห้องล่าสุดที่เซิร์ฟเวอร์ตอบมา
 let WM_ROOM_POLL = 0;        // ตัวจับเวลาถามซ้ำ (คนอื่นเข้า/ออก/เปลี่ยนทีมต้องเห็น)
 
@@ -4187,13 +4220,14 @@ function wmRoomWatch(on) {
   }, 2500);
 }
 
-function wmPaintRoom() {
+async function wmPaintRoom() {
   const box = document.getElementById('wmRoom');
   if (!box) return;
   const r = WM_ROOM;
   if (!r || !r.in_room) {
     box.hidden = true;
     wmRoomWatch(false);
+    INVITE_FRIENDS = null;                       // ออกห้องแล้ว — เข้าห้องใหม่ค่อยดึงเพื่อนใหม่
     return;
   }
   box.hidden = false;
@@ -4203,6 +4237,7 @@ function wmPaintRoom() {
       ${r.host ? '' : 'disabled'}>${esc(p.name)}${p.need ? ` (${p.need} คน)` : ''}</button>`).join('');
   const teams = r.teams > 1 ? `<div class="teams">` + r.team_names.map((n, i) =>
     `<button data-team="${i}">${esc(n)}</button>`).join('') + `</div>` : '';
+  const invite = await inviteFriendsHtml(false);
   box.innerHTML = `
     <div class="code">${esc(r.code)}</div>
     <div class="why">ส่งรหัสนี้ให้เพื่อนกด “เข้าห้องด้วยรหัส” · ${r.seats.length}/${r.max} คน</div>
@@ -4215,6 +4250,7 @@ function wmPaintRoom() {
           ${s.you ? '· คุณ' : ''}</span>
       </div>`).join('')}</div>
     ${r.why ? `<div class="why">⚠️ ${esc(r.why)}</div>` : ''}
+    ${invite}
     <button class="go" id="wmRoomGo" ${r.can_start && r.host ? '' : 'disabled'}>
       ${r.host ? '🚀 เริ่มเกม' : '⏳ รอหัวห้องกดเริ่ม'}</button>
     <button class="go" id="wmRoomOut" style="background:none;color:var(--g-muted);
@@ -4223,6 +4259,7 @@ function wmPaintRoom() {
     b.onclick = () => wmRoomDo('plan', { plan: b.dataset.plan }));
   box.querySelectorAll('[data-team]').forEach(b =>
     b.onclick = () => wmRoomDo('team', { team: +b.dataset.team }));
+  bindInviteButtons(box, 'worms');
   document.getElementById('wmRoomGo').onclick = () => wmRoomDo('start');
   document.getElementById('wmRoomOut').onclick = () => wmRoomDo('leave');
 }

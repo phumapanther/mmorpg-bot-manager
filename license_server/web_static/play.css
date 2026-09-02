@@ -1045,6 +1045,14 @@ body.bar-min .pbar .money { margin-left: auto; }
   background: linear-gradient(160deg,#d93b2b,#8f2317); color: #fff; font-family: inherit;
   font-size: 15px; font-weight: 600; cursor: pointer; }
 .wm-room .go:disabled { opacity: .45; cursor: not-allowed; }
+.wm-room .invite-list { display: grid; gap: 6px; }
+.wm-room .invite-row { display: flex; align-items: center; gap: 8px; font-size: 13px;
+  padding: 6px 10px; border-radius: 12px; background: var(--g-hi);
+  border: 1px solid var(--g-line); }
+.wm-room .invite-row button { margin-left: auto; border-radius: 999px; padding: 5px 12px;
+  border: 1px solid var(--g-line); background: transparent; color: var(--g-ink);
+  font-family: inherit; font-size: 12px; cursor: pointer; }
+.wm-room .invite-row button:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ══ 📱 มือถือ: จอเกมต้องใหญ่พอจะเห็นอะไร และปุ่มต้องกดถูก ══
    แคนวาสของจริงเป็น 720×270 (อัตราส่วน 8:3) พอย่อลงจอ 360px กว้าง
