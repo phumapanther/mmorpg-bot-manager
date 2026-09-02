@@ -1,0 +1,49 @@
+<!--
+  🔌 ชิ้นส่วน HTML เกมทายเลข 1-10 — ไปแปะใน license_server/web_static/play.html
+
+  วิธีย้าย:
+    1. เพิ่มปุ่มเข้าเกมในกริดเมนูหลัก (ดูปุ่ม data-go="uno" ในไฟล์จริงเป็นตัวอย่าง)
+       <button class="g-tile" data-go="guessnum">🎯 ทายเลข</button>
+    2. แปะบล็อกด้านล่างนี้เป็นอีกหนึ่ง g-panelview (id ต้องตรงกับ data-go ด้านบน)
+    3. เปลี่ยน "gn" ทุกจุด (id) เป็นคำย่อของเกมคุณ กันชนกับเกมอื่นในหน้าเดียวกัน
+    4. เพิ่ม <script src="/static/guessnum.js"></script> ต่อจาก game.js อื่น ๆ
+-->
+<div class="g-panelview" id="v-guessnum">
+  <button class="g-back" data-back>← กลับเมนู</button>
+  <h2>🎯 ทายเลข 1-10</h2>
+
+  <div class="g-grid" id="gnModeGate">
+    <button class="g-tile hot" id="gnModeBot">🤖 ซ้อมกับบอท</button>
+    <button class="g-tile" id="gnModeFriend">👥 ชวนเพื่อน</button>
+  </div>
+
+  <!-- โหมดซ้อมกับบอท -->
+  <div class="g-card hidden" id="gnBotMode">
+    <div id="gnStatus">กดเริ่มเกมเพื่อทายเลข 1-10</div>
+    <div class="g-grid" id="gnNumberPad">
+      <!-- ปุ่มเลข 1-10 — เซิร์ฟเวอร์ตัดสินว่าทายได้ไหม ปุ่มพวกนี้แค่ "ส่งว่ากดอะไร" -->
+      <button class="g-tile" data-n="1">1</button>
+      <button class="g-tile" data-n="2">2</button>
+      <button class="g-tile" data-n="3">3</button>
+      <button class="g-tile" data-n="4">4</button>
+      <button class="g-tile" data-n="5">5</button>
+      <button class="g-tile" data-n="6">6</button>
+      <button class="g-tile" data-n="7">7</button>
+      <button class="g-tile" data-n="8">8</button>
+      <button class="g-tile" data-n="9">9</button>
+      <button class="g-tile" data-n="10">10</button>
+    </div>
+    <button class="g-tile hot" id="gnStart">🎯 เริ่มเกม</button>
+    <div class="g-log" id="gnLog"></div>
+  </div>
+
+  <!-- โหมดชวนเพื่อน -->
+  <div class="g-card hidden" id="gnFriendMode">
+    <button class="g-back" id="gnFriendBack">← เลือกโหมดใหม่</button>
+    <button class="g-tile hot" id="gnRoomOpen">🚪 เปิดห้องใหม่</button>
+    <label for="gnJoinInput">รหัสห้อง</label>
+    <input type="text" id="gnJoinInput" maxlength="5" placeholder="เช่น A1B2C" />
+    <button class="g-tile" id="gnRoomJoin">เข้าห้อง</button>
+    <div id="gnRoomStatus"></div>
+  </div>
+</div>
