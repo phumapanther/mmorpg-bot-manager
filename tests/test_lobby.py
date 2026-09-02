@@ -162,3 +162,38 @@ def test_view_บอกว่าใครเป็นเราและใคร
     assert got["host"] is False               # คนที่ 2 ไม่ใช่หัวห้อง
     me = [s for s in got["seats"] if s["you"]]
     assert len(me) == 1 and me[0]["name"] == "บี"
+
+
+# ── ย้าย rooms.py มาใช้ชั้นกลางแล้วต้องไม่มีอะไรพัง ──
+
+def test_rooms_ยังมีชื่อเดิมครบ():
+    """match.py กับ web_api.py เรียกชื่อพวกนี้อยู่ — เปลี่ยนชื่อ = พังทันที"""
+    from bot.pvp import rooms
+    for name in ("new_code", "room_of", "load", "save", "create", "join",
+                 "leave", "set_plan", "set_team", "plan_ready", "view"):
+        assert callable(getattr(rooms, name, None)), f"หายไป: {name}"
+    for name in ("MAX_SEATS", "ROOM_TTL", "TEAM_NAME", "TEAM_PLANS"):
+        assert getattr(rooms, name, None) is not None, f"หายไป: {name}"
+
+
+def test_rooms_ลายเซ็นเดิมไม่มี_game():
+    """ของเดิมเรียก rooms.create(uid, name, look) — เปลือกต้องเติม worms ให้เอง"""
+    import inspect
+    from bot.pvp import rooms
+    assert list(inspect.signature(rooms.create).parameters) == ["uid", "name", "look"]
+    assert list(inspect.signature(rooms.leave).parameters) == ["uid"]
+    assert list(inspect.signature(rooms.room_of).parameters) == ["uid"]
+
+
+def test_rooms_ใช้ชั้นกลางจริง():
+    from bot.pvp import rooms
+    st = rooms.create(1, "เอ", {})
+    assert lobby.load(st["room"])["game"] == "worms"
+
+
+def test_rooms_ห้องสนามรบไม่ชนกับ_uno():
+    from bot.pvp import rooms
+    w = rooms.create(1, "เอ", {})
+    u = lobby.create("uno", 1, {"uid": "1", "name": "เอ"})
+    assert rooms.room_of(1) == w["room"]
+    assert lobby.room_of("uno", 1) == u["room"]
