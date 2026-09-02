@@ -197,3 +197,34 @@ def test_rooms_ห้องสนามรบไม่ชนกับ_uno():
     u = lobby.create("uno", 1, {"uid": "1", "name": "เอ"})
     assert rooms.room_of(1) == w["room"]
     assert lobby.room_of("uno", 1) == u["room"]
+
+
+def test_ออกกลางเกมทีมคนอื่นห้ามสลับ():
+    """คนหนีกลางเกม = คนที่เหลือห้ามโดนสลับทีม — เพื่อนร่วมทีมกลายเป็นศัตรูกลางคัน"""
+    from bot.pvp import rooms
+    st = rooms.create(1, "เอ", {})
+    for u in (2, 3, 4, 5, 6):
+        rooms.join(u, st["room"], f"P{u}", {})
+    rooms.set_plan(1, "3v3")
+    before = {s["uid"]: s["team"] for s in rooms.load(st["room"])["seats"]}
+
+    live = rooms.load(st["room"])
+    live["started"] = True
+    rooms.save(st["room"], live)
+
+    rooms.leave(3)                       # คนที่ 3 หนีกลางเกม
+    after = {s["uid"]: s["team"] for s in rooms.load(st["room"])["seats"]}
+    for uid, team in after.items():
+        assert team == before[uid], f"คน {uid} โดนย้ายทีมกลางเกม"
+
+
+def test_ออกก่อนเริ่มเกลี่ยทีมใหม่ได้():
+    """ยังไม่เริ่ม = เกลี่ยทีมให้เต็มได้ ไม่มีใครเสียหาย"""
+    from bot.pvp import rooms
+    st = rooms.create(1, "เอ", {})
+    for u in (2, 3, 4):
+        rooms.join(u, st["room"], f"P{u}", {})
+    rooms.set_plan(1, "2v2v2")
+    rooms.leave(2)
+    teams = [s["team"] for s in rooms.load(st["room"])["seats"]]
+    assert teams == [0, 1, 2], f"ต้องเกลี่ยใหม่ต่อเนื่อง ได้ {teams}"
