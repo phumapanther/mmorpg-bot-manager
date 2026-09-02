@@ -1918,7 +1918,7 @@ def lobby_invite(body: LobbyInviteBody, request: Request):
     """🔒 uid คนชวนมาจาก session เท่านั้น · code หาเองจาก lobby.room_of()
     ห้ามรับ from_uid/code จาก body ไม่งั้นคนยิง API ตรง ๆ ชวนเข้าห้องคนอื่นได้"""
     uid = int(require_player(request)["uid"])
-    from bot.cogs.lobby_invite import validate
+    from core.services.lobby_invite import validate
     from bot import friends, lobby
 
     to_uid = friends.parse_id(body.to)
