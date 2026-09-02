@@ -103,6 +103,32 @@ document.getElementById('wmRoomJoin')?.addEventListener('click', () => {
   if (code && code.trim()) wmRoomDo('join', { code: code.trim().toUpperCase() });
 });
 document.getElementById('wmGiveUp')?.addEventListener('click', wmGiveUp);
+
+// ══════════ 🚪 หน้าเลือกโหมด (บอท / เพื่อน) — จัดหน้าจอแบบเดียวกับศึกไพ่รูน ══════════
+// เจ้าของเกมสั่ง (09-02): เข้าสนามรบต้องเจอหน้าเลือกโหมดก่อน ไม่ใช่เห็นปุ่มทั้งหมดพร้อมกัน
+// ⚠️ ไม่แตะกติกาเกม/bot/pvp ใด ๆ — แค่ซ่อน/โชว์ปุ่มเดิมที่มีอยู่แล้ว ปุ่มทำงานเหมือนเดิมทุกอย่าง
+
+/** เปิดหน้าสนามรบ — เจอหน้าเลือกโหมดก่อนเสมอ (เว้นแต่กำลังเล่นแมตช์ค้างอยู่แล้ว) */
+function wmShowGate() {
+  document.getElementById('wmModeGate')?.classList.remove('hidden');
+  const bot = document.getElementById('wmBotButtons'); if (bot) bot.hidden = true;
+  const fr = document.getElementById('wmFriendButtons'); if (fr) fr.hidden = true;
+  wmRoomWatch(false);
+}
+
+document.getElementById('wmModeBot')?.addEventListener('click', async () => {
+  SFX.play('click');
+  document.getElementById('wmModeGate')?.classList.add('hidden');
+  const bot = document.getElementById('wmBotButtons'); if (bot) bot.hidden = false;
+  await fillWorms();
+});
+
+document.getElementById('wmModeFriend')?.addEventListener('click', async () => {
+  SFX.play('click');
+  document.getElementById('wmModeGate')?.classList.add('hidden');
+  const fr = document.getElementById('wmFriendButtons'); if (fr) fr.hidden = false;
+  await fillWorms();
+});
 document.getElementById('wmIn')?.addEventListener('click', () => wmZoom(1));
 document.getElementById('wmOut')?.addEventListener('click', () => wmZoom(-1));
 document.getElementById('wmFit')?.addEventListener('click', () => {
@@ -194,7 +220,7 @@ function showPanel(id) {
   if (id === 'fashion') fillFashion().catch(e => toast(e.message, true));
   if (id === 'fgacha') fillFashionGacha().catch(e => toast(e.message, true));
   if (id === 'friends') fillFriends().catch(e => toast(e.message, true));
-  if (id === 'worms') fillWorms().catch(e => toast(e.message, true));
+  if (id === 'worms') wmShowGate();
   if (id === 'uno') fillUno();
   if (id === 'market') fillMarket().catch(e => toast(e.message, true));
   if (id === 'season') fillSeason().catch(e => toast(e.message, true));

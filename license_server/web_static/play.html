@@ -745,6 +745,20 @@
                 ใช้สกิลอาชีพแทนอาวุธ
               </p>
             </div>
+            <!-- 🚪 เลือกโหมดก่อนเข้าเกม — จัดหน้าจอแบบเดียวกับศึกไพ่รูน (v-uno)
+                 ไม่แตะกติกาเกม แค่ซ่อน/โชว์บล็อกเดิมที่มีอยู่แล้ว -->
+            <div class="g-grid" id="wmModeGate">
+              <button class="g-tile hot" id="wmModeBot">
+                <span class="ic">🤖</span>ซ้อมกับบอท<span class="sub"
+                  >สุ่มแผนที่แล้วลงสนามคนเดียว</span
+                >
+              </button>
+              <button class="g-tile" id="wmModeFriend">
+                <span class="ic">👥</span>เล่นกับเพื่อน<span class="sub"
+                  >สูงสุด 6 คน · แบ่งทีม 3-3 หรือ 2-2-2</span
+                >
+              </button>
+            </div>
             <div class="wm-stage">
               <canvas id="wmCanvas" width="720" height="270"></canvas>
               <div class="wm-zoom">
@@ -794,7 +808,8 @@
             <div class="wm-items" id="wmItems"></div>
             <div class="wm-aim" id="wmAim" hidden></div>
             <div class="wm-log" id="wmLog"></div>
-            <div class="g-grid wm-buttons">
+            <!-- 🤖 ซ้อมกับบอท — โชว์เมื่อกด wmModeBot เท่านั้น -->
+            <div class="g-grid wm-buttons" id="wmBotButtons" hidden>
               <button class="g-tile hot" id="wmNew">
                 <span class="ic">🎲</span>ซ้อมกับบอท
                 <span class="sub">สุ่มแผนที่แล้วลงสนามคนเดียว</span>
@@ -804,8 +819,8 @@
                 <span class="sub">รหัสเดียวกันได้แผนที่เดียวกันเป๊ะ</span>
               </button>
             </div>
-            <!-- 🎪 ชวนเพื่อน — เจ้าของเกมสั่งให้แยกปุ่มออกจากซ้อมกับบอทให้ชัด -->
-            <div class="g-grid wm-buttons">
+            <!-- 🎪 ชวนเพื่อน — โชว์เมื่อกด wmModeFriend เท่านั้น -->
+            <div class="g-grid wm-buttons" id="wmFriendButtons" hidden>
               <button class="g-tile hot" id="wmRoomOpen">
                 <span class="ic">🎪</span>ชวนเพื่อนเล่น
                 <span class="sub">สูงสุด 6 คน · แบ่งทีม 3-3 หรือ 2-2-2</span>
@@ -1068,17 +1083,20 @@
               <div class="casino-result" id="unoMsg">
                 กดเปิดโต๊ะเพื่อเริ่มเล่น
               </div>
-              <div class="uno-seats">
+              <!-- 🤖 เฉพาะโหมดซ้อมกับบอท — ห้องเพื่อนเริ่มเกมจากปุ่ม unoRoomGo แทน -->
+              <div class="uno-seats" id="unoBotOnly">
                 <span class="lbl">นั่งเล่นกับบอท</span>
                 <button data-bots="1">1 ตัว</button>
                 <button data-bots="2">2 ตัว</button>
                 <button data-bots="3">3 ตัว</button>
                 <button data-bots="5">5 ตัว</button>
               </div>
-              <div class="bet-row">
+              <div class="bet-row" id="unoBotStartRow">
                 <button class="g-tile hot casino-go" id="unoStart">
                   <span class="ic">🎴</span>เปิดโต๊ะ
                 </button>
+              </div>
+              <div class="bet-row">
                 <button class="g-tile casino-go" id="unoPass" hidden>
                   <span class="ic">⏭️</span>ผ่าน
                 </button>

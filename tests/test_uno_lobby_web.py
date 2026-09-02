@@ -60,8 +60,37 @@ def test_new_hidden_classes_are_in_the_important_block():
     """กันกับดัก [hidden] ถูก display: อื่นทับ — เจอมาแล้วเสียเวลาหาหลายรอบ"""
     i = CSS.index(".uno-over[hidden]")
     block = CSS[i:CSS.index("{", i) + 1]
-    for cls in (".wm-room[hidden]",):
+    for cls in (".wm-room[hidden]", ".wm-buttons[hidden]"):
         assert cls in block, f"{cls} ยังไม่อยู่ในบล็อกกัน [hidden] โดน display: ทับ"
+
+
+# ── งานเพิ่ม: หน้าเลือกโหมดของสนามรบผลัดเทิร์น (จัดหน้าจออย่างเดียว ไม่แตะกติกาเกม) ──
+
+# ── 11) v-worms มีหน้าเลือกโหมดก่อนเข้าเกม ──
+
+def test_worms_panel_has_a_mode_gate():
+    panel = HTML[HTML.index('id="v-worms"'):HTML.index("<!-- ══", HTML.index('id="v-worms"') + 10)]
+    assert 'id="wmModeGate"' in panel, "ไม่มีหน้าเลือกโหมดในสนามรบ"
+    assert 'id="wmModeBot"' in panel, "ไม่มีปุ่มซ้อมกับบอทในหน้าเลือกโหมด"
+    assert 'id="wmModeFriend"' in panel, "ไม่มีปุ่มเล่นกับเพื่อนในหน้าเลือกโหมด"
+    # ปุ่มเลือกโหมดต้องมาก่อนกลุ่มปุ่มเข้าเกมจริง ไม่ใช่โผล่หลัง
+    assert panel.index('id="wmModeGate"') < panel.index('id="wmNew"')
+
+
+# ── 12) ปุ่มเดิมทั้ง 4 ตัวยังอยู่ครบ — ห้ามเปลี่ยน id หรือพฤติกรรม ──
+
+def test_worms_original_four_buttons_still_exist():
+    for btn_id in ("wmNew", "wmSame", "wmRoomOpen", "wmRoomJoin"):
+        assert f'id="{btn_id}"' in HTML, f"ปุ่ม {btn_id} หายไปหลังจัดหน้าจอใหม่"
+
+
+# ── 13) กลุ่มปุ่มที่ซ่อนด้วย [hidden] อยู่ในบล็อกกัน display: ทับแล้ว (เช็คซ้ำจากอีกมุม) ──
+
+def test_worms_button_groups_use_the_hidden_attribute_not_a_display_style():
+    panel = HTML[HTML.index('id="v-worms"'):HTML.index("<!-- ══", HTML.index('id="v-worms"') + 10)]
+    for box_id in ("wmBotButtons", "wmFriendButtons"):
+        tag = panel[panel.index(f'id="{box_id}"') - 120:panel.index(f'id="{box_id}"') + 40]
+        assert "hidden" in tag, f"{box_id} ต้องเริ่มต้นซ่อนด้วย attribute hidden"
 
 
 # ══════════ API ══════════

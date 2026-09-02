@@ -666,9 +666,11 @@ def uno_current(request: Request):
 
 
 class UnoRoomBody(BaseModel):
-    action: str = "view"       # view | create | join | leave | start
+    action: str = "view"       # view | create | join | leave | start | play | draw | take_stack | pass | say_uno
     code: str = ""             # รหัสห้องตอน join
     bet: int = 0                # เดิมพันตอน create
+    index: int = 0              # ไพ่ใบที่เท่าไหร่ในมือ ตอน play
+    suit: str = ""              # สีที่เลือกตอนวางไวลด์
 
 
 @router.post("/uno/room")
@@ -698,6 +700,26 @@ def uno_room_do(body: UnoRoomBody, request: Request):
             uno_room.stand(uid)
         elif body.action == "start":
             ok, r = uno_room.begin(uid)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action == "play":
+            ok, r = uno_room.play(uid, body.index, suit=body.suit or None)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action == "draw":
+            ok, r = uno_room.draw(uid)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action == "take_stack":
+            ok, r = uno_room.take_stack(uid)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action == "pass":
+            ok, r = uno_room.passes(uid)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action == "say_uno":
+            ok, r = uno_room.say_uno(uid)
             if not ok:
                 raise HTTPException(400, r["error"])
         elif body.action != "view":

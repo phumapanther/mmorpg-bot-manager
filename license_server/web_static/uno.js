@@ -616,6 +616,11 @@ async function unoDealAnim() {
 // คำสั่งที่ทำได้ตลอด ไม่เกี่ยกับว่าถึงตาใคร
 const UNO_ANYTIME = new Set(['start', 'quit', 'view']);
 
+// 👥 โหมดห้องเพื่อน — เล่นจริงไม่มีบอท เปลี่ยนแค่ endpoint/ชื่อ action ที่ยิงออกไป
+//    วาดไพ่/ลากไพ่/อนิเมชันใช้โค้ดชุดเดียวกับโหมดบอทได้เลย เพราะ view() ทรงเดียวกัน
+let UNO_ROOM_LIVE = false;
+const UNO_ROOM_ACTION = { play: 'play', draw: 'draw', take: 'take_stack', pass: 'pass', uno: 'say_uno' };
+
 async function unoDo(action, extra) {
   // 🔒 ด่านเดียวก่อนส่งออก — ทุกคำสั่งลอดทางนี้ทางเดียว
   //    เจ้าของเกมเจอ 08-29: "เงื่อนไขกันวางไพ่ในเทิร์นคนอื่นยังมีหลุด"
@@ -628,6 +633,19 @@ async function unoDo(action, extra) {
   //    (เจ้าของเกมเจอ 08-29)
   unoLayout();
   unoPaint();
+  if (UNO_ROOM_LIVE) {
+    // ห้องเพื่อนไม่มีบอท — ไม่มีขั้นตอน bot_moves/fanfare พิเศษ แค่ยิงแล้วเฉลยสถานะ
+    try {
+      const d = await api('POST', '/api/web/uno/room',
+                          { action: UNO_ROOM_ACTION[action] || action, ...(extra || {}) });
+      unoApply(d);
+      return d;
+    } catch (e) {
+      UNO_SENT = false;
+      toast(e.message, true);
+      return null;
+    }
+  }
   try {
     const d = await api('POST', '/api/web/uno', { action, ...(extra || {}) });
     const bots = d.bot_moves || [];
@@ -1049,20 +1067,26 @@ document.getElementById('unoStart')?.addEventListener('click', async () => {
 document.getElementById('unoPass')?.addEventListener('click', () => {
   SFX.play('click'); unoDo('pass');
 });
+// ⚠️ ซ่อนแผงทันที ไม่รอคำตอบจากเซิร์ฟเวอร์ — เน็ตช้าหรือคำขอพลาดต้องไม่ค้างจอ
+//    (เจ้าของเกมเจอ 08-29: กดเล่นอีกรอบแล้วหน้าไม่หาย)
+//    ห้องเพื่อนไม่มี "เล่นอีกรอบ" ในตัว — return ก่อนเปิดโต๊ะใหม่แบบโหมดบอท
 document.getElementById('unoAgain')?.addEventListener('click', async () => {
   SFX.play('click');
-  UNO_SEEN_PLACE = 0; UNO_FANFARE = null; UNO_SUIT_CARDS = [];
-  // ⚠️ ซ่อนแผงทันที ไม่รอคำตอบจากเซิร์ฟเวอร์
-  //    เน็ตช้าหรือคำขอพลาด แผงก็ต้องหาย ไม่งั้นผู้เล่นติดค้างกดอะไรก็ไม่ได้
-  //    (เจ้าของเกมเจอ 08-29: กดเล่นอีกรอบแล้วหน้าไม่หาย)
   const box = document.getElementById('unoOver');
   if (box) box.hidden = true;
+  if (UNO_ROOM_LIVE) return;
+  UNO_SEEN_PLACE = 0; UNO_FANFARE = null; UNO_SUIT_CARDS = [];
   await unoDo('start', { bots: UNO_BOTS });
 });
 document.getElementById('unoLeave')?.addEventListener('click', async () => {
   SFX.play('click');
   const box = document.getElementById('unoOver');
   if (box) box.hidden = true;
+  if (UNO_ROOM_LIVE) {
+    await unoRoomDo('leave');
+    unoRoomLeaveGame();
+    return;
+  }
   await unoDo('quit');
   showPanel('home');
 });
@@ -1098,6 +1122,8 @@ async function unoBotFill() {
 
 function unoShowGate() {
   unoRoomWatch(false);
+  unoRoomGameWatch(false);
+  UNO_ROOM_LIVE = false;
   document.getElementById('unoModeGate')?.classList.remove('hidden');
   document.getElementById('unoBotMode')?.classList.add('hidden');
   document.getElementById('unoFriendMode')?.classList.add('hidden');
@@ -1105,8 +1131,11 @@ function unoShowGate() {
 
 document.getElementById('unoModeBot')?.addEventListener('click', async () => {
   SFX.play('click');
+  UNO_ROOM_LIVE = false;
   document.getElementById('unoModeGate')?.classList.add('hidden');
   document.getElementById('unoBotMode')?.classList.remove('hidden');
+  document.getElementById('unoBotOnly')?.classList.remove('hidden');
+  document.getElementById('unoBotStartRow')?.classList.remove('hidden');
   await unoBotFill();
 });
 
@@ -1135,14 +1164,58 @@ async function unoRoomDo(action, extra) {
   try {
     UNO_ROOM = await api('POST', '/api/web/uno/room', { action, ...(extra || {}) });
     unoPaintRoom();
-    if (action === 'start' && UNO_ROOM.started) unoRoomWatch(false);
+    if (action === 'start' && UNO_ROOM.started) { unoRoomWatch(false); unoRoomEnterGame(UNO_ROOM); }
   } catch (e) { toast(e.message, true); }
+}
+
+/** เกมห้องเพื่อนเริ่มแล้ว — ใช้จอ/โค้ดวาดไพ่ตัวเดียวกับโหมดบอท ซ่อนแค่ปุ่มที่เป็นของบอท */
+function unoRoomEnterGame(table) {
+  UNO_ROOM_LIVE = true;
+  const roomBox = document.getElementById('unoRoom');
+  if (roomBox) roomBox.hidden = true;
+  document.querySelector('#unoFriendMode .field-row')?.classList.add('hidden');
+  document.getElementById('unoBotMode')?.classList.remove('hidden');
+  document.getElementById('unoBotOnly')?.classList.add('hidden');
+  document.getElementById('unoBotStartRow')?.classList.add('hidden');
+  UNO_SEEN_PLACE = 0; UNO_FANFARE = null; UNO_SUIT_CARDS = [];
+  const overBox = document.getElementById('unoOver');
+  if (overBox) overBox.hidden = true;
+  unoBind();
+  unoApply(table);
+  unoRoomGameWatch(true);
+}
+
+/** ออกจากเกมห้องเพื่อน กลับไปหน้าเลือกโหมด/ล็อบบี้ห้อง */
+function unoRoomLeaveGame() {
+  UNO_ROOM_LIVE = false;
+  unoRoomGameWatch(false);
+  document.getElementById('unoBotMode')?.classList.add('hidden');
+  document.querySelector('#unoFriendMode .field-row')?.classList.remove('hidden');
+  document.getElementById('unoFriendMode')?.classList.remove('hidden');
+  UNO = null;
+}
+
+let UNO_ROOM_GAME_POLL = 0;
+
+/** ระหว่างเล่นห้องเพื่อน — คนอื่นเดินแล้วเราต้องเห็น (ต่างจากโหมดบอทตรงนี้) */
+function unoRoomGameWatch(on) {
+  clearInterval(UNO_ROOM_GAME_POLL);
+  UNO_ROOM_GAME_POLL = 0;
+  if (!on) return;
+  UNO_ROOM_GAME_POLL = setInterval(async () => {
+    if (!UNO_ROOM_LIVE || unoMyTurn() || UNO_SENT) return;   // ตาเราเอง/กำลังส่งอยู่ ไม่ต้องแย่งถาม
+    try {
+      unoApply(await api('GET', '/api/web/uno/room'));   // unoApply เทียบสถานะเก่า/ใหม่เองอยู่แล้ว
+    } catch (e) { /* เน็ตสะดุดครั้งเดียวไม่ต้องหยุดโหลด */ }
+  }, 2000);
 }
 
 async function unoRoomRefresh() {
   try { UNO_ROOM = await api('GET', '/api/web/uno/room'); }
   catch (e) { UNO_ROOM = { in_room: false }; }
-  unoPaintRoom();
+  // เปิดหน้าเว็บมาเจอห้องที่เริ่มเล่นไปแล้ว (รีเฟรชกลางเกม) — พาเข้าโต๊ะทันที
+  if (UNO_ROOM.in_room && UNO_ROOM.started && !UNO_ROOM_LIVE) unoRoomEnterGame(UNO_ROOM);
+  else unoPaintRoom();
 }
 
 /** ถามสถานะห้องซ้ำเป็นระยะ — ไม่งั้นเพื่อนเข้ามาแล้วเราไม่เห็น */

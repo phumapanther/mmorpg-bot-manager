@@ -1200,4 +1200,6 @@ body.bar-min .pbar .money { margin-left: auto; }
 .uno-help-btn[hidden],
 .wm-room[hidden],
 .bet-row[hidden],
-.g-tile[hidden] { display: none !important; }
+.g-tile[hidden],
+.wm-buttons[hidden],
+.g-grid[hidden] { display: none !important; }

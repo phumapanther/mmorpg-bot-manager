@@ -8,6 +8,7 @@
    เงินขยับแค่ 2 จุด — ตอนเข้าโต๊ะ (หัก) กับตอนจบเกม (จ่าย)
 """
 from bot import lobby
+from bot.cards import uno_deck
 from bot.cards import uno_engine
 from bot.models import player_model
 
@@ -120,6 +121,75 @@ def _payout(st, winner_uid):
     lobby.save(st["room"], st)
 
 
+def _act(uid, fn):
+    """ทำท่าหนึ่งของคนจริงในห้อง — ประตูเดียวคุมทุกท่า คืน (ok, ผล)
+
+    ต่างจาก uno_table._act ตรงที่ห้องนี้มีคนจริงหลายคน — ต้องเช็คว่า
+    คนที่ส่งคำสั่งมาเป็นเจ้าของตาปัจจุบันจริงไหม ไม่งั้นคนอื่นสั่งแทนกันได้
+    """
+    st = _room(uid)
+    if not st:
+        return False, {"error": "ยังไม่ได้อยู่ห้องไหน"}
+    if not st.get("started"):
+        return False, {"error": "เกมยังไม่เริ่ม"}
+    game = st["extra"].get("game")
+    if not game:
+        return False, {"error": "เกมยังไม่เริ่ม"}
+    if game.get("over"):
+        return False, {"error": "เกมนี้จบแล้ว"}
+    seats = [s["uid"] for s in st["seats"]]
+    if str(uid) not in seats:
+        return False, {"error": "คุณไม่ได้อยู่ห้องนี้"}
+    me = seats.index(str(uid))
+    if game["turn"] != me:
+        return False, {"error": "ยังไม่ถึงตาคุณ"}
+    if me in game.get("finished", []):
+        return False, {"error": "คุณทิ้งไพ่หมดแล้ว — นั่งดูเพื่อนเล่นจนจบ"}
+
+    ok, r = fn(game)
+    if not ok:
+        return False, r
+    lobby.save(st["room"], st)
+    if game.get("over"):
+        winner_uid = seats[game["winner"]]
+        _payout(st, winner_uid)
+    return True, {**r, "table": view(uid)}
+
+
+def play(uid, index, suit=None, rng=None):
+    return _act(uid, lambda game: uno_engine.play(game, int(index), chosen_suit=suit, rng=rng))
+
+
+def draw(uid, rng=None):
+    return _act(uid, lambda game: uno_engine.draw(game, rng))
+
+
+def take_stack(uid, rng=None):
+    return _act(uid, lambda game: uno_engine.take_stack(game, rng))
+
+
+def passes(uid, rng=None):
+    return _act(uid, lambda game: uno_engine.passes(game))
+
+
+def say_uno(uid):
+    """ร้อง UNO — ไม่ต้องรอตาตัวเอง (กฎเดียวกับโหมดบอท)"""
+    st = _room(uid)
+    if not st:
+        return False, {"error": "ยังไม่ได้อยู่ห้องไหน"}
+    game = st["extra"].get("game")
+    if not game:
+        return False, {"error": "เกมยังไม่เริ่ม"}
+    seats = [s["uid"] for s in st["seats"]]
+    if str(uid) not in seats:
+        return False, {"error": "คุณไม่ได้อยู่ห้องนี้"}
+    ok, r = uno_engine.say_uno(game, seats.index(str(uid)))
+    if not ok:
+        return False, r
+    lobby.save(st["room"], st)
+    return True, {**r, "table": view(uid)}
+
+
 def view(uid):
     """ห้อง UNO พร้อมแสดงผลบนเว็บ
 
@@ -145,10 +215,42 @@ def view(uid):
     out["top"] = game["pile"][-1] if game["pile"] else None
     out["over"] = bool(game.get("over"))
     out["winner"] = game.get("winner")
+    # ⚠️ ไพ่ในมือตัวเองส่งผ่าน out["hand"] ที่เดียว (รูปทรงเดียวกับ uno_table.view())
+    #    เคยใส่ซ้ำที่ seat["hand"] ด้วย — got_cards() เดินนับสองครั้งจนดูเหมือนไพ่หลุด
     for i, seat in enumerate(out["seats"]):
-        hand = game["players"][i]["hand"]
-        seat["cards"] = len(hand)
+        seat["cards"] = len(game["players"][i]["hand"])
         seat["said_uno"] = game["players"][i]["said_uno"]
-        if i == me:
-            seat["hand"] = hand
+
+    # 🔁 ต่อยอดรูปทรงเดียวกับ uno_table.view() — หน้าเว็บใช้โค้ดวาดไพ่ตัวเดียวกันได้เลย
+    #    (โหมดบอทมีแค่คนจริงคนเดียว ที่นี่มีหลายคน — me เป็น None ถ้าเรานั่งดูอยู่นอกที่)
+    out["playing"] = True
+    # unoSeats() ในหน้าเว็บวาดที่นั่งคนอื่นจาก "players" (รูปทรงเดียวกับโหมดบอท)
+    # ต่างจาก out["seats"] ของล็อบบี้กลาง (มี uid/host) — คนละหน้าที่กัน
+    out["players"] = [{"name": p["name"], "cards": len(p["hand"]),
+                        "you": i == me, "said_uno": p["said_uno"]}
+                       for i, p in enumerate(game["players"])]
+    out["hand"] = game["players"][me]["hand"] if me is not None else []
+    out["playable"] = ([i for i, c in enumerate(game["players"][me]["hand"])
+                         if c in uno_engine.playable_now(game, me)]
+                        if me is not None and game["turn"] == me else [])
+    out["top_label"] = uno_deck.label(out["top"]) if out["top"] else None
+    out["suits"] = {k: v["label"] for k, v in uno_deck.SUITS.items()}
+    out["my_turn"] = (me is not None and game["turn"] == me and not game.get("over")
+                       and me not in game.get("finished", []))
+    out["stack"] = game["stack"]
+    out["stack_kind"] = game["stack_kind"]
+    out["must_answer"] = (uno_engine.must_answer_stack(game)
+                           and me is not None and game["turn"] == me)
+    out["drew"] = game["drew"]
+    out["deck_left"] = len(game["deck"])
+    out["finished"] = [{"name": game["players"][i]["name"], "place": k + 1,
+                         "you": i == me,
+                         "left": sum(uno_deck.points(c) for c in game["players"][i]["hand"])}
+                        for k, i in enumerate(game.get("finished", []))]
+    out["my_place"] = (game["finished"].index(me) + 1
+                        if me is not None and me in game.get("finished", []) else 0)
+    out["winner_name"] = (game["players"][game["winner"]]["name"]
+                           if game.get("winner") is not None else "")
+    out["score"] = uno_engine.score(game)
+    out["log"] = game["log"][-12:]
     return out
