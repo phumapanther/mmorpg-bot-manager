@@ -358,7 +358,7 @@ def me_game(request: Request):
     from bot import config_loader, game_modifiers
     from bot.game_data import CONTINENTS
     from bot.models.player_model import MAX_LEVEL, exp_required, load_inventory
-    from bot.cogs.player_commands import usable_kind
+    from core.services.items import usable_kind
     from bot import season as _season
     from bot import fashion as _fashion
 
@@ -490,7 +490,7 @@ def bank(body: BankBody, request: Request):
             raise HTTPException(400, "ใส่ไอดี Discord ของผู้รับเป็นตัวเลข")
         target = int(body.target_id)
 
-    from bot.cogs.player_commands import bank_action
+    from core.services.bank import bank_action
     with _user_lock(uid):
         ok, msg = bank_action(int(uid), body.action, body.amount, target_id=target)
     return {"ok": ok, "message": msg, "money": _money_now(uid)}
@@ -505,7 +505,7 @@ def bank_fee_preview(amount: int, request: Request):
     require_player(request)
     if amount <= 0:
         raise HTTPException(400, "จำนวนเงินต้องมากกว่า 0")
-    from bot.cogs.player_commands import bank_fee
+    from core.services.bank import bank_fee
     fee, pct = bank_fee(amount)
     return {"amount": amount, "fee": fee, "pct": pct, "net": amount - fee}
 
@@ -551,7 +551,7 @@ def item_use(body: UseBody, request: Request):
     """ใช้ไอเทมจากกระเป๋า — เรียก apply_item_effect() ตัวเดียวกับปุ่ม 🧪 ในดิส"""
     uid = require_player(request)["uid"]
     from bot import adventure_core
-    from bot.cogs.player_commands import apply_item_effect
+    from core.services.items import apply_item_effect
     with _user_lock(uid):
         ok, msg = apply_item_effect(int(uid), str(body.item_id))
         # แวะกินยาระหว่างสู้ = ยังอยู่กับไฟต์นั้น ต่ออายุให้ ไม่งั้นกลับมาแล้วมอนหายไป
@@ -750,7 +750,7 @@ def shop_items(request: Request):
     """ของที่ร้านขาย — กรอง purchasable เหมือนหน้าร้านในดิสเป๊ะ"""
     require_player(request)
     from bot import config_loader
-    from bot.cogs.player_commands import usable_kind
+    from core.services.items import usable_kind
     out = [{"id": iid, "name": d.get("name", iid), "buy": int(d.get("buy", 0)),
             "sell": int(d.get("sell", 0)), "type": d.get("type", ""),
             "kind": usable_kind(d), "usable": bool(usable_kind(d))}
@@ -777,7 +777,7 @@ def shop(body: ShopBody, request: Request):
         raise HTTPException(400, "ไม่รู้จักคำสั่งนี้")
 
     from bot import adventure_core
-    from bot.cogs.player_commands import buy_item_for, sell_item_for
+    from core.services.items import buy_item_for, sell_item_for
     with _user_lock(uid):
         if body.action == "buy":
             ok, msg = buy_item_for(int(uid), body.item_id, body.count)
@@ -795,7 +795,7 @@ def market_list(request: Request):
     """
     uid = int(require_player(request)["uid"])
     from bot import config_loader, market
-    from bot.cogs.player_commands import usable_kind
+    from core.services.items import usable_kind
     from bot.models.player_model import get_player, load_inventory
 
     items = config_loader.get_all_items()
@@ -859,7 +859,7 @@ def market_action(body: MarketBody, request: Request):
 def craft_list(request: Request):
     """สูตรที่วัตถุดิบครบพร้อมคราฟตอนนี้ — craftable_now() ตัวเดียวกับปุ่ม 🔨 ในดิส"""
     uid = require_player(request)["uid"]
-    from bot.cogs.player_commands import craftable_now
+    from core.services.crafting import craftable_now
     rows = craftable_now(int(uid))
     return {"recipes": [{"id": i, "name": n, "materials": m} for i, n, m in rows]}
 
@@ -873,7 +873,7 @@ def craft(body: CraftBody, request: Request):
     """คราฟของ — craft_for() ตัวเดียวกับในดิส (มีโอกาสล้มเหลวตามสูตร)"""
     uid = require_player(request)["uid"]
     from bot import adventure_core
-    from bot.cogs.player_commands import craft_for
+    from core.services.crafting import craft_for
     with _user_lock(uid):
         ok, msg = craft_for(int(uid), str(body.item_id))
         adventure_core.touch_pending(int(uid))    # แวะคราฟระหว่างสู้ = ยังอยู่กับไฟต์นั้น
@@ -884,7 +884,7 @@ def craft(body: CraftBody, request: Request):
 def sell_junk(request: Request):
     """เทขายวัสดุ/ของขยะทั้งกระเป๋า — sell_all_junk() ตัวเดียวกับปุ่ม 🧱 ในดิส"""
     uid = require_player(request)["uid"]
-    from bot.cogs.player_commands import sell_all_junk
+    from core.services.items import sell_all_junk
     with _user_lock(uid):
         sold, gold, msg = sell_all_junk(int(uid))
     return {"ok": sold > 0, "sold": sold, "gold": gold, "message": msg,
@@ -939,7 +939,7 @@ def item_drop(body: DropBody, request: Request):
     uid = require_player(request)["uid"]
     if body.amount <= 0:
         raise HTTPException(400, "จำนวนต้องมากกว่า 0")
-    from bot.cogs.player_commands import drop_item_for
+    from core.services.items import drop_item_for
     with _user_lock(uid):
         ok, msg = drop_item_for(int(uid), str(body.item_id), body.amount)
     return {"ok": ok, "message": msg}
@@ -1156,19 +1156,11 @@ def admin_cmdlog(request: Request, q: str = ""):
 
 # ── Codex (คู่มือเกมชุดเดียวกับ !codex ในเกม — เว็บตรงกับเกมเสมอ) ──
 
-_CODEX_TOPICS = ["วิธีเล่น", "ทวีป", "ธาตุ", "สถานะ", "ไอเทม", "คราฟ",
-                 "อาร์ติแฟกต์", "กิลด์", "รางวัล", "สะสม", "สังคม", "คำสั่ง"]
-
 
 @router.get("/codex")
 def codex():
-    from bot.cogs.player_commands import build_codex_embed
-    topics = []
-    for t in _CODEX_TOPICS:
-        e = build_codex_embed(t)
-        topics.append({"topic": t, "title": e.title or t, "description": e.description or "",
-                       "fields": [{"name": f.name, "value": f.value} for f in e.fields]})
-    return {"topics": topics}
+    from core.services.codex import codex_topics
+    return {"topics": codex_topics()}
 
 
 # ── แอดมิน ──
@@ -1926,7 +1918,7 @@ def lobby_invite(body: LobbyInviteBody, request: Request):
     """🔒 uid คนชวนมาจาก session เท่านั้น · code หาเองจาก lobby.room_of()
     ห้ามรับ from_uid/code จาก body ไม่งั้นคนยิง API ตรง ๆ ชวนเข้าห้องคนอื่นได้"""
     uid = int(require_player(request)["uid"])
-    from bot.cogs.lobby_invite import validate
+    from core.services.lobby_invite import validate
     from bot import friends, lobby
 
     to_uid = friends.parse_id(body.to)

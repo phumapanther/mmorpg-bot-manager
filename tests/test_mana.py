@@ -241,7 +241,8 @@ def test_the_prism_never_overflows_the_cap(hero):
 def test_panel_and_codex_both_know_the_mana_effect():
     """ไอเทม effect ใหม่ต้องบอกผลได้ในคู่มือ และแท็บ Panel ต้องรู้จัก
     ไม่งั้นกดบันทึกที่ Panel ทีเดียว effect โดนล้างเงียบ ๆ"""
-    pc = pathlib.Path("bot/cogs/player_commands.py").read_text(encoding="utf-8")
+    # _item_effect_desc ย้ายไป core/services/codex.py แล้ว (ก้อนรื้อ core/services) — เช็คที่ไฟล์ใหม่
+    codex_svc = pathlib.Path("core/services/codex.py").read_text(encoding="utf-8")
     app = pathlib.Path("panel/static/app.js").read_text(encoding="utf-8")
-    assert 'if eff == "mana":' in pc
+    assert 'if eff == "mana":' in codex_svc
     assert '{ value: "mana"' in app
