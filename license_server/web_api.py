@@ -1156,19 +1156,11 @@ def admin_cmdlog(request: Request, q: str = ""):
 
 # ── Codex (คู่มือเกมชุดเดียวกับ !codex ในเกม — เว็บตรงกับเกมเสมอ) ──
 
-_CODEX_TOPICS = ["วิธีเล่น", "ทวีป", "ธาตุ", "สถานะ", "ไอเทม", "คราฟ",
-                 "อาร์ติแฟกต์", "กิลด์", "รางวัล", "สะสม", "สังคม", "คำสั่ง"]
-
 
 @router.get("/codex")
 def codex():
-    from bot.cogs.player_commands import build_codex_embed
-    topics = []
-    for t in _CODEX_TOPICS:
-        e = build_codex_embed(t)
-        topics.append({"topic": t, "title": e.title or t, "description": e.description or "",
-                       "fields": [{"name": f.name, "value": f.value} for f in e.fields]})
-    return {"topics": topics}
+    from core.services.codex import codex_topics
+    return {"topics": codex_topics()}
 
 
 # ── แอดมิน ──
