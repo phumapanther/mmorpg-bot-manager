@@ -110,7 +110,7 @@ def create_bot(bot_type: str):
                 await bot.load_extension("bot.cogs.player_commands")
                 print("🕺[Player Commands] โหลดระบบคำสั่งผู้เล่นสำเร็จ!")
 
-                await bot.load_extension("bot.cogs.voice_chat_tracker")
+                await bot.load_extension("bot.apps.bot_worker.voice_chat_tracker")
                 print("🎙️ [Bypass Mode] โน้ตระบบลูปห้องเสียงและฟาร์มแชทมาให้ Arthur รันแทนชั่วคราวสำเร็จ!")
                 
                 await bot.load_extension('bot.cogs.owner_announce')
@@ -137,7 +137,7 @@ def create_bot(bot_type: str):
                 await bot.load_extension("bot.cogs.role_shop")
                 print("💸[Buy] โหลดระบบคำสั่ง ซื้อยศออนไลน์!")
 
-                await bot.load_extension("bot.cogs.role_grant_worker")
+                await bot.load_extension("bot.apps.bot_worker.role_grant_worker")
                 print("🌉[RoleQueue] โหลดสะพานแจกยศจากเว็บ สำเร็จ!")
 
                 await bot.load_extension("bot.cogs.dice_board_cmd")
@@ -146,19 +146,19 @@ def create_bot(bot_type: str):
                 await bot.load_extension("bot.cogs.payment")
                 print("💳[Payment] โหลดระบบคำสั่ง เติมเงิน สำเร็จ!")
 
-                await bot.load_extension("bot.cogs.weekly_event")
+                await bot.load_extension("bot.apps.bot_worker.weekly_event")
                 print("🎪[Weekly Event] โหลดระบบประกาศอีเวนต์ประจำสัปดาห์สำเร็จ!")
 
                 await bot.load_extension("bot.cogs.world_admin")
                 print("🛠️[World Admin] โหลดคำสั่งแอดมินควบคุมโลกสำเร็จ!")
 
-                await bot.load_extension("bot.cogs.db_backup")
+                await bot.load_extension("bot.apps.bot_worker.db_backup")
                 print("💾[DB Backup] โหลดระบบสำรองฐานข้อมูลรายวันสำเร็จ!")
 
                 await bot.load_extension("bot.cogs.guild")
                 print("🏰[Guild] โหลดระบบกิลด์สำเร็จ!")
 
-                await bot.load_extension("bot.cogs.server_status")
+                await bot.load_extension("bot.apps.bot_worker.server_status")
                 print("📡[Server Status] โหลดระบบแจ้งเตือนเปิด-ปิดเซิร์ฟสำเร็จ!")
 
                 await bot.load_extension("bot.cogs.guild_war")
@@ -167,7 +167,7 @@ def create_bot(bot_type: str):
                 await bot.load_extension("bot.cogs.web_link")
                 print("🌐[Web] โหลดสะพานเว็บไซต์ (!web / !weblogin) สำเร็จ!")
 
-                await bot.load_extension("bot.cogs.lobby_invite")
+                await bot.load_extension("bot.apps.bot_worker.lobby_invite")
                 print("🎴[LobbyInvite] โหลดสะพานชวนเพื่อนเข้าห้อง (DM) สำเร็จ!")
 
             # 🌍 [P8] บอทแจกสำหรับเซิร์ฟรอง — เล่นผจญภัยได้อย่างเดียว ไม่มีร้านค้า/คาสิโน/กิลด์/แอดมิน
@@ -180,7 +180,7 @@ def create_bot(bot_type: str):
                 print("🌍 [Guest Bot] โหลดโหมดเซิร์ฟรอง (ผจญภัยอย่างเดียว) สำเร็จ!")
 
             elif bot_type == "chat":
-                await bot.load_extension("bot.cogs.voice_chat_tracker")
+                await bot.load_extension("bot.apps.bot_worker.voice_chat_tracker")
                 print("🎙️ [Chat/Voice Bot] โหลดระบบลูปห้องเสียงและฟาร์มแชทสำเร็จ!")
                 
             elif bot_type == "admin":

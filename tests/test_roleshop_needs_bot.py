@@ -130,7 +130,7 @@ def test_the_page_warns_before_you_click():
 
 def test_the_bot_actually_pings(tmp_path, monkeypatch):
     """ถ้าไม่มีใครเรียก bot_ping เลย ทุกอย่างจะถูกมองว่าบอทดับตลอดกาล"""
-    src = pathlib.Path("bot/cogs/role_grant_worker.py").read_text(encoding="utf-8")
+    src = pathlib.Path("bot/apps/bot_worker/role_grant_worker.py").read_text(encoding="utf-8")
     assert "web_db.bot_ping()" in src, "บอทไม่ได้ปั๊มหัวใจ — เว็บจะคิดว่าบอทดับตลอด"
     drain = src[src.index("async def drain"):]
     assert "bot_ping" in drain[:drain.index("try:\n            with web_db.connect()")], \

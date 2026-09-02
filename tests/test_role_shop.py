@@ -103,7 +103,7 @@ def test_the_queue_table_carries_everything_needed_for_a_refund():
 
 def test_the_worker_refunds_on_every_failure_path():
     """ทุกทางที่แจกยศไม่สำเร็จต้องคืนเงิน — ไม่งั้นผู้เล่นเสียเงินฟรี"""
-    src = pathlib.Path("bot/cogs/role_grant_worker.py").read_text(encoding="utf-8")
+    src = pathlib.Path("bot/apps/bot_worker/role_grant_worker.py").read_text(encoding="utf-8")
     body = src[src.index("async def _grant("):src.index("@drain.before_loop")]
     fails = body.count('return "refunded"')
     assert fails >= 3, f"ทางที่คืนเงินมีแค่ {fails} จุด — ควรครอบคลุมทุกกรณีพัง"
@@ -113,7 +113,7 @@ def test_the_worker_refunds_on_every_failure_path():
 def test_a_duplicate_gacha_is_salt_not_a_refund():
     """กาชาได้ของซ้ำคือความเสี่ยงที่ผู้เล่นรับไปแล้ว — ห้ามคืนเงิน
     แต่ 'ซื้อเจาะจง' แล้วซ้ำต้องคืน เพราะตั้งใจซื้อของที่ยังไม่มี"""
-    src = pathlib.Path("bot/cogs/role_grant_worker.py").read_text(encoding="utf-8")
+    src = pathlib.Path("bot/apps/bot_worker/role_grant_worker.py").read_text(encoding="utf-8")
     dup = src[src.index("if role_obj in member.roles:"):src.index("await member.add_roles")]
     assert 'if kind == "gacha"' in dup and 'return "duplicate"' in dup
     assert "role_shop_core.refund" in dup, "ซื้อเจาะจงแล้วซ้ำต้องคืนเงิน"

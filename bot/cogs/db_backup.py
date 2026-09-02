@@ -1,65 +1,6 @@
-"""สำรองฐานข้อมูลเกมอัตโนมัติ — วันละครั้ง เก็บ 7 ชุดล่าสุด
-(กันเซฟผู้เล่น/ของแรร์หายถาวร — ไฟล์อยู่ในโฟลเดอร์ backups/ ข้างตัวเกม)
+"""ย้ายไป bot/apps/bot_worker/db_backup.py แล้ว (รื้อโครงสร้าง 09-02)
 
-ใช้ sqlite backup API สำรองแบบ hot-safe: ปลอดภัยแม้บอทกำลังเขียน DB อยู่
+เหลือไว้เป็นสะพานให้ bot/main.py กับเทสที่ยัง import ทางเดิมไม่พัง
 """
-import os
-import sqlite3
-from datetime import datetime
-
-from discord.ext import commands, tasks
-
-import bot.models.player_model as player_model
-
-BACKUP_DIR = "backups"
-KEEP_LAST = 7
-
-
-def run_backup():
-    """สำรอง DB หนึ่งชุด + หมุนเวียนลบชุดเก่าเกิน KEEP_LAST — คืน path ไฟล์ที่สร้าง"""
-    os.makedirs(BACKUP_DIR, exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    dest_path = os.path.join(BACKUP_DIR, f"game_data-{stamp}.db")
-
-    src = sqlite3.connect(player_model.DB_NAME)
-    dest = sqlite3.connect(dest_path)
-    try:
-        src.backup(dest)
-    finally:
-        dest.close()
-        src.close()
-
-    backups = sorted(f for f in os.listdir(BACKUP_DIR)
-                     if f.startswith("game_data-") and f.endswith(".db"))
-    for old_file in backups[:-KEEP_LAST]:
-        try:
-            os.remove(os.path.join(BACKUP_DIR, old_file))
-        except OSError:
-            pass
-    return dest_path
-
-
-class DbBackup(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-        self.daily_backup.start()
-
-    def cog_unload(self):
-        self.daily_backup.cancel()
-
-    @tasks.loop(hours=24)
-    async def daily_backup(self):
-        # รอบแรกยิงทันทีหลังบอทพร้อม → มี backup สดเสมอหลังเปิดบอท
-        try:
-            path = run_backup()
-            print(f"💾 [Backup] สำรองฐานข้อมูลเกมแล้ว: {path}")
-        except Exception as e:
-            print(f"⚠️ [Backup] สำรองฐานข้อมูลล้มเหลว: {e}")
-
-    @daily_backup.before_loop
-    async def before_backup(self):
-        await self.bot.wait_until_ready()
-
-
-async def setup(bot):
-    await bot.add_cog(DbBackup(bot))
+from bot.apps.bot_worker.db_backup import *  # noqa: F401,F403
+from bot.apps.bot_worker.db_backup import setup  # noqa: F401
