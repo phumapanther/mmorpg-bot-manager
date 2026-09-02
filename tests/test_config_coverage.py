@@ -104,7 +104,7 @@ def test_code_no_longer_hardcodes_them():
     import pathlib
     checks = [("bot/cogs/pvp_duel.py", "max_rounds = 5"),
               ("bot/cogs/pvp_duel.py", 'increment_player_field(winner[\'user\'].id, "cash", 2000)'),
-              ("bot/cogs/admin_commands.py", "fee = 300"),
+              ("bot/apps/bot_admin/admin_commands.py", "fee = 300"),
               ("bot/views/game_views.py", "current_weights = list(EVENT_WEIGHTS[last_evt])")]
     for f, needle in checks:
         assert needle not in pathlib.Path(f).read_text(encoding="utf-8"), f"{f} ยังฟิก: {needle}"

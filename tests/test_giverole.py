@@ -87,6 +87,6 @@ def test_empty_role_says_so(world):
 
 def test_command_is_admin_only():
     import pathlib
-    src = pathlib.Path("bot/cogs/admin_commands.py").read_text(encoding="utf-8")
+    src = pathlib.Path("bot/apps/bot_admin/admin_commands.py").read_text(encoding="utf-8")
     block = src[src.index('name="giverole"') - 400:src.index('name="giverole"') + 400]
     assert 'has_permission("admin")' in block and "administrator=True" in block

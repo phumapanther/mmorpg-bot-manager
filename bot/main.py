@@ -104,7 +104,7 @@ def create_bot(bot_type: str):
                 await bot.load_extension("bot.cogs.game_commands")
                 print("⚔️ [Game Bot] โหลดระบบคำสั่งคอมแบทและร้านค้าสำเร็จ!")
                 
-                await bot.load_extension("bot.cogs.admin_commands")
+                await bot.load_extension("bot.apps.bot_admin.admin_commands")
                 print("👑 [Admin Commands] โหลดระบบคำสั่งผู้ดูแลระบบสำเร็จ!")
 
                 await bot.load_extension("bot.cogs.player_commands")
@@ -113,7 +113,7 @@ def create_bot(bot_type: str):
                 await bot.load_extension("bot.apps.bot_worker.voice_chat_tracker")
                 print("🎙️ [Bypass Mode] โน้ตระบบลูปห้องเสียงและฟาร์มแชทมาให้ Arthur รันแทนชั่วคราวสำเร็จ!")
                 
-                await bot.load_extension('bot.cogs.owner_announce')
+                await bot.load_extension('bot.apps.bot_admin.owner_announce')
                 print("📢 [Owner Announce] โหลดระบบประกาศข่าวสารสำเร็จ!")
 
                 await bot.load_extension('bot.cogs.adventure_zone')
@@ -149,7 +149,7 @@ def create_bot(bot_type: str):
                 await bot.load_extension("bot.apps.bot_worker.weekly_event")
                 print("🎪[Weekly Event] โหลดระบบประกาศอีเวนต์ประจำสัปดาห์สำเร็จ!")
 
-                await bot.load_extension("bot.cogs.world_admin")
+                await bot.load_extension("bot.apps.bot_admin.world_admin")
                 print("🛠️[World Admin] โหลดคำสั่งแอดมินควบคุมโลกสำเร็จ!")
 
                 await bot.load_extension("bot.apps.bot_worker.db_backup")
@@ -176,7 +176,7 @@ def create_bot(bot_type: str):
                 await bot.load_extension("bot.cogs.player_commands")   # !bag !use !codex !bestiary (คำสั่งเซิร์ฟหลักถูกล็อกรายตัว)
                 await bot.load_extension("bot.cogs.adventure_zone")    # !adv
                 await bot.load_extension("bot.cogs.web_link")          # 🌐 !web !weblogin !slip + ปุ่มเติมเงิน (เครื่องไม่มี license_server = ข้ามเอง)
-                await bot.load_extension("bot.cogs.guest_server")      # ด่านห้อง + !set_adv_channel
+                await bot.load_extension("bot.apps.bot_admin.guest_server")      # ด่านห้อง + !set_adv_channel
                 print("🌍 [Guest Bot] โหลดโหมดเซิร์ฟรอง (ผจญภัยอย่างเดียว) สำเร็จ!")
 
             elif bot_type == "chat":
