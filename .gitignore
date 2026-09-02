@@ -1,11 +1,17 @@
 __pycache__/
 *.pyc
+.pytest_cache/
 config.json
+# 🔒 เจอ config-IT-Panther.json หลุดขึ้น git มาแล้วจริง (มี bot_token ข้างใน!)
+# กันซ้ำด้วย wildcard — ไฟล์ config ต่อท้ายชื่อเครื่องห้ามขึ้น git เด็ดขาด
+config-*.json
 game_data.db
+*.db
 *.db-wal
 *.db-shm
 backups/
 LICENSE_SERVER_URL.txt
+LICENSE_SERVER_URL-*.txt
 build/
 dist/
 dist_nuitka/
@@ -26,3 +32,4 @@ data/
 
 # ตั้งค่าเครื่องมือเฉพาะเครื่อง ไม่ต้องแชร์
 .claude/
+.superpowers/
