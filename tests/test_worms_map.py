@@ -187,7 +187,10 @@ def test_the_browser_has_no_map_generator():
 def test_the_panel_is_wired():
     assert 'data-go="worms"' in HTML and 'id="v-worms"' in HTML
     assert '/worms.js' in HTML, "ไม่ได้โหลด worms.js"
-    assert "if (id === 'worms') fillWorms()" in PLAY
+    # เจ้าของเกมสั่ง 09-02: เข้าสนามรบเจอหน้าเลือกโหมดก่อน แล้วค่อยโหลดสนาม
+    # (เดิมโหลดทันทีที่เปิดหน้า — เทสข้อนี้เคยผูกกับพฤติกรรมเก่า)
+    assert "wmShowGate()" in PLAY, "เปิดหน้าสนามรบแล้วไม่ได้โชว์หน้าเลือกโหมด"
+    assert PLAY.count("await fillWorms();") >= 2, "ปุ่มเลือกโหมดต้องโหลดสนามให้ทั้งสองทาง"
     for el in ("wmCanvas", "wmSeed", "wmNew", "wmSame"):
         assert el in PLAY and el in HTML, f"อ้างถึง #{el} แต่ไม่มีในหน้าเว็บ (หรือกลับกัน)"
 
