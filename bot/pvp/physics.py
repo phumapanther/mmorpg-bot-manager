@@ -4,3 +4,4 @@
 โค้ดใหม่ให้ import จาก bot.games.pvp.physics โดยตรง
 """
 from bot.games.pvp.physics import *  # noqa: F401,F403
+from bot.games.pvp.physics import _blocks  # noqa: F401  (test_worms_attack.py ใช้)

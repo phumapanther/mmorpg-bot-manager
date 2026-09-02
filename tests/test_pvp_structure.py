@@ -14,13 +14,15 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 PVP_NEW = REPO_ROOT / "bot" / "games" / "pvp"
 MODULES = ["match", "terrain", "physics", "weapons", "rooms"]
 
-# ฟังก์ชันขึ้นต้นด้วย _ ที่เทส worms เรียกข้ามไฟล์ผ่านสะพาน bot.pvp.match
+# ฟังก์ชันขึ้นต้นด้วย _ ที่เทส worms เรียกข้ามไฟล์ผ่านสะพาน bot.pvp.{match,terrain,physics}
 # (import * ไม่ดึงชื่อพวกนี้ให้ - ต้องดึงมาเพิ่มเองในสะพาน)
 MATCH_UNDERSCORE_NAMES = [
     "_bodies", "_bot_aim", "_bot_attack", "_check_over", "_death_blasts",
     "_explode", "_fall_hurt", "_knock_back", "_open_chests", "_ride_ferry",
     "_rise_disaster", "_settle_everyone", "_supply_drop", "_use_skill",
 ]
+TERRAIN_UNDERSCORE_NAMES = ["_building", "_open_spots", "_standable", "_tree"]
+PHYSICS_UNDERSCORE_NAMES = ["_blocks"]
 
 
 # ── 1. โฟลเดอร์ใหม่มีจริงและ import ได้ ──
@@ -54,11 +56,13 @@ def test_สะพานเก่ายังใช้ได้และเป�
 
 def test_ชื่อขีดล่างที่มีคนใช้ข้ามไฟล์ต้องอยู่ในสะพานด้วย():
     """import * ไม่ดึงชื่อขึ้นต้นด้วย _ - ต้องดึงมาเพิ่มเองในสะพาน"""
-    from bot.pvp import match, terrain
+    from bot.pvp import match, physics, terrain
     for name in MATCH_UNDERSCORE_NAMES:
         assert hasattr(match, name), f"tests/test_worms_*.py เรียก match.{name}"
-    assert hasattr(terrain, "_open_spots"), (
-        "tests/test_worms_attack.py, test_worms_predict.py เรียก terrain._open_spots")
+    for name in TERRAIN_UNDERSCORE_NAMES:
+        assert hasattr(terrain, name), f"tests/test_worms_*.py เรียก terrain.{name}"
+    for name in PHYSICS_UNDERSCORE_NAMES:
+        assert hasattr(physics, name), f"tests/test_worms_*.py เรียก physics.{name}"
 
 
 # ── 3. PVP ห้าม import จาก bot/cogs/ ──

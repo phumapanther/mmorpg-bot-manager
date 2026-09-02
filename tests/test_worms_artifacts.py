@@ -265,7 +265,7 @@ def test_you_start_the_match_with_nothing(world):
 
 def test_the_arena_never_touches_the_real_inventory():
     """กติกาเหล็กของหมวดนี้ — ห้ามแตะกระเป๋า/เงิน/EXP ของเกมหลัก"""
-    src = pathlib.Path("bot/pvp/match.py").read_text(encoding="utf-8")
+    src = pathlib.Path("bot/games/pvp/match.py").read_text(encoding="utf-8")
     for banned in ("player_model", "inventory", "load_inventory", "update_player"):
         assert banned not in src, f"สนามไปแตะ {banned} ของเกมหลัก"
 

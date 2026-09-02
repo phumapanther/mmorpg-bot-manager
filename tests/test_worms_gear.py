@@ -23,7 +23,7 @@ from license_server import web_db
 UID = 7801
 LOOK = {"race": "Human", "cls": "Mage", "armor": "None", "weapon": ""}
 PLAY = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
-PLAY_MATCH = pathlib.Path("bot/pvp/match.py").read_text(encoding="utf-8")
+PLAY_MATCH = pathlib.Path("bot/games/pvp/match.py").read_text(encoding="utf-8")
 
 
 @pytest.fixture

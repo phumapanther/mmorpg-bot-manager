@@ -4,4 +4,9 @@
 โค้ดใหม่ให้ import จาก bot.games.pvp.terrain โดยตรง
 """
 from bot.games.pvp.terrain import *  # noqa: F401,F403
-from bot.games.pvp.terrain import _open_spots  # noqa: F401  (test_worms_attack.py, test_worms_predict.py ใช้)
+from bot.games.pvp.terrain import (  # noqa: F401
+    _building,   # test_worms_move.py, test_worms_props.py ใช้
+    _open_spots,  # test_worms_attack.py, test_worms_predict.py ใช้
+    _standable,  # test_worms_props.py ใช้
+    _tree,       # test_worms_props.py ใช้
+)

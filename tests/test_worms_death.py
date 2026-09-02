@@ -115,7 +115,7 @@ def test_a_chain_reaction_resolves(world):
 def test_the_match_ends_only_after_the_blast_is_resolved(world):
     """ระเบิดจากร่างอาจฆ่าคนสุดท้าย — ต้องเช็คจบเกมหลังระเบิด ไม่ใช่ก่อน"""
     body = PLAY  # ฝั่งเซิร์ฟเวอร์เช็คในลำดับที่ถูก
-    src = pathlib.Path("bot/pvp/match.py").read_text(encoding="utf-8")
+    src = pathlib.Path("bot/games/pvp/match.py").read_text(encoding="utf-8")
     at = src.index("deaths = _death_blasts(st, grid)")
     assert "_check_over(st)" in src[at:at + 200], "ระเบิดร่างแล้วไม่ได้เช็คว่าเกมจบหรือยัง"
 
@@ -261,7 +261,7 @@ def test_the_jump_arc_is_long_enough_to_read():
                          r"WM_ANIM\.path\.length <= \d+ \? (\d+)", PLAY).group(1))
     played = frames * hold / 60
     assert played >= 0.8, f"เล่นภาพกระโดดจบใน {played:.2f} วิ เร็วเกินกว่าจะดูออก"
-    assert "JUMP_GRAVITY" not in pathlib.Path("bot/pvp/physics.py").read_text(encoding="utf-8"),         "ยังมีแรงโน้มถ่วงแยกสำหรับการกระโดด — แรงโน้มถ่วงควรมีค่าเดียว"
+    assert "JUMP_GRAVITY" not in pathlib.Path("bot/games/pvp/physics.py").read_text(encoding="utf-8"),         "ยังมีแรงโน้มถ่วงแยกสำหรับการกระโดด — แรงโน้มถ่วงควรมีค่าเดียว"
 
 
 def test_the_jump_values_are_clamped(world):
@@ -350,7 +350,7 @@ def test_a_full_charge_is_about_your_own_height():
 
 def test_gravity_is_the_same_going_up_and_coming_down():
     """แรงโน้มถ่วงมีค่าเดียวในโลกนี้ — เคยแยกให้ตอนกระโดดเบากว่าเพื่อความลอย"""
-    src = pathlib.Path("bot/pvp/physics.py").read_text(encoding="utf-8")
+    src = pathlib.Path("bot/games/pvp/physics.py").read_text(encoding="utf-8")
     jump = src[src.index("def jump("):src.index("def blast_damage(")]
     assert "vy += GRAVITY" in jump, "ลูปกระโดดไม่ได้ใช้แรงโน้มถ่วงตัวเดียวกับตอนร่วง"
     assert "JUMP_GRAVITY" not in src, "ยังมีแรงโน้มถ่วงแยกสำหรับการกระโดดอยู่"
