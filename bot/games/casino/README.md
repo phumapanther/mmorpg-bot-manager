@@ -32,10 +32,20 @@ bot/games/casino/
   `bot/cards/uno_*.py`) เหลือไว้เป็น **สะพาน** ให้โค้ด/เทสที่ยัง import
   ทางเดิมอยู่ไม่พัง — โค้ดใหม่ให้ import จากที่ใหม่ในนี้ตรง ๆ
 
-## หนี้ทางเทคนิคที่ทิ้งไว้ (อ่านก่อนแก้ hilo)
+## ⚠️ เขียนเทสหมวดนี้ต้องรู้: แพตช์ที่โมดูลจริงเท่านั้น
 
-`bot/games/casino/hilo/core.py::play_hilo` ยังอ้อมเรียก `roll_hilo` ผ่าน
-`bot.casino_core` (สะพานเก่า) แทนที่จะเรียกตรงในไฟล์เดียวกัน — เพราะ
-`tests/test_casino_core.py` มี `monkeypatch.setattr(cc, "roll_hilo", ...)`
-ผ่านชื่อสะพานเดิม ถ้าเรียกตรงจะไม่เห็นแพตช์ (ดูคอมเมนต์ในไฟล์)
-ลบท่านี้ได้เมื่อย้ายเทสไป import จาก `bot.games.casino.hilo.core` ตรง ๆ แล้ว
+`monkeypatch.setattr()` ต้องชี้ที่**ไฟล์ที่ฟังก์ชันถูกนิยามจริง** ไม่ใช่ที่สะพาน
+เพราะ Python มอง global ของไฟล์ที่นิยาม แพตช์ที่สะพานจะไม่มีผล
+
+```python
+# ❌ ผิด — แพตช์ที่สะพาน ไม่มีผล
+from bot import casino_core as cc
+monkeypatch.setattr(cc, "roll_hilo", ...)
+
+# ✅ ถูก — แพตช์ที่โมดูลจริง
+from bot.games.casino.hilo import core as hilo_core
+monkeypatch.setattr(hilo_core, "roll_hilo", ...)
+```
+
+เคยพลาดมาแล้วตอนรื้อโครงสร้าง (09-02) จนต้องให้โค้ดอ้อมเรียกผ่านสะพาน
+ซึ่งทำให้เกิด import วนกลับ — แก้ที่เทสแล้ว โค้ดจึงเรียกตรงได้ตามปกติ

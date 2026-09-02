@@ -55,7 +55,10 @@ def test_hilo_pays_2x_and_11hilo_pays_7x(db):
 
 def test_hilo_11hilo_multiplier(db, monkeypatch):
     pm.update_player_fields(1, {"cash": 10000})
-    monkeypatch.setattr(cc, "roll_hilo", lambda c, b, rng=None: {
+    # แพตช์ที่โมดูลจริง ไม่ใช่ที่สะพาน bot.casino_core
+    # (Python มอง global ของไฟล์ที่ฟังก์ชันถูกนิยาม แพตช์ที่สะพานจะไม่มีผล)
+    from bot.games.casino.hilo import core as hilo_core
+    monkeypatch.setattr(hilo_core, "roll_hilo", lambda c, b, rng=None: {
         "dice": [5, 3, 3], "total": 11, "result": "11hilo", "rigged": False, "won": True})
     ok, out = cc.play_hilo(1, "11hilo", 100)
     assert ok and out["winnings"] == 700 and out["net"] == 600

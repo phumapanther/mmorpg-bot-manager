@@ -50,13 +50,7 @@ def play_hilo(user_id, choice, bet, rng=random):
     if not ok:
         return False, {"message": err}
 
-    # ponytail: เรียกผ่านสะพาน bot.casino_core (ไม่เรียก roll_hilo ในไฟล์นี้ตรง ๆ)
-    # เหตุผล: tests/test_casino_core.py monkeypatch cc.roll_hilo ผ่านชื่อสะพานเดิม
-    # แต่ global lookup ของ Python มองเฉพาะเนมสเปซไฟล์ที่ฟังก์ชันถูกนิยาม
-    # เรียกตรงจะไม่เห็นแพตช์นั้น ต้องอ้อมผ่านสะพานเพื่อให้เทสเดิมยังผ่าน
-    # ลบท่านี้ได้ตอนย้ายเทสไป import จาก bot.games.casino.hilo.core ตรง ๆ แล้ว
-    from bot import casino_core as _bridge
-    out = _bridge.roll_hilo(choice, bet, rng)
+    out = roll_hilo(choice, bet, rng)
     winnings = 0
     if out["won"]:
         winnings = bet * (7 if choice == "11hilo" else 2)
