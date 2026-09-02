@@ -686,7 +686,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Test: `tests/test_uno_money.py`
 
 **Interfaces:**
-- Consumes: `bot.lobby` (งานที่ 1) · `bot.cards.uno_engine` — `new_game(names, rng=None, start_cards=uno_engine.START_CARDS)` คืน state ที่มี `players[i]["hand"]` (ไพ่เป็น dict มี 2 คีย์: `{"suit": "fire", "value": "3"}`) · `play(st, index, chosen_suit=None, rng=None)` · `draw(st, ...)` · `passes(st, ...)` · `bot.models.player_model.get_player(uid) -> dict | None` และ `increment_player_field(uid, "cash", amount)`
+- Consumes: `bot.lobby` (งานที่ 1) · `bot.cards.uno_engine` — `new_game(names, rng=None, start_cards=uno_engine.START_CARDS)` คืน state ที่มี `players[i]["hand"]` (ไพ่เป็น dict มี 2 คีย์: `{"suit": "fire", "value": 3}` — value เป็น int หรือ str ของการ์ดพิเศษ) · `play(st, index, chosen_suit=None, rng=None)` · `draw(st, ...)` · `passes(st, ...)` · `bot.models.player_model.get_player(uid) -> dict | None` และ `increment_player_field(uid, "cash", amount)`
 - Produces: `open_table(uid, name, bet) -> tuple[bool, dict]` · `sit(uid, name, code) -> tuple[bool, dict]` · `stand(uid) -> dict | None` · `begin(uid) -> tuple[bool, dict]` · `view(uid) -> dict`
 
 **กฎเหล็กที่งานนี้ต้องรักษา:** ทองรวมก่อน = ทองรวมหลัง ทุกกรณี

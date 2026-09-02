@@ -1,30 +1,21 @@
-"""🎪 ห้องเล่นหลายคน — ชวนเพื่อนมาลงสนามเดียวกันได้สูงสุด 6 คน
+"""🎪 ห้องสนามรบผลัดเทิร์น — เปลือกบางบน bot/lobby.py
 
-เจ้าของเกมเคาะ (08-28): "ทำโหมด PVP ที่สามารถชวนผู้เล่นมาเล่นได้สูงสุด 6 คน
-โดยสามารถแบ่งทีมได้แบบ 2-2-2 หรือ 3-3 ได้"
+เจ้าของเกมเคาะ (09-02): ย้ายมาใช้ล็อบบี้กลางที่ทุกเกมใช้ร่วมกัน
 
-⚠️ หัวใจของไฟล์นี้: **สถานะแมตช์มีก้อนเดียว ใช้ร่วมกันทุกคนในห้อง**
-   ของเดิมเก็บแมตช์ต่อคน (ตาราง worms_matches มี user_id เป็นคีย์) ซึ่งใช้กับ
-   การซ้อมกับบอทได้ เพราะแต่ละคนมีสนามของตัวเอง
-   พอเล่นหลายคนต้องเห็นสนามเดียวกัน จึงเพิ่ม "ห้อง" ที่ถือสถานะไว้ก้อนเดียว
-   แล้วให้ "ที่นั่ง" ชี้ว่าใครอยู่ห้องไหน
-
-   match.load()/save() จะถามที่นี่ก่อนเสมอ — อยู่ในห้องก็อ่าน/เขียนของห้อง
-   ไม่ได้อยู่ก็ใช้ทางเดิม (ซ้อมกับบอท) โค้ดเดิมทุกบรรทัดจึงทำงานเหมือนเดิม
-
-🔒 กติกาเหล็กเดิมยังอยู่ครบ: เบราว์เซอร์ส่งมาแค่ "ปุ่มที่กด"
-   ตำแหน่งทุกตัวยังตัดสินที่เซิร์ฟเวอร์ และตอนนี้ต้องเช็คเพิ่มว่า
-   **คนที่ส่งคำสั่งมาเป็นเจ้าของตาปัจจุบันจริงไหม** ไม่งั้นคนอื่นสั่งแทนกันได้
+⚠️ ไฟล์นี้เก็บ "ชื่อฟังก์ชันเดิมครบทุกตัว" ไว้โดยตั้งใจ
+   match.py กับ web_api.py เรียกอยู่หลายจุด — เปลี่ยนชื่อเมื่อไหร่พังทันที
+   เรื่องห้อง/รหัส/ที่นั่ง = ส่งต่อให้ lobby.py
+   เรื่องทีม (2-2-2 / 3v3) = ยังอยู่ที่นี่ เพราะเป็นของสนามรบล้วน ๆ
 """
-import json
-import random
-import string
-import time
+import json  # noqa: F401  (เผื่อโค้ดเดิมที่ import จากที่นี่)
+import time  # noqa: F401  (เผื่อโค้ดเดิมที่ import จากที่นี่)
 
-from license_server import web_db
+from bot import lobby
 
-MAX_SEATS = 6            # เจ้าของเกมเคาะ: สูงสุด 6 คน
-ROOM_TTL = 3 * 3600      # ห้องที่ทิ้งไว้เกินนี้ = ล้างทิ้ง
+GAME = "worms"
+
+MAX_SEATS = lobby.MAX_SEATS
+ROOM_TTL = lobby.ROOM_TTL
 TEAM_PLANS = {           # แผนแบ่งทีมที่เลือกได้ — จำนวนคนต้องลงตัวพอดี
     "ffa": {"name": "🔥 ตัวใครตัวมัน", "teams": 0},
     "3v3": {"name": "⚔️ 3 ต่อ 3", "teams": 2, "size": 3},
@@ -33,87 +24,13 @@ TEAM_PLANS = {           # แผนแบ่งทีมที่เลือ�
 TEAM_NAME = ["🔴 ทีมแดง", "🔵 ทีมน้ำเงิน", "🟢 ทีมเขียว", "🟡 ทีมเหลือง",
              "🟣 ทีมม่วง", "🟠 ทีมส้ม"]
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS worms_rooms (
-    room_id    TEXT PRIMARY KEY,
-    state      TEXT NOT NULL,
-    updated_at REAL NOT NULL
-);
-CREATE TABLE IF NOT EXISTS worms_seats (
-    user_id    TEXT PRIMARY KEY,
-    room_id    TEXT NOT NULL,
-    updated_at REAL NOT NULL
-);
-"""
-
-
-def _conn():
-    conn = web_db.connect()
-    conn.executescript(_SCHEMA)
-    return conn
-
-
-def _sweep(conn):
-    old = time.time() - ROOM_TTL
-    conn.execute("DELETE FROM worms_rooms WHERE updated_at < ?", (old,))
-    conn.execute("DELETE FROM worms_seats WHERE updated_at < ?", (old,))
-
-
-def new_code():
-    """รหัสห้องสั้น ๆ พิมพ์ตามกันได้ — ตัดตัวที่อ่านสับสน (0/O · 1/I) ออก"""
-    pool = "".join(c for c in string.ascii_uppercase + string.digits if c not in "O0I1")
-    return "".join(random.choice(pool) for _ in range(5))
+new_code = lobby.new_code
+load = lobby.load
+save = lobby.save
 
 
 def room_of(uid):
-    """ตอนนี้อยู่ห้องไหน — None ถ้าไม่ได้อยู่ห้องไหนเลย"""
-    with _conn() as conn:
-        _sweep(conn)
-        row = conn.execute("SELECT room_id FROM worms_seats WHERE user_id=?",
-                           (str(uid),)).fetchone()
-    return row["room_id"] if row else None
-
-
-def load(room_id):
-    with _conn() as conn:
-        row = conn.execute("SELECT state FROM worms_rooms WHERE room_id=?",
-                           (str(room_id),)).fetchone()
-    return json.loads(row["state"]) if row else None
-
-
-def save(room_id, st):
-    st["updated_at"] = time.time()
-    with _conn() as conn:
-        conn.execute("INSERT INTO worms_rooms(room_id, state, updated_at) VALUES (?,?,?) "
-                     "ON CONFLICT(room_id) DO UPDATE SET state=excluded.state, "
-                     "updated_at=excluded.updated_at",
-                     (str(room_id), json.dumps(st), st["updated_at"]))
-        conn.execute("UPDATE worms_seats SET updated_at=? WHERE room_id=?",
-                     (st["updated_at"], str(room_id)))
-    return st
-
-
-def _sit(conn, uid, room_id):
-    conn.execute("INSERT INTO worms_seats(user_id, room_id, updated_at) VALUES (?,?,?) "
-                 "ON CONFLICT(user_id) DO UPDATE SET room_id=excluded.room_id, "
-                 "updated_at=excluded.updated_at",
-                 (str(uid), str(room_id), time.time()))
-
-
-def create(uid, name, look):
-    """เปิดห้องใหม่ — คนเปิดเป็นหัวห้องและนั่งที่แรกทันที"""
-    leave(uid)
-    code = new_code()
-    st = {
-        "room": code, "host": str(uid), "plan": "ffa", "started": False,
-        "seats": [_seat(uid, name, look, 0)],
-        "opened_at": time.time(),
-    }
-    with _conn() as conn:
-        conn.execute("INSERT INTO worms_rooms(room_id, state, updated_at) VALUES (?,?,?)",
-                     (code, json.dumps(st), time.time()))
-        _sit(conn, uid, code)
-    return st
+    return lobby.room_of(GAME, uid)
 
 
 def _seat(uid, name, look, team):
@@ -121,46 +38,34 @@ def _seat(uid, name, look, team):
             "team": int(team), "ready": False}
 
 
+def create(uid, name, look):
+    """เปิดห้องใหม่ — คนเปิดเป็นหัวห้องและนั่งที่แรกทันที"""
+    st = lobby.create(GAME, uid, _seat(uid, name, look, 0))
+    st["plan"] = "ffa"
+    return lobby.save(st["room"], st)
+
+
 def join(uid, code, name, look):
     """เข้าห้องด้วยรหัส — คืน (ok, ห้อง|ข้อความผิดพลาด)"""
-    code = str(code or "").strip().upper()
-    st = load(code)
-    if not st:
-        return False, {"error": "❌ ไม่มีห้องรหัสนี้ — เช็ครหัสอีกทีนะ"}
-    if st.get("started"):
-        return False, {"error": "⏳ ห้องนี้เริ่มเล่นไปแล้ว รอรอบหน้านะ"}
-    if any(s["uid"] == str(uid) for s in st["seats"]):
-        with _conn() as conn:
-            _sit(conn, uid, code)
-        return True, st                       # อยู่แล้วก็แค่กลับเข้ามาดู
-    if len(st["seats"]) >= MAX_SEATS:
-        return False, {"error": f"🚪 ห้องเต็มแล้ว (สูงสุด {MAX_SEATS} คน)"}
-    leave(uid)
-    st["seats"].append(_seat(uid, name, look, len(st["seats"]) % 2))
-    save(code, st)
-    with _conn() as conn:
-        _sit(conn, uid, code)
-    return True, st
+    st = lobby.load(str(code or "").strip().upper())
+    team = (len(st["seats"]) % 2) if st else 0
+    ok, got = lobby.join(GAME, uid, code, _seat(uid, name, look, team))
+    return ok, got
 
 
 def leave(uid):
-    """ออกจากห้อง — หัวห้องออกก็ยกให้คนถัดไป ไม่มีคนเหลือก็ปิดห้อง"""
-    code = room_of(uid)
-    if not code:
-        return None
-    st = load(code)
-    with _conn() as conn:
-        conn.execute("DELETE FROM worms_seats WHERE user_id=?", (str(uid),))
-    if not st:
-        return None
-    st["seats"] = [s for s in st["seats"] if s["uid"] != str(uid)]
-    if not st["seats"]:
-        with _conn() as conn:
-            conn.execute("DELETE FROM worms_rooms WHERE room_id=?", (code,))
-        return None
-    if st["host"] == str(uid):
-        st["host"] = st["seats"][0]["uid"]     # หัวห้องออก = ยกให้คนถัดไป
-    return save(code, st)
+    """ออกจากห้อง — หัวห้องออกก็ยกให้คนถัดไป ไม่มีคนเหลือก็ปิดห้อง
+
+    ⚠️ เกมเริ่มแล้วห้ามเกลี่ยทีมเด็ดขาด — _rebalance แจกทีมตามลำดับที่นั่ง
+    คนหนีกลางเกมหนึ่งคน = คนที่เหลือโดนสลับทีม เพื่อนร่วมทีมกลายเป็นศัตรูกลางคัน
+    (พิสูจน์แล้ว 09-02: 6 คน 3v3 คนที่ 3 ออก → อีก 3 คนโดนสลับทีม)
+    """
+    st = lobby.leave(GAME, uid)
+    if st:
+        if not st.get("started"):
+            _rebalance(st)          # ยังไม่เริ่ม = เกลี่ยใหม่ได้ ไม่มีใครเสียหาย
+        return lobby.save(st["room"], st)
+    return None
 
 
 def set_plan(uid, plan):
@@ -231,6 +136,7 @@ def view(uid):
     st = load(code) if code else None
     if not st:
         return {"in_room": False, "plans": _plans_view()}
+    st.setdefault("plan", "ffa")          # ห้องที่สร้างผ่านชั้นกลางตรง ๆ ไม่มีคีย์ plan
     ok, why = plan_ready(st)
     plan = TEAM_PLANS[st["plan"]]
     return {

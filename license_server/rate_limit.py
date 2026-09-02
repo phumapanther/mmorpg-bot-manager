@@ -42,6 +42,8 @@ ROUTES = {
     "/api/web/bank": "money",
     "/api/web/casino": "money",
     "/api/web/blackjack": "money",
+    # UNO เดิมพันทองจริงตั้งแต่ 09-02 (โต๊ะเล่นกับเพื่อน) ต้องคุมแน่นเท่าคาสิโนอื่น
+    "/api/web/uno": "money",
     "/api/web/goldbar": "money",
     "/api/web/roleshop": "money",
     "/api/web/topup": "money",

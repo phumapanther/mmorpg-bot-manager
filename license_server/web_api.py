@@ -665,6 +665,75 @@ def uno_current(request: Request):
     return {"ok": True, "table": uno_table.view(uid)}
 
 
+class UnoRoomBody(BaseModel):
+    action: str = "view"       # view | create | join | leave | start | play | draw | take_stack | pass | say_uno
+    code: str = ""             # รหัสห้องตอน join
+    bet: int = 0                # เดิมพันตอน create
+    index: int = 0              # ไพ่ใบที่เท่าไหร่ในมือ ตอน play
+    suit: str = ""              # สีที่เลือกตอนวางไวลด์
+
+
+@router.post("/uno/room")
+def uno_room_do(body: UnoRoomBody, request: Request):
+    """🎴 โต๊ะ UNO เดิมพัน — ชวนเพื่อนเล่น แยกขาดจากปุ่มซ้อมกับบอท
+
+    🔒 ทุกคำสั่งผูกกับ uid ที่ล็อกอินอยู่เท่านั้น เบราว์เซอร์ระบุแทนคนอื่นไม่ได้
+    ตอบกลับด้วย uno_room.view(uid) เท่านั้น — ไม่ส่ง state ดิบ
+    """
+    uid = int(require_player(request)["uid"])
+    from bot.cards import uno_room
+
+    def _name():
+        p = player_model_get(uid)
+        return p.get("rank") or f"ผู้เล่น {uid}"
+
+    with _user_lock(uid):
+        if body.action == "create":
+            ok, r = uno_room.open_table(uid, _name(), body.bet)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action == "join":
+            ok, r = uno_room.sit(uid, _name(), body.code)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action == "leave":
+            uno_room.stand(uid)
+        elif body.action == "start":
+            ok, r = uno_room.begin(uid)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action == "play":
+            ok, r = uno_room.play(uid, body.index, suit=body.suit or None)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action == "draw":
+            ok, r = uno_room.draw(uid)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action == "take_stack":
+            ok, r = uno_room.take_stack(uid)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action == "pass":
+            ok, r = uno_room.passes(uid)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action == "say_uno":
+            ok, r = uno_room.say_uno(uid)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action != "view":
+            raise HTTPException(400, "ไม่รู้จักคำสั่งนี้")
+        return uno_room.view(uid)
+
+
+@router.get("/uno/room")
+def uno_room_state(request: Request):
+    uid = int(require_player(request)["uid"])
+    from bot.cards import uno_room
+    return uno_room.view(uid)
+
+
 @router.get("/blackjack")
 def blackjack_current(request: Request):
     """โต๊ะที่ค้างอยู่ (ถ้ามี) — เปิดหน้าเว็บมาเจอมือที่เปิดค้างไว้ในดิสได้"""
@@ -1839,6 +1908,42 @@ def me_friends_edit(body: FriendBody, request: Request):
     if not ok:
         raise HTTPException(400, msg)
     return {"ok": True, "message": msg} | friends.list_of(uid)
+
+
+# ── 🎴 ชวนเพื่อนเข้าห้อง (งานที่ 5) — บอททัก DM ────────────────────────────
+# เว็บกับบอทเป็นคนละโปรเซส ตรวจสิทธิ์ที่นี่แล้วโยนคิวให้บอทไปยิง DM จริง
+# (แบบแผนเดียวกับ role_grant_queue → bot/cogs/role_grant_worker.py)
+
+class LobbyInviteBody(BaseModel):
+    game: str = ""
+    to: str = ""
+    # ⚠️ ห้ามเพิ่ม from_uid/code ที่นี่เด็ดขาด — ต้องมาจาก session + lobby.room_of() เท่านั้น
+    # (ไม่งั้นคนยิง API ตรง ๆ ชวนเข้าห้องคนอื่น หรือปลอมตัวเป็นคนอื่นชวนได้)
+
+
+@router.post("/lobby/invite")
+def lobby_invite(body: LobbyInviteBody, request: Request):
+    """🔒 uid คนชวนมาจาก session เท่านั้น · code หาเองจาก lobby.room_of()
+    ห้ามรับ from_uid/code จาก body ไม่งั้นคนยิง API ตรง ๆ ชวนเข้าห้องคนอื่นได้"""
+    uid = int(require_player(request)["uid"])
+    from bot.cogs.lobby_invite import validate
+    from bot import friends, lobby
+
+    to_uid = friends.parse_id(body.to)
+    game = str(body.game or "")
+    code = lobby.room_of(game, uid)
+    if not code:
+        raise HTTPException(400, "❌ คุณไม่ได้อยู่ในห้องเกมนี้")
+
+    ok, msg = validate(uid, to_uid, game, code)
+    if not ok:
+        raise HTTPException(400, msg)
+
+    with web_db.connect() as conn:
+        conn.execute(
+            "INSERT INTO lobby_invite_queue(from_uid, to_uid, game, code) VALUES (?,?,?,?)",
+            (str(uid), str(to_uid), game, code))
+    return {"ok": True, "message": "📨 ส่งคำเชิญแล้ว รอเพื่อนกดรับในดิสคอร์ด"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

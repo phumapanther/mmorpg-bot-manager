@@ -62,6 +62,19 @@ CREATE TABLE IF NOT EXISTS role_grant_queue (
     resolved_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_grant_pending ON role_grant_queue(status, id);
+-- 🎴 สะพานชวนเพื่อนเข้าห้อง (งานที่ 5) — เว็บเช็คสิทธิ์แล้วโยนแถวมา บอทค่อยยิง DM จริง
+CREATE TABLE IF NOT EXISTS lobby_invite_queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_uid TEXT NOT NULL,
+    to_uid TEXT NOT NULL,
+    game TEXT NOT NULL,
+    code TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',    -- pending | done | failed
+    note TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now', 'localtime')),
+    resolved_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_invite_pending ON lobby_invite_queue(status, id);
 -- 💓 บอทยังออนไลน์อยู่ไหม — แถวเดียวจบ บอทประทับเวลาทุกรอบที่ไล่คิวแจกยศ
 -- เว็บใช้ตัดสินว่า "ซื้อยศได้ไหม" เพราะยศต้องให้บอทเป็นคนแจก บอทดับ = ซื้อแล้วค้าง
 CREATE TABLE IF NOT EXISTS bot_heartbeat (

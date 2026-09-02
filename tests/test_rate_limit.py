@@ -135,3 +135,32 @@ def test_the_layout_survives_a_375px_phone():
     block = css[css.index("@media (max-width: 400px)"):]
     for sel in (".g-grid", ".bet-row", ".board", ".adv-hud"):
         assert sel in block[:1400], f"จอแคบยังไม่ได้จัด {sel}"
+
+
+# ── ทางที่แตะเงินต้องอยู่กลุ่ม money ทุกเส้น ──
+# เคยพลาดมาแล้ว: เพิ่มเดิมพันเข้า UNO (09-02) แต่ลืมย้ายจากกลุ่ม write
+# ทำให้ยิงถี่ได้กว่าคาสิโนอื่นทั้งที่แตะทองจริงเหมือนกัน
+
+MONEY_PATHS = [
+    "/api/web/uno",           # ศึกไพ่รูน — โต๊ะเดิมพันกับเพื่อน
+    "/api/web/uno/room",
+    "/api/web/blackjack",
+    "/api/web/bank",
+    "/api/web/goldbar",
+    "/api/web/topup",
+    "/api/web/roleshop",
+]
+
+
+@pytest.mark.parametrize("path", MONEY_PATHS)
+def test_ทางที่แตะเงินต้องอยู่กลุ่ม_money(path):
+    got = rate_limit.group_for(path, "POST")
+    assert got == "money", f"{path} อยู่กลุ่ม {got!r} ควรเป็น 'money'"
+
+
+def test_กลุ่ม_money_คุมแน่นกว่ากลุ่ม_write():
+    """ถ้า money หลวมกว่า write การจัดกลุ่มก็ไม่มีความหมาย"""
+    money, write = rate_limit.LIMITS["money"], rate_limit.LIMITS["write"]
+    m_rate = money[0] / money[1]
+    w_rate = write[0] / write[1]
+    assert m_rate <= w_rate, f"money ({money}) ต้องไม่หลวมกว่า write ({write})"

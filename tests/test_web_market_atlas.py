@@ -169,8 +169,9 @@ def _soon_tiles():
     ⚠️ regex ต้องเผื่อ attribute หลัง class — ของเดิมจับ `class="g-tile soon">` เป๊ะ ๆ
     พอเพิ่ม disabled เข้าไปเลยจับไม่ได้สักปุ่ม เทสผ่านทั้งที่ไม่ได้ตรวจอะไรเลย
     """
+    # \s+ กันไว้เพราะ IDE จัดรูปแบบใหม่แยก <button กับ class="..." ไปคนละบรรทัดได้
     return {s.strip() for s in re.findall(
-        r'<button class="g-tile soon"[^>]*>.*?<span class="ic">[^<]*</span>([^<]+)<', HTML, re.S)}
+        r'<button\s+class="g-tile soon"[^>]*>.*?<span class="ic">[^<]*</span>([^<]+)<', HTML, re.S)}
 
 
 def test_only_the_unbuilt_button_is_left_marked_as_coming_later():
@@ -183,7 +184,7 @@ def test_only_the_unbuilt_button_is_left_marked_as_coming_later():
 
 def test_the_teaser_buttons_really_cannot_be_clicked():
     """โชว์ให้เห็นว่ากำลังจะมี แต่ต้องกดไม่ได้จริง ไม่ใช่กดแล้วเงียบให้ผู้เล่นงง"""
-    found = re.findall(r'<button class="g-tile soon"([^>]*)>', HTML)
+    found = re.findall(r'<button\s+class="g-tile soon"([^>]*)>', HTML)
     assert len(found) == len(PLANNED_SOON), \
         f"เจอปุ่มเร็ว ๆ นี้ {len(found)} ปุ่ม แต่ในแผนมี {len(PLANNED_SOON)}"
     for attrs in found:

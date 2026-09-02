@@ -68,7 +68,8 @@ def test_no_menu_button_is_left_marked_as_coming_later_without_reason():
     ⚠️ regex ต้องเผื่อ attribute หลัง class ด้วย — ของเดิมจับ `class="g-tile soon">` เป๊ะ ๆ
     พอเพิ่ม disabled เข้าไปเลยจับไม่ได้สักปุ่ม เทสผ่านทั้งที่ไม่ได้ตรวจอะไรเลย
     """
-    soon = re.findall(r'<button class="g-tile soon"[^>]*>.*?<span class="ic">[^<]*</span>([^<]+)<',
+    # \s+ กันไว้เพราะ IDE จัดรูปแบบใหม่แยก <button กับ class="..." ไปคนละบรรทัดได้
+    soon = re.findall(r'<button\s+class="g-tile soon"[^>]*>.*?<span class="ic">[^<]*</span>([^<]+)<',
                       HTML, re.S)
     assert soon, "ไม่เจอปุ่มเร็ว ๆ นี้เลยสักปุ่ม — regex อ่านไม่ออกหรือเปล่า?"
     done = {"เดินต่อ ×5", "เดินเร็ว ×5", "สรุปทุกทวีป", "ตลาดผู้เล่น"}

@@ -221,11 +221,17 @@ def test_every_menu_button_has_intact_markup():
     bad = []
     for m in re.finditer(r'<button[^>]*class="g-tile[^"]*"[^>]*>(.*?)</button>', html, re.S):
         body = m.group(1)
+        # IDE จัดรูปแบบใหม่แทรกช่องว่าง/ขึ้นบรรทัดใหม่ระหว่างแท็กกับแอตทริบิวต์ได้
+        # (เช่น "<span\n  class=" หรือ "</span\n  >") — ยุบเหลือช่องว่างเดียวก่อนเช็ค
+        # เพื่อให้ทนการจัดรูปแบบ แต่ยังจับมาร์กอัปพังจริงได้เหมือนเดิม
+        flat = re.sub(r"\s+", " ", body)
+        flat = re.sub(r"<\s+", "<", flat)
+        flat = re.sub(r"\s+>", ">", flat)
         go = re.search(r'data-go="(\w+)"', m.group(0))
         name = go.group(1) if go else "(ไม่มี data-go)"
-        if body.count("<span") != body.count("</span>"):
+        if flat.count("<span") != flat.count("</span>"):
             bad.append(f"{name}: span ไม่สมดุล")
-        elif re.search(r'(?<!<span )class="(ic|sub|tag)"', body):
+        elif re.search(r'(?<!<span )class="(ic|sub|tag)"', flat):
             bad.append(f"{name}: มี class= ลอยไม่มีแท็กเปิด")
     assert not bad, f"ปุ่มเมนูมาร์กอัปพัง: {bad}"
 
