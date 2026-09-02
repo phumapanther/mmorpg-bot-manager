@@ -6,7 +6,10 @@ import pytest
 from PIL import Image
 
 import license_server.web_db as web_db
-from bot.cogs import web_link
+# ⚠️ ต้อง import จากโมดูลจริง (bot.apps.bot_game.web_link) ไม่ใช่สะพาน bot.cogs.web_link
+# เพราะ monkeypatch.setattr(web_link, "UPLOAD_DIR", ...) ด้านล่างต้อง patch ตัวแปร global
+# ของไฟล์ที่ create_topup() นิยามจริง ไม่ใช่ของสะพาน (แพตช์ที่สะพานจะไม่มีผล)
+from bot.apps.bot_game import web_link
 
 
 @pytest.fixture

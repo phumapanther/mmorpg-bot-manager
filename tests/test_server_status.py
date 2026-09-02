@@ -24,8 +24,12 @@ def test_flag_lives_outside_the_synced_project_folder():
 
 
 def test_stale_flag_is_ignored(tmp_path, monkeypatch):
-    """ธงเก่า (ไฟล์ค้าง/ถูกซิงค์กลับมา) ต้องถูกทิ้ง ไม่ใช่สั่งปิดบอท"""
-    import bot.cogs.server_status as ss
+    """ธงเก่า (ไฟล์ค้าง/ถูกซิงค์กลับมา) ต้องถูกทิ้ง ไม่ใช่สั่งปิดบอท
+
+    ⚠️ ต้อง patch ที่โมดูลจริง (bot.apps.bot_worker.server_status) ไม่ใช่ที่สะพาน
+    bot.cogs.server_status — ฟังก์ชันมองตัวแปร global ของไฟล์ที่นิยามจริง
+    """
+    import bot.apps.bot_worker.server_status as ss
     flag = tmp_path / "stale.flag"
     flag.write_text("")
     monkeypatch.setattr(ss, "SHUTDOWN_FLAG", str(flag))

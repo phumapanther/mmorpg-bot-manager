@@ -19,7 +19,7 @@ def test_o7_village_shortcuts():
 
 def test_o8_warguild_channel_locked():
     import pathlib
-    src = pathlib.Path("bot/cogs/guild_war.py").read_text(encoding="utf-8")
+    src = pathlib.Path("bot/apps/bot_game/guild_war.py").read_text(encoding="utf-8")
     assert 'allowed_channel("guild_war")' in src
     cfg = json.load(open("config.example.json", encoding="utf-8"))
     assert cfg["channels"]["guild_war"]["channel_id"] is None      # ไม่ตั้ง = ใช้ได้ทุกห้อง (ของเดิมไม่พัง)

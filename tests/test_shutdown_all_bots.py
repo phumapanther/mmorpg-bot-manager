@@ -74,6 +74,6 @@ def test_registry_lives_outside_the_entrypoint_module():
     assert "ACTIVE_BOTS = []" not in main_src, "ทะเบียนต้องอยู่ใน bot/bot_registry.py"
     assert "bot_registry.register" in main_src
 
-    cog_src = pathlib.Path("bot/cogs/server_status.py").read_text(encoding="utf-8")
+    cog_src = pathlib.Path("bot/apps/bot_worker/server_status.py").read_text(encoding="utf-8")
     assert "from bot.main import" not in cog_src, "cog ห้าม import bot.main (ได้โมดูลคนละก้อน)"
     assert "bot_registry.close_all" in cog_src

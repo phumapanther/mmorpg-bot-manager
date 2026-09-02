@@ -1,5 +1,6 @@
 """P8-① ชั้นแยกเซิร์ฟหลัก/เซิร์ฟรอง"""
 import asyncio
+import pathlib
 from types import SimpleNamespace
 
 from bot import config_loader, utils
@@ -9,6 +10,33 @@ def _ctx(guild_id, sent):
     async def send(msg=None, **kw):
         sent.append(msg)
     return SimpleNamespace(guild=SimpleNamespace(id=guild_id), send=send)
+
+
+def _cog_source(name):
+    """หา source จริงของ cog ไม่ว่าจะย้ายไป bot/apps/{bot_game,bot_admin,bot_worker}/
+    แล้วหรือยังค้างอยู่ที่ bot/cogs/ (รื้อโครงสร้างทีละก้อน — กันต้องมาแก้เทสซ้ำ)"""
+    for group in ("bot_admin", "bot_worker", "bot_game"):
+        p = pathlib.Path(f"bot/apps/{group}/{name}.py")
+        if p.is_file():
+            return p.read_text(encoding="utf-8")
+    return pathlib.Path(f"bot/cogs/{name}.py").read_text(encoding="utf-8")
+
+
+def _all_real_cog_sources():
+    """เนื้อโค้ดจริงของทุก cog — ข้ามไฟล์สะพานที่ bot/cogs/ (ไม่มีเนื้อให้เช็ค)"""
+    sources = {}
+    for py_file in pathlib.Path("bot/apps").rglob("*.py"):
+        if py_file.name == "__init__.py":
+            continue
+        sources[py_file.name] = py_file.read_text(encoding="utf-8")
+    for py_file in pathlib.Path("bot/cogs").glob("*.py"):
+        if py_file.name == "__init__.py":
+            continue
+        src = py_file.read_text(encoding="utf-8")
+        if "เหลือไว้เป็นสะพาน" in src:
+            continue
+        sources[py_file.name] = src
+    return sources
 
 
 def test_is_main_server_default_true(monkeypatch):
@@ -42,22 +70,20 @@ def test_config_keys_exist():
 
 def test_locked_cogs_have_main_server_gate():
     """cog ที่ต้องล็อกไว้เซิร์ฟหลัก ต้องมีด่านเช็คจริง (กันเผลอลบตอน refactor)"""
-    import pathlib
     must_gate = ["casino", "blackjack", "role_shop", "payment", "pvp_duel", "world_boss",
                  "world_admin", "private_room", "owner_announce", "guild", "guild_war",
                  "admin_commands"]
     for name in must_gate:
-        src = pathlib.Path(f"bot/cogs/{name}.py").read_text(encoding="utf-8")
+        src = _cog_source(name)
         assert ("main_server_gate(ctx)" in src or "is_main_server(ctx)" in src), f"{name} ไม่มีด่านเซิร์ฟหลัก!"
 
 
 def test_adventure_commands_stay_open():
     """คำสั่งเล่นผจญภัยต้องไม่ถูกล็อก (guest ต้องใช้ได้)"""
-    import pathlib
-    gc = pathlib.Path("bot/cogs/game_commands.py").read_text(encoding="utf-8")
+    gc = _cog_source("game_commands")
     assert "async def cog_check" not in gc          # ไม่ล็อกทั้ง cog (มี !play/!menu)
     assert "@main_server_only()" in gc              # แต่ล็อก !shop
-    adv = pathlib.Path("bot/cogs/adventure_zone.py").read_text(encoding="utf-8")
+    adv = _cog_source("adventure_zone")
     assert "is_main_server" not in adv              # !adv เปิดให้เซิร์ฟรอง
 
 
@@ -98,9 +124,9 @@ def test_adventure_room_only_gate(monkeypatch):
 
 def test_all_player_commands_have_a_room_gate():
     """กันลืม: ทุกคำสั่งผู้เล่นต้องมีด่านห้องอย่างใดอย่างหนึ่ง (config หรือมิติส่วนตัว)"""
-    import pathlib, re
+    import re
     for f in ("player_commands", "game_commands"):
-        src = pathlib.Path(f"bot/cogs/{f}.py").read_text(encoding="utf-8")
+        src = _cog_source(f)
         for m in re.finditer(r'((?:^    @[^\n]*\n)+)    async def \w+', src, re.M):
             block = m.group(1)
             name = re.search(r'command\(name="([^"]+)"', block)
@@ -128,10 +154,8 @@ def test_gate_explains_instead_of_silent(monkeypatch):
 
 def test_no_cog_blocks_silently():
     """กันลืม: cog ที่ล็อกเซิร์ฟหลักต้องใช้ main_server_gate (ไม่ใช่ return is_main_server เฉย ๆ)"""
-    import pathlib
-    for f in pathlib.Path("bot/cogs").glob("*.py"):
-        src = f.read_text(encoding="utf-8")
-        assert "return is_main_server(ctx)" not in src, f"{f.name} บล็อกเงียบ — ใช้ main_server_gate แทน"
+    for fname, src in _all_real_cog_sources().items():
+        assert "return is_main_server(ctx)" not in src, f"{fname} บล็อกเงียบ — ใช้ main_server_gate แทน"
 
 
 def test_snowflake_ids_never_converted_to_js_number():

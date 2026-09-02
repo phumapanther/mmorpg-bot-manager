@@ -74,7 +74,7 @@ def test_allowed_channel_skips_on_secondary_server(monkeypatch):
 def test_play_room_rule_only_on_main_server():
     """!play ในเซิร์ฟรองไม่ต้องเปิดมิติส่วนตัวก่อน"""
     import pathlib
-    src = pathlib.Path("bot/cogs/game_commands.py").read_text(encoding="utf-8")
+    src = pathlib.Path("bot/apps/bot_game/game_commands.py").read_text(encoding="utf-8")
     assert "if is_main_server(ctx) and required_room_part not in current_room_name:" in src
 
 

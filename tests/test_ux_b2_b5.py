@@ -147,7 +147,7 @@ def test_b6_files_got_smaller():
 def test_typed_commands_attach_views():
     """!bank / !bag พิมพ์เองต้องมีปุ่มติดมาด้วย (เดิมมีเฉพาะตอนกดจากเมนู)"""
     import pathlib
-    src = pathlib.Path("bot/cogs/player_commands.py").read_text(encoding="utf-8")
+    src = pathlib.Path("bot/apps/bot_game/player_commands.py").read_text(encoding="utf-8")
     assert "view=BankActionView()" in src, "!bank ไม่มีปุ่มฝาก/ถอน/โอน"
     assert "view=BagActionView(ctx.author.id)" in src, "!bag ไม่มีปุ่มคราฟ/ทิ้ง/ขาย"
 

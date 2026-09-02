@@ -71,7 +71,7 @@ def test_a_new_day_gives_the_quota_back(hero):
 def test_the_quota_is_shared_with_discord():
     """ทอยบนเว็บกับใน !board ต้องหักโควตาก้อนเดียวกัน"""
     api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
-    cog = pathlib.Path("bot/cogs/dice_board_cmd.py").read_text(encoding="utf-8")
+    cog = pathlib.Path("bot/apps/bot_game/dice_board_cmd.py").read_text(encoding="utf-8")
     assert "dice_board.roll(uid)" in api and "dice_board.roll(self.user_id)" in cog
 
 
