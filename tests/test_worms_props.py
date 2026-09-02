@@ -66,7 +66,7 @@ def test_a_castle_shows_up_on_most_maps():
 
 
 WALL = (T.WOOD, T.BRICK)
-# ใช้ขนาดตัวจริงกับตัวเดินจริงจาก bot/pvp/physics.py
+# ใช้ขนาดตัวจริงกับตัวเดินจริงจาก bot/games/pvp/physics.py
 # ไม่เขียนโมเดลเดินของตัวเองในเทส ไม่งั้นพอปรับขนาดตัวละครทีเดียวเทสเพี้ยนหมด
 HEAD = T.CH_H
 
@@ -215,7 +215,7 @@ def test_leaves_are_not_a_floor():
 
 
 def test_the_ground_is_skinned_before_anything_is_planted():
-    src = pathlib.Path("bot/pvp/terrain.py").read_text(encoding="utf-8")
+    src = pathlib.Path("bot/games/pvp/terrain.py").read_text(encoding="utf-8")
     body = src[src.index("def generate("):]
     assert body.index("_skin(g)") < body.index("_decorate(rng, g)"), \
         "ปลูกของก่อนทาผิวดิน — หลังคาบ้านจะกลายเป็นหญ้า"

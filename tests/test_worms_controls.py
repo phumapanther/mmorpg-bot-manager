@@ -673,7 +673,7 @@ def test_a_small_step_down_is_still_fine():
 
 
 def test_the_player_walk_always_blocks_walking_into_the_sea():
-    body = pathlib.Path("bot/pvp/match.py").read_text(encoding="utf-8")
+    body = pathlib.Path("bot/games/pvp/match.py").read_text(encoding="utf-8")
     assert "no_drown=True" in body, "move() ไม่ได้ห้ามเดินลงทะเล"
     assert body.count("no_drown=True") >= 2, "แรงกระแทกหรือการเดินอย่างใดอย่างหนึ่งยังไม่ได้ห้าม"
 
