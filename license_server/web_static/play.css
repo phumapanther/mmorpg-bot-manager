@@ -1262,3 +1262,55 @@ body.bar-min .pbar .money { margin-left: auto; }
 .party-plan li:last-child {
   border-bottom: 0;
 }
+
+/* ── ล็อบบี้ปาร์ตี้ (เฟส 2) ── */
+.party-lobby { width: 100%; max-width: 520px; text-align: center; }
+.party-hint { color: var(--g-muted); margin: 0 0 14px; line-height: 1.7; }
+.party-code {
+  font-size: 15px;
+  color: var(--g-muted);
+  margin-bottom: 14px;
+}
+.party-code b {
+  font-size: 26px;
+  letter-spacing: 4px;
+  color: var(--g-gold);
+  margin: 0 8px;
+}
+.party-code .mini {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--g-line);
+  background: none;
+  color: var(--g-muted);
+  cursor: pointer;
+}
+.party-seats { list-style: none; padding: 0; margin: 0 0 16px; }
+.party-seats li {
+  padding: 9px 12px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  text-align: left;
+}
+.party-seats li.empty { color: var(--g-muted); opacity: 0.5; }
+.party-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.party-btns .go {
+  padding: 11px 20px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--g-hi);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.party-btns .go:disabled { opacity: 0.45; cursor: not-allowed; }
+.party-btns .out {
+  padding: 11px 16px;
+  border: 1px solid var(--g-line);
+  border-radius: 10px;
+  background: none;
+  color: var(--g-muted);
+  cursor: pointer;
+}

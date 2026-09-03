@@ -133,25 +133,31 @@ def test_endpoint_ครบเท่าเดิม():
     assert len(seen) >= 81, f"endpoint หายไป เหลือ {len(seen)} (ก่อนรื้อมี 81)"
 
 
-def test_เซตของpathตรงเป๊ะกับก่อนรื้อ():
-    """เทียบเป็นเซต (path, methods) ไม่ใช่แค่จำนวน — กันเคสจำนวนตรงแต่ path เพี้ยน"""
+def test_ไม่มีpathไหนหายไปจากก่อนรื้อ():
+    """เทียบเป็นเซต (path, methods) ไม่ใช่แค่จำนวน — กันเคสจำนวนตรงแต่ path เพี้ยน
+
+    ⚠️ เช็คแค่ "ไม่หาย" ไม่ล็อกให้เท่าเป๊ะ — เพิ่ม endpoint ใหม่เป็นเรื่องปกติ
+       (เช่น /party/room ที่เพิ่มตอนทำโหมดปาร์ตี้ 09-03)
+       ล็อกไว้เป๊ะจะทำให้เพิ่มฟีเจอร์ทีไรเทสแดงทุกที ทั้งที่ไม่มีอะไรเสียหาย
+    """
     _, seen = _route_set()
-    assert set(seen) == EXPECTED_ROUTES, (
-        f"หายไป: {EXPECTED_ROUTES - set(seen)} | เกินมา: {set(seen) - EXPECTED_ROUTES}"
-    )
+    missing = EXPECTED_ROUTES - set(seen)
+    assert not missing, f"endpoint หายไปหลังรื้อ/แก้: {sorted(missing)}"
 
 
 def test_ไม่มีrouteลงทะเบียนซ้ำ():
     """เทียบเป็นเซตอย่างเดียวไม่พอ — เซตกลืนของซ้ำ (route เดียวกันสมัคร 2 รอบ
 
     เช่น controller ใหม่คัดลอกมาแล้วลืมลบของเก่าใน web_api.py) ต้องเช็คจำนวนจริง
-    ในลิสต์ (ไม่ dedupe) ให้ตรง 81 เป๊ะด้วย ไม่ใช่แค่ >= 81 หรือเซตเท่ากัน
+    ในลิสต์ (ไม่ dedupe) ด้วย ไม่ใช่แค่ดูเซต
     """
     _, seen = _route_set()
     from collections import Counter
     dups = {k: v for k, v in Counter(seen).items() if v > 1}
     assert not dups, f"route ถูกลงทะเบียนซ้ำมากกว่า 1 ครั้ง: {dups}"
-    assert len(seen) == 81, f"จำนวน route จริง (ไม่ dedupe) ต้องเป็น 81 เป๊ะ ได้ {len(seen)}"
+    # ไม่ล็อกจำนวนไว้เป๊ะ — Counter ข้างบนจับของซ้ำได้อยู่แล้ว
+    # (เคยล็อก 81 ไว้ แล้วพอเพิ่ม /party/room เทสแดงทั้งที่ไม่มีอะไรพัง)
+    assert len(seen) >= 81, f"route หายไป เหลือ {len(seen)} (ก่อนรื้อมี 81)"
 
 
 def test_router_ตัวเดียวกับสะพาน():

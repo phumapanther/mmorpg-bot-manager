@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/web")
 from license_server.api_web import (  # noqa: E402
     adventure, admin, auth, bank, misc, player, shop, topup,
 )
-from license_server.api_web.games import casino, pvp, uno  # noqa: E402
+from license_server.api_web.games import casino, party, pvp, uno  # noqa: E402
 
-for _m in (auth, bank, misc, topup, adventure, admin, shop, player, casino, pvp, uno):
+for _m in (auth, bank, misc, topup, adventure, admin, shop, player, casino, pvp, uno, party):
     router.include_router(_m.router)

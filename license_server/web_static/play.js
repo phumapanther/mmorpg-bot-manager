@@ -148,6 +148,7 @@ function showPanel(id) {
   if (id === 'friends') fillFriends().catch(e => toast(e.message, true));
   if (id === 'worms') wmShowGate();
   if (id === 'uno') fillUno();
+  if (id === 'party') fillParty();
   if (id === 'market') fillMarket().catch(e => toast(e.message, true));
   if (id === 'season') fillSeason().catch(e => toast(e.message, true));
   if (id === 'partner') fillPartner().catch(e => toast(e.message, true));

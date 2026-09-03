@@ -165,3 +165,28 @@ def test_กลุ่ม_money_คุมแน่นกว่ากลุ่ม_
     m_rate = money[0] / money[1]
     w_rate = write[0] / write[1]
     assert m_rate <= w_rate, f"money ({money}) ต้องไม่หลวมกว่า write ({write})"
+
+
+# ── ตัวกันลืมแบบ "ติดเองเมื่อถึงเวลา" ──
+# ศึกไพ่รูนเคยพลาด: เพิ่มเดิมพันทองเข้าเกมแล้วลืมย้ายกลุ่ม rate limit
+# อยู่กลุ่ม write (30 ครั้ง/นาที) ทั้งที่แตะทองจริง กว่าจะเจอก็ผ่านไปหลายวัน
+#
+# เทสนี้เงียบตอนที่เกมยังไม่แตะเงิน แล้ว **แดงเองทันทีที่ไฟล์รางวัลโผล่มา**
+# ไม่ต้องพึ่งความจำใคร
+
+def test_เกมที่เพิ่งมีระบบรางวัลต้องย้ายเข้ากลุ่ม_money():
+    """เกมไหนมีไฟล์ rewards.py แล้ว = แตะเงินแล้ว ต้องอยู่กลุ่ม money"""
+    import pathlib
+
+    watched = {
+        "party": "/api/web/party",      # ชวนเพื่อนเดินทาง (เฟส 5 จะมี rewards.py)
+    }
+    for game, api_path in watched.items():
+        has_rewards = pathlib.Path(f"bot/games/{game}/rewards.py").is_file()
+        if not has_rewards:
+            continue                     # ยังไม่แตะเงิน ข้ามไป
+        got = rate_limit.group_for(api_path, "POST")
+        assert got == "money", (
+            f"bot/games/{game}/rewards.py มีแล้ว = เกมนี้แตะเงินแล้ว "
+            f"แต่ {api_path} ยังอยู่กลุ่ม {got!r} — "
+            f"เพิ่ม \"{api_path}\": \"money\" ใน license_server/rate_limit.py")
