@@ -94,19 +94,41 @@ EXPECTED_ROUTES = {
 }
 
 
+def _flatten(routes, prefix=""):
+    """คลี่ route ให้เป็น (path, methods) แบน ๆ พร้อมต่อ prefix ให้ครบ
+
+    ⚠️ กับดักที่บรีฟเตือนไว้: FastAPI เวอร์ชันนี้ห่อ route ที่มาจาก include_router()
+    (ทั้ง app.include_router และ router.include_router ที่ซ้อนกันในนี้ตอนรวม controller
+    ย่อยเข้า api_web.router) เป็น `_IncludedRouter` ซึ่งไม่มี .path/.methods ตรง ๆ
+    และ .path ของ route ข้างในเป็น path สัมพัทธ์ (ไม่มี prefix ของ router ที่ include มัน)
+    ต้องคลี่ผ่าน .original_router.routes แล้วต่อ prefix จาก .include_context เอง
+    """
+    out = []
+    for r in routes:
+        if hasattr(r, "original_router"):
+            sub_prefix = getattr(r.include_context, "prefix", "") or ""
+            out.extend(_flatten(r.original_router.routes, prefix + sub_prefix))
+        elif hasattr(r, "path") and hasattr(r, "methods"):
+            out.append((prefix + r.path, tuple(sorted(r.methods))))
+    return out
+
+
 def _route_set():
     from license_server import web_api
     routes = list(web_api.router.routes)
-    seen = []
-    for r in routes:
-        seen.append((r.path, tuple(sorted(r.methods))))
+    seen = _flatten(routes)
     return routes, seen
 
 
 def test_endpoint_ครบเท่าเดิม():
-    """เส้นฐานจริงที่วัดไว้ก่อนรื้อ: len(web_api.router.routes) == 81 — ตัวเลขห้ามลด"""
-    routes, _ = _route_set()
-    assert len(routes) >= 81, f"endpoint หายไป เหลือ {len(routes)} (ก่อนรื้อมี 81)"
+    """เส้นฐานจริงที่วัดไว้ก่อนรื้อ: 81 endpoint จริง — ตัวเลขห้ามลด
+
+    ⚠️ นับจาก web_api.router.routes ตรง ๆ ใช้ไม่ได้อีกต่อไปหลังเริ่มรวม controller ย่อย
+    (route ที่มาจาก include_router ถูกห่อเป็น _IncludedRouter 1 ก้อนต่อ 1 sub-router
+    ไม่ใช่ 1 ก้อนต่อ 1 endpoint) ต้องคลี่ด้วย _flatten() ก่อนนับเสมอ
+    """
+    _, seen = _route_set()
+    assert len(seen) >= 81, f"endpoint หายไป เหลือ {len(seen)} (ก่อนรื้อมี 81)"
 
 
 def test_เซตของpathตรงเป๊ะกับก่อนรื้อ():
