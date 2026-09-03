@@ -14,6 +14,7 @@ import pytest
 import bot.models.player_model as pm
 from bot.pvp import match, physics as P, terrain as T, weapons as W
 from license_server import web_db
+from tests import conftest
 
 NL = chr(10)
 UID = 6301
@@ -463,7 +464,7 @@ def test_the_browser_never_decides_damage():
 
 
 def test_the_api_only_takes_a_skill_and_an_aim():
-    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    api = conftest.web_api_source()
     body = api[api.index("class WormsBody"):api.index('@router.post("/pvp/worms/match")')]
     for leaked in ("damage", "hp", "target"):
         assert leaked not in body, f"API รับ {leaked} จากเบราว์เซอร์ — โกงได้ทันที"
@@ -507,7 +508,11 @@ def web(tmp_path, monkeypatch):
     monkeypatch.setattr(web_db, "DB_PATH", tmp_path / "w.db")
     pm.init_db()
     pm.get_player(UID)
-    monkeypatch.setattr(web_api, "GAME_DB_PATH", tmp_path / "g.db")
+    from license_server.api_web import deps as _api_web_deps
+
+    monkeypatch.setattr(_api_web_deps, "GAME_DB_PATH", tmp_path / "g.db")
+
+    monkeypatch.setattr(web_api, "GAME_DB_PATH", tmp_path / "g.db")  # เผื่อโค้ดเก่าอ่านผ่าน web_api
     app = FastAPI()
     app.include_router(web_api.router)
     c = TestClient(app)

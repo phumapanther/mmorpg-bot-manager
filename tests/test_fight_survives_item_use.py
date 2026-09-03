@@ -29,7 +29,11 @@ def web(tmp_path, monkeypatch):
     pm.get_player(UID)
     pm.update_player_fields(UID, {"current_state": "fighting", "hp": 50, "max_hp": 900,
                                   "inventory": ["1", "77"], "capacity": 20})
-    monkeypatch.setattr(web_api, "GAME_DB_PATH", tmp_path / "g.db")
+    from license_server.api_web import deps as _api_web_deps
+
+    monkeypatch.setattr(_api_web_deps, "GAME_DB_PATH", tmp_path / "g.db")
+
+    monkeypatch.setattr(web_api, "GAME_DB_PATH", tmp_path / "g.db")  # เผื่อโค้ดเก่าอ่านผ่าน web_api
     app = FastAPI()
     app.include_router(web_api.router)
     c = TestClient(app)

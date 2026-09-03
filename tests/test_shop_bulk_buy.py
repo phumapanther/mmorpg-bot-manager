@@ -11,9 +11,10 @@ import pytest
 import bot.models.player_model as pm
 from bot import config_loader
 from bot.cogs.player_commands import MAX_BUY_AT_ONCE, buy_item_for
+from tests import conftest
 
 UID = 9001
-API = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+API = conftest.web_api_source()
 PLAY = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
 HTML = pathlib.Path("license_server/web_static/play.html").read_text(encoding="utf-8")
 VIEWS = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")

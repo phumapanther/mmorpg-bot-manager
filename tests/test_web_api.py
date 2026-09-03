@@ -148,7 +148,11 @@ def _fake_game_db(tmp_path, monkeypatch, uid=555000111):
                  (uid,))
     conn.commit()
     conn.close()
-    monkeypatch.setattr(web_api, "GAME_DB_PATH", p)
+    from license_server.api_web import deps as _api_web_deps
+
+    monkeypatch.setattr(_api_web_deps, "GAME_DB_PATH", p)
+
+    monkeypatch.setattr(web_api, "GAME_DB_PATH", p)  # เผื่อโค้ดเก่าอ่านผ่าน web_api
     return p
 
 
@@ -260,8 +264,8 @@ def test_topup_qr_revisit_only_own_pending(client, tmp_path, monkeypatch):
 def test_topup_slip_upload_and_admin_view(client, tmp_path, monkeypatch):
     import io
     from PIL import Image
-    from license_server import web_api
-    monkeypatch.setattr(web_api, "UPLOAD_DIR", tmp_path / "uploads")
+    from license_server.api_web import topup as web_api_topup
+    monkeypatch.setattr(web_api_topup, "UPLOAD_DIR", tmp_path / "uploads")
     _fake_game_db(tmp_path, monkeypatch)
     _payment_config(monkeypatch)
     _login(client)
@@ -287,8 +291,8 @@ def test_topup_slip_upload_and_admin_view(client, tmp_path, monkeypatch):
 
 
 def test_topup_slip_rejects_garbage(client, tmp_path, monkeypatch):
-    from license_server import web_api
-    monkeypatch.setattr(web_api, "UPLOAD_DIR", tmp_path / "uploads")
+    from license_server.api_web import topup as web_api_topup
+    monkeypatch.setattr(web_api_topup, "UPLOAD_DIR", tmp_path / "uploads")
     _fake_game_db(tmp_path, monkeypatch)
     _payment_config(monkeypatch)
     _login(client)
@@ -392,7 +396,11 @@ def _real_game_db(tmp_path, monkeypatch, uid=555000111, **fields):
     pm.get_player(uid)                      # ผู้เล่นใหม่ตามค่าเริ่มต้นจริงของเกม
     if fields:
         pm.update_player_fields(uid, fields)
-    monkeypatch.setattr(web_api, "GAME_DB_PATH", p)
+    from license_server.api_web import deps as _api_web_deps
+
+    monkeypatch.setattr(_api_web_deps, "GAME_DB_PATH", p)
+
+    monkeypatch.setattr(web_api, "GAME_DB_PATH", p)  # เผื่อโค้ดเก่าอ่านผ่าน web_api
     return p
 
 
@@ -444,7 +452,11 @@ def test_me_game_new_player(client, tmp_path, monkeypatch):
     p = tmp_path / "game_data.db"
     monkeypatch.setattr(pm, "DB_NAME", str(p))
     pm.init_db()
-    monkeypatch.setattr(web_api, "GAME_DB_PATH", p)
+    from license_server.api_web import deps as _api_web_deps
+
+    monkeypatch.setattr(_api_web_deps, "GAME_DB_PATH", p)
+
+    monkeypatch.setattr(web_api, "GAME_DB_PATH", p)  # เผื่อโค้ดเก่าอ่านผ่าน web_api
     _login(client)
     assert client.get("/api/web/me/game").json() == {"new_player": True}
 
@@ -474,7 +486,11 @@ def _bind_pm(tmp_path, monkeypatch, **fields):
     from license_server import web_api
     p = tmp_path / "game_data.db"
     monkeypatch.setattr(pm, "DB_NAME", str(p))
-    monkeypatch.setattr(web_api, "GAME_DB_PATH", p)
+    from license_server.api_web import deps as _api_web_deps
+
+    monkeypatch.setattr(_api_web_deps, "GAME_DB_PATH", p)
+
+    monkeypatch.setattr(web_api, "GAME_DB_PATH", p)  # เผื่อโค้ดเก่าอ่านผ่าน web_api
     pm.init_db()
     pm.get_player(555000111)
     if fields:

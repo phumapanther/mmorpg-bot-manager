@@ -28,7 +28,11 @@ def web(tmp_path, monkeypatch):
 
     monkeypatch.setattr(pm, "DB_NAME", str(tmp_path / "g.db"))
     monkeypatch.setattr(web_db, "DB_PATH", tmp_path / "w.db")
-    monkeypatch.setattr(web_api, "GAME_DB_PATH", tmp_path / "g.db")
+    from license_server.api_web import deps as _api_web_deps
+
+    monkeypatch.setattr(_api_web_deps, "GAME_DB_PATH", tmp_path / "g.db")
+
+    monkeypatch.setattr(web_api, "GAME_DB_PATH", tmp_path / "g.db")  # เผื่อโค้ดเก่าอ่านผ่าน web_api
     pm.init_db()
     app = FastAPI()
     app.include_router(web_api.router)

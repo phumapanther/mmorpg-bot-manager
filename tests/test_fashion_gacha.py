@@ -14,6 +14,7 @@ import pytest
 
 import bot.models.player_model as pm
 from bot import fashion
+from tests import conftest
 
 UID = 8802
 RICH = 10_000_000_000            # ทองเยอะพอหมุนได้เรื่อย ๆ
@@ -258,7 +259,7 @@ def test_prices_and_odds_are_tunable(world, monkeypatch):
 
 
 def test_the_web_route_is_wired(world):
-    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    api = conftest.web_api_source()
     assert '@router.post("/fashion/gacha")' in api, "ไม่มีปุ่มหมุนฝั่งเว็บ"
     route = api[api.index('@router.post("/fashion/gacha")'):]
     route = route[:route.index("\n\n\n")] if "\n\n\n" in route else route
@@ -327,7 +328,11 @@ def web(tmp_path, monkeypatch):
     pm.get_player(UID)
     pm.update_player_fields(UID, {"cash": RICH, "capacity": 99, "inventory": "[]"})
     monkeypatch.setattr(fashion, "_starter_sets_free", lambda: False)
-    monkeypatch.setattr(web_api, "GAME_DB_PATH", tmp_path / "w.db")
+    from license_server.api_web import deps as _api_web_deps
+
+    monkeypatch.setattr(_api_web_deps, "GAME_DB_PATH", tmp_path / "w.db")
+
+    monkeypatch.setattr(web_api, "GAME_DB_PATH", tmp_path / "w.db")  # เผื่อโค้ดเก่าอ่านผ่าน web_api
     app = FastAPI()
     app.include_router(web_api.router)
     c = TestClient(app)

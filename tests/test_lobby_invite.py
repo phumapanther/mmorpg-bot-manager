@@ -187,7 +187,13 @@ def web(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
     from license_server import web_api
 
-    monkeypatch.setattr(web_api, "GAME_DB_PATH", tmp_path / "players.db")
+    from license_server.api_web import deps as _api_web_deps
+
+
+    monkeypatch.setattr(_api_web_deps, "GAME_DB_PATH", tmp_path / "players.db")
+
+
+    monkeypatch.setattr(web_api, "GAME_DB_PATH", tmp_path / "players.db")  # เผื่อโค้ดเก่าอ่านผ่าน web_api
     app = FastAPI()
     app.include_router(web_api.router)
 

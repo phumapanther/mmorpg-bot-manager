@@ -11,10 +11,11 @@ import pytest
 
 import bot.models.player_model as pm
 from bot import fashion
+from tests import conftest
 
 UID = 8801
 SPRITE = pathlib.Path("license_server/web_static/sprite.js").read_text(encoding="utf-8")
-API = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+API = conftest.web_api_source()
 
 
 @pytest.fixture

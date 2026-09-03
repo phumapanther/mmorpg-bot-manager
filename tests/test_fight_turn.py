@@ -9,6 +9,7 @@ import pytest
 
 import bot.models.player_model as pm
 from bot import adventure_core, config_loader, game_modifiers
+from tests import conftest
 
 WEAPON = {"atk": 10}
 ARMOR = {"hp": 100, "eva": 20}
@@ -300,7 +301,7 @@ def test_plain_attack_reports_no_heal(hero):
 def test_web_shows_the_last_turn_log_when_you_win():
     """ดิสโชว์ช่อง '📜 เทิร์นสุดท้าย' ในหน้าชนะ เว็บก็ต้องโชว์ ไม่งั้นเหมือนชนะทันทีโดยไม่ตี"""
     import pathlib
-    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    api = conftest.web_api_source()
     assert api.count('out["log"]') >= 2, "หน้าชนะบนเว็บต้องมีล็อกเทิร์นสุดท้าย"
     assert 'carry=t.get("db_updates")' in api, "เว็บต้องส่งผลเทิร์นสุดท้ายไปเซฟด้วย"
 

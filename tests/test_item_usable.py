@@ -11,8 +11,9 @@ import pytest
 import bot.models.player_model as player_model
 from bot import config_loader
 from bot.cogs import player_commands as pc
+from tests import conftest
 
-API = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+API = conftest.web_api_source()
 
 
 @pytest.fixture

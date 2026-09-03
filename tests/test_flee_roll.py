@@ -9,6 +9,7 @@ import pytest
 
 import bot.models.player_model as pm
 from bot import adventure_core as ac
+from tests import conftest
 
 UID = 7001
 
@@ -69,7 +70,7 @@ def test_being_rooted_has_no_roll_to_show(world, monkeypatch):
 
 def test_the_web_hands_the_roll_to_the_dice_box():
     import pathlib
-    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    api = conftest.web_api_source()
     block = api[api.index('if action == "flee":'):api.index('skill = action if')]
     assert '"roll"' in block, "เว็บไม่ได้ส่งผลทอยหนีไปให้กล่องเต๋า"
     assert "player_parts" in block, "รูปแบบไม่ตรงกับที่ showRoll ต้องการ"
