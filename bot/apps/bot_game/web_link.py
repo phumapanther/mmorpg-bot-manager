@@ -12,9 +12,12 @@ import time
 import discord
 from discord.ext import commands
 
+from app_paths import get_app_root
 from bot.utils import allowed_channel
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# ⚠️ ห้ามนับชั้นโฟลเดอร์เอง — ไฟล์นี้ย้ายจาก bot/cogs/ มา bot/apps/bot_game/ (ลึกลงอีกชั้น)
+#    แล้ว _ROOT เดิมชี้ผิดไปที่ bot/ ทำให้ !login เงียบ (website_url() คืนค่าว่าง)
+_ROOT = get_app_root()
 WEB_DB = os.path.join(_ROOT, "license_server", "web.db")
 URL_FILE = os.path.join(_ROOT, "LICENSE_SERVER_URL.txt")
 _CODE_RE = re.compile(r"^[A-Z0-9]{6}$")

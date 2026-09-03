@@ -128,3 +128,32 @@ def test_bot_admin_ทุกไฟล์ต้องล็อกสิทธิ�
     src = (APPS_ROOT / "bot_admin" / f"{name}.py").read_text(encoding="utf-8")
     assert any(pat in src for pat in _ADMIN_GATE_PATTERNS), (
         f"{name}.py ไม่พบด่านล็อกสิทธิ์แอดมิน/เจ้าของเซิร์ฟเลย — จัดกลุ่มผิดหรือลืมล็อกสิทธิ์")
+
+
+# ── path ที่ชี้ออกนอกโฟลเดอร์ตัวเองต้องใช้ get_app_root() ไม่ใช่นับชั้นเอง ──
+# บั๊กจริง 09-03: web_link.py ย้ายจาก bot/cogs/ มา bot/apps/bot_game/ (ลึกลงอีกชั้น)
+# แต่ยังนับ dirname 3 ชั้นเหมือนเดิม _ROOT เลยชี้ไป bot/ แทน root โปรเจ็ค
+# ผลคือ !login เงียบสนิท (website_url() คืนค่าว่างแล้ว return ก่อนตอบ)
+# เทสข้อความจับไม่ได้เลย เพราะโค้ดถูกทุกบรรทัด แค่ path ผิด
+
+def test_ไฟล์ใน_apps_ห้ามนับชั้นโฟลเดอร์หา_root_เอง():
+    """ย้ายไฟล์เมื่อไหร่ dirname ที่นับไว้ตายทันที — ใช้ get_app_root() แทน"""
+    bad = []
+    for f in pathlib.Path("bot/apps").rglob("*.py"):
+        src = f.read_text(encoding="utf-8")
+        for line in src.splitlines():
+            t = line.strip()
+            if t.startswith("_ROOT") and "os.path.dirname" in t:
+                bad.append(f"{f}: {t[:70]}")
+    assert not bad, (
+        "ไฟล์พวกนี้นับชั้นโฟลเดอร์เองหา root — ย้ายไฟล์แล้วจะชี้ผิดเงียบ ๆ\n"
+        + "\n".join(bad) + "\nใช้ `from app_paths import get_app_root` แทน")
+
+
+def test_path_ที่_web_link_ใช้ต้องมีอยู่จริง():
+    """เช็คปลายทางจริง ไม่ใช่แค่รูปแบบโค้ด — ชี้ผิดแล้วคำสั่งเงียบไม่มี error"""
+    from bot.apps.bot_game import web_link
+    root = pathlib.Path(web_link._ROOT)
+    assert (root / "requirements.txt").is_file(), (
+        f"_ROOT ชี้ผิดไปที่ {root} — ต้องเป็น root โปรเจ็ค (ที่มี requirements.txt)")
+    assert pathlib.Path(web_link.WEB_DB).parent.is_dir(), "WEB_DB ชี้ไปโฟลเดอร์ที่ไม่มีอยู่"
