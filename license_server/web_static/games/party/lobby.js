@@ -43,6 +43,12 @@ function partyPaint() {
   const box = document.getElementById('partyMount');
   if (!box) return;
 
+  // เข้าสู้แล้ว — renderer รับช่วงวาด หน้าล็อบบี้ถอยไป
+  if (PARTY && PARTY.in_room && PARTY.battle) {
+    partyPaintBattle();
+    return;
+  }
+
   if (!PARTY || !PARTY.in_room) {
     box.innerHTML = `
       <div class="party-lobby">
@@ -106,4 +112,102 @@ async function fillParty() {
   }
   partyPaint();
   partyWatch(PARTY && PARTY.in_room && PARTY.phase !== 'battle');
+}
+
+
+// ── หน้าจอสมรภูมิ (เฟส 3) ──
+
+let PARTY_PICK = null;      // ท่าที่เลือกไว้ รอเลือกเป้า
+
+/** ผู้เล่นคลิกเลือกเป้าบน canvas — renderer เรียกกลับมาที่นี่ */
+function onPartyPick(unitId, side) {
+  if (!PARTY_PICK) return;
+  partyAct(PARTY_PICK, unitId);
+}
+
+/** สั่งท่าไปที่เซิร์ฟเวอร์ — กติกาทั้งหมดตัดสินที่นั่น */
+async function partyAct(action, target) {
+  PARTY_PICK = null;
+  try {
+    const r = await api('POST', '/api/web/party/room',
+                        { action, target: target || '' });
+    PARTY = r.room;
+    if (PARTY.battle) pbSetState(PARTY.battle);
+    pbPlay(r.events || []);
+    partyPaintBar();
+    if (PARTY.battle && PARTY.battle.over) partyWatch(false);
+  } catch (e) {
+    toast(e.message, true);
+    partyPaintBar();
+  }
+}
+
+function partyPaintBattle() {
+  const box = document.getElementById('partyMount');
+  if (!box) return;
+  if (!document.getElementById('partyBar')) {
+    box.innerHTML = '<div id="partyCanvas"></div><div id="partyBar" class="party-bar"></div>';
+  }
+  pbMount('partyCanvas');
+  pbSetState(PARTY.battle);
+  partyPaintBar();
+}
+
+/** แถบคำสั่ง — โชว์ปุ่มเฉพาะตอนถึงตาเรา */
+function partyPaintBar() {
+  const bar = document.getElementById('partyBar');
+  const b = PARTY && PARTY.battle;
+  if (!bar || !b) return;
+
+  if (b.over) {
+    const win = b.winner === 'party';
+    bar.innerHTML = `
+      <div class="party-result ${win ? 'win' : 'lose'}">
+        <b>${win ? '🏆 ปาร์ตี้ชนะ!' : b.winner === 'flee' ? '🏃 หนีออกมาได้' : '💀 ปาร์ตี้แพ้'}</b>
+        <button class="out" id="partyOut">← ออกจากปาร์ตี้</button>
+      </div>`;
+    document.getElementById('partyOut').onclick = () => partyDo('leave');
+    return;
+  }
+
+  const me = (b.units || []).find(u => u.you);
+  const mine = me && b.turn_of === me.id;
+
+  if (!mine) {
+    const who = (b.units || []).find(u => u.id === b.turn_of);
+    bar.innerHTML = `<div class="party-wait">⏳ รอ ${who ? who.name : '...'} เลือกคำสั่ง</div>`;
+    return;
+  }
+
+  if (PARTY_PICK) {
+    bar.innerHTML = `
+      <div class="party-wait">🎯 คลิกเลือกเป้าหมายบนจอ
+        <button class="mini" id="partyCancel">ยกเลิก</button>
+      </div>`;
+    document.getElementById('partyCancel').onclick = () => {
+      PARTY_PICK = null;
+      partyPaintBar();
+    };
+    return;
+  }
+
+  bar.innerHTML = `
+    <button class="pb" data-a="attack">⚔️ โจมตี</button>
+    <button class="pb" data-a="skill">✨ สกิล</button>
+    <button class="pb" data-a="aoe">💥 กวาด</button>
+    <button class="pb" data-a="heal">💚 ฮีล</button>
+    <button class="pb" data-a="defend">🛡️ ป้องกัน</button>
+    <button class="pb" data-a="flee">🏃 หนี</button>`;
+  bar.querySelectorAll('.pb').forEach(btn => {
+    btn.onclick = () => {
+      const a = btn.dataset.a;
+      // ท่าที่ไม่ต้องเล็ง สั่งได้เลย · ท่าที่ต้องเล็งรอคลิกเป้าบนจอ
+      if (a === 'defend' || a === 'flee' || a === 'aoe') {
+        partyAct(a, '');
+      } else {
+        PARTY_PICK = a;
+        partyPaintBar();
+      }
+    };
+  });
 }

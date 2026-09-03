@@ -4,6 +4,8 @@
 """
 import pathlib
 import re
+import shutil
+import subprocess
 
 import pytest
 
@@ -120,3 +122,34 @@ def test_ใช้ตัวแปรสีที่นิยามจริง()
     assert "var(--g-text)" not in block
     for used in set(re.findall(r"var\((--g-[a-z]+)\)", block)):
         assert f"{used}:" in CSS, f"ใช้ {used} แต่ไม่มีนิยามในไฟล์"
+
+
+# ── หน้าจอต่อสู้ (เฟส 3) ──
+
+def test_โหลด_renderer_ก่อน_lobby():
+    """lobby.js เรียก pbMount/pbSetState — โหลดทีหลังจะพัง"""
+    assert HTML.index("/games/party/renderer_basic.js") < HTML.index("/games/party/lobby.js")
+
+
+def test_หน้าจอต่อสู้วาดได้จริง():
+    """เทสอ่านข้อความจับไม่ได้ว่าโค้ดรันแล้วพังไหม (บทเรียนจาก !login เงียบ)
+
+    party_boot.js โหลด JS จริงเข้า vm แล้ววาดเฟรม + ป้อน events ทุกชนิด
+    """
+    if not shutil.which("node"):
+        pytest.skip("เครื่องนี้ไม่มี node")
+    r = subprocess.run(["node", "tests/party_boot.js"],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_แถบคำสั่งมีครบ_6_ท่า():
+    """ต้องตรงกับ engine.ACTIONS ฝั่งเซิร์ฟเวอร์ ไม่งั้นกดแล้วเซิร์ฟปฏิเสธ"""
+    from bot.games.party import engine
+    for a in engine.ACTIONS:
+        assert f'data-a="{a}"' in LOBBY, f"แถบคำสั่งไม่มีปุ่ม {a}"
+
+
+def test_ท่าที่ไม่ต้องเล็งสั่งได้เลย():
+    """defend/flee/aoe ไม่ต้องเลือกเป้า — บังคับเลือกจะกดไม่ได้"""
+    assert "a === 'defend' || a === 'flee' || a === 'aoe'" in LOBBY

@@ -1314,3 +1314,25 @@ body.bar-min .pbar .money { margin-left: auto; }
   color: var(--g-muted);
   cursor: pointer;
 }
+
+/* ── แถบคำสั่งในสมรภูมิ (เฟส 3) ── */
+.party-bar {
+  display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+  margin-top: 12px;
+}
+.party-bar .pb {
+  padding: 10px 14px; border: 1px solid var(--g-line); border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05); color: var(--g-ink);
+  font-size: 14px; cursor: pointer;
+}
+.party-bar .pb:hover { background: rgba(255, 255, 255, 0.12); }
+.party-wait { color: var(--g-muted); padding: 12px; font-size: 14px; }
+.party-wait .mini {
+  margin-left: 10px; padding: 4px 10px; border-radius: 8px;
+  border: 1px solid var(--g-line); background: none;
+  color: var(--g-muted); cursor: pointer;
+}
+.party-result { text-align: center; padding: 14px; }
+.party-result b { display: block; font-size: 22px; margin-bottom: 10px; }
+.party-result.win b { color: var(--g-gold); }
+.party-result.lose b { color: #ff6b6b; }
