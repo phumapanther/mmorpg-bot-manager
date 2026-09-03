@@ -174,3 +174,50 @@ def test_รหัสห้องเกมอื่นเอามาใช้�
     u = lobby.create("uno", 1, {"uid": "1", "name": "เอ"})
     ok, _ = room.join_party(2, "บี", u["room"])
     assert not ok
+
+
+# ── สมรภูมิ (เฟส 3) ──
+
+def test_เริ่มแล้วต้องถึงตาผู้เล่นเสมอ():
+    """บั๊กจริง 09-03: คิวเรียงตามความไว มอนอาจได้ไปก่อน
+    ถ้าไม่เดินให้ตั้งแต่เริ่ม เกมค้างรอมอนที่ไม่มีใครสั่ง (เจอตอนเล่นจริง)"""
+    _, st = room.open_party(1, "เอ")
+    room.join_party(2, "บี", st["room"])
+    room.begin(1)
+    b = room.view(1)["battle"]
+    assert b["turn_of"].startswith("p"),         f"เริ่มแล้วถึงตา {b['turn_of']} ซึ่งเป็นมอน — เกมจะค้าง"
+
+
+def test_view_ไม่บอก_hp_จริงของมอน():
+    """ประตูเดียว — ผู้เล่นเห็นแค่แถบเลือดคร่าว ๆ"""
+    _, st = room.open_party(1, "เอ")
+    room.join_party(2, "บี", st["room"])
+    room.begin(1)
+    for u in room.view(1)["battle"]["units"]:
+        if u["side"] == "monster":
+            assert "hp" not in u and "hp_pct" in u
+
+
+def test_เล่นจนจบเกมได้จริง():
+    """เทสหน่วยจับไม่ได้ว่าเกมเดินจนจบไหม — ต้องเล่นจริง"""
+    _, st = room.open_party(1, "เอ")
+    room.join_party(2, "บี", st["room"])
+    room.begin(1)
+    for _ in range(200):
+        b = room.view(1)["battle"]
+        if b["over"]:
+            break
+        who = b["turn_of"]
+        assert who.startswith("p"), f"ค้างที่ {who} ซึ่งไม่ใช่ผู้เล่น"
+        foes = [u["id"] for u in b["units"] if u["side"] == "monster" and u["alive"]]
+        if not foes:
+            break
+        ok, _ = room.act(int(who[1:]), "attack", foes[0])
+        assert ok
+    assert room.view(1)["battle"]["over"], "เล่น 200 ตาแล้วยังไม่จบ = ค้าง"
+
+
+def test_สั่งก่อนเริ่มสมรภูมิไม่ได้():
+    room.open_party(1, "เอ")
+    ok, r = room.act(1, "attack", "m1")
+    assert not ok and "ยังไม่ได้เริ่ม" in r["error"]

@@ -6,7 +6,10 @@
 ไฟล์นี้ไม่รู้จักกติกาการต่อสู้เลย รู้แค่ "ใครนั่งอยู่ในปาร์ตี้ไหน"
 กติกาอยู่ที่ engine.py (เฟส 3)
 """
-from bot import lobby
+import random
+
+from bot import adventure_core, lobby
+from bot.games.party import engine
 
 GAME = "party"
 MAX_PARTY = 5          # เจ้าของเกมเคาะ 2026-09-03
@@ -58,7 +61,98 @@ def begin(uid):
         return False, {"error": f"ต้องมีอย่างน้อย {MIN_TO_START} คนถึงจะเริ่มได้"}
     st["started"] = True
     st["extra"]["phase"] = "battle"
+    _spawn_battle(st)
     return True, lobby.save(st["room"], st)
+
+
+def _players_of(st):
+    """ดึงค่าสถานะจริงของผู้เล่นแต่ละคนมาลงสมรภูมิ
+
+    ใช้ดาต้าจากเกมหลักทั้งหมด (ชุด · อาวุธ · เลเวล · ธาตุ) ตามที่เจ้าของเกมสั่ง
+    ไม่มีตัวละครแยกสำหรับโหมดนี้
+    """
+    from bot import game_modifiers
+    from bot.models import player_model
+
+    out = []
+    for seat in st["seats"]:
+        p = player_model.get_player(int(seat["uid"])) or {}
+        els = game_modifiers.resolve_player_elements([p.get("race") or ""])
+        out.append({
+            "uid": seat["uid"],
+            "name": seat["name"],
+            "level": int(p.get("level") or 1),
+            "class_name": p.get("class_name"),
+            "element": els[0] if els else None,
+            "hp": int(p.get("hp") or 100),
+            "max_hp": int(p.get("max_hp") or 100),
+            "atk": int(p.get("level") or 1) + 8,
+            "def": 2,
+        })
+    return out
+
+
+def _spawn_battle(st):
+    """เกิดมอนแล้วเริ่มสมรภูมิ
+
+    ⚠️ ใช้ adventure_core.spawn_monster ของเกมหลัก ไม่สร้างมอนใหม่
+       ไม่งั้นมอนสองโหมดไม่ตรงกัน (เจ้าของเกมสั่งให้ใช้ดาต้าเดิม)
+    เฟส 4 จะมาแทนที่ด้วย monsters.spawn_group ที่คุมจำนวน/บอสได้ละเอียดกว่า
+    """
+    rng = random.Random()
+    players = _players_of(st)
+    host_uid = int(st["host"])
+    mons = []
+    for i in range(max(1, len(players))):
+        m = adventure_core.spawn_monster(host_uid, rng=rng)
+        m["id"] = f"m{i + 1}"
+        m["name"] = (m.get("stats") or {}).get("name") or f"มอน {i + 1}"
+        m["atk"] = 6 + i
+        m["def"] = 1
+        mons.append(m)
+    engine.start_battle(st, players, mons, rng)
+    _run_monsters(st, rng)      # มอนที่ไวกว่าผู้เล่นต้องได้เดินก่อน ไม่งั้นเกมค้าง
+
+
+def _run_monsters(st, rng):
+    """ให้มอนเดินจนกว่าจะถึงตาผู้เล่น (หรือเกมจบ)
+
+    ⚠️ ต้องเรียกทั้งตอนเริ่มสมรภูมิและหลังผู้เล่นสั่งเสร็จ
+       เพราะคิวเทิร์นเรียงตามความไว — **มอนอาจได้ไปก่อนผู้เล่น**
+       ถ้าไม่เดินให้ตั้งแต่เริ่ม เกมจะค้างรอมอนที่ไม่มีใครสั่ง (เจอตอนเทสจริง)
+    """
+    b = st["extra"]["battle"]
+    evs = []
+    guard = 0
+    while not b["over"] and guard < 30:
+        who = engine.current_actor(st)
+        if b["units"][who]["side"] != "monster":
+            break
+        evs += engine.monster_turn(st, rng)
+        guard += 1
+    return evs
+
+
+def act(uid, action, target=None):
+    """ผู้เล่นสั่งท่าในสมรภูมิ — บันทึกผลลงห้องทุกครั้ง
+
+    หลังผู้เล่นเดินเสร็จ ถ้าถึงตามอนก็ให้มอนเดินต่อทันที
+    (ไม่ต้องรอ poll รอบถัดไป — ผู้เล่นจะได้เห็นผลรวดเดียว)
+    """
+    st = _room(uid)
+    if not st:
+        return False, {"error": "ยังไม่ได้อยู่ปาร์ตี้ไหน"}
+    if not st.get("extra", {}).get("battle"):
+        return False, {"error": "ยังไม่ได้เริ่มสมรภูมิ"}
+
+    rng = random.Random()
+    ok, r = engine.act(st, uid, action, target, rng)
+    if not ok:
+        return False, r
+
+    evs = list(r["events"]) + _run_monsters(st, rng)
+    lobby.save(st["room"], st)
+    return True, {"events": evs}
 
 
 def view(uid):
@@ -72,4 +166,7 @@ def view(uid):
     if st:
         out["max"] = MAX_PARTY                       # ทับค่า 6 ของล็อบบี้กลาง
         out["phase"] = st["extra"].get("phase", "lobby")
+        if st["extra"].get("battle"):
+            # engine.view คัดค่าลับของมอนออกให้แล้ว (ส่ง hp_pct ไม่ใช่ hp จริง)
+            out["battle"] = engine.view(st, uid)
     return out

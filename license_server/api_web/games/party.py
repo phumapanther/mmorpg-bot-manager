@@ -13,8 +13,9 @@ router = APIRouter()
 
 
 class PartyBody(BaseModel):
-    action: str = "view"       # create | join | leave | start | view
+    action: str = "view"       # create|join|leave|start|view + attack|skill|aoe|heal|defend|flee
     code: str = ""             # รหัสห้องตอน join
+    target: str = ""           # เป้าหมายตอนสั่งท่า (เช่น "m2" หรือ "p3")
     # ⚠️ ห้ามเพิ่ม uid/host ที่นี่เด็ดขาด — ต้องมาจาก session เท่านั้น
     #    (ไม่งั้นคนยิง API ตรง ๆ ปลอมเป็นคนอื่นได้ · คำเชิญ UNO เคยพลาดข้อนี้)
 
@@ -58,6 +59,18 @@ def party_room(body: PartyBody, request: Request):
 
         if body.action == "view":
             return {"ok": True, "room": room.view(uid)}
+
+        # ── คำสั่งในสมรภูมิ (เฟส 3) ──
+        # 🔒 engine._check() เป็นด่านเดียวที่ตัดสินว่าสั่งได้ไหม
+        #    (ถึงตาจริงไหม · ล้มแล้วหรือยัง · เล็งถูกฝั่งไหม)
+        from bot.games.party import engine
+
+        if body.action in engine.ACTIONS:
+            ok, r = room.act(uid, body.action, body.target or None)
+            if not ok:
+                raise HTTPException(400, r.get("error", "สั่งไม่ได้"))
+            return {"ok": True, "room": room.view(uid),
+                    "events": r.get("events", [])}
 
     raise HTTPException(400, "คำสั่งไม่ถูกต้อง")
 
