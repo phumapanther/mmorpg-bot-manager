@@ -13,12 +13,11 @@ import os
 import json
 import time
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import HTTPException, Request, Response
 from pydantic import BaseModel
 
 from license_server import web_db
-
-router = APIRouter(prefix="/api/web")
+from license_server.api_web import router  # ตัวเดียวกับ api_web.router (รื้อโครงสร้าง 09-02)
 
 _ADMIN_TTL = 7 * 86400
 _SESSION_TTL = 30 * 86400
