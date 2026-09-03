@@ -763,6 +763,9 @@
                 >
               </button>
             </div>
+            <!-- 🎮 จอเกม+ปุ่มคุม — ซ่อนทั้งก้อนตอนอยู่หน้าเลือกโหมด
+                 (เจ้าของเกมเจอ 09-03: หน้าเลือกโหมดมีจอเกมโผล่มาด้วย) -->
+            <div id="wmGameArea" hidden>
             <div class="wm-stage">
               <canvas id="wmCanvas" width="720" height="270"></canvas>
               <div class="wm-zoom">
@@ -812,6 +815,7 @@
             <div class="wm-items" id="wmItems"></div>
             <div class="wm-aim" id="wmAim" hidden></div>
             <div class="wm-log" id="wmLog"></div>
+            </div>
             <!-- 🤖 ซ้อมกับบอท — โชว์เมื่อกด wmModeBot เท่านั้น -->
             <div class="g-grid wm-buttons" id="wmBotButtons" hidden>
               <button class="g-tile hot" id="wmNew">

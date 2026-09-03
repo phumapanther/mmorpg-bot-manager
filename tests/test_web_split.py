@@ -76,12 +76,18 @@ def test_ถ้ามี_games_worms_ui_js_ต้องถูกอ้างถ�
         "games/worms_ui.js ต้องโหลดหลัง play.js"
 
 
-def test_ฟังก์ชัน_wm_ต้องครบ_90_ตัวในซอร์สรวม():
+def test_ฟังก์ชัน_wm_ต้องไม่หายระหว่างย้าย():
+    """เทียบกับ snapshot 90 ตัวก่อนผ่า play.js (09-02)
+
+    ⚠️ เช็คแค่ "ไม่หาย" ไม่ล็อกจำนวนเป๊ะ 90 — เพิ่มฟังก์ชัน wm* ใหม่เป็นเรื่องปกติ
+    (เช่น wmGameArea ที่เพิ่ม 09-03 ตอนแก้จอเกมโผล่คาหน้าเลือกโหมด)
+    ล็อกจำนวนไว้จะทำให้แก้บั๊กทีไรเทสแดงทุกที ทั้งที่ไม่มีอะไรเสียหาย
+    """
     src = conftest.play_js_source()
     found = set(re.findall(r"^(?:async )?function (wm[A-Z][A-Za-z0-9_]*)\(", src, re.MULTILINE))
     missing = WM_FUNCS_BEFORE_SPLIT - found
     assert not missing, f"ฟังก์ชัน wm* หายไประหว่างย้าย: {sorted(missing)}"
-    assert len(found) == 90, f"จำนวนฟังก์ชัน wm* ไม่ตรง 90: เจอ {len(found)} ตัว"
+    assert len(found) >= 90, f"ฟังก์ชัน wm* น้อยกว่าเดิม: เจอ {len(found)} ตัว (เคยมี 90)"
 
 
 def test_ไม่มีฟังก์ชันไหนหายไปทั้งหมด175ตัว():

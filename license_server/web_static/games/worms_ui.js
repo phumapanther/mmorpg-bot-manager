@@ -25,12 +25,20 @@ function wmShowGate() {
   document.getElementById('wmModeGate')?.classList.remove('hidden');
   const bot = document.getElementById('wmBotButtons'); if (bot) bot.hidden = true;
   const fr = document.getElementById('wmFriendButtons'); if (fr) fr.hidden = true;
+  wmGameArea(false);          // ซ่อนจอเกมด้วย ไม่งั้นโผล่มาคาหน้าเลือกโหมด
   wmRoomWatch(false);
+}
+
+/** เปิด/ปิดจอเกมทั้งก้อน (จอ · ปุ่มซูม · แถบสกิล · ล็อก) */
+function wmGameArea(on) {
+  const box = document.getElementById('wmGameArea');
+  if (box) box.hidden = !on;
 }
 
 document.getElementById('wmModeBot')?.addEventListener('click', async () => {
   SFX.play('click');
   document.getElementById('wmModeGate')?.classList.add('hidden');
+  wmGameArea(true);
   const bot = document.getElementById('wmBotButtons'); if (bot) bot.hidden = false;
   await fillWorms();
 });
@@ -38,6 +46,7 @@ document.getElementById('wmModeBot')?.addEventListener('click', async () => {
 document.getElementById('wmModeFriend')?.addEventListener('click', async () => {
   SFX.play('click');
   document.getElementById('wmModeGate')?.classList.add('hidden');
+  wmGameArea(true);
   const fr = document.getElementById('wmFriendButtons'); if (fr) fr.hidden = false;
   await fillWorms();
 });
