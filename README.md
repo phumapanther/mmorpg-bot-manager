@@ -2,6 +2,12 @@
 
 Discord MMORPG bot with web management panel.
 
+> 📐 **จะแก้โค้ดอ่าน [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) ก่อน**
+> — บอกว่าโค้ดแต่ละส่วนอยู่ไหน ใครดูแลอะไร แก้ตรงไหนกระทบทีมอื่น
+>
+> 📦 **จะทำมินิเกมใหม่อ่าน [templates/README.md](templates/README.md)**
+> — มีเทมเพลตรันได้จริงให้ก๊อปไปต่อยอด + ขั้นตอนแตก branch จนเมิร์จ
+
 ## การรันแบบ Dev
 
 ```bash
