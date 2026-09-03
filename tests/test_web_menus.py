@@ -5,10 +5,11 @@
 """
 import pathlib
 import re
+from tests import conftest
 
 HTML = pathlib.Path("license_server/web_static/play.html").read_text(encoding="utf-8")
 JS = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
-API = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+API = conftest.web_api_source()
 
 MENUS = {"pets": "fillPets", "daily": "fillDaily", "achv": "fillAchv",
          "books": "fillBooks", "season": "fillSeason", "partner": "fillPartner"}

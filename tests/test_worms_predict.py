@@ -22,6 +22,7 @@ import tempfile
 import pytest
 
 from bot.pvp import physics as P, terrain as T
+from tests import conftest
 
 WEB = pathlib.Path("license_server/web_static")
 WALK_JS = (WEB / "walk.js").read_text(encoding="utf-8")
@@ -201,7 +202,7 @@ def test_walking_never_spends_more_energy_than_the_turn_has():
 
 def test_the_api_still_never_takes_a_position():
     """เดาฝั่งจอได้ แต่ห้ามหลุดให้ส่งพิกัดมา — ไม่งั้นเปิด devtools แล้ววาร์ป"""
-    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    api = conftest.web_api_source()
     body = api[api.index("class WormsBody"):api.index('@router.post("/pvp/worms/match")')]
     for leaked in ("x:", "y:", "pos", "hp", "damage"):
         assert leaked not in body, f"API รับ {leaked} จากเบราว์เซอร์"

@@ -10,6 +10,7 @@ import pytest
 
 import bot.models.player_model as pm
 from bot import adventure_core, config_loader
+from tests import conftest
 
 ITEMS = {"1": {"name": "ยาแดง", "buy": 50}, "2": {"name": "ดาบเทพ", "buy": 999999}}
 ARMORS = {"None": {"hp": 0, "eva": 0}, "Plate": {"hp": 500, "eva": 40}}
@@ -145,7 +146,7 @@ def test_declining_travel_costs_nothing(world):
 
 def test_fare_comes_from_the_server_not_the_browser(world):
     """ค่าโดยสารต้องอ่านจาก encounter ที่เซิร์ฟเวอร์เก็บไว้ ไม่ใช่ค่าที่เบราว์เซอร์ส่งมา"""
-    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    api = conftest.web_api_source()
     assert "resolve_travel(uid, data, body.action)" in api, "ต้องใช้ encounter จาก adventure_pending"
     assert "body.fare" not in api and "body.encounter" not in api
 
@@ -163,7 +164,7 @@ def test_pending_event_survives_a_page_refresh(tmp_path, monkeypatch):
 # ── 🔒 กติกาข้อ 1: ตรรกะเดียว สองแพลตฟอร์ม ────────────────────────────────────
 
 GV = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
-API = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+API = conftest.web_api_source()
 
 
 @pytest.mark.parametrize("fn", ["resolve_village", "resolve_treasure", "resolve_dungeon",
@@ -460,7 +461,7 @@ def test_respawn_clears_any_stuck_event(world, tmp_path, monkeypatch):
 
 def test_the_web_has_a_way_out_of_death():
     """เดิมตายบนเว็บแล้วค้างถาวร ต้องไปกด !play ในดิสถึงจะฟื้นได้"""
-    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    api = conftest.web_api_source()
     js = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
     assert '@router.post("/adventure/respawn")' in api
     assert "advRespawnButton(" in js and "ฟื้นคืนชีพ กลับหมู่บ้าน" in js
@@ -468,7 +469,7 @@ def test_the_web_has_a_way_out_of_death():
 
 
 def test_you_cannot_farm_respawns_while_alive():
-    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    api = conftest.web_api_source()
     block = api[api.index("def adventure_respawn("):]
     assert 'player.get("current_state") != "dead"' in block
 
@@ -476,7 +477,7 @@ def test_you_cannot_farm_respawns_while_alive():
 def test_a_stale_lock_state_is_cleared_but_a_real_event_is_not():
     """สถานะค้างที่ไม่มีเหตุการณ์รออยู่จริง = ของเก่าตกค้าง ปลดได้
     แต่ถ้ามีเหตุการณ์ค้างจริง ห้ามปลด ไม่งั้นรีเฟรชหนีกับดักได้"""
-    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    api = conftest.web_api_source()
     assert "_STALE_STATES" in api
     guard = api[api.index("if _p.get(\"current_state\") in _STALE_STATES"):]
     assert "not adventure_core.get_pending(uid)[0]" in guard[:160]

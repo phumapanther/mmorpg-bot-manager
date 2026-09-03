@@ -5,6 +5,7 @@
 """
 import pathlib
 import re
+from tests import conftest
 
 SCENE = pathlib.Path("license_server/web_static/scene.js").read_text(encoding="utf-8")
 PLAY = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
@@ -125,7 +126,7 @@ def test_dice_box_ignores_anything_that_is_not_a_pair_of_rolls():
 
 def test_trap_and_mugging_send_their_own_dice_labels():
     """สองอันนี้ทอยแล้ว 'ต่ำกว่าเกณฑ์ = รอด' สวนทางกับเต๋าไฟต์ ป้ายกับข้อสรุปต้องมาจากเซิร์ฟเวอร์"""
-    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    api = conftest.web_api_source()
     assert '"labels": ["🎲 ทอยหลบ", "🛡️ ค่าเกราะ"]' in api
     assert '"labels": ["🎲 ทอยสู้", "🥷 โอกาสชนะ"]' in api
     assert "r.verdict ||" in SCENE, "ฉากต้องยอมให้เซิร์ฟเวอร์กำหนดข้อสรุปเอง"
@@ -173,7 +174,7 @@ def test_every_trap_effect_is_actually_drawn():
 
 def test_trap_kind_comes_from_the_server():
     """เบราว์เซอร์ต้องไม่เดาเองว่าอยู่ทวีปไหน (กติกาข้อ 1)"""
-    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    api = conftest.web_api_source()
     assert 'r["fx"] = {"kind": player.get("continent")' in api
     assert "SCENE.playTrap(r.fx.kind, r.fx.hit)" in PLAY
 
@@ -263,7 +264,7 @@ def test_the_pet_walks_along_and_joins_the_attack():
 
 def test_the_pet_shown_is_the_one_the_server_says():
     """เบราว์เซอร์ต้องไม่เดาเองว่าพาตัวไหนไป"""
-    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    api = conftest.web_api_source()
     assert '"pet": p.get("pet") or ""' in api
     assert "SCENE.setPet(v.pet" in PLAY or "SCENE.setPet((LAST" in PLAY
 

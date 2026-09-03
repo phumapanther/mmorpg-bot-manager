@@ -9,8 +9,9 @@ import re
 import pytest
 
 from bot import adventure_core
+from tests import conftest
 
-API = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+API = conftest.web_api_source()
 PLAY = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
 VIEWS = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
 

@@ -9,8 +9,9 @@ import pytest
 
 import bot.models.player_model as pm
 from bot import market
+from tests import conftest
 
-API = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+API = conftest.web_api_source()
 PLAY = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
 HTML = pathlib.Path("license_server/web_static/play.html").read_text(encoding="utf-8")
 
@@ -129,7 +130,7 @@ def test_buying_and_cancelling_ask_first():
 
 def test_the_atlas_covers_every_continent_in_the_game():
     from bot.game_data import CONTINENTS
-    block = API[API.index("def continents_summary("):API.index("# ── ล็อกอินผ่านบอท")]
+    block = API[API.index("def continents_summary("):API.index('@router.get("/codex")')]
     assert "for key, c in CONTINENTS.items()" in block, "ต้องไล่จากทวีปจริงทั้งหมด ไม่ใช่ลิสต์ที่พิมพ์เอง"
     assert len(CONTINENTS) == 9
     for field in ("elements", "monsters", "specials", "mult", "killed"):
@@ -138,7 +139,7 @@ def test_the_atlas_covers_every_continent_in_the_game():
 
 def test_the_atlas_reads_the_numbers_actually_used_in_play():
     """ตัวคูณที่โชว์ต้องมาจาก mods ชุดเดียวกับตอนเดินจริง ไม่ใช่พิมพ์ค่าไว้เอง"""
-    block = API[API.index("def continents_summary("):API.index("# ── ล็อกอินผ่านบอท")]
+    block = API[API.index("def continents_summary("):API.index('@router.get("/codex")')]
     for k in ("monster_hp_mult", "monster_gold_mult", "monster_exp_mult"):
         assert k in block, f"ไม่ได้อ่าน {k} จาก mods"
 

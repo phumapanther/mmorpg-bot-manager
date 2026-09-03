@@ -10,6 +10,7 @@ import pytest
 
 import bot.models.player_model as pm
 from bot import adventure_core, config_loader, mana
+from tests import conftest
 
 
 @pytest.fixture
@@ -163,7 +164,7 @@ def test_the_bar_shows_used_and_unused_crystals():
 def test_both_platforms_show_and_gate_on_mana():
     gv = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
     ui = pathlib.Path("bot/views/fight_ui.py").read_text(encoding="utf-8")
-    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    api = conftest.web_api_source()
     js = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
     assert "disabled=crystals <= 0" in gv, "ดิสต้องดับปุ่มสกิลเมื่อเม็ดหมด"
     assert "_mana_bar(player)" in ui, "หน้าไฟต์ในดิสต้องโชว์เม็ด"
@@ -173,7 +174,7 @@ def test_both_platforms_show_and_gate_on_mana():
 
 def test_reading_game_state_never_writes_to_the_database():
     """/me/game เปิด DB แบบ mode=ro — ห้ามให้มานาไปเขียนตอนอ่าน ไม่งั้น 500 ทั้งหน้า"""
-    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    api = conftest.web_api_source()
     view = api[api.index("def _mana_view("):api.index('@router.get("/me/game")')]
     assert "update_player" not in view and "mana.get(" not in view
 

@@ -523,11 +523,15 @@ def test_the_quit_action_goes_through_the_api(world, monkeypatch):
     from fastapi.testclient import TestClient
 
     from license_server import web_api
+    from license_server.api_web.games import pvp as web_api_pvp
 
     app = FastAPI()
     app.include_router(web_api.router)
     client = TestClient(app)
-    monkeypatch.setattr(web_api, "require_player", lambda r: {"uid": UID})
+    # ต้อง patch ที่โมดูล pvp.py ตรง ๆ — มันทำ "from deps import require_player" ตอน import
+    # จึงถือชื่อผูกกับฟังก์ชันเดิมไว้เอง patch ที่ web_api (แค่ re-export) หรือที่ deps.py
+    # (คนละชื่อกับที่ pvp.py ถืออยู่) จะไม่มีผลกับ endpoint นี้เลย
+    monkeypatch.setattr(web_api_pvp, "require_player", lambda r: {"uid": UID})
 
     fresh()
     r = client.post("/api/web/pvp/worms/match", json={"action": "quit"})

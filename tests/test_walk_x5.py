@@ -8,6 +8,7 @@ import pathlib
 import pytest
 
 import bot.views.game_views as gv
+from tests import conftest
 
 
 def test_button_exists():
@@ -47,7 +48,7 @@ def test_an_item_summoned_step_always_stops():
 
 
 def test_the_web_uses_the_same_rule():
-    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    api = conftest.web_api_source()
     assert "adventure_core.fast_walk_stops_here(event, pre[\"last_evt\"])" in api
     assert "steps: int = 1" in api, "เว็บต้องรับจำนวนก้าวได้"
     play = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
@@ -79,7 +80,11 @@ def _web(tmp_path, monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
     from license_server import web_api
-    monkeypatch.setattr(web_api, "GAME_DB_PATH", pathlib.Path(pm.DB_NAME))
+    from license_server.api_web import deps as _api_web_deps
+
+    monkeypatch.setattr(_api_web_deps, "GAME_DB_PATH", pathlib.Path(pm.DB_NAME))
+
+    monkeypatch.setattr(web_api, "GAME_DB_PATH", pathlib.Path(pm.DB_NAME))  # เผื่อโค้ดเก่าอ่านผ่าน web_api
     app = FastAPI()
     app.include_router(web_api.router)
     c = TestClient(app)

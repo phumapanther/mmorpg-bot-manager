@@ -6,6 +6,7 @@ import pytest
 
 import bot.models.player_model as pm
 from bot import config_loader, season
+from tests import conftest
 
 CFG = {"season_pass": {"enabled": True, "price_gold": 5000000, "tiers": [
     {"points": 100, "free": {"gold": 1000}, "premium": {"gold": 5000}},
@@ -196,7 +197,7 @@ def test_the_embed_is_built_from_the_same_view():
 
 
 def test_the_web_serves_the_view_untouched():
-    api = __import__("pathlib").Path("license_server/web_api.py").read_text(encoding="utf-8")
+    api = conftest.web_api_source()
     assert "return season.season_view(uid)" in api, "เว็บไม่ได้ส่ง season_view ตรง ๆ"
 
 

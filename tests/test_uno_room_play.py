@@ -186,7 +186,11 @@ def web(tmp_path, monkeypatch):
     pmdb = tmp_path / "w.db"
     monkeypatch.setattr(pm, "DB_NAME", str(pmdb))
     pm.init_db()
-    monkeypatch.setattr(web_api, "GAME_DB_PATH", pmdb)
+    from license_server.api_web import deps as _api_web_deps
+
+    monkeypatch.setattr(_api_web_deps, "GAME_DB_PATH", pmdb)
+
+    monkeypatch.setattr(web_api, "GAME_DB_PATH", pmdb)  # เผื่อโค้ดเก่าอ่านผ่าน web_api
 
     lobbydb = tmp_path / "lobby.db"
 

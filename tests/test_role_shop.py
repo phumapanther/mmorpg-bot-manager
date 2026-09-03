@@ -10,6 +10,7 @@ import pytest
 
 import bot.models.player_model as pm
 from bot import config_loader, role_shop_core
+from tests import conftest
 
 DARK = [{"value": "d1", "label": "👹 ปีศาจน้อย", "role_id": 111, "price": 5_000_000},
         {"value": "d2", "label": "💀 เนโครแมนเซอร์", "role_id": 222, "price": 20_000_000},
@@ -121,7 +122,7 @@ def test_a_duplicate_gacha_is_salt_not_a_refund():
 
 def test_both_platforms_share_the_same_money_logic():
     cog = pathlib.Path("bot/apps/bot_game/role_shop.py").read_text(encoding="utf-8")
-    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    api = conftest.web_api_source()
     for fn in ("prepare_buy", "prepare_gacha"):
         assert f"role_shop_core.{fn}(" in cog, f"ดิสยังไม่ได้เรียก {fn}"
         assert f"role_shop_core.{fn}(" in api, f"เว็บยังไม่ได้เรียก {fn}"
@@ -129,7 +130,7 @@ def test_both_platforms_share_the_same_money_logic():
 
 def test_the_web_never_tries_to_grant_roles_itself():
     """เว็บแจกยศ Discord ไม่ได้ — ต้องผ่านคิวเท่านั้น"""
-    api = pathlib.Path("license_server/web_api.py").read_text(encoding="utf-8")
+    api = conftest.web_api_source()
     block = api[api.index("def roleshop_buy("):]
     assert "_queue_grant(uid, data)" in block
     assert "add_roles" not in block
