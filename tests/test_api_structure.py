@@ -6,6 +6,8 @@
 """
 import pathlib
 
+import pytest
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 # เส้นฐานจริงที่วัดไว้ก่อนเริ่มรื้อ (2026-09-03): len(web_api.router.routes) == 81
@@ -209,3 +211,21 @@ def test_depsห้ามimportcontrollerอื่น():
         assert f"api_web.{bad_mod}" not in src and f"api_web import {bad_mod}" not in src, (
             f"deps.py พึ่ง controller {bad_mod} — ต้องกลับด้าน"
         )
+
+
+# ── สะพาน web_api ต้อง re-export ชื่อที่โค้ด/เทสเก่าเรียกผ่าน web_api.<ชื่อ> ──
+# เคยพลาดมาแล้วตอนผ่า web_api.py (09-02): ลืม UPLOAD_DIR ทำให้ test_cloud_env แดง 3 ข้อ
+# import * ไม่ดึงของจาก submodule ย่อยให้อัตโนมัติ ต้องเขียนชื่อไว้ชัด ๆ
+
+BRIDGE_NAMES = [
+    "router", "sign", "verify", "require_player", "require_admin",
+    "UPLOAD_DIR", "GAME_DB_PATH", "_slip_path", "_set_cookie",
+]
+
+
+@pytest.mark.parametrize("name", BRIDGE_NAMES)
+def test_สะพาน_web_api_มีชื่อที่ของเก่าเรียก(name):
+    from license_server import web_api
+    assert hasattr(web_api, name), (
+        f"สะพาน web_api ไม่มี {name} — โค้ด/เทสเก่าที่เรียก web_api.{name} จะพัง "
+        f"(import * ไม่ดึงของจาก submodule ให้เอง ต้องเพิ่มบรรทัด import เอง)")

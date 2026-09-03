@@ -16,6 +16,6 @@ from license_server.api_web.deps import (  # noqa: F401
     _set_cookie, _user_lock, player_model_get, require_admin, require_player, sign, verify,
 )
 from license_server.api_web.auth import _CODE_CHARS, _CODE_RE, _CODE_TTL, _TICKET_RE  # noqa: F401
-from license_server.api_web.topup import _slip_path  # noqa: F401
+from license_server.api_web.topup import UPLOAD_DIR, _slip_path  # noqa: F401
 from license_server.api_web.adventure import _finish_special  # noqa: F401
 from license_server.api_web.player import _dur_pct  # noqa: F401

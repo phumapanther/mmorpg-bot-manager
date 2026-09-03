@@ -97,7 +97,9 @@ PATH_CASES = [
     ("bot.controller.db_manager", "DB_NAME", "GAME_DB_PATH", "game_data.db"),
     ("license_server.web_db", "DB_PATH", "WEB_DB_PATH", "web.db"),
     ("license_server.db", "DB_PATH", "LICENSE_DB_PATH", "licenses.db"),
-    ("license_server.web_api", "UPLOAD_DIR", "UPLOAD_DIR", "web_uploads"),
+    # UPLOAD_DIR ย้ายไป api_web/topup.py ตอนผ่า web_api.py (09-02 ขั้น 4)
+    # เทสนี้ reload โมดูล จึงต้องชี้ไฟล์ที่นิยามจริง ไม่ใช่สะพาน (สะพาน reload แล้วค่าไม่อัปเดต)
+    ("license_server.api_web.topup", "UPLOAD_DIR", "UPLOAD_DIR", "web_uploads"),
 ]
 
 
