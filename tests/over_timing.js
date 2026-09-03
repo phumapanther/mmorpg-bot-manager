@@ -1,9 +1,9 @@
 // 🔬 ไล่ลำดับจริง: สถานะ "จบแล้ว" มาถึง → ต่อคิวภาพตาย → ภาพเล่นจบ
 //    แผงสรุปผลต้องโผล่ครั้งเดียวตอนท้าย ไม่ใช่โผล่ก่อนแล้วหายไป
 const fs = require('fs'), vm = require('vm');
+const { playSource } = require('./_js_source');
 const CR = String.fromCharCode(13), NL = String.fromCharCode(10);
-const play = fs.readFileSync('license_server/web_static/play.js', 'utf8')
-                .split(CR + NL).join(NL);
+const play = playSource().split(CR + NL).join(NL);
 const web = fs.readFileSync('license_server/web_static/web.js', 'utf8')
                .split(CR + NL).join(NL);
 const grab = (src, head) => {

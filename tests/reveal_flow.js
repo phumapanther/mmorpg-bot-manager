@@ -1,9 +1,9 @@
 // 🔬 รันฟังก์ชัน "ซ่อนผลไว้ก่อน แล้วค่อยเฉลย" ของจริงจาก play.js
 //    (ไม่ก๊อปโค้ดมาเขียนซ้ำ — เทสต้องพังถ้าของจริงพัง)
 const fs = require('fs'), vm = require('vm');
+const { playSource } = require('./_js_source');
 const CR = String.fromCharCode(13), NL = String.fromCharCode(10);
-const play = fs.readFileSync('license_server/web_static/play.js', 'utf8')
-               .split(CR + NL).join(NL);
+const play = playSource().split(CR + NL).join(NL);
 const grab = (head) => {
   const a = play.indexOf(head);
   if (a < 0) throw new Error('หาไม่เจอ: ' + head);

@@ -1,9 +1,10 @@
 // ⏱️ พิสูจน์ว่าภาพในสนามเดินตาม "เวลาจริง" ไม่ใช่ "จำนวนเฟรมที่จอวาด"
 //    รันฟังก์ชันของจริงจาก play.js / worms.js ไม่ได้ก๊อปสูตรมาเขียนซ้ำ
 const fs = require('fs'), vm = require('vm');
+const { playSource } = require('./_js_source');
 const CR = String.fromCharCode(13), NL = String.fromCharCode(10);
 const read = f => fs.readFileSync(f, 'utf8').split(CR + NL).join(NL);
-const play = read('license_server/web_static/play.js');
+const play = playSource().split(CR + NL).join(NL);
 const worms = read('license_server/web_static/worms.js');
 
 const cut = (src, head, tail) => {
