@@ -18,10 +18,11 @@ import time
 import pytest
 
 from bot.pvp import physics as P, terrain as T
+from tests import conftest
 
 WEB = pathlib.Path("license_server/web_static")
 WORMS = (WEB / "worms.js").read_text(encoding="utf-8")
-PLAY = (WEB / "play.js").read_text(encoding="utf-8")
+PLAY = conftest.play_js_source()
 HTML = (WEB / "play.html").read_text(encoding="utf-8")
 CSS = (WEB / "play.css").read_text(encoding="utf-8")
 

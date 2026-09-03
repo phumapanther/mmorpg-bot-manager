@@ -19,6 +19,7 @@ import pytest
 import bot.models.player_model as pm
 from bot.pvp import match, rooms
 from license_server import web_db
+from tests import conftest
 
 LOOK = {"race": "Human", "cls": "Warrior", "armor": "None", "weapon": ""}
 HOST = 9001
@@ -319,7 +320,7 @@ def test_the_lobby_button_is_separate_from_practice():
 
 def test_the_page_locks_input_when_it_is_not_your_turn():
     """เซิร์ฟเวอร์ปฏิเสธอยู่แล้ว แต่ต้องล็อกฝั่งจอด้วย ไม่งั้นตัวเดินไปแล้วเด้งกลับ"""
-    play = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+    play = conftest.play_js_source()
     body = play[play.index("function wmWaiting("):]
     body = body[:body.index(chr(10) + "}" + chr(10))]
     assert "WM_ST.my_turn === false" in body, "ไม่ใช่ตาเราแต่ยังกดได้"
@@ -327,7 +328,7 @@ def test_the_page_locks_input_when_it_is_not_your_turn():
 
 def test_the_page_keeps_checking_while_others_play():
     """ไม่มีตัวนี้ = นั่งมองจอนิ่ง ๆ ไม่มีวันรู้ว่าถึงตาตัวเองแล้ว"""
-    play = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+    play = conftest.play_js_source()
     body = play[play.index("function wmPeekTurn("):]
     body = body[:body.index(chr(10) + "}" + chr(10))]
     assert "fillWorms()" in body, "ไม่ได้ถามสถานะซ้ำเลย"
@@ -336,7 +337,7 @@ def test_the_page_keeps_checking_while_others_play():
 
 
 def test_the_lobby_polls_so_you_see_friends_arrive():
-    play = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+    play = conftest.play_js_source()
     assert "function wmRoomWatch(" in play, "เพื่อนเข้าห้องแล้วเราไม่เห็น"
     body = play[play.index("function wmRoomWatch("):]
     body = body[:body.index(chr(10) + "}" + chr(10))]

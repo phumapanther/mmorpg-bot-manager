@@ -8,7 +8,7 @@ import re
 from tests import conftest
 
 SCENE = pathlib.Path("license_server/web_static/scene.js").read_text(encoding="utf-8")
-PLAY = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+PLAY = conftest.play_js_source()
 
 
 def _keys(src, block):

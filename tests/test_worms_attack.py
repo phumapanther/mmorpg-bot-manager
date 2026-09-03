@@ -19,7 +19,7 @@ from tests import conftest
 NL = chr(10)
 UID = 6301
 WEB = pathlib.Path("license_server/web_static")
-PLAY = (WEB / "play.js").read_text(encoding="utf-8")
+PLAY = conftest.play_js_source()
 HTML = (WEB / "play.html").read_text(encoding="utf-8")
 
 

@@ -12,7 +12,7 @@ from bot import market
 from tests import conftest
 
 API = conftest.web_api_source()
-PLAY = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+PLAY = conftest.play_js_source()
 HTML = pathlib.Path("license_server/web_static/play.html").read_text(encoding="utf-8")
 
 SELLER, BUYER = 101, 202

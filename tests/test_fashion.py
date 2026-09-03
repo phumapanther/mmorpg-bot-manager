@@ -150,7 +150,7 @@ def test_the_painter_never_reads_real_gear_stats():
 
 def test_fashion_rides_along_with_the_character_everywhere():
     """ทุกที่ที่วาดตัวละครต้องเห็นแฟชั่น — ส่งไปกับ CHAR ก้อนเดียว"""
-    play = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+    play = conftest.play_js_source()
     assert "fashion: g.fashion || {}" in play, "ตัวละครหลักไม่ได้พกแฟชั่นไปด้วย"
     assert '"fashion": _fashion.worn(p)' in API, "API ไม่ได้ส่งแฟชั่นที่ใส่อยู่มา"
 

@@ -26,7 +26,7 @@ from tests import conftest
 
 WEB = pathlib.Path("license_server/web_static")
 WALK_JS = (WEB / "walk.js").read_text(encoding="utf-8")
-PLAY = (WEB / "play.js").read_text(encoding="utf-8")
+PLAY = conftest.play_js_source()
 HTML = (WEB / "play.html").read_text(encoding="utf-8")
 
 RULES = {"ch_h": T.CH_H, "foot_w": P.FOOT_W, "climb": P.CLIMB,

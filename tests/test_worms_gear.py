@@ -19,10 +19,11 @@ import pytest
 import bot.models.player_model as pm
 from bot.pvp import match, physics as P, terrain as T, weapons as W
 from license_server import web_db
+from tests import conftest
 
 UID = 7801
 LOOK = {"race": "Human", "cls": "Mage", "armor": "None", "weapon": ""}
-PLAY = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+PLAY = conftest.play_js_source()
 PLAY_MATCH = pathlib.Path("bot/games/pvp/match.py").read_text(encoding="utf-8")
 
 

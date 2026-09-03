@@ -11,10 +11,11 @@ import shutil
 import subprocess
 
 import pytest
+from tests import conftest
 
 WEB = pathlib.Path("license_server/web_static")
 SFX = (WEB / "sfx.js").read_text(encoding="utf-8")
-PLAY = (WEB / "play.js").read_text(encoding="utf-8")
+PLAY = conftest.play_js_source()
 
 # เบราว์เซอร์จำลองแบบบางที่สุดที่ sfx.js ต้องใช้ — นับว่ามีการจองเสียงกี่ครั้ง
 HARNESS = r"""

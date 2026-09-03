@@ -12,7 +12,7 @@ from bot import adventure_core
 from tests import conftest
 
 API = conftest.web_api_source()
-PLAY = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+PLAY = conftest.play_js_source()
 VIEWS = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
 
 

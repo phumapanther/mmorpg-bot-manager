@@ -51,7 +51,7 @@ def test_the_web_uses_the_same_rule():
     api = conftest.web_api_source()
     assert "adventure_core.fast_walk_stops_here(event, pre[\"last_evt\"])" in api
     assert "steps: int = 1" in api, "เว็บต้องรับจำนวนก้าวได้"
-    play = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+    play = conftest.play_js_source()
     assert "adventure/walk?steps=" in play, "หน้าเว็บไม่ได้ส่งจำนวนก้าวไป"
 
 
@@ -142,6 +142,6 @@ def test_the_scene_speeds_up_and_says_so():
     assert "this.frame" in fx, "เส้นความเร็วไม่ขยับ (วาดค้างที่เดิม)"
     assert "this.fast ? 7.5 : 2.2" in scene, "ความเร็วฉากไม่ต่างจากเดินปกติ"
 
-    play = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+    play = conftest.play_js_source()
     assert "SCENE.walk(fast)" in play, "หน้าเว็บไม่ได้บอกฉากว่าเดินเร็วอยู่"
     assert "fastwalk" in play, "ไม่ได้รองรับผลลัพธ์ 'เดินเร็วแล้วยังไม่เจออะไร'"

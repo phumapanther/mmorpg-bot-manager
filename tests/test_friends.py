@@ -13,11 +13,12 @@ import pytest
 
 import bot.models.player_model as pm
 from bot import friends
+from tests import conftest
 
 # ไอดีหน้าตาเหมือน Discord จริง (snowflake 18 หลัก) — เลขปลอมสั้น ๆ ทำให้เทสไม่ตรงของจริง
 ME, PAL, STRANGER = 500100000000000001, 500200000000000002, 500300000000000003
 WEB = pathlib.Path("license_server/web_static")
-PLAY = (WEB / "play.js").read_text(encoding="utf-8")
+PLAY = conftest.play_js_source()
 HTML = (WEB / "play.html").read_text(encoding="utf-8")
 
 

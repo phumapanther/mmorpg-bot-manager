@@ -281,7 +281,7 @@ def test_the_gacha_tile_is_no_longer_a_teaser():
 
 
 def test_the_panel_loads_itself_when_opened():
-    play = (WEB / "play.js").read_text(encoding="utf-8")
+    play = conftest.play_js_source()
     assert "if (id === 'fgacha') fillFashionGacha()" in play, "เปิดหน้าตู้แล้วไม่โหลดข้อมูล"
     for el in ("fgTiers", "fgResult", "fgExchange", "fgFeatName", "fgGems"):
         assert el in play and el in (WEB / "play.html").read_text(encoding="utf-8"), \
@@ -290,7 +290,7 @@ def test_the_panel_loads_itself_when_opened():
 
 def test_the_browser_never_decides_what_you_won():
     """กติกาเหล็ก: เบราว์เซอร์ห้ามมีเรทหรือสุ่มเอง — ผลมาจากเซิร์ฟเวอร์อย่างเดียว"""
-    play = (WEB / "play.js").read_text(encoding="utf-8")
+    play = conftest.play_js_source()
     fn = play[play.index("async function fgPull("):]
     fn = fn[:fn.index("\n}\n")]
     assert "Math.random" not in fn, "เบราว์เซอร์สุ่มผลกาชาเอง"
@@ -299,7 +299,7 @@ def test_the_browser_never_decides_what_you_won():
 
 def test_every_result_kind_has_a_card_to_show():
     """ผลชนิดใหม่ที่ไม่มีป้าย = ผู้เล่นเห็นการ์ดเปล่า"""
-    play = (WEB / "play.js").read_text(encoding="utf-8")
+    play = conftest.play_js_source()
     block = play[play.index("const FG_KIND"):]
     block = block[:block.index("\n};")]
     shown = set(re.findall(r"^\s{2}(\w+):", block, re.M))
@@ -395,7 +395,7 @@ def test_the_gacha_prize_can_actually_be_worn(web):
 
 def test_a_button_you_cannot_afford_still_says_why(web):
     """กดแล้วเงียบคือบั๊ก — ต้องกดได้และได้ข้อความบอกว่าทองไม่พอ"""
-    play = (WEB / "play.js").read_text(encoding="utf-8")
+    play = conftest.play_js_source()
     block = play[play.index("document.getElementById('fgTiers').innerHTML"):]
     block = block[:block.index("}).join('');")]
     assert "disabled" not in block, "ปุ่มหมุนถูกปิดตายเมื่อทองไม่พอ — กดแล้วไม่มีอะไรเกิดขึ้น"
@@ -409,7 +409,7 @@ def test_a_button_you_cannot_afford_still_says_why(web):
 
 
 def test_the_exchange_button_also_speaks_up(web):
-    play = (WEB / "play.js").read_text(encoding="utf-8")
+    play = conftest.play_js_source()
     block = play[play.index("document.getElementById('fgExchange').innerHTML"):]
     block = block[:block.index("document.getElementById('fgExchange').querySelectorAll")]
     assert "disabled" not in block, "ปุ่มแลกถูกปิดตายเมื่ออัญมณีไม่พอ"
