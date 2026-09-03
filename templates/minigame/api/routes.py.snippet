@@ -1,0 +1,118 @@
+"""🔌 ชิ้นส่วน API เกมทายเลข 1-10 — ไปแปะใน license_server/web_api.py
+
+📋 วิธีย้าย:
+   1. ตัด "stub 3 ตัว" ด้านล่างออก (router / require_player / _user_lock
+      มีอยู่แล้วในไฟล์จริง ไม่ต้องสร้างซ้ำ)
+   2. แก้ import 2 บรรทัดบนสุดให้ชี้ที่ใหม่จริง เช่น
+      from bot.games.<หมวด>.<ชื่อเกม> import room as R
+      from bot.games.<หมวด>.<ชื่อเกม> import table as T
+   3. เปลี่ยนชื่อ path "/guessnum" เป็นชื่อเกมของคุณ
+   4. ถ้าเกมแตะเงิน ให้เพิ่ม path ลงกลุ่ม "money" ใน license_server/rate_limit.py
+      (ดูกฎเหล็ก #3 ใน templates/minigame/README.md — UNO เคยลืมมาแล้ว)
+
+รันเทมเพลตนี้เดี่ยว ๆ ได้เลยแบบไม่ต้องมี web_api.py จริง (stub ด้านล่างแทนที่ให้)
+เทส tests/test_template_minigame.py import ไฟล์นี้ตรง ๆ เพื่อเช็คว่าคำตอบ
+ที่ endpoint จะส่งกลับ (ชั้น HTTP) ไม่มีเลขลับหลุดออกมาก่อนเกมจบ
+"""
+from contextlib import contextmanager
+
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
+
+from templates.minigame.core import room as R
+from templates.minigame.core import table as T
+
+# ── 🧪 stub 3 ตัวนี้ตัดทิ้งตอนย้ายเข้า web_api.py จริง (ของจริงมีอยู่แล้วในไฟล์นั้น) ──
+router = APIRouter()
+
+
+def require_player(request: Request):
+    return {"uid": request.headers.get("x-uid", "1")}
+
+
+@contextmanager
+def _user_lock(uid):
+    yield
+# ── จบส่วน stub ──
+
+
+class GuessBody(BaseModel):
+    action: str = "view"      # start | guess | quit | view
+    number: int = 0
+    bots: int = 1
+
+
+@router.post("/guessnum")
+def guessnum(body: GuessBody, request: Request):
+    """🎯 ทายเลข 1-10 — ซ้อมกับบอท
+
+    🔒 เบราว์เซอร์ส่งมาแค่ "กดอะไร" — กติกาทั้งหมดตัดสินที่เซิร์ฟเวอร์
+       เลขลับไม่เคยถูกส่งลงมาก่อนเกมจบ (table.view คัดออกให้แล้ว)
+    """
+    uid = int(require_player(request)["uid"])
+    with _user_lock(uid):
+        if body.action == "start":
+            return {"ok": True, "table": T.view(uid, T.start(uid, bots=body.bots))}
+        if body.action == "quit":
+            T.clear(uid)
+            return {"ok": True, "table": {"playing": False}}
+        if body.action == "view":
+            return {"ok": True, "table": T.view(uid)}
+
+        if body.action == "guess":
+            ok, r = T.guess(uid, body.number)
+        else:
+            raise HTTPException(400, "ไม่รู้จักคำสั่งนี้")
+    if not ok:
+        raise HTTPException(400, r["error"])
+    return {"ok": True, **r}
+
+
+@router.get("/guessnum")
+def guessnum_current(request: Request):
+    """โต๊ะที่ค้างอยู่ (ถ้ามี) — เปิดหน้าเว็บมาเจอโต๊ะเดิม"""
+    uid = int(require_player(request)["uid"])
+    return {"ok": True, "table": T.view(uid)}
+
+
+class GuessRoomBody(BaseModel):
+    action: str = "view"      # view | create | join | leave | start | guess
+    code: str = ""
+    number: int = 0
+
+
+@router.post("/guessnum/room")
+def guessnum_room(body: GuessRoomBody, request: Request):
+    """🏠 ห้องทายเลขหลายคน — ชวนเพื่อนเล่น แยกขาดจากปุ่มซ้อมกับบอท
+
+    🔒 ทุกคำสั่งผูกกับ uid ที่ล็อกอินอยู่เท่านั้น เบราว์เซอร์ระบุแทนคนอื่นไม่ได้
+    ตอบกลับด้วย room.view(uid) เท่านั้น — ไม่ส่ง state ดิบ
+    """
+    uid = int(require_player(request)["uid"])
+    name = f"ผู้เล่น {uid}"
+    with _user_lock(uid):
+        if body.action == "create":
+            R.open_room(uid, name)
+        elif body.action == "join":
+            ok, r = R.sit(uid, name, body.code)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action == "leave":
+            R.stand(uid)
+        elif body.action == "start":
+            ok, r = R.begin(uid)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action == "guess":
+            ok, r = R.guess(uid, body.number)
+            if not ok:
+                raise HTTPException(400, r["error"])
+        elif body.action != "view":
+            raise HTTPException(400, "ไม่รู้จักคำสั่งนี้")
+        return R.view(uid)
+
+
+@router.get("/guessnum/room")
+def guessnum_room_state(request: Request):
+    uid = int(require_player(request)["uid"])
+    return R.view(uid)
