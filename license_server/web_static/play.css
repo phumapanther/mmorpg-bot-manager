@@ -1211,3 +1211,54 @@ body.bar-min .pbar .money { margin-left: auto; }
 .g-tile[hidden],
 .wm-buttons[hidden],
 .g-grid[hidden] { display: none !important; }
+
+/* ══ 🎭 ชวนเพื่อนเดินทาง — ปาร์ตี้เทิร์นเบส (สเปก 2026-09-03) ══
+   #partyMount = จุดเสียบเกม เปลี่ยน renderer ได้โดยไม่แตะ CSS ส่วนอื่น
+   รองรับทั้ง canvas (inline) และ iframe (เอนจินหนัก เช่น Phaser/Pygbag) */
+.party-mount {
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.party-mount > canvas,
+.party-mount > iframe {
+  width: 100%;
+  max-width: 900px;
+  border: 0;
+  border-radius: 12px;
+  display: block;
+}
+.party-soon {
+  text-align: center;
+  padding: 28px 18px;
+  color: var(--g-muted);
+}
+.party-soon .ic {
+  font-size: 42px;
+  display: block;
+  margin-bottom: 10px;
+}
+.party-soon b {
+  color: var(--g-ink);   /* --g-ink คือตัวที่นิยามจริง (ของเดิมบางจุดใช้ --g-text ที่ไม่มีนิยาม) */
+  font-size: 18px;
+}
+.party-soon p {
+  margin: 8px 0 16px;
+  line-height: 1.7;
+}
+.party-plan {
+  list-style: none;
+  padding: 0;
+  margin: 0 auto;
+  max-width: 380px;
+  text-align: left;
+}
+.party-plan li {
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 14px;
+}
+.party-plan li:last-child {
+  border-bottom: 0;
+}
