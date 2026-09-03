@@ -462,7 +462,7 @@ def test_respawn_clears_any_stuck_event(world, tmp_path, monkeypatch):
 def test_the_web_has_a_way_out_of_death():
     """เดิมตายบนเว็บแล้วค้างถาวร ต้องไปกด !play ในดิสถึงจะฟื้นได้"""
     api = conftest.web_api_source()
-    js = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+    js = conftest.play_js_source()
     assert '@router.post("/adventure/respawn")' in api
     assert "advRespawnButton(" in js and "ฟื้นคืนชีพ กลับหมู่บ้าน" in js
     assert "st.state === 'dead'" in js, "เปิดหน้ามาแล้วตายค้างอยู่ ก็ต้องเจอปุ่มฟื้น"

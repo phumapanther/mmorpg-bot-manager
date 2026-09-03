@@ -5,6 +5,7 @@ from starlette.testclient import TestClient
 
 import license_server.web_db as web_db
 from license_server.api import app, get_or_create_admin_secret
+from tests import conftest
 
 
 @pytest.fixture
@@ -644,7 +645,7 @@ def test_pages_and_scripts_are_not_cached_stale(client):
 def test_login_failure_is_the_only_thing_that_hides_the_menu():
     """เมนูต้องเปิดทันทีที่ล็อกอินผ่าน — ห้ามให้ error ตอนโหลดตัวละครไปซ่อนเมนู"""
     import pathlib
-    js = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+    js = conftest.play_js_source()
     boot = js[js.index("async function boot()"):]
     # ต้องเปิด shell ก่อนเรียก /me/game ไม่งั้น error ตอนโหลดข้อมูลจะทำให้เมนูไม่เปิด
     assert boot.index("classList.remove('hidden')") < boot.index('"/api/web/me/game"')

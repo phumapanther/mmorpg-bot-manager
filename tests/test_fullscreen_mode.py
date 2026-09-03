@@ -5,9 +5,10 @@
 """
 import pathlib
 import re
+from tests import conftest
 
 WEB = pathlib.Path("license_server/web_static")
-JS = (WEB / "play.js").read_text(encoding="utf-8")
+JS = conftest.play_js_source()
 CSS = (WEB / "play.css").read_text(encoding="utf-8")
 HTML = (WEB / "play.html").read_text(encoding="utf-8")
 

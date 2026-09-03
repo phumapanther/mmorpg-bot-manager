@@ -205,14 +205,14 @@ def test_new_players_start_at_the_first_square():
 
 def test_the_web_page_draws_the_board_from_the_server():
     """เบราว์เซอร์ต้องไม่มีกระดานฝังไว้เอง ไม่งั้นธีมเปลี่ยนแล้วหน้าเว็บไม่ตาม"""
-    js = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+    js = conftest.play_js_source()
     assert "api('GET', '/api/web/board')" in js and "paintBoard(" in js
     assert "const TILES = [" not in js, "ยังมีกระดานตัวอย่างฝังอยู่ในหน้าเว็บ"
     assert "hopTo(" in js, "หมากต้องเดินทีละช่องให้เห็น ไม่ใช่วาร์ป"
 
 
 def test_the_roll_button_locks_when_the_quota_is_gone():
-    js = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+    js = conftest.play_js_source()
     assert "btn.disabled = st.rolls_left <= 0" in js
 
 

@@ -165,7 +165,7 @@ def test_both_platforms_show_and_gate_on_mana():
     gv = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
     ui = pathlib.Path("bot/views/fight_ui.py").read_text(encoding="utf-8")
     api = conftest.web_api_source()
-    js = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+    js = conftest.play_js_source()
     assert "disabled=crystals <= 0" in gv, "ดิสต้องดับปุ่มสกิลเมื่อเม็ดหมด"
     assert "_mana_bar(player)" in ui, "หน้าไฟต์ในดิสต้องโชว์เม็ด"
     assert '"no_player", "no_mana"' in api, "เว็บต้องกันใช้สกิลตอนเม็ดหมด"

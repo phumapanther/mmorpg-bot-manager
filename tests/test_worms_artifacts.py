@@ -16,10 +16,11 @@ import pytest
 import bot.models.player_model as pm
 from bot.pvp import match, terrain as T, weapons as W
 from license_server import web_db
+from tests import conftest
 
 UID = 6401
 WEB = pathlib.Path("license_server/web_static")
-PLAY = (WEB / "play.js").read_text(encoding="utf-8")
+PLAY = conftest.play_js_source()
 HTML = (WEB / "play.html").read_text(encoding="utf-8")
 
 

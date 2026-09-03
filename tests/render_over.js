@@ -1,7 +1,8 @@
 const fs = require('fs'), vm = require('vm');
+const { playSource } = require('./_js_source');
 const CR = String.fromCharCode(13), NL = String.fromCharCode(10);
 const read = f => fs.readFileSync(f, 'utf8').split(CR + NL).join(NL);
-const play = read('license_server/web_static/play.js');
+const play = playSource().split(CR + NL).join(NL);
 const web  = read('license_server/web_static/web.js');
 const grab = (src, head) => {
   const a = src.indexOf(head);

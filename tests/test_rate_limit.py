@@ -9,6 +9,7 @@ import pathlib
 import pytest
 
 from license_server import rate_limit
+from tests import conftest
 
 
 @pytest.fixture(autouse=True)
@@ -123,7 +124,7 @@ def test_an_expired_session_sends_you_back_to_login():
 def test_the_game_page_has_a_way_to_log_out():
     """session อยู่ 30 วัน เครื่องสาธารณะต้องมีทางออก"""
     html = pathlib.Path("license_server/web_static/play.html").read_text(encoding="utf-8")
-    js = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+    js = conftest.play_js_source()
     assert 'id="playLogout"' in html
     assert "/api/web/logout" in js and "location.href = '/login'" in js
 

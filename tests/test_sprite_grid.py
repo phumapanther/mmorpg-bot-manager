@@ -7,6 +7,7 @@ import pathlib
 import re
 
 import pytest
+from tests import conftest
 
 SRC = pathlib.Path("license_server/web_static/sprite.js").read_text(encoding="utf-8")
 WIDTH = 16
@@ -67,7 +68,7 @@ def test_play_page_wires_sprite_engine():
     assert '/sprite.js' in html, "play.html ไม่ได้โหลด sprite.js"
     for pid in ('v-profile', 'v-bag', 'v-roleshop', 'v-gacha', 'v-rewards'):
         assert f'id="{pid}"' in html, f"ไม่มีแผง {pid}"
-    js = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+    js = conftest.play_js_source()
     # ทุกแผงที่ปุ่มชี้ไป ต้องมีอยู่จริง ไม่งั้นกดแล้วจอว่าง
     import re as _re
     for target in set(_re.findall(r'data-go="(\w+)"', html)):
@@ -77,7 +78,7 @@ def test_play_page_wires_sprite_engine():
 
 def test_every_money_action_goes_through_confirm():
     """ทุกธุรกรรมเงิน/ใช้ไอเทมต้องเรียก confirmAction ก่อน — กันเผลอต่อปุ่มตรงเข้า API"""
-    js = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+    js = conftest.play_js_source()
     for call in ('"/api/web/bank"', '"/api/web/goldbar"',
                  '"/api/web/item/use"', '"/api/web/item/drop"', '"/api/web/shop"'):
         idx = js.index(call)
@@ -89,7 +90,7 @@ def test_every_money_action_goes_through_confirm():
 
 def test_bag_items_open_a_menu_instead_of_inline_buttons():
     """ของในกระเป๋าต้องกดที่ใบแล้วเด้งเมนู ไม่ใช่แปะปุ่มใช้/ทิ้งไว้ตลอด (ปุ่มล้นการ์ด)"""
-    js = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+    js = conftest.play_js_source()
     assert "openItemMenu" in js
     assert "use-btn" not in js and "drop-btn" not in js, "ยังมีปุ่มติดการ์ดค้างอยู่"
     css = pathlib.Path("license_server/web_static/play.css").read_text(encoding="utf-8")

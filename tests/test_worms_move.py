@@ -18,7 +18,7 @@ from tests import conftest
 
 UID = 6201
 WEB = pathlib.Path("license_server/web_static")
-PLAY = (WEB / "play.js").read_text(encoding="utf-8")
+PLAY = conftest.play_js_source()
 HTML = (WEB / "play.html").read_text(encoding="utf-8")
 LOOK = {"race": "Human", "cls": "Warrior", "armor": "None", "weapon": ""}
 
@@ -283,9 +283,14 @@ def test_drowning_ends_the_match(world):
 # ── กติกาเหล็ก: เบราว์เซอร์ไม่ตัดสินตำแหน่ง ──
 
 def test_the_browser_never_computes_a_position():
-    """เบราว์เซอร์คิดตำแหน่งเอง = เดินทะลุกำแพงได้ทันทีด้วย devtools"""
+    """เบราว์เซอร์คิดตำแหน่งเอง = เดินทะลุกำแพงได้ทันทีด้วย devtools
+
+    หลังผ่า play.js (09-02 ขั้นที่ 5) หมวดสนามรบทั้งหมดย้ายไป games/worms_ui.js
+    ซึ่งต่อท้าย play.js ใน play_js_source() แล้ว — "let WM = null..." ถึงท้ายสตริง
+    จึงเป็นหมวดสนามรบล้วน ๆ ไม่ต้องหาจุดจบด้วยคอมเมนต์หมวดเพื่อนอีกต่อไป
+    """
     a = PLAY.index("let WM = null, WM_CAM = null, WM_ST = null;")
-    block = PLAY[a:PLAY.index("// ── 👥 เพื่อน ──", a)]
+    block = PLAY[a:]
     for banned in ("standable", "GRAVITY", "solid(", "+= 1;"):
         assert banned not in block, f"หน้าเว็บคำนวณการเคลื่อนที่เอง: {banned}"
     assert "d.move.path" in block, "ไม่ได้เล่นภาพจากเส้นทางที่เซิร์ฟเวอร์ส่งมา"

@@ -15,7 +15,7 @@ from tests import conftest
 
 UID = 9001
 API = conftest.web_api_source()
-PLAY = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+PLAY = conftest.play_js_source()
 HTML = pathlib.Path("license_server/web_static/play.html").read_text(encoding="utf-8")
 VIEWS = pathlib.Path("bot/views/game_views.py").read_text(encoding="utf-8")
 

@@ -13,10 +13,11 @@ import pytest
 
 import bot.models.player_model as pm
 from license_server import web_db
+from tests import conftest
 
 UID = 7701
 WEB = pathlib.Path("license_server/web_static")
-PLAY = (WEB / "play.js").read_text(encoding="utf-8")
+PLAY = conftest.play_js_source()
 
 
 # ── บั๊ก 1: ชื่อฟังก์ชันชนกัน ──

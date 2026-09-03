@@ -138,6 +138,6 @@ def test_the_web_never_tries_to_grant_roles_itself():
 
 def test_the_gacha_page_waits_for_the_bot_before_celebrating():
     """ยศยังไม่ถึงมือจนกว่าบอทจะแจก — หน้าเว็บต้องรอผลจริงก่อนขึ้นแจ็คพอต"""
-    js = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+    js = conftest.play_js_source()
     assert "waitTicket(res.ticket)" in js
     assert "แจ็คพอตแตก" in js and "เกลือ" in js

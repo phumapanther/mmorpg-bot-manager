@@ -12,10 +12,11 @@ import shutil
 import subprocess
 
 import pytest
+from tests import conftest
 
 WEB = pathlib.Path("license_server/web_static")
 SPRITE = (WEB / "sprite.js").read_text(encoding="utf-8")
-PLAY = (WEB / "play.js").read_text(encoding="utf-8")
+PLAY = conftest.play_js_source()
 SCENE = (WEB / "scene.js").read_text(encoding="utf-8")
 
 CHAR = ("{race:'Human',cls:'Warrior',armor:'None',weapon:'Iron_Weapon',pose:'idle',"

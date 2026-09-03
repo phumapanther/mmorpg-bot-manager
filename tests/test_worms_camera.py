@@ -10,9 +10,10 @@ import pathlib
 import re
 
 import pytest
+from tests import conftest
 
 WEB = pathlib.Path("license_server/web_static")
-PLAY = (WEB / "play.js").read_text(encoding="utf-8")
+PLAY = conftest.play_js_source()
 WORMS = (WEB / "worms.js").read_text(encoding="utf-8")
 
 

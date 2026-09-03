@@ -8,7 +8,7 @@ import re
 from tests import conftest
 
 HTML = pathlib.Path("license_server/web_static/play.html").read_text(encoding="utf-8")
-JS = pathlib.Path("license_server/web_static/play.js").read_text(encoding="utf-8")
+JS = conftest.play_js_source()
 API = conftest.web_api_source()
 
 MENUS = {"pets": "fillPets", "daily": "fillDaily", "achv": "fillAchv",
