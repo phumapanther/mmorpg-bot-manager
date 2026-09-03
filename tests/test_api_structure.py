@@ -139,6 +139,19 @@ def test_เซตของpathตรงเป๊ะกับก่อนรื�
     )
 
 
+def test_ไม่มีrouteลงทะเบียนซ้ำ():
+    """เทียบเป็นเซตอย่างเดียวไม่พอ — เซตกลืนของซ้ำ (route เดียวกันสมัคร 2 รอบ
+
+    เช่น controller ใหม่คัดลอกมาแล้วลืมลบของเก่าใน web_api.py) ต้องเช็คจำนวนจริง
+    ในลิสต์ (ไม่ dedupe) ให้ตรง 81 เป๊ะด้วย ไม่ใช่แค่ >= 81 หรือเซตเท่ากัน
+    """
+    _, seen = _route_set()
+    from collections import Counter
+    dups = {k: v for k, v in Counter(seen).items() if v > 1}
+    assert not dups, f"route ถูกลงทะเบียนซ้ำมากกว่า 1 ครั้ง: {dups}"
+    assert len(seen) == 81, f"จำนวน route จริง (ไม่ dedupe) ต้องเป็น 81 เป๊ะ ได้ {len(seen)}"
+
+
 def test_router_ตัวเดียวกับสะพาน():
     """สะพาน web_api.router ต้องเป็นตัวเดียวกับ api_web.router เป๊ะ (ไม่ใช่แค่หน้าตาเหมือน)"""
     from license_server import web_api

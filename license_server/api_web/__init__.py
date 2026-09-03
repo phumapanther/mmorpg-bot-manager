@@ -15,8 +15,10 @@ router = APIRouter(prefix="/api/web")
 
 # ย้ายเข้ามาทีละหมวด (ดูลำดับ commit ใน .superpowers/sdd/2026-09-02-lobby-uno-betting/
 # refactor-api-web-brief.md) — include_router ทุกตัวที่ย้ายเสร็จแล้วตรงนี้
-from license_server.api_web import adventure, admin, auth, bank, misc, shop, topup  # noqa: E402
+from license_server.api_web import (  # noqa: E402
+    adventure, admin, auth, bank, misc, player, shop, topup,
+)
 from license_server.api_web.games import casino, pvp, uno  # noqa: E402
 
-for _m in (auth, bank, misc, topup, adventure, admin, shop, casino, pvp, uno):
+for _m in (auth, bank, misc, topup, adventure, admin, shop, player, casino, pvp, uno):
     router.include_router(_m.router)
