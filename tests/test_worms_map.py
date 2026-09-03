@@ -197,9 +197,14 @@ def test_the_panel_is_wired():
 
 
 def _worms_js():
-    """ทั้งหมวดสนามรบใน play.js — ตัดตามจุดเริ่มของบล็อก ไม่ใช่นับตัวอักษร"""
+    """ทั้งหมวดสนามรบในซอร์สรวม — ตัดตามจุดเริ่มของบล็อก ไม่ใช่นับตัวอักษร
+
+    หลังผ่า play.js (09-02 ขั้นที่ 5) หมวดสนามรบทั้งหมดย้ายไป games/worms_ui.js
+    ซึ่งต่อท้าย play.js ใน play_js_source() แล้ว — "let WM = null..." ถึงท้ายสตริง
+    จึงเป็นหมวดสนามรบล้วน ๆ ไม่ต้องหาจุดจบด้วยชื่อตัวแปรของหมวดอื่นอีกต่อไป
+    """
     a = PLAY.index("let WM = null, WM_CAM = null, WM_ST = null;")
-    return PLAY[a:PLAY.index("let FRIENDS = null;", a)]
+    return PLAY[a:]
 
 
 def test_the_fighters_are_our_characters_not_worms():
