@@ -17,7 +17,8 @@ const PX = {
   units: [],
   pops: [],          // เลขดาเมจลอย
   fx: [],            // ประกายตอนโดนตี
-  hp: {},            // เลือดที่ "กำลังวาด" — ไล่ตามเลือดจริงแบบนุ่ม ๆ
+  hp: {},            // เลือดที่ "กำลังวาด" — ไล่ตาม hpT แบบนุ่ม ๆ
+  hpT: {},           // เลือดเป้าหมาย — ขยับตาม **เหตุการณ์** ไม่ใช่ตามสถานะ
   lunge: {},         // ตัวที่กำลังพุ่งเข้าใส่ (id -> ความคืบหน้า 0..1)
   warn: null,        // ป้ายเตือนท่าใหญ่ ค้างจนบอสปล่อยท่า
   duel: null,        // เต๋าที่กำลังทอยแข่ง {from,to,atk,def,hit,t}
@@ -64,13 +65,31 @@ const px = {
     return out;
   },
 
-  /** เลือดที่วาดอยู่ตอนนี้ (ไล่ตามของจริงทีละนิด ไม่กระตุกลงทันที) */
-  hpPct(u) {
-    const real = u.side === 'party'
+  /** สัดส่วนเลือดตามสถานะล่าสุดจากเซิร์ฟเวอร์ */
+  frac(u) {
+    return u.side === 'party'
       ? Math.max(0, u.hp) / Math.max(1, u.hp_max)
       : Math.max(0, u.hp_pct || 0) / 100;
+  },
+
+  /** เลือดที่วาดอยู่ตอนนี้
+   *
+   * ⚠️ `real` มาจาก **เป้าหมายที่เหตุการณ์ตั้งไว้** ไม่ใช่สถานะดิบ
+   *    เอาสถานะดิบมาใช้ตรง ๆ แถบเลือดจะลดตั้งแต่ยังไม่ทันทอยเต๋า
+   *    (เจ้าของเกมเห็นตอนเทสด้วยมือ 2026-09-04: เลือดลดก่อนเต๋า ก่อนอนิเมชันโดนตี)
+   */
+  hpPct(u) {
+    if (PX.hpT[u.id] === undefined) PX.hpT[u.id] = px.frac(u);
+    const real = PX.hpT[u.id];
     if (PX.hp[u.id] === undefined) PX.hp[u.id] = real;
     return { real, shown: PX.hp[u.id] };
+  },
+
+  /** ปล่อยให้แถบเลือดของหน่วยพวกนี้ไล่ตามสถานะล่าสุดได้แล้ว */
+  release(ids) {
+    for (const u of PX.units) {
+      if (ids.includes(u.id)) PX.hpT[u.id] = px.frac(u);
+    }
   },
 
   /** มีอะไรกำลังเคลื่อนไหวอยู่ไหม — ไม่มีก็หยุดวาด ไม่เปลืองแบต */
@@ -111,6 +130,7 @@ function pbMount(mountId) {
     PX.duel = null;
     PX.queue = [];
     PX.wait = 0;
+    PX.hpT = {};
     PX.shake = 0;
     PX.flash = 0;
   }
@@ -138,7 +158,11 @@ function pbPlay(events) {
 function pxStep() {
   if (PX.wait > 0) { PX.wait -= 1; return; }
   const e = PX.queue.shift();
-  if (!e) return;
+  if (!e) {
+    // ไม่มีอะไรค้างแล้ว — ไล่แถบเลือดให้ตรงกับเซิร์ฟเวอร์ กันคลาดเคลื่อนสะสม
+    for (const u of PX.units) PX.hpT[u.id] = px.frac(u);
+    return;
+  }
   pxApply([e]);
   PX.wait = EV_FRAMES[e.t] || EV_DEFAULT;
 }
@@ -153,6 +177,7 @@ function pxApply(events) {
       pxLunge(e.from);
       pxPop(e.to, `-${e.dmg}`, e.crit ? '#ffd34a' : '#ff8080', e.crit);
       pxBurst(e.to, e.element, e.crit ? 22 : 12);
+      px.release([e.to]);            // เลือดเพิ่งขยับตอนนี้ ไม่ใช่ตอนรับสถานะ
       PX.shake = e.crit ? 12 : 6;
       if (e.crit) PX.flash = 1;
     } else if (e.t === 'aoe') {
@@ -161,15 +186,18 @@ function pxApply(events) {
         pxPop(id, `-${e.dmgs[i]}`, '#ff9a5a');
         pxBurst(id, e.element, 10);
       });
+      px.release(e.targets || []);
       PX.shake = 10;
     } else if (e.t === 'heal') {
       pxPop(e.to, `+${e.amount}`, '#6ee7a0');
       pxBurst(e.to, 'wood', 10);
+      px.release([e.to]);
     } else if (e.t === 'miss') {
       pxPop(e.to, 'พลาด!', '#9aa4b2');
     } else if (e.t === 'die') {
       pxPop(e.who, '💀', '#ff5252', true);
       pxBurst(e.who, 'dark', 18);
+      px.release([e.who]);
     } else if (e.t === 'phase') {
       pxPop(e.who, e.phase === 'rage' ? '🔥 คลั่ง!' : '💀 สิ้นหวัง!', '#ff4a4a', true);
       PX.flash = 1;
@@ -208,6 +236,11 @@ function pxBurst(id, element, n) {
 /** เหตุการณ์ที่ยังค้างคิวอยู่กี่อัน — 0 = อนิเมชันเล่นจบแล้ว
  *  หน้าเว็บ/เทสใช้เช็คว่ายังเล่นอยู่ไหม (ส่วนหนึ่งของสัญญา renderer)
  */
+/** สัดส่วนเลือดที่ "กำลังวาด" ของหน่วยนี้ (0-1) — เทส/หน้าเว็บใช้ตรวจอนิเมชัน */
+function pbHpShown(id) {
+  return PX.hp[id] === undefined ? null : PX.hp[id];
+}
+
 function pbPending() {
   return PX.queue.length + (PX.wait > 0 ? 1 : 0);
 }

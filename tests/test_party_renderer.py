@@ -91,7 +91,7 @@ def test_renderer_ทุกตัวมีสัญญาครบ():
     assert len(RENDERERS) >= 2, "ต้องมีอย่างน้อย 2 ตัวถึงจะพิสูจน์ว่าสลับได้จริง"
     for f in RENDERERS:
         src = _src(f)
-        for fn in ("pbMount", "pbSetState", "pbPlay", "pbDraw", "pbClick", "pbPending"):
+        for fn in ("pbMount", "pbSetState", "pbPlay", "pbDraw", "pbClick", "pbPending", "pbHpShown"):
             assert f"function {fn}(" in src, f"{f.name} ไม่มี {fn}()"
         assert "onPartyPick" in src, f"{f.name} ไม่เรียกกลับตอนคลิกเป้า"
 

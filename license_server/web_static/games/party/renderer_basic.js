@@ -14,6 +14,7 @@ const PB = {
   shake: 0,           // สั่นจอตอนโดนตี
   warn: null,         // ป้ายเตือนท่าใหญ่ของบอส — ค้างไว้จนบอสปล่อยท่า
   duel: null,         // เต๋าที่กำลังทอยแข่งกัน
+  hpT: {},            // เลือดเป้าหมาย — ขยับตาม **เหตุการณ์** ไม่ใช่ตามสถานะ
   queue: [],          // เหตุการณ์ที่รอเล่น — เล่นทีละอัน ไม่รัวทับกัน
   wait: 0,
   raf: null,
@@ -51,6 +52,7 @@ function pbMount(mountId) {
     PB.duel = null;
     PB.queue = [];
     PB.wait = 0;
+    PB.hpT = {};
     PB.shake = 0;
   }
   return PB.cv;
@@ -73,7 +75,10 @@ function pbPlay(events) {
 function pbStep() {
   if (PB.wait > 0) { PB.wait -= 1; return; }
   const e = PB.queue.shift();
-  if (!e) return;
+  if (!e) {
+    for (const u of PB.units) PB.hpT[u.id] = pbFrac(u);
+    return;
+  }
   pbApply([e]);
   PB.wait = EV_FRAMES[e.t] || EV_DEFAULT;
 }
@@ -85,16 +90,20 @@ function pbApply(events) {
       PB.duel = { atk: e.atk, def: e.def, hit: e.hit, evaded: e.evaded, t: 0 };
     } else if (e.t === 'attack') {
       pbPop(e.to, `-${e.dmg}`, e.crit ? '#ffd34a' : '#ff7a7a', e.crit);
+      pbRelease([e.to]);
       PB.shake = e.crit ? 10 : 5;
     } else if (e.t === 'aoe') {
       (e.targets || []).forEach((id, i) => pbPop(id, `-${e.dmgs[i]}`, '#ff9a5a'));
+      pbRelease(e.targets || []);
       PB.shake = 8;
     } else if (e.t === 'heal') {
       pbPop(e.to, `+${e.amount}`, '#6ee7a0');
+      pbRelease([e.to]);
     } else if (e.t === 'miss') {
       pbPop(e.to, 'พลาด!', '#9aa4b2');
     } else if (e.t === 'die') {
       pbPop(e.who, '💀', '#ff5252', true);
+      pbRelease([e.who]);
     } else if (e.t === 'telegraph') {
       // ⚠️ ป้ายนี้คือสิ่งเดียวที่ผู้เล่นได้รู้ล่วงหน้า — ต้องค้างข้ามเฟรม
       //    ไม่ใช่วูบเดียวหาย ไม่งั้นเตือนไปก็เท่านั้น
@@ -156,6 +165,32 @@ function pbShortName(name) {
   return c.length > 14 ? c.slice(0, 14).join('') : c.join('');
 }
 
+/** สัดส่วนเลือดตามสถานะล่าสุดจากเซิร์ฟเวอร์ */
+function pbFrac(u) {
+  return u.side === 'party'
+    ? Math.max(0, u.hp) / Math.max(1, u.hp_max)
+    : Math.max(0, u.hp_pct || 0) / 100;
+}
+
+/** ปล่อยให้แถบเลือดของหน่วยพวกนี้ไล่ตามสถานะล่าสุด */
+function pbRelease(ids) {
+  for (const u of PB.units) {
+    if (ids.includes(u.id)) PB.hpT[u.id] = pbFrac(u);
+  }
+}
+
+/** สัดส่วนเลือดที่ "กำลังวาด" ของหน่วยนี้ (0-1)
+ *
+ * ⚠️ เส้นทางวาดต้องเรียกฟังก์ชันนี้ **ตัวเดียว** ห้ามคำนวณเองซ้ำ
+ *    ไม่งั้นเทสอ่านค่าจากที่หนึ่งแต่จอวาดอีกค่าหนึ่ง จับบั๊กไม่ได้
+ */
+function pbHpShown(id) {
+  const u = (PB.units || []).find(x => x.id === id);
+  if (!u) return null;
+  if (PB.hpT[id] === undefined) PB.hpT[id] = pbFrac(u);
+  return PB.hpT[id];
+}
+
 function pbDraw() {
   const c = PB.ctx;
   if (!c) return;
@@ -212,9 +247,8 @@ function pbDraw() {
     c.fillText(pbShortName(u.name), s.x, s.y + 60);
 
     // แถบเลือด — ผู้เล่นเห็นตัวเลข มอนเห็นแค่แถบ (เซิร์ฟเวอร์ไม่ส่ง hp จริงของมอน)
-    const pct = u.side === 'party'
-      ? Math.max(0, u.hp) / Math.max(1, u.hp_max)
-      : (u.hp_pct || 0) / 100;
+    // ⚠️ ใช้เป้าหมายที่เหตุการณ์ตั้งไว้ ไม่ใช่สถานะดิบ ไม่งั้นเลือดลดก่อนทอยเต๋า
+    const pct = pbHpShown(u.id);
     c.fillStyle = '#2a2f3d';
     c.fillRect(s.x - w, s.y - 54, w * 2, 7);
     c.fillStyle = pct > 0.5 ? '#5bd67d' : pct > 0.2 ? '#ffd34a' : '#ff5252';

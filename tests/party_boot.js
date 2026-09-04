@@ -93,7 +93,8 @@ function runSuite(FILE) {
     return;
   }
 
-  for (const fn of ['pbMount', 'pbSetState', 'pbPlay', 'pbDraw', 'pbPending']) {
+  for (const fn of ['pbMount', 'pbSetState', 'pbPlay', 'pbDraw', 'pbPending',
+                    'pbHpShown']) {
     ok(`มีฟังก์ชัน ${fn}`, typeof sandbox[fn] === 'function');
   }
 
@@ -231,7 +232,40 @@ try {
     ok('สถานะว่าง', false, e.message);
   }
 
-    // ── เหตุการณ์ต้องเล่นทีละอัน ไม่รัวทับกัน ──
+    // ── ⭐ แถบเลือดต้องลด "หลัง" อนิเมชันโดนตี ไม่ใช่ก่อน ──
+  // เจ้าของเกมเจอตอนเทสด้วยมือ 2026-09-04: เลือดลดตั้งแต่ยังไม่ทันทอยเต๋า
+  // เพราะ pbSetState เอาสถานะใหม่ (เลือดลดแล้ว) ไปตั้งเป้าทันที
+  // ที่ถูกคือแถบเลือดต้องขยับตาม "เหตุการณ์" ไม่ใช่ตามสถานะ
+  try {
+    drain();
+    const full = JSON.parse(JSON.stringify(state));
+    sandbox.pbSetState(full);
+    drain();
+    const before = sandbox.pbHpShown('p1');
+
+    // เซิร์ฟเวอร์ส่งสถานะที่เลือดลดแล้วมาพร้อมเหตุการณ์ (เหมือนของจริง)
+    const hurtState = JSON.parse(JSON.stringify(state));
+    hurtState.units.find(u => u.id === 'p1').hp = 10;
+    sandbox.pbPlay([
+      { t: 'contest', from: 'm1', to: 'p1', atk: 18, def: 6, hit: true, evaded: false },
+      { t: 'attack', from: 'm1', to: 'p1', dmg: 70, element: null, crit: false },
+    ]);
+    sandbox.pbSetState(hurtState);
+
+    for (let i = 0; i < 12; i++) drain(1);      // ยังอยู่ช่วงทอยเต๋า
+    const mid = sandbox.pbHpShown('p1');
+    ok('เลือดยังไม่ลดตอนกำลังทอยเต๋า',
+       Math.abs(mid - before) < 0.02, `ก่อน ${before} ระหว่างทอย ${mid}`);
+
+    drain();                                     // ปล่อยจนอนิเมชันจบ
+    const after = sandbox.pbHpShown('p1');
+    ok('พออนิเมชันโดนตีเล่นแล้วเลือดถึงลด', after < before - 0.2,
+       `ก่อน ${before} หลัง ${after}`);
+  } catch (e) {
+    ok('ลำดับแถบเลือดกับอนิเมชัน', false, e.message);
+  }
+
+  // ── เหตุการณ์ต้องเล่นทีละอัน ไม่รัวทับกัน ──
   // เจ้าของเกมสั่ง 2026-09-04: ถึงตาบอท/มอนให้รอสักพักแล้วค่อยตี จะได้ดูทัน
   try {
     drain();
