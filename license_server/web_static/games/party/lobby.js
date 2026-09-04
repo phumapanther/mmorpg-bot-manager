@@ -85,7 +85,10 @@ function partyPaint() {
       <ul class="party-seats">${rows}${blanks}</ul>
       <div class="party-btns">
         ${PARTY.host
-          ? `<button class="go" id="partyStart" ${seats.length < 2 ? 'disabled' : ''}>
+          ? `<label class="party-raid">
+               <input type="checkbox" id="partyBoss"> 👑 ล่าบอส (ยากกว่า รางวัลดีกว่า)
+             </label>
+             <button class="go" id="partyStart" ${seats.length < 2 ? 'disabled' : ''}>
                ⚔️ เริ่มออกเดินทาง${seats.length < 2 ? ' (รออีกอย่างน้อย 1 คน)' : ''}
              </button>`
           : '<span class="party-hint">รอหัวห้องกดเริ่ม...</span>'}
@@ -99,7 +102,9 @@ function partyPaint() {
   };
   document.getElementById('partyLeave').onclick = () => partyDo('leave');
   const go = document.getElementById('partyStart');
-  if (go) go.onclick = () => partyDo('start');
+  if (go) go.onclick = () => partyDo('start', {
+    boss_raid: !!document.getElementById('partyBoss')?.checked,
+  });
 }
 
 /** เปิดหน้าปาร์ตี้ — เรียกจาก showPanel('party') */

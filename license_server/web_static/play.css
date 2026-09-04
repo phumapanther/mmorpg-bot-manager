@@ -1336,3 +1336,8 @@ body.bar-min .pbar .money { margin-left: auto; }
 .party-result b { display: block; font-size: 22px; margin-bottom: 10px; }
 .party-result.win b { color: var(--g-gold); }
 .party-result.lose b { color: #ff6b6b; }
+
+/* ติ๊กล่าบอสก่อนกดเริ่ม — เห็นเฉพาะหัวห้อง */
+.party-raid { display: flex; align-items: center; gap: 8px;
+  color: var(--g-muted); font-size: 14px; cursor: pointer; }
+.party-raid input { accent-color: var(--g-gold); cursor: pointer; }

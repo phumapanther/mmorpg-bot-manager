@@ -153,3 +153,15 @@ def test_แถบคำสั่งมีครบ_6_ท่า():
 def test_ท่าที่ไม่ต้องเล็งสั่งได้เลย():
     """defend/flee/aoe ไม่ต้องเลือกเป้า — บังคับเลือกจะกดไม่ได้"""
     assert "a === 'defend' || a === 'flee' || a === 'aoe'" in LOBBY
+
+
+def test_หัวห้องเลือกล่าบอสได้():
+    """ธง boss_raid มีในเซิร์ฟเวอร์แล้ว ต้องมีทางกดจริง ไม่งั้นเป็นโค้ดตาย"""
+    assert 'id="partyBoss"' in LOBBY
+    assert "boss_raid:" in LOBBY, "ติ๊กแล้วแต่ไม่ได้ส่งไปเซิร์ฟเวอร์"
+    assert ".party-raid" in CSS
+
+
+def test_api_รับธงล่าบอส():
+    from license_server.api_web.games.party import PartyBody
+    assert "boss_raid" in PartyBody.model_fields

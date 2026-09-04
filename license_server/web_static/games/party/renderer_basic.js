@@ -12,6 +12,7 @@ const PB = {
   units: [],          // สถานะล่าสุดจาก view()
   pops: [],           // เลขดาเมจลอย
   shake: 0,           // สั่นจอตอนโดนตี
+  warn: null,         // ป้ายเตือนท่าใหญ่ของบอส — ค้างไว้จนบอสปล่อยท่า
   raf: null,
 };
 
@@ -58,8 +59,17 @@ function pbPlay(events) {
       pbPop(e.to, 'พลาด!', '#9aa4b2');
     } else if (e.t === 'die') {
       pbPop(e.who, '💀', '#ff5252', true);
+    } else if (e.t === 'telegraph') {
+      // ⚠️ ป้ายนี้คือสิ่งเดียวที่ผู้เล่นได้รู้ล่วงหน้า — ต้องค้างข้ามเฟรม
+      //    ไม่ใช่วูบเดียวหาย ไม่งั้นเตือนไปก็เท่านั้น
+      PB.warn = { who: e.who, move: e.move };
+      pbPop(e.who, '⚠️', '#ffd34a', true);
     } else if (e.t === 'phase') {
       pbPop(e.who, e.phase === 'rage' ? '🔥 คลั่ง!' : '💀 สิ้นหวัง!', '#ff4a4a', true);
+    }
+    // ปล่อยท่าแล้วป้ายเตือนหมดหน้าที่
+    if ((e.t === 'aoe' || e.t === 'attack') && PB.warn && e.from === PB.warn.who) {
+      PB.warn = null;
     }
   }
   pbLoop();
@@ -128,11 +138,19 @@ function pbDraw() {
     }
 
     // ตัวละคร (กล่องสีธาตุ — เฟส 7 จะเปลี่ยนเป็นสไปรต์)
+    // บอสตัวใหญ่กว่า ผู้เล่นจะได้รู้ทันทีว่าตัวไหนต้องระวัง
+    const w = u.boss ? 48 : 34;
     c.globalAlpha = u.alive ? 1 : 0.3;
     c.fillStyle = col;
     c.beginPath();
-    c.roundRect(s.x - 34, s.y - 40, 68, 80, 12);
+    c.roundRect(s.x - w, s.y - 40, w * 2, 80, 12);
     c.fill();
+    if (u.boss) {
+      c.globalAlpha = 1;
+      c.font = '18px system-ui';
+      c.textAlign = 'center';
+      c.fillText('👑', s.x, s.y - 46);
+    }
 
     // ชื่อ
     c.globalAlpha = 1;
@@ -146,9 +164,9 @@ function pbDraw() {
       ? Math.max(0, u.hp) / Math.max(1, u.hp_max)
       : (u.hp_pct || 0) / 100;
     c.fillStyle = '#2a2f3d';
-    c.fillRect(s.x - 34, s.y - 54, 68, 7);
+    c.fillRect(s.x - w, s.y - 54, w * 2, 7);
     c.fillStyle = pct > 0.5 ? '#5bd67d' : pct > 0.2 ? '#ffd34a' : '#ff5252';
-    c.fillRect(s.x - 34, s.y - 54, 68 * pct, 7);
+    c.fillRect(s.x - w, s.y - 54, w * 2 * pct, 7);
 
     if (u.side === 'party') {
       c.fillStyle = '#9aa4b2';
@@ -159,6 +177,16 @@ function pbDraw() {
       c.font = '16px system-ui';
       c.fillText('🛡️', s.x + 30, s.y - 40);
     }
+  }
+
+  // ป้ายเตือนท่าใหญ่ — ค้างจนกว่าบอสจะปล่อยท่า
+  if (PB.warn) {
+    c.fillStyle = 'rgba(220,38,38,.85)';
+    c.fillRect(0, 0, 900, 34);
+    c.fillStyle = '#fff';
+    c.font = 'bold 16px system-ui, sans-serif';
+    c.textAlign = 'center';
+    c.fillText(`⚠️ กำลังร่ายท่าใหญ่: ${PB.warn.move} — ตาหน้าโดนทั้งปาร์ตี้!`, 450, 23);
   }
 
   // เลขดาเมจลอย

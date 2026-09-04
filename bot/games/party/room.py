@@ -8,8 +8,8 @@
 """
 import random
 
-from bot import adventure_core, lobby
-from bot.games.party import engine
+from bot import lobby
+from bot.games.party import engine, monsters
 
 GAME = "party"
 MAX_PARTY = 5          # เจ้าของเกมเคาะ 2026-09-03
@@ -50,8 +50,11 @@ def leave_party(uid):
     return lobby.leave(GAME, uid)
 
 
-def begin(uid):
-    """หัวห้องกดเริ่ม — ต้องมีอย่างน้อย 2 คน"""
+def begin(uid, boss_raid=False):
+    """หัวห้องกดเริ่ม — ต้องมีอย่างน้อย 2 คน
+
+    boss_raid=True → เจอบอส 1 ตัว + ลูกน้อง แทนมอนธรรมดาทั้งกลุ่ม
+    """
     st = _room(uid)
     if not st:
         return False, {"error": "ยังไม่ได้อยู่ปาร์ตี้ไหน"}
@@ -61,6 +64,7 @@ def begin(uid):
         return False, {"error": f"ต้องมีอย่างน้อย {MIN_TO_START} คนถึงจะเริ่มได้"}
     st["started"] = True
     st["extra"]["phase"] = "battle"
+    st["extra"]["boss_raid"] = bool(boss_raid)
     _spawn_battle(st)
     return True, lobby.save(st["room"], st)
 
@@ -95,21 +99,13 @@ def _players_of(st):
 def _spawn_battle(st):
     """เกิดมอนแล้วเริ่มสมรภูมิ
 
-    ⚠️ ใช้ adventure_core.spawn_monster ของเกมหลัก ไม่สร้างมอนใหม่
-       ไม่งั้นมอนสองโหมดไม่ตรงกัน (เจ้าของเกมสั่งให้ใช้ดาต้าเดิม)
-    เฟส 4 จะมาแทนที่ด้วย monsters.spawn_group ที่คุมจำนวน/บอสได้ละเอียดกว่า
+    ⚠️ มอนมาจาก adventure_core.spawn_monster ของเกมหลัก ไม่สร้างพันธุ์ใหม่
+       (เจ้าของเกมสั่งให้ใช้ดาต้าเดิม) — monsters.spawn_group คุมจำนวนกับบอส
     """
     rng = random.Random()
     players = _players_of(st)
-    host_uid = int(st["host"])
-    mons = []
-    for i in range(max(1, len(players))):
-        m = adventure_core.spawn_monster(host_uid, rng=rng)
-        m["id"] = f"m{i + 1}"
-        m["name"] = (m.get("stats") or {}).get("name") or f"มอน {i + 1}"
-        m["atk"] = 6 + i
-        m["def"] = 1
-        mons.append(m)
+    mons = monsters.spawn_group(int(st["host"]), len(players), rng,
+                                boss=bool(st["extra"].get("boss_raid")))
     engine.start_battle(st, players, mons, rng)
     _run_monsters(st, rng)      # มอนที่ไวกว่าผู้เล่นต้องได้เดินก่อน ไม่งั้นเกมค้าง
 

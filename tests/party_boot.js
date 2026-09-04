@@ -115,9 +115,10 @@ try {
     { t: 'miss', from: 'm1', to: 'p1' },
     { t: 'die', who: 'm2' },
     { t: 'phase', who: 'm1', phase: 'rage' },
+    { t: 'telegraph', who: 'm1', move: '🔥 คลื่นเพลิงคลั่ง', targets: ['p1', 'p2'] },
   ]);
   drain();
-  ok('เล่นเหตุการณ์ครบ 8 ชนิดได้ ไม่มี error', true);
+  ok('เล่นเหตุการณ์ครบทุกชนิดได้ ไม่มี error', true);
   ok('เหตุการณ์ทำให้เกิดการวาดเพิ่ม', calls.length > before);
 } catch (e) {
   ok('เล่นเหตุการณ์', false, e.message);
@@ -134,6 +135,31 @@ try {
   ok('เลขลอยอยู่หลายเฟรม (อนิเมชันจริง ไม่ใช่วาดครั้งเดียว)', drain() > 1);
 } catch (e) {
   ok('เลขลอยข้ามเฟรม', false, e.message);
+}
+
+// ── ป้ายเตือนต้องค้างจนกว่าบอสจะปล่อยท่า ──
+// เตือนแล้วป้ายหายทันที = เตือนไปก็เท่านั้น ผู้เล่นไม่ทันอ่าน
+try {
+  drain();
+  sandbox.pbPlay([{ t: 'telegraph', who: 'm1', move: 'ท่าใหญ่', targets: ['p1'] }]);
+  drain();
+  const shown = calls.filter(c => c[0] === 'fillText' &&
+                             String(c[1]).includes('ท่าใหญ่')).length;
+  ok('ป้ายเตือนขึ้นบนจอ', shown > 0);
+
+  const n0 = calls.length;
+  sandbox.pbSetState(state);          // poll รอบถัดไป ป้ายต้องยังอยู่
+  drain();
+  ok('ป้ายเตือนค้างข้ามการอัปเดตสถานะ',
+     calls.slice(n0).some(c => c[0] === 'fillText' && String(c[1]).includes('ท่าใหญ่')));
+
+  const n1 = calls.length;
+  sandbox.pbPlay([{ t: 'aoe', from: 'm1', targets: ['p1'], dmgs: [50], element: null }]);
+  drain();
+  ok('ปล่อยท่าแล้วป้ายหาย',
+     !calls.slice(n1).some(c => c[0] === 'fillText' && String(c[1]).includes('ท่าใหญ่')));
+} catch (e) {
+  ok('ป้ายเตือนท่าใหญ่', false, e.message);
 }
 
 // ── เหตุการณ์ที่ไม่รู้จักต้องไม่ทำให้พัง ──

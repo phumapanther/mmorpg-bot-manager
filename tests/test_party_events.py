@@ -18,6 +18,7 @@ ALL_MAKERS = [
     ("die", lambda: events.die("m2")),
     ("phase", lambda: events.phase("boss", "rage")),
     ("miss", lambda: events.miss("p1", "m2")),
+    ("telegraph", lambda: events.telegraph("m1", "🔥 คลื่นเพลิงคลั่ง", ["p1", "p2"])),
 ]
 
 
@@ -79,3 +80,9 @@ def test_รายชื่อชนิดเหตุการณ์ครบ�
     """เพิ่มชนิดใหม่ต้องประกาศใน EVENT_TYPES ด้วย ไม่งั้น renderer ไม่รู้ว่าต้องรองรับอะไร"""
     made = {make()["t"] for _, make in ALL_MAKERS}
     assert made == set(events.EVENT_TYPES)
+
+
+def test_เตือนท่าใหญ่บอกทั้งชื่อท่าและคนที่จะโดน():
+    """ป้ายเตือนต้องบอกครบ ไม่งั้นผู้เล่นตัดสินใจไม่ได้ว่าจะกันหรือจะฮีล"""
+    e = events.telegraph("m1", "🔥 คลื่นเพลิงคลั่ง", ["p1", "p2"])
+    assert e["move"] and e["targets"] == ["p1", "p2"]

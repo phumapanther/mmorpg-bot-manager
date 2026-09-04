@@ -16,6 +16,7 @@ class PartyBody(BaseModel):
     action: str = "view"       # create|join|leave|start|view + attack|skill|aoe|heal|defend|flee
     code: str = ""             # รหัสห้องตอน join
     target: str = ""           # เป้าหมายตอนสั่งท่า (เช่น "m2" หรือ "p3")
+    boss_raid: bool = False    # หัวห้องติ๊กก่อนกดเริ่ม = เจอบอสแทนมอนธรรมดา
     # ⚠️ ห้ามเพิ่ม uid/host ที่นี่เด็ดขาด — ต้องมาจาก session เท่านั้น
     #    (ไม่งั้นคนยิง API ตรง ๆ ปลอมเป็นคนอื่นได้ · คำเชิญ UNO เคยพลาดข้อนี้)
 
@@ -52,7 +53,7 @@ def party_room(body: PartyBody, request: Request):
             return {"ok": True, "room": room.view(uid)}
 
         if body.action == "start":
-            ok, r = room.begin(uid)
+            ok, r = room.begin(uid, body.boss_raid)
             if not ok:
                 raise HTTPException(400, r.get("error", "เริ่มไม่ได้"))
             return {"ok": True, "room": room.view(uid)}

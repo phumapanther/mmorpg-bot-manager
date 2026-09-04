@@ -10,7 +10,7 @@
 ไฟล์นี้ไม่รู้จักการวาดภาพ — ทุกอย่างที่เกิดขึ้นออกไปเป็น "เหตุการณ์" (events.py)
 """
 from bot import adventure_core, config_loader
-from bot.games.party import combat, events, rules
+from bot.games.party import combat, events, monsters, rules
 
 # โบนัสความไวตามอาชีพ — อาชีพที่ไม่รู้จักได้ 0 (ไม่พัง)
 CLASS_SPEED = {
@@ -53,6 +53,11 @@ def _unit_from_monster(m, idx):
         "atk": int(m.get("atk") or 8), "def": int(m.get("def") or 0),
         "level": int(m.get("level") or 1),
         "element": m.get("element"), "defending": False,
+        # ── สถานะบอส (เฟส 4) — ห้ามหลุดขึ้นเบราว์เซอร์ ดู view() ──
+        "boss": bool(m.get("boss")),
+        "phase": None,              # เฟสล่าสุดที่ประกาศไปแล้ว
+        "since_big": 0,             # ผ่านมากี่ตาแล้วตั้งแต่ท่าใหญ่ครั้งก่อน
+        "charging": False,          # เตือนไว้แล้ว ตาหน้าปล่อยท่า
     }
 
 
@@ -218,6 +223,46 @@ def act(st, uid, action, target, rng):
     return True, {"events": out, "state": view(st, uid)}
 
 
+def _boss_turn(st, me, alive, rng):
+    """ตาของบอส — คืน (events, จบตาแล้วไหม)
+
+    ⚠️ ท่าใหญ่ยิงได้ **เฉพาะตอน `charging`** และ `charging` ตั้งได้ที่เดียว
+       คือตาที่เตือน → เตือนก่อนเสมอโดยโครงสร้าง ไม่ต้องพึ่งการเช็ค
+       (สเปก: ห้ามให้ผู้เล่นตายแบบไม่ทันตั้งตัว)
+    """
+    out = []
+    ph = monsters.boss_phase(me["hp"], me["hp_max"])
+    if ph != me.get("phase"):
+        me["phase"] = ph
+        out.append(events.phase(me["id"], ph))
+
+    if me.get("charging"):
+        me["charging"] = False
+        me["since_big"] = 0
+        roll = adventure_core.roll_player_die(rng, skill_used=True)
+        out.append(events.dice(me["id"], [roll]))
+        dmgs = combat.splash(me, alive, "skill", roll)
+        for t, d in zip(alive, dmgs):
+            t["hp"] = max(0, t["hp"] - combat.incoming(me, t, d, t["defending"]))
+        out.append(events.aoe(me["id"], [t["id"] for t in alive], dmgs,
+                              me.get("element")))
+        for t in alive:
+            if t["hp"] == 0:
+                out.append(events.die(t["id"]))
+        return out, True
+
+    tel = monsters.telegraph(me)
+    if tel:
+        me["charging"] = True
+        # ตาเตือนไม่ทำดาเมจเลย — ผู้เล่นจะได้มีตาให้ป้องกัน/ฮีล
+        out.append(events.telegraph(me["id"], tel["move"],
+                                    [t["id"] for t in alive]))
+        return out, True
+
+    me["since_big"] = int(me.get("since_big") or 0) + 1
+    return out, False
+
+
 def monster_turn(st, rng):
     """มอนเดินหนึ่งตา — เล็งผู้เล่นที่ยังไม่ล้มแบบสุ่ม"""
     b = st["extra"]["battle"]
@@ -232,6 +277,14 @@ def monster_turn(st, rng):
     if not alive:
         check_over(st)
         return out
+
+    if me.get("boss"):
+        evs, done = _boss_turn(st, me, alive, rng)
+        out += evs
+        if done:
+            if not check_over(st):
+                _advance(st)
+            return out
 
     tgt = rng.choice(alive)
     roll = adventure_core.roll_player_die(rng)
@@ -272,6 +325,8 @@ def view(st, uid):
                         you=(u.get("uid") == str(uid)))
         else:
             item["hp_pct"] = int(u["hp"] * 100 / max(1, u["hp_max"]))
+            item["boss"] = bool(u.get("boss"))
+            # ⚠️ ห้ามส่ง charging/since_big — หลุดแล้วผู้เล่นกันท่าได้เป๊ะ
         units.append(item)
 
     return {

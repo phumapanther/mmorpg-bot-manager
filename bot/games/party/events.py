@@ -22,6 +22,7 @@ EVENT_TYPES = (
     "miss",         # พลาด
     "die",          # ล้ม
     "phase",        # บอสเปลี่ยนเฟส
+    "telegraph",    # บอสเตือนล่วงหน้าว่าจะออกท่าใหญ่
 )
 
 
@@ -74,3 +75,13 @@ def phase(who, phase_name):
     """บอสเปลี่ยนเฟส — renderer เอาไปเล่นอนิเมชันพิเศษ
     phase_name: "normal" / "rage" / "desperate" """
     return {"t": "phase", "who": who, "phase": phase_name}
+
+
+def telegraph(who, move, targets):
+    """บอสเตือนว่าตาหน้าจะออกท่าใหญ่ — renderer เอาไปขึ้นป้ายเตือน
+
+    ⚠️ **ต้องส่งก่อนท่าใหญ่ 1 ตาเสมอ** ไม่ใช่ส่งพร้อมกัน
+       ตายแบบไม่ทันตั้งตัวไม่สนุก (สเปก 2026-09-03)
+    """
+    return {"t": "telegraph", "who": who, "move": str(move),
+            "targets": list(targets)}
