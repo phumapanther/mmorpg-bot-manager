@@ -15,6 +15,7 @@
 import json
 
 from bot import config_loader
+from bot.games.party import journey
 from bot.models import player_model
 
 PARTY_MULT = 1.5
@@ -39,11 +40,14 @@ def monster_exp(m, rng):
     return max(1, int(base + rng.randint(5, 15)))
 
 
-def encounter_value(monsters, party_size, rng):
+def encounter_value(monsters, party_size, rng, rnd=1):
     """ทอง+EXP ของสมรภูมินี้ "ถ้าเล่นคนเดียว" — คืน (ทอง, EXP)
 
     ⚠️ คูณด้วย **จำนวนคน** หารด้วย **จำนวนมอน** เพื่อให้ตรงกับ monsters._budget
        ที่ย่อเลือดมอนลงตามอัตราส่วนเดียวกัน คิดตามจำนวนตัวเมื่อไหร่ = เงินเฟ้อ
+
+    ⚠️ ตัวคูณรอบใช้**คู่กับ** PARTY_MULT 1.5 (เจ้าของเกมเคาะข้อ 5)
+       1.5 = โบนัส "เล่นเป็นปาร์ตี้" · ตัวคูณรอบ = โบนัส "เดินไกล" คนละเรื่องกัน
     """
     if not monsters:
         return 0, 0
@@ -51,7 +55,8 @@ def encounter_value(monsters, party_size, rng):
     size = max(1, int(party_size or 1))
     gold = sum(monster_gold(m, rng) for m in monsters) * size // n
     exp = sum(monster_exp(m, rng) for m in monsters) * size // n
-    return int(gold), int(exp)
+    # 🧭 ยิ่งเดินไกลยิ่งได้เยอะ — ทองโตเร็วกว่า EXP (เจ้าของเกมเคาะข้อ 6)
+    return int(gold * journey.gold_mult(rnd)), int(exp * journey.exp_mult(rnd))
 
 
 def split_gold(total_solo, party_size):
@@ -65,7 +70,7 @@ def split_gold(total_solo, party_size):
     return [base + (1 if i < extra else 0) for i in range(n)]
 
 
-def roll_drop(monsters, party, rng):
+def roll_drop(monsters, party, rng, rnd=1):
     """สุ่มดรอป **ชิ้นเดียวต่อสมรภูมิ** ตกที่คนเดียว — คืน dict หรือ None
 
     ใช้แรงค์สูงสุดในกลุ่มเป็นตัวตัดสินคุณภาพของ (บอสอยู่ในกลุ่ม = มีลุ้นของดี)
@@ -77,8 +82,9 @@ def roll_drop(monsters, party, rng):
 
     ranks = {m.get("rank") for m in monsters}
     item_id = None
-    if ranks & set(RARE_RANKS) and \
-            rng.randint(1, 100) <= int(config_loader.get_balance("drops.rare_chance", 1)):
+    rare = journey.rare_drop_chance(
+        int(config_loader.get_balance("drops.rare_chance", 1)) / 100.0, rnd)
+    if ranks & set(RARE_RANKS) and rng.randint(1, 10000) <= int(rare * 10000):
         item_id = rng.choice(list(RARE_POOL))
     elif rng.randint(1, 100) <= int(config_loader.get_balance("drops.normal_chance", 70)):
         pool = list(COMMON_POOL if ranks == {"Common"} else BOSS_POOL)
@@ -104,7 +110,7 @@ def _give_item(uid, item_id):
     return True
 
 
-def pay(uids, monsters, rng):
+def pay(uids, monsters, rng, rnd=1):
     """จ่ายรางวัลให้ทั้งปาร์ตี้จริง ๆ — คืนสรุปที่ส่งขึ้นหน้าเว็บได้เลย
 
     ⚠️ คนเรียกต้องกันการจ่ายซ้ำเอง (ดู room.settle) ฟังก์ชันนี้จ่ายทุกครั้งที่ถูกเรียก
@@ -113,7 +119,7 @@ def pay(uids, monsters, rng):
     if not uids:
         return {"gold": {}, "exp": 0, "drop": None}
 
-    total_gold, exp = encounter_value(monsters, len(uids), rng)
+    total_gold, exp = encounter_value(monsters, len(uids), rng, rnd)
     shares = split_gold(total_gold, len(uids))
 
     paid = {}
@@ -125,7 +131,7 @@ def pay(uids, monsters, rng):
             player_model.add_exp(int(uid), int(exp))
         paid[uid] = int(gold)
 
-    drop = roll_drop(monsters, uids, rng)
+    drop = roll_drop(monsters, uids, rng, rnd)
     if drop and not _give_item(int(drop["uid"]), drop["item"]):
         drop["full_bag"] = True         # กระเป๋าเต็ม — ของหลุดมือ บอกให้รู้
     return {"gold": paid, "exp": int(exp), "drop": drop}

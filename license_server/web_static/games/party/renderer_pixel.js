@@ -485,6 +485,68 @@ function pxDuel(c) {
   c.globalAlpha = 1;
 }
 
+/** ป้ายรอบการเดินทาง — มุมบนขวาของจอ ให้เห็นชัดว่าตอนนี้ไปถึงไหนแล้ว */
+function pxRoundBadge(c) {
+  const r = PX.state && PX.state.round;
+  if (!r) return;
+  const txt = `🧭 รอบที่ ${r}`;
+  c.font = 'bold 15px system-ui, sans-serif';
+  const w = c.measureText(txt).width + 26;
+  c.fillStyle = 'rgba(0,0,0,.5)';
+  c.beginPath();
+  c.roundRect(PX_W - w - 12, 8, w, 30, 15);
+  c.fill();
+  c.fillStyle = '#ffd34a';
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.fillText(txt, PX_W - w / 2 - 12, 24);
+  c.textBaseline = 'alphabetic';
+}
+
+/** ป้ายจบการต่อสู้ — ปิดทับทั้งจอพร้อมตารางอันดับดาเมจ
+ *
+ * ⚠️ ขึ้นเฉพาะตอนอนิเมชันเล่นจบแล้ว ไม่งั้นไปบังตอนกำลังตาย
+ *    (เจ้าของเกมสั่ง 2026-09-04: "เวลาตายก็ตายสิ" ต้องเห็นตายก่อนถึงขึ้นป้าย)
+ */
+function pxGameOver(c) {
+  const st = PX.state;
+  if (!st || !st.over || PX.queue.length || PX.wait > 0) return;
+  const win = st.winner === 'party';
+
+  c.fillStyle = 'rgba(6,8,14,.86)';
+  c.fillRect(-30, -30, PX_W + 60, PX_H + 60);
+
+  c.textAlign = 'center';
+  c.fillStyle = win ? '#ffd34a' : '#ff6b6b';
+  c.font = 'bold 40px system-ui, sans-serif';
+  c.fillText(win ? '🏆 ปาร์ตี้ชนะ!'
+    : st.winner === 'flee' ? '🏃 หนีออกมาได้' : '💀 ปาร์ตี้ล้มยกทีม', PX_W / 2, 118);
+
+  if (st.round) {
+    c.fillStyle = '#e9edf5';
+    c.font = '18px system-ui, sans-serif';
+    c.fillText(`🧭 เดินทางไปถึงรอบที่ ${st.round}`, PX_W / 2, 152);
+  }
+
+  const rows = (st.score || []).slice(0, 5);
+  if (!rows.length) return;
+  c.fillStyle = '#9aa4b2';
+  c.font = 'bold 14px system-ui, sans-serif';
+  c.fillText('🏅 อันดับดาเมจ', PX_W / 2, 190);
+
+  const medal = ['🥇', '🥈', '🥉'];
+  rows.forEach((r, i) => {
+    const y = 222 + i * 30;
+    c.fillStyle = i === 0 ? '#ffd34a' : '#e9edf5';
+    c.font = `${i === 0 ? 'bold ' : ''}17px system-ui, sans-serif`;
+    c.textAlign = 'right';
+    c.fillText(`${medal[i] || (i + 1) + '.'} ${r.name}`, PX_W / 2 - 16, y);
+    c.textAlign = 'left';
+    c.fillText(Number(r.dmg || 0).toLocaleString(), PX_W / 2 + 16, y);
+  });
+  c.textAlign = 'center';
+}
+
 function pxWarnBanner(c) {
   if (!PX.warn) return;
   if (PX.warn.pulse > 0) PX.warn.pulse -= 1;
@@ -564,6 +626,7 @@ function pbDraw() {
   PX.pops = PX.pops.filter(p => p.life > 0);
 
   pxQueue(c);
+  pxRoundBadge(c);
   pxDuel(c);
   pxWarnBanner(c);
 
@@ -574,6 +637,7 @@ function pbDraw() {
     PX.flash = Math.max(0, PX.flash - 0.12);
   }
 
+  pxGameOver(c);            // ปิดทับทุกอย่าง — วาดท้ายสุดเสมอ
   c.restore();
 }
 

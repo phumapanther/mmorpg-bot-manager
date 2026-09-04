@@ -11,6 +11,7 @@
 import random
 
 from bot import adventure_core
+from bot.games.party import journey
 
 PHASES = ("normal", "rage", "desperate")
 
@@ -87,6 +88,22 @@ def _budget(group, party_size):
     return group
 
 
+def _scale_round(group, rnd):
+    """คูณความแรงตามรอบการเดินทาง — **ทับ** งบที่คุมตามจำนวนคนอีกชั้น
+
+    ⚠️ คูณทับ ไม่ใช่แทนที่ (เจ้าของเกมเคาะข้อ 2) — งบคุม "ปาร์ตี้ใหญ่เจอของหนักกว่า"
+       ส่วนตัวคูณรอบคุม "เดินไกลเจอของโหดกว่า" คนละเรื่อง ต้องมีทั้งคู่
+    """
+    k = journey.monster_mult(rnd)
+    if k <= 1.0:
+        return group
+    for m in group:
+        m["hp"] = m["hp_max"] = max(1, int(m["hp_max"] * k))
+        m["atk"] = max(1, int(m["atk"] * k))
+        m["def"] = int(m.get("def", 0) * k)
+    return group
+
+
 def _one(uid, rng):
     """มอนหนึ่งตัวจากเกมหลัก + ค่าที่โหมดปาร์ตี้ต้องใช้เพิ่ม"""
     m = adventure_core.spawn_monster(uid, rng=rng)
@@ -130,7 +147,7 @@ def _promote(m, rng, level=1):
     return m
 
 
-def spawn_group(uid, party_size, rng=None, boss=False, level=1):
+def spawn_group(uid, party_size, rng=None, boss=False, level=1, rnd=1):
     """กลุ่มมอนสำหรับหนึ่งสมรภูมิ — คืนลิสต์ที่ engine เอาไปใช้ได้เลย
 
     ปาร์ตี้ปกติ: 3-5 ตัว ตามจำนวนคน
@@ -138,6 +155,7 @@ def spawn_group(uid, party_size, rng=None, boss=False, level=1):
             (ยากกว่าเพราะแรงค์ ไม่ใช่เพราะคูณตัวเลขเพิ่ม)
 
     ความแรงรวมคุมด้วย `_budget` ไม่ใช่ปล่อยตามจำนวนตัว
+    แล้ว**คูณตัวคูณรอบทับอีกชั้น** (เจ้าของเกมเคาะข้อ 2) — ยิ่งเดินไกลยิ่งโหด
 
     id ต่อให้ที่นี่ที่เดียว (`m1`, `m2`, ...) — ซ้ำกันเมื่อไหร่
     ตีตัวหนึ่งแล้วอีกตัวเลือดลด และ renderer วาดทับกัน
@@ -152,9 +170,10 @@ def spawn_group(uid, party_size, rng=None, boss=False, level=1):
         group += [_one(uid, rng) for _ in range(n_minion)]
     else:
         group = [_one(uid, rng)
-                 for _ in range(min(GROUP_MAX, max(GROUP_MIN, size + 1)))]
+                 for _ in range(journey.monster_count(rnd, size))]
 
     _budget(group, size)
+    _scale_round(group, rnd)
     for i, m in enumerate(group):
         m["id"] = f"m{i + 1}"
         m.setdefault("boss", False)

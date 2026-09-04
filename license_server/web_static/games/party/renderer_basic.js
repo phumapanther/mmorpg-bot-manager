@@ -191,6 +191,49 @@ function pbHpShown(id) {
   return PB.hpT[id];
 }
 
+/** ป้ายรอบการเดินทาง — มุมบนขวา */
+function pbRoundBadge(c) {
+  const r = PB.state && PB.state.round;
+  if (!r) return;
+  c.fillStyle = 'rgba(0,0,0,.5)';
+  c.fillRect(740, 8, 148, 28);
+  c.fillStyle = '#ffd34a';
+  c.font = 'bold 15px system-ui, sans-serif';
+  c.textAlign = 'center';
+  c.fillText(`🧭 รอบที่ ${r}`, 814, 28);
+}
+
+/** ป้ายจบการต่อสู้ + ตารางอันดับ — ขึ้นหลังอนิเมชันจบเท่านั้น */
+function pbGameOver(c) {
+  const st = PB.state;
+  if (!st || !st.over || PB.queue.length || PB.wait > 0) return;
+  const win = st.winner === 'party';
+  c.fillStyle = 'rgba(6,8,14,.86)';
+  c.fillRect(-20, -20, 940, 460);
+  c.textAlign = 'center';
+  c.fillStyle = win ? '#ffd34a' : '#ff6b6b';
+  c.font = 'bold 36px system-ui, sans-serif';
+  c.fillText(win ? '🏆 ปาร์ตี้ชนะ!'
+    : st.winner === 'flee' ? '🏃 หนีออกมาได้' : '💀 ปาร์ตี้ล้มยกทีม', 450, 120);
+  if (st.round) {
+    c.fillStyle = '#e9edf5';
+    c.font = '17px system-ui, sans-serif';
+    c.fillText(`🧭 เดินทางไปถึงรอบที่ ${st.round}`, 450, 152);
+  }
+  const rows = (st.score || []).slice(0, 5);
+  if (!rows.length) return;
+  c.fillStyle = '#9aa4b2';
+  c.font = 'bold 14px system-ui, sans-serif';
+  c.fillText('🏅 อันดับดาเมจ', 450, 188);
+  const medal = ['🥇', '🥈', '🥉'];
+  rows.forEach((r, i) => {
+    c.fillStyle = i === 0 ? '#ffd34a' : '#e9edf5';
+    c.font = '16px system-ui, sans-serif';
+    c.fillText(`${medal[i] || (i + 1) + '.'} ${r.name}  ${Number(r.dmg || 0).toLocaleString()}`,
+               450, 218 + i * 28);
+  });
+}
+
 function pbDraw() {
   const c = PB.ctx;
   if (!c) return;
@@ -324,6 +367,8 @@ function pbDraw() {
   c.globalAlpha = 1;
   PB.pops = PB.pops.filter(p => p.life > 0);
 
+  pbRoundBadge(c);
+  pbGameOver(c);            // ปิดทับทุกอย่าง — วาดท้ายสุดเสมอ
   c.restore();
 }
 

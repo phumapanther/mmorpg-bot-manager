@@ -19,11 +19,34 @@ ROLL_PENALTY = {
 
 MONSTER_DIE = 20     # มอนทอย d20 ต่อลูก เหมือนเกมหลัก
 
+# 🩸 เลือดน้อย = ทอยแย่ลง (เจ้าของเกมเคาะ 2026-09-04)
+#    ไล่ระดับ ไม่ใช่เกณฑ์เดียว — เลือด 49% กับ 1% ไม่ควรเสียเปรียบเท่ากัน
+#
+# ⚠️ จงใจไม่ใช้ "สถานะ" แยก เพราะคนที่ฟื้นมา 1% จะติดเองโดยอัตโนมัติ
+#    และหายเองทันทีที่โดนฮีล ไม่ต้องจดจำหรือล้างอะไรเพิ่มเลย
+FRAIL_STEPS = ((0.10, -6), (0.25, -4), (0.50, -2))
+
+
+def frail_penalty(unit):
+    """แต้มที่โดนหักเพราะเลือดน้อย — ยิ่งน้อยยิ่งหนัก
+
+    เลือดเต็ม/ปกติ = 0 · ต่ำกว่า 50% = −2 · ต่ำกว่า 25% = −4 · ต่ำกว่า 10% = −6
+    """
+    hp_max = int(unit.get("hp_max") or 0)
+    if hp_max <= 0:
+        return 0
+    pct = max(0, int(unit.get("hp") or 0)) / hp_max
+    for edge, pen in FRAIL_STEPS:
+        if pct < edge:
+            return pen
+    return 0
+
 
 def _pen(unit):
-    """แต้มที่โดนหักจากสถานะทั้งหมดรวมกัน"""
+    """แต้มที่โดนหักทั้งหมด — จากสถานะ + จากเลือดที่เหลือ"""
     fx = unit.get("fx") or {}
-    return sum(v for k, v in ROLL_PENALTY.items() if int(fx.get(k) or 0) > 0)
+    return (sum(v for k, v in ROLL_PENALTY.items() if int(fx.get(k) or 0) > 0)
+            + frail_penalty(unit))
 
 
 def dice_count(unit):

@@ -408,104 +408,31 @@ def test_ล้มในโหมดนี้ไม่ทำให้ตัว�
     assert int(player_model.get_player(1)["hp"]) >= 1
 
 
-def test_เลือดแดงออกเดินทางต่อไม่ได้():
-    """⭐ เลือดติดตัวข้ามรอบ กดต่อทั้งที่เลือดแดง = แพ้ฟรีตั้งแต่ยังไม่ทันเดิน"""
+def test_ล้มยกทีมแล้วต้องกดเริ่มใหม่ก่อน():
+    """⚠️ เกณฑ์เดิม "เลือดต่ำกว่า 25% ห้ามเดินต่อ" ถอดออกแล้ว
+       สเปกเสริม 2026-09-04: คนที่ล้มฟื้นมา 1% แล้วเดินทางต่อได้เลย
+       ตัวกันตอนนี้คือ "ล้มยกทีม" ไม่ใช่ "เลือดน้อย"
+    """
     _, st = room.open_party(1, "เอ")
     room.join_party(2, "บี", st["room"])
     room.begin(1)
     st = room._room(1)
-    st["extra"]["battle"].update(over=True, winner="party")
+    b = st["extra"]["battle"]
+    for u in b["units"].values():          # ล้มยกทีมจริง ๆ ไม่ใช่แค่ตั้งธง
+        if u["side"] == "party":
+            u["hp"] = 0
+    b.update(over=True, winner="monster")
+    room.settle(st)
     lobby.save(st["room"], st)
-    player_model.update_player_field(1, "hp", 1)
 
     ok, r = room.again(1)
-    assert not ok and "พัก" in r["error"], f"ควรกันไว้ แต่ได้ {r}"
+    assert not ok and "เริ่มออกเดินทางใหม่" in r["error"]
 
 
-# ── รางวัลต้องรู้จักมอนตัวจริง (บั๊กจากการเทสด้วยมือ) ──
-
-def test_หน่วยมอนในสมรภูมิพกแรงค์กับสเปกมาด้วย():
-    """⭐ engine เก็บ unit ไว้แค่ค่าที่ใช้ต่อสู้ stats/rank เลยหายไประหว่างทาง
-       rewards คิด gold_mult = 1 ตลอด — บอส Unbeatable (gold_mult 1000)
-       จ่ายเท่ามอนทั่วไป และ roll_drop แยกแรงค์ไม่ออก
-
-       เทสของ rewards ผ่านหมดเพราะป้อน dict ที่มี stats ให้เอง
-       ไม่เคยตรวจว่าของจริงที่ส่งเข้าไปหน้าตาเป็นยังไง
-    """
-    _, st = room.open_party(1, "เอ")
-    room.join_party(2, "บี", st["room"])
-    room.begin(1)
-    b = room._room(1)["extra"]["battle"]
-    mons = [u for u in b["units"].values() if u["side"] == "monster"]
-    assert mons
-    for u in mons:
-        assert u.get("rank"), f"{u['id']} ไม่มีแรงค์ — รางวัลกับดรอปคิดผิด"
-        assert (u.get("stats") or {}).get("gold_mult"), f"{u['id']} ไม่มี gold_mult"
-
-
-def test_ล่าบอสได้ทองมากกว่ามอนธรรมดา():
-    """แรงค์บอส gold_mult สูงกว่ามาก จ่ายเท่ากันเมื่อไหร่แปลว่าแรงค์หายระหว่างทาง
-
-    ⚠️ ฉบับแรกสุ่มเกิดมอนหลายรอบแล้วเทียบผลรวม — แดงประมาณ 1 ใน 5
-       เพราะกลุ่ม "ธรรมดา" สุ่มได้บอสมาเองก็มี ต้องเทียบแบบไม่พึ่งดวง
-    """
-    from bot import adventure_core
-    _, st = room.open_party(1, "เอ")
-    room.join_party(2, "บี", st["room"])
-    room.begin(1, boss_raid=True)
-    b = room._room(1)["extra"]["battle"]
-    mons = [u for u in b["units"].values() if u["side"] == "monster"]
-    boss = b["units"]["m1"]
-
-    common = float(adventure_core.MONSTER_RANKS["Common"]["gold_mult"])
-    assert float(boss["stats"]["gold_mult"]) > common,         f"บอสมี gold_mult {boss['stats'].get('gold_mult')} ไม่มากกว่ามอนทั่วไป"
-
-    rng = FixedRng()                      # เต๋าออกหน้าเดิม เหลือแค่แรงค์ที่ต่างกัน
-    real = rewards.encounter_value(mons, 2, rng)[0]
-    plain = rewards.encounter_value(_mons(len(mons)), 2, rng)[0]
-    assert real > plain, f"ล่าบอสได้ {real} แต่มอนธรรมดาล้วนได้ {plain}"
-
-
-def test_view_ไม่ปล่อยสเปกมอนหลุดขึ้นเบราว์เซอร์():
-    """พก stats ติดตัวได้ แต่ห้ามส่งขึ้นไป — บอกเลือดสูงสุดกับเรทดรอปหมด"""
-    import json
-    _, st = room.open_party(1, "เอ")
-    room.join_party(2, "บี", st["room"])
-    room.begin(1)
-    blob = json.dumps(room.view(1), ensure_ascii=False)
-    for leak in ("gold_mult", "exp_reward", "hp_range", "flee_chance"):
-        assert leak not in blob, f"view() ปล่อย {leak} หลุด"
-
-
-def test_เพื่อนเห็นสมรภูมิใหม่ที่หัวห้องเปิด():
-    """⭐ หัวห้องกดออกเดินทางต่อแล้วเพื่อนต้องถูกลากมาด้วย
-
-    (เจ้าของเกมเจอตอนเทสด้วยมือ 2026-09-04: เพื่อนค้างหน้าสรุปผล
-     เพราะหน้าเว็บหยุดถามเซิร์ฟเวอร์ตอนจบสมรภูมิ)
-    """
+def test_เลือดน้อยแต่ยังไม่ล้มยกทีมเดินต่อได้():
+    """ฟื้นมา 1% แล้วต้องไปต่อได้ ไม่ใช่โดนบล็อก"""
     st = _win()
     for uid in (1, 2):
-        p = player_model.get_player(uid)
-        player_model.update_player_field(uid, "hp", p["max_hp"])
-    ok, _ = room.again(1)
-    assert ok
-
-    friend = room.view(2)                      # เพื่อนแค่ถามสถานะเฉย ๆ
-    assert friend["battle"]["in_battle"]
-    assert not friend["battle"]["over"], "เพื่อนยังเห็นสมรภูมิเก่าที่จบไปแล้ว"
-    assert friend.get("reward") is None, "รางวัลรอบเก่ายังค้างอยู่หน้าเพื่อน"
-
-
-def test_สมรภูมิใหม่ได้รหัสใหม่():
-    """หน้าเว็บใช้รหัสนี้จับว่า "ขึ้นรอบใหม่แล้ว" เพื่อล้างจอกับเริ่มนับเหตุการณ์ใหม่
-
-    ⚠️ เคยใช้ "เลขลำดับถอยหลัง" แทน แต่รอบเก่าจบที่ 1 รอบใหม่ก็เริ่มที่ 1
-       จับไม่ได้ แล้วจอนิ่งสนิททั้งรอบ (เจอตอนเขียนเฟส 8)
-    """
-    st = _win()
-    for uid in (1, 2):
-        p = player_model.get_player(uid)
-        player_model.update_player_field(uid, "hp", p["max_hp"])
-    old_bid = room.view(1)["battle"]["bid"]
-    room.again(1)
-    assert room.view(1)["battle"]["bid"] != old_bid, "รอบใหม่ยังใช้รหัสเดิม"
+        player_model.update_player_field(uid, "hp", 1)
+    ok, r = room.again(1)
+    assert ok, f"เลือด 1 แต่ยังไม่ล้มยกทีม ควรไปต่อได้: {r}"

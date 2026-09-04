@@ -11,7 +11,7 @@ import sqlite3
 import pytest
 
 from bot.models import player_model
-from bot.games.party import engine, monsters, room
+from bot.games.party import engine, journey, monsters, room
 
 
 @pytest.fixture(autouse=True)
@@ -82,10 +82,43 @@ def test_ทุกตัวมี_id_ไม่ซ้ำ():
     assert len(ids) == len(set(ids))
 
 
-def test_ปาร์ตี้ปกติได้มอน_3_ถึง_5_ตัว():
+def test_จำนวนมอนไม่เกิน_5_ตัวเสมอ():
+    """⚠️ กฎเดิม "3-5 ตัวเสมอ" ถูกสเปกเสริม 2026-09-04 ทับแล้ว
+       ตอนนี้จำนวนขึ้นกับ **รอบการเดินทาง** โดยมีขั้นต่ำตามจำนวนคน
+    """
     for size in range(1, 6):
-        g = monsters.spawn_group(1, size, random.Random(size))
-        assert 3 <= len(g) <= 5, f"ปาร์ตี้ {size} คนเจอ {len(g)} ตัว"
+        for rnd in (1, 3, 6, 10, 30):
+            g = monsters.spawn_group(1, size, random.Random(size), rnd=rnd)
+            assert 1 <= len(g) <= 5, f"ปาร์ตี้ {size} คน รอบ {rnd} เจอ {len(g)} ตัว"
+
+
+def test_รอบลึกเจอมอนมากกว่ารอบแรก():
+    early = journey.monster_count(1, 2)
+    late = journey.monster_count(10, 2)
+    assert late > early, f"รอบ 10 เจอ {late} ตัว ไม่มากกว่ารอบ 1 ({early})"
+
+
+def test_ปาร์ตี้ใหญ่ไม่เจอมอนตัวเดียว():
+    """⭐ สเปกเปล่า ๆ ว่ารอบ 1-3 เจอ 1-2 ตัว — ปาร์ตี้ 5 คนจะรุมจบในตาเดียว
+       อีก 4 คนนั่งดู เจ้าของเกมเคาะให้มีขั้นต่ำครึ่งหนึ่งของจำนวนคน
+    """
+    assert journey.monster_count(1, 5) >= 2
+    assert journey.monster_count(1, 1) >= 1
+
+
+def test_มอนแรงขึ้นตามรอบจริง():
+    """ตัวคูณรอบต้อง **คูณทับ** งบที่คุมตามจำนวนคน ไม่ใช่แทนที่"""
+    a = monsters.spawn_group(1, 3, random.Random(4), rnd=1)
+    b = monsters.spawn_group(1, 3, random.Random(4), rnd=9)
+    assert sum(m["hp_max"] for m in b) > sum(m["hp_max"] for m in a)
+    assert sum(m["atk"] for m in b) > sum(m["atk"] for m in a)
+
+
+def test_งบตามจำนวนคนยังทำงานอยู่ควบคู่กัน():
+    """คูณทับ = ของเดิมต้องยังมีผล ไม่ใช่โดนตัวคูณรอบกลบ"""
+    small = monsters.spawn_group(1, 2, random.Random(4), rnd=5)
+    big = monsters.spawn_group(1, 5, random.Random(4), rnd=5)
+    assert sum(m["hp_max"] for m in big) > sum(m["hp_max"] for m in small)
 
 
 def test_บอสเรดมีบอสหนึ่งตัวกับลูกน้อง_2_ถึง_4():
@@ -138,19 +171,38 @@ def test_ปาร์ตี้ใหญ่เจอของหนักกว�
     assert sum(m["hp_max"] for m in g) > small
 
 
-def test_ปาร์ตี้ชนะได้จริงบ้างไม่ใช่แพ้ทุกกระดาน():
-    """⭐ วัดจริง 2026-09-04: ก่อนคุมงบ ปาร์ตี้ 2 คน**ชนะ 1 ใน 40**
+def test_รอบแรกต้องชนะได้สบาย():
+    """รอบ 1 เจอมอน 1-2 ตัว — ตั้งใจให้ง่าย เป็นการเริ่มต้นที่ไม่ทรมาน
 
-    บอทในเทสนี้โง่มาก (ตีอย่างเดียว ฮีลตัวเองตอนเลือดต่ำ) ยังต้องชนะบ้าง
-    ถ้าชนะ 0 แปลว่าสมดุลพัง — คนจริงที่รู้จักใช้ป้องกัน/สกิลจะทำได้ดีกว่านี้
+    ⚠️ เทสเดิมตรึงว่า "ห้ามชนะเกิน 11/12" ซึ่งใช้ไม่ได้แล้วหลังเฟส 10a
+       เพราะรอบ 1 ควรง่าย ย้ายเงื่อนไข "ต้องไม่ง่ายเกิน" ไปวัดที่รอบลึกแทน
     """
     wins = 0
     for seed in range(12):
         st = _battle(uids=(1, 2, 3))
         _play(st, random.Random(seed))
         wins += st["extra"]["battle"]["winner"] == "party"
-    assert wins >= 2, f"เล่น 12 กระดานชนะแค่ {wins} — มอนแรงเกินไป"
-    assert wins <= 11, f"ชนะ {wins}/12 — ง่ายเกินไป ไม่มีความเสี่ยง"
+    assert wins >= 8, f"รอบแรกชนะแค่ {wins}/12 — เริ่มต้นยากเกินไป"
+
+
+def test_รอบลึกต้องไม่ชนะทุกกระดาน():
+    """⭐ ยิ่งเดินไกลยิ่งเสี่ยง — ถ้ารอบ 12 ยังชนะรวดคือตัวคูณรอบไม่ทำงาน"""
+    from bot import lobby
+    wins = 0
+    for seed in range(12):
+        st = _battle(uids=(1, 2, 3))
+        st["extra"]["round"] = 12
+        st["extra"].pop("battle", None)
+        room._spawn_battle(st)
+        for u in st["extra"]["battle"]["units"].values():
+            if u["side"] == "party":
+                u["hp"] = u["hp_max"]
+        lobby.save(st["room"], st)
+        _play(st, random.Random(seed))
+        wins += st["extra"]["battle"]["winner"] == "party"
+        for uid in (1, 2, 3):
+            room.leave_party(uid)
+    assert wins < 12, f"รอบ 12 ยังชนะ {wins}/12 — ความยากไม่ไต่ระดับจริง"
 
 
 # ── ในสมรภูมิจริง ──
@@ -278,12 +330,13 @@ def test_view_ไม่บอกท่าถัดไปของบอส():
         assert leak not in blob, f"view() ปล่อย {leak} หลุดขึ้นเบราว์เซอร์"
 
 
-def test_ปาร์ตี้เจอมอนหลายตัวจริง():
-    """เฟส 3 เกิดมอนเท่าจำนวนคน เฟส 4 ต้องเป็น 3-5 ตัว"""
+def test_สมรภูมิจริงเกิดมอนตามกติกาจำนวน():
+    """เชื่อมกันจริงไหม — spawn_group ต้องถูกเรียกพร้อมรอบ"""
     st = _battle()
     mons = [u for u in st["extra"]["battle"]["units"].values()
             if u["side"] == "monster"]
-    assert len(mons) >= 3, f"ปาร์ตี้ 2 คนเจอมอนแค่ {len(mons)} ตัว"
+    want = journey.monster_count(1, 2)
+    assert len(mons) == want, f"รอบ 1 ปาร์ตี้ 2 คน ควรเจอ {want} ตัว ได้ {len(mons)}"
 
 
 def test_แรงค์บอสสุ่มตามเลเวลปาร์ตี้():

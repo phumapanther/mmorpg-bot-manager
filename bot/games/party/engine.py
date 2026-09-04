@@ -48,6 +48,7 @@ def _unit_from_player(p):
         "grace": True,
         "fx": {},                   # สถานะชั่วคราว (ช้า · มึน · หลบ · ออร่า)
         "cd": {},                   # คูลดาวน์รายสกิล
+        "dmg_done": 0,              # ดาเมจสะสมของสมรภูมินี้ (ไว้ทำอันดับ)
     }
 
 
@@ -68,6 +69,7 @@ def _unit_from_monster(m, idx):
         "rank": m.get("rank"),
         "stats": dict(m.get("stats") or {}),
         # ── สถานะบอส (เฟส 4) — ห้ามหลุดขึ้นเบราว์เซอร์ ดู view() ──
+        "dmg_done": 0,
         "boss": bool(m.get("boss")),
         "phase": None,              # เฟสล่าสุดที่ประกาศไปแล้ว
         "since_big": 0,             # ผ่านมากี่ตาแล้วตั้งแต่ท่าใหญ่ครั้งก่อน
@@ -317,6 +319,8 @@ def strike(me, tgt, action, rng, mult=1.0, skill_used=False, crit_bonus=0):
         out.append(events.miss(me["id"], tgt["id"]))
         return out
     hurt(tgt, dmg)
+    # 🏅 สะสมดาเมจรายคนไว้ทำตารางอันดับตอนจบการเดินทาง
+    me["dmg_done"] = int(me.get("dmg_done") or 0) + int(dmg)
     out.append(events.attack(me["id"], tgt["id"], dmg, me.get("element"), crit))
     if tgt["hp"] == 0:
         out.append(events.die(tgt["id"]))

@@ -9,12 +9,11 @@
 import random
 
 from bot import lobby
-from bot.games.party import engine, monsters, rewards
+from bot.games.party import engine, events, journey, monsters, rewards
 
 GAME = "party"
 MAX_PARTY = 5          # เจ้าของเกมเคาะ 2026-09-03
 MIN_TO_START = 2
-REST_AT = 0.25         # เลือดต่ำกว่านี้ต้องไปพักก่อน ถึงจะออกเดินทางต่อได้
 
 
 def _room(uid):
@@ -41,8 +40,24 @@ def join_party(uid, name, code):
     st = lobby.load(str(code or "").strip().upper())
     if st and st.get("game") == GAME:
         already = any(s["uid"] == str(uid) for s in st["seats"])
-        if not already and len(st["seats"]) >= MAX_PARTY:
-            return False, {"error": f"🚪 ปาร์ตี้เต็มแล้ว (สูงสุด {MAX_PARTY} คน)"}
+        # ⚠️ สองเคสนี้ต้องแยกให้ขาด **นี่คือจุดที่พังง่ายที่สุด**
+        #    "มีที่นั่งอยู่แล้ว" = เน็ตหลุดแล้วกลับมา → ผ่านเสมอ (สเปกข้อ 4 · เฟส 6)
+        #    "ไม่มีที่นั่ง"      = คนใหม่ → ห้ามเข้าระหว่างเดินทาง (เจ้าของเกมเคาะข้อ 7)
+        #    เผลอห้ามรวดเดียวเมื่อไหร่ = ทับฟีเจอร์กลับเข้าห้องของเฟส 6 ทันที
+        if already:
+            # 🔌 มีที่นั่งอยู่แล้ว = เน็ตหลุดแล้วกลับมา — ผ่านเลย ไม่ต้องผ่านล็อบบี้กลาง
+            #
+            # ⚠️ `lobby.join` บล็อกห้องที่ "เริ่มเล่นแล้ว" ไว้ทุกกรณี ซึ่งถูกสำหรับ UNO
+            #    แต่กับปาร์ตี้แปลว่า **คนที่เน็ตหลุดกลางสมรภูมิกลับเข้ามาไม่ได้เลย**
+            #    (เฟส 6 บอกว่าทำได้ แต่เทสตอนนั้นทดสอบแค่ตอนอยู่ในล็อบบี้ จับไม่ได้)
+            return True, st
+        if not already:
+            if st.get("started"):
+                rnd = int((st.get("extra") or {}).get("round") or 1)
+                return False, {"error": f"🧭 ปาร์ตี้นี้ออกเดินทางไปแล้ว (รอบที่ {rnd}) "
+                                        "— รอให้การเดินทางนี้จบก่อนนะ"}
+            if len(st["seats"]) >= MAX_PARTY:
+                return False, {"error": f"🚪 ปาร์ตี้เต็มแล้ว (สูงสุด {MAX_PARTY} คน)"}
     return lobby.join(GAME, uid, code, _seat(uid, name))
 
 
@@ -66,6 +81,12 @@ def begin(uid, boss_raid=False):
     st["started"] = True
     st["extra"]["phase"] = "battle"
     st["extra"]["boss_raid"] = bool(boss_raid)
+    # 🧭 รอบการเดินทาง — 1 เหตุการณ์ = 1 รอบ (เจ้าของเกมเคาะ 2026-09-04)
+    #    ยิ่งรอบสูง มอนยิ่งแรง ทอง/EXP/ดรอปยิ่งดี · ตายยกทีมกลับมารอบ 1
+    #    ห้องว่างหมดแล้วห้องถูกลบทิ้ง รอบจึงหายไปเอง ไม่ต้องล้างเพิ่ม
+    st["extra"]["round"] = 1
+    st["extra"]["score"] = {}  # ตารางอันดับเริ่มนับใหม่ทุกการเดินทาง
+    _heal_full(st)             # ออกเดินทางครั้งใหม่ = ฟื้นเต็ม (เฉพาะที่นี่เท่านั้น)
     _spawn_battle(st)
     return True, lobby.save(st["room"], st)
 
@@ -85,19 +106,81 @@ def again(uid):
     if not b or not b.get("over"):
         return False, {"error": "สมรภูมิยังไม่จบ"}
 
-    # ⚠️ เลือดติดตัวข้ามรอบ (ดู _carry_hp) — ออกเดินทางต่อทั้งที่เลือดแดง
-    #    คือแพ้ฟรีตั้งแต่ตายังไม่ทันเดิน ต้องกันไว้ ไม่ใช่ปล่อยให้กดแล้วงง
-    weak = [p for p in _players_of(st) if p["hp"] < p["max_hp"] * REST_AT]
-    if weak:
-        who = " · ".join(p["name"] for p in weak)
-        return False, {"error": f"🩸 เลือดน้อยเกินไป ({who}) — "
-                                "ไปพักที่เมืองก่อนค่อยออกเดินทางต่อ"}
+    # ⚠️ เคยมีเกณฑ์ "เลือดต่ำกว่า 25% ห้ามเดินต่อ" — **ถอดออกแล้ว**
+    #    สเปกเสริม 2026-09-04 บอกว่าคนที่ล้มฟื้นมา 1% แล้วเดินทางต่อได้เลย
+    #    เกณฑ์เดิมจะบล็อกทันทีทุกครั้ง ขัดกันตรง ๆ (เจ้าของเกมเคาะให้สเปกใหม่ชนะ)
+    #    ความเสี่ยงตอนนี้อยู่ที่ "ตายยกทีมแล้วเสียของ" แทน ดู settle()
+    if st["extra"].get("wiped"):
+        return False, {"error": "💀 ปาร์ตี้ล้มยกทีม — ต้องกด \"เริ่มออกเดินทางใหม่\" ก่อน"}
 
     st["extra"].pop("battle", None)
     st["extra"].pop("reward", None)
     st["extra"]["paid"] = False
+    st["extra"]["round"] = int(st["extra"].get("round") or 1) + 1
     _spawn_battle(st)
     return True, lobby.save(st["room"], st)
+
+
+def restart(uid):
+    """เริ่มออกเดินทางใหม่หลังตายยกทีม — เฉพาะหัวห้อง
+
+    รอบถูกรีเซ็ตเป็น 1 ตั้งแต่ตอน settle แล้ว ตรงนี้แค่ล้างธงกับเปิดสมรภูมิใหม่
+    """
+    st = _room(uid)
+    if not st:
+        return False, {"error": "ยังไม่ได้อยู่ปาร์ตี้ไหน"}
+    if st["host"] != str(uid):
+        return False, {"error": "เฉพาะหัวห้องเท่านั้นที่เริ่มออกเดินทางใหม่ได้"}
+    if not st["extra"].get("wiped"):
+        return False, {"error": "ปาร์ตี้ยังไม่ได้ล้มยกทีม"}
+
+    # 💚 ฟื้นครึ่งเลือดตรงนี้ ไม่ใช่ตอนจบสมรภูมิ — จอจะได้แสดง "แพ้" ให้เห็นก่อน
+    from bot.models import player_model
+    for seat in st["seats"]:
+        try:
+            uid = int(seat["uid"])
+            p = player_model.get_player(uid) or {}
+            player_model.update_player_field(
+                uid, "hp", journey.respawn_hp(gear_stats(p)[1]))
+        except Exception as e:
+            print(f"⚠️ [party] ฟื้นครึ่งเลือดไม่ได้ uid={seat.get('uid')}: {e}")
+
+    st["extra"]["wiped"] = False
+    st["extra"]["score"] = {}
+    st["extra"].pop("penalty", None)
+    st["extra"].pop("battle", None)
+    st["extra"].pop("reward", None)
+    st["extra"]["paid"] = False
+    st["extra"]["round"] = 1
+    _spawn_battle(st)
+    return True, lobby.save(st["room"], st)
+
+
+def _heal_full(st):
+    """ฟื้นเลือดทุกคนเต็มก่อนออกเดินทาง
+
+    ⚠️ เจ้าของเกมเคาะ 2026-09-04 — **รู้ตัวว่าเป็นก๊อกฮีลฟรี**
+       (ออกจากห้องแล้วเปิดใหม่ = ฟื้นเต็มโดยไม่ต้องจ่ายค่านอนพัก 2,000 ทอง)
+       เลือกแบบนี้เพราะยังไม่มีเหตุการณ์หมู่บ้าน (10b) ปาร์ตี้ที่ไม่มีนักบวช
+       เลือดเหลือ 1 จะตันถาวร เล่นต่อไม่ได้เลย
+
+    ⚠️ เรียกเฉพาะตอน `begin()` (ออกเดินทางครั้งใหม่จากล็อบบี้) เท่านั้น
+       **ห้ามเรียกใน `again()` หรือ `restart()`** ไม่งั้นทับกฎ
+       "เดินทางต่อโดยเลือดติดตัว" กับ "ตายยกทีมฟื้นแค่ 50%" ทั้งสองข้อ
+
+    ⚠️ ต้องเติม **เม็ดคริสตัลด้วย** ไม่ใช่แค่เลือด — ออกเดินทางใหม่ทั้งที
+       แต่ออกท่าไม่ได้เลยก็ไม่ต่างจากตัน (เจ้าของเกมเจอตอนเทสด้วยมือ 2026-09-04)
+    """
+    from bot import mana as _mana
+    from bot.models import player_model
+    for seat in st["seats"]:
+        try:
+            uid = int(seat["uid"])
+            p = player_model.get_player(uid) or {}
+            player_model.update_player_field(uid, "hp", gear_stats(p)[1])
+            _mana.refill(uid)
+        except Exception as e:
+            print(f"⚠️ [party] ฟื้นเลือด/เม็ดไม่ได้ uid={seat.get('uid')}: {e}")
 
 
 def _players_of(st):
@@ -157,7 +240,8 @@ def _spawn_battle(st):
     players = _players_of(st)
     lv = max(1, sum(int(p.get("level") or 1) for p in players) // max(1, len(players)))
     mons = monsters.spawn_group(int(st["host"]), len(players), rng,
-                                boss=bool(st["extra"].get("boss_raid")), level=lv)
+                                boss=bool(st["extra"].get("boss_raid")), level=lv,
+                                rnd=int(st["extra"].get("round") or 1))
     engine.start_battle(st, players, mons, rng)
     # มอนที่ไวกว่าผู้เล่นต้องได้เดินก่อน ไม่งั้นเกมค้าง
     _record(st, _run_monsters(st, rng))
@@ -233,6 +317,65 @@ def _tick(st):
     return True
 
 
+def _bank_score(st, b):
+    """รวมดาเมจของสมรภูมินี้เข้าตารางสะสมของทั้งการเดินทาง
+
+    ⚠️ สะสมข้ามรอบ ไม่ใช่ต่อสมรภูมิ — ตารางอันดับโชว์ตอนจบการเดินทาง
+       จึงต้องนับตั้งแต่รอบ 1 ถึงรอบที่ล้ม
+    """
+    score = st["extra"].setdefault("score", {})
+    for u in b["units"].values():
+        if u["side"] != "party" or not u.get("uid"):
+            continue
+        got = int(u.get("dmg_done") or 0)
+        if not got:
+            continue
+        row = score.setdefault(u["uid"], {"name": u.get("name") or "ผู้เล่น", "dmg": 0})
+        row["dmg"] = int(row.get("dmg") or 0) + got
+        row["name"] = u.get("name") or row["name"]
+        u["dmg_done"] = 0          # ย้ายเข้าตารางแล้ว กันนับซ้ำตอน poll รอบถัดไป
+
+
+def _score_board(st):
+    """ตารางอันดับดาเมจ เรียงมากไปน้อย — ส่งขึ้นจอได้เลย"""
+    rows = list((st["extra"].get("score") or {}).values())
+    return sorted(rows, key=lambda r: -int(r.get("dmg") or 0))
+
+
+def _punish(b):
+    """โทษตอนตายยกทีม — เสียเงินสด เสีย EXP และอาจตกเลเวล
+
+    เจ้าของเกมสั่ง 2026-09-04: "แพ้ต้องเสียตัง เสีย EXP และเลเวล"
+    ⚠️ เงินใน **ธนาคารปลอดภัย** เสียเฉพาะเงินสดที่พกติดตัว
+       (เข้ากับระบบธนาคาร/โจรปล้นที่มีอยู่ — ฝากก่อนออกเดินทางคือการเล่นที่ฉลาด)
+    ⚠️ settle() กันเรียกซ้ำด้วยธง paid อยู่แล้ว โทษจึงถูกหักครั้งเดียว
+    """
+    from bot.models import player_model
+
+    out = {}
+    for u in b["units"].values():
+        if u["side"] != "party" or not u.get("uid"):
+            continue
+        try:
+            uid = int(u["uid"])
+            p = player_model.get_player(uid) or {}
+            pen = journey.wipe_penalty(p)
+            player_model.update_player_fields(uid, {
+                "cash": pen["cash"], "exp": pen["exp"],
+                "level": pen["level"], "max_hp": pen["max_hp"]})
+            # ⚠️ `pen["max_hp"]` เป็นค่า **ดิบ** ในฐานข้อมูล ยังไม่รวมโบนัสชุด
+            #    เอาไปทับ u["hp_max"] ตรง ๆ ไม่ได้ เพราะของหน่วยรวมชุดแล้ว
+            #    (เจ้าของเกมเห็น "170/240" ทั้งที่ควรเป็น 170/340 — 2026-09-04)
+            fresh = dict(player_model.get_player(uid) or {})
+            u["hp_max"] = gear_stats(fresh)[1]
+            u["hp"] = min(u["hp"], u["hp_max"])
+            out[u["uid"]] = {"gold": pen["gold_lost"], "exp": pen["exp_lost"],
+                             "level": pen["level_lost"]}
+        except Exception as e:
+            print(f"⚠️ [party] หักโทษไม่ได้ uid={u.get('uid')}: {e}")
+    return out
+
+
 def _carry_hp(b):
     """เลือดที่เหลือหลังสมรภูมิ เขียนกลับเข้าตัวละครจริง
 
@@ -265,6 +408,21 @@ def settle(st):
     if not b or not b.get("over") or st["extra"].get("paid"):
         return st["extra"].get("reward")
     st["extra"]["paid"] = True          # ตั้งก่อนจ่าย กันเรียกซ้อนกัน
+
+    # 💀 ปิดฉาก — journey เป็นที่เดียวที่ตัดสินว่าฟื้นยังไง
+    #    รอด ≥1 คน → คนที่ล้มฟื้นมา 1% เดินทางต่อได้
+    #    ล้มยกทีม  → ฟื้นมา 50% แต่รอบกลับไป 1 และเสียของ
+    _bank_score(st, b)          # เก็บดาเมจของรอบนี้เข้าตารางสะสมก่อนปิดฉาก
+    ending, revived = journey.close_out(list(b["units"].values()))
+    if revived:
+        # ต่อท้ายชุดเหตุการณ์เดิม — จอจะเล่น "ตาย" ให้จบก่อนแล้วค่อย "ฟื้น"
+        _record(st, list(b.get("recent") or [])
+                + [events.heal(i, i, hp) for i, hp in revived])
+    st["extra"]["wiped"] = (ending == "wipe")
+    if ending == "wipe":
+        st["extra"]["round"] = 1
+        st["extra"]["penalty"] = _punish(b)
+
     _carry_hp(b)                        # เลือดที่เหลือติดตัวกลับไปเกมหลัก
     if b.get("winner") != "party":
         st["extra"]["reward"] = None
@@ -273,7 +431,8 @@ def settle(st):
 
     mons = [u for u in b["units"].values() if u["side"] == "monster"]
     uids = [u["uid"] for u in b["units"].values() if u["side"] == "party"]
-    st["extra"]["reward"] = rewards.pay(uids, mons, random.Random())
+    st["extra"]["reward"] = rewards.pay(
+        uids, mons, random.Random(), rnd=int(st["extra"].get("round") or 1))
     lobby.save(st["room"], st)
     return st["extra"]["reward"]
 
@@ -289,14 +448,26 @@ def view(uid):
     if st:
         out["max"] = MAX_PARTY                       # ทับค่า 6 ของล็อบบี้กลาง
         out["phase"] = st["extra"].get("phase", "lobby")
+        if st["extra"].get("round"):
+            out["round"] = int(st["extra"]["round"])
         if st["extra"].get("battle"):
             # ⏱️ คนที่ยังเปิดจออยู่เป็นคนเดินนาฬิกาให้ — หมดเวลาแล้วบอทเล่นแทน
             #    (ไม่มีตรงนี้ คน AFK คนเดียวค้างทั้งปาร์ตี้ ไม่มีใครปลด)
             #    ทุกคนหลุดหมดก็ไม่มีใคร poll = ไม่มีอะไรต้องเดิน
             if _tick(st):
                 lobby.save(st["room"], st)
+            # ⚠️ ต้อง settle **ก่อน** ถ่ายภาพส่งขึ้นจอ
+            #    settle เป็นคนฟื้นเลือดคนที่ล้ม (1% / 50%) ถ่ายภาพก่อนแล้ว
+            #    จอจะยังเห็นเลือด 0 ทั้งที่ฟื้นไปแล้ว
+            #    (เจ้าของเกมเห็น "0/480" ตอนเทสด้วยมือ 2026-09-04)
+            settle(st)                  # จบตอนตามอนก็ต้องได้รางวัล ไม่ต้องรอกดอะไร
             # engine.view คัดค่าลับของมอนออกให้แล้ว (ส่ง hp_pct ไม่ใช่ hp จริง)
             out["battle"] = engine.view(st, uid)
-            settle(st)                  # จบตอนตามอนก็ต้องได้รางวัล ไม่ต้องรอกดอะไร
+            # renderer รับแค่ก้อน battle — ยัดรอบกับตารางอันดับเข้าไปด้วย
+            out["battle"]["round"] = int(st["extra"].get("round") or 1)
+            out["battle"]["score"] = _score_board(st)
             out["reward"] = st["extra"].get("reward")
+            out["wiped"] = bool(st["extra"].get("wiped"))
+            if st["extra"].get("penalty"):
+                out["penalty"] = (st["extra"]["penalty"] or {}).get(str(uid))
     return out

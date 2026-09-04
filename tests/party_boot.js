@@ -222,7 +222,49 @@ try {
     ok('เหตุการณ์แปลก ๆ', false, e.message);
   }
 
-  // ── สถานะว่าง / มอนตายหมด ──
+  // ── ป้ายรอบ + ป้ายจบเกมพร้อมตารางอันดับ ──
+  // เจ้าของเกมสั่ง 2026-09-04: รอบต้องอยู่บน canvas · ตายแล้วต้องปิดทับว่าแพ้
+  // พร้อมอันดับดาเมจ และบอกว่าไปถึงรอบไหน
+  try {
+    drain();
+    const live = JSON.parse(JSON.stringify(state));
+    live.round = 7;
+    sandbox.pbSetState(live);
+    drain();
+    let seen = calls.filter(x => x[0] === 'fillText').map(x => String(x[1]));
+    ok('โชว์รอบการเดินทางบนจอ', seen.some(t => t.includes('รอบที่ 7')));
+
+    const done = JSON.parse(JSON.stringify(state));
+    done.over = true;
+    done.winner = 'monster';
+    done.round = 7;
+    done.score = [{ name: 'เอ', dmg: 1234 }, { name: 'บี', dmg: 99 }];
+    const n0 = calls.length;
+    sandbox.pbSetState(done);
+    drain();
+    seen = calls.slice(n0).filter(x => x[0] === 'fillText').map(x => String(x[1]));
+    ok('ตายแล้วขึ้นป้ายแพ้ปิดทับ', seen.some(t => t.includes('ล้มยกทีม')));
+    ok('บอกว่าไปถึงรอบไหน', seen.some(t => t.includes('รอบที่ 7')));
+    ok('โชว์ตารางอันดับดาเมจ', seen.some(t => t.includes('อันดับดาเมจ')));
+    ok('อันดับ 1 มาก่อนอันดับ 2',
+       seen.findIndex(t => t.includes('เอ')) < seen.findIndex(t => t.includes('บี')));
+    ok('โชว์ตัวเลขดาเมจ', seen.some(t => t.includes('1,234') || t.includes('1234')));
+
+    // ⚠️ ป้ายต้องไม่ขึ้นตอนอนิเมชันยังเล่นอยู่ ไม่งั้นบังตอนกำลังตาย
+    const busy = JSON.parse(JSON.stringify(done));
+    sandbox.pbPlay([{ t: 'attack', from: 'm1', to: 'p1', dmg: 5,
+                      element: null, crit: false }]);
+    sandbox.pbSetState(busy);
+    const n1 = calls.length;
+    drain(1);
+    ok('อนิเมชันยังเล่นอยู่ยังไม่ขึ้นป้าย',
+       !calls.slice(n1).some(x => x[0] === 'fillText' && String(x[1]).includes('ล้มยกทีม')));
+    drain();
+  } catch (e) {
+    ok('ป้ายรอบ/ป้ายจบเกม', false, e.message);
+  }
+
+// ── สถานะว่าง / มอนตายหมด ──
   try {
     sandbox.pbSetState(null);
     sandbox.pbSetState({ units: [], turn_of: null, over: true, winner: 'party' });

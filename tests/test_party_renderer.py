@@ -109,3 +109,20 @@ def test_renderer_ห้ามยิง_api_เอง(f):
     """renderer วาดอย่างเดียว การคุยกับเซิร์ฟเวอร์เป็นหน้าที่ของ lobby.js"""
     for bad in ("fetch(", "XMLHttpRequest", "/api/web"):
         assert bad not in _src(f), f"{f.name} คุยกับเซิร์ฟเวอร์เอง"
+
+
+@pytest.mark.parametrize("f", RENDERERS, ids=lambda f: f.name)
+def test_renderer_วาดป้ายรอบกับป้ายจบเกม(f):
+    """เจ้าของเกมสั่ง 2026-09-04: รอบต้องอยู่บน canvas · ตายแล้วปิดทับว่าแพ้"""
+    src = _src(f)
+    for want in ("รอบที่", "ล้มยกทีม", "อันดับดาเมจ"):
+        assert want in src, f"{f.name} ไม่ได้วาด {want}"
+
+
+@pytest.mark.parametrize("f", RENDERERS, ids=lambda f: f.name)
+def test_ป้ายจบเกมรอให้อนิเมชันจบก่อน(f):
+    """ขึ้นทันทีจะไปบังตอนกำลังตาย — ต้องเช็คคิวก่อน"""
+    src = _src(f)
+    i = src.index("st.over")
+    assert "queue.length" in src[i:i + 200], \
+        f"{f.name} ขึ้นป้ายจบเกมโดยไม่รอคิวอนิเมชัน"

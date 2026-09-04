@@ -21,7 +21,11 @@ let PARTY_BID = null;          // รหัสสมรภูมิที่ก�
 function partyWatch(on) {
   clearInterval(PARTY_POLL);
   PARTY_POLL = null;
-  if (!on) return;
+  if (!on) {
+    clearTimeout(PARTY_ANIM);      // ออกจากห้องแล้วห้ามมีตัวจับเวลาค้าง
+    PARTY_ANIM = null;
+    return;
+  }
   PARTY_POLL = setInterval(async () => {
     try {
       const r = await api('GET', '/api/web/party/room');
@@ -55,6 +59,7 @@ async function partyDo(action, extra) {
 function partyPlayNew() {
   const b = PARTY && PARTY.battle;
   if (!b || !b.seq) return;
+  const before = typeof pbPending === 'function' ? pbPending() : 0;
   // ⚠️ ใช้รหัสสมรภูมิ ไม่ใช่ "เลขถอยหลัง" — รอบเก่าจบที่ seq 1 รอบใหม่ก็เริ่มที่ 1
   //    เหมือนกัน ตัวจับแบบถอยหลังจะไม่ทำงาน แล้วจอนิ่งสนิททั้งรอบ
   if (b.bid && b.bid !== PARTY_BID) {
@@ -69,6 +74,11 @@ function partyPlayNew() {
     PARTY_SEQ = b.seq;
     pbPlay(b.recent || []);
   }
+  // ⚠️ ต้องวาดแถบคำสั่ง **ใหม่หลังเข้าคิวแล้ว**
+  //    รอบ poll เรียก partyPaint() ก่อน partyPlayNew() เสมอ ตอนวาดปุ่มจึงยังเห็น
+  //    คิวว่าง (pbPending() = 0) แล้วเปิดปุ่มทันทีทั้งที่อนิเมชันกำลังจะเริ่ม
+  //    (เจ้าของเกมเจอ: เพื่อนตีปุ๊บ อีกคนกดได้เลยทั้งที่เป็นตามอน 2026-09-04)
+  if (typeof pbPending === 'function' && pbPending() !== before) partyPaintBar();
 }
 
 /** วาดหน้าล็อบบี้จากสถานะที่เซิร์ฟเวอร์ส่งมา */
@@ -157,6 +167,7 @@ async function fillParty() {
 // ── หน้าจอสมรภูมิ (เฟส 3) ──
 
 let PARTY_PICK = null;      // ท่าที่เลือกไว้ รอเลือกเป้า
+let PARTY_ANIM = null;      // ตัวจับเวลารออนิเมชันจบ (มีได้ตัวเดียว)
 
 /** ผู้เล่นคลิกเลือกเป้าบน canvas — renderer เรียกกลับมาที่นี่ */
 function onPartyPick(unitId, side, alive) {
@@ -205,6 +216,20 @@ function partyPaintBattle() {
   partyPaintBar();
 }
 
+/** สรุปโทษตอนล้มยกทีม — บอกให้ชัดว่าเสียอะไรไป ไม่ใช่เงินหายเงียบ ๆ */
+function partyPenaltyHtml() {
+  const p = PARTY && PARTY.penalty;
+  const rnd = '<span>🧭 การเดินทางเริ่มใหม่ที่รอบ 1</span>';
+  if (!p) return `<div class="party-reward">${rnd}</div>`;
+  return `
+    <div class="party-reward">
+      ${p.gold ? `<span>💸 เสีย <b>${p.gold.toLocaleString()}</b> ทอง</span>` : ''}
+      ${p.exp ? `<span>📉 เสีย <b>${p.exp.toLocaleString()}</b> EXP</span>` : ''}
+      ${p.level ? `<span>⬇️ เลเวลลด <b>${p.level}</b></span>` : ''}
+      ${rnd}
+    </div>`;
+}
+
 /** สรุปรางวัล — ตัวเลขทั้งหมดมาจากเซิร์ฟเวอร์ ห้ามคำนวณเองแม้แต่นิดเดียว */
 function partyRewardHtml() {
   const r = PARTY && PARTY.reward;
@@ -234,24 +259,44 @@ function partyPaintBar() {
   const b = PARTY && PARTY.battle;
   if (!bar || !b) return;
 
+  // ⏳ อนิเมชันยังเล่นไม่จบ — ห้ามโชว์ผลแพ้ชนะ ห้ามเปิดปุ่มให้กด
+  //
+  // เซิร์ฟเวอร์สรุปผลทั้งตาเสร็จตั้งแต่ก่อนอนิเมชันเริ่มเล่น ถ้าวาดตามสถานะทันที
+  // ผู้เล่นจะเห็น "ปาร์ตี้ชนะ!" ตั้งแต่เลือดมอนยังไม่ทันลด และกดปุ่มได้ทั้งที่
+  // ตายังเป็นของมอนอยู่ (เจ้าของเกมเจอตอนเทสด้วยมือ 2026-09-04)
+  clearTimeout(PARTY_ANIM);
+  PARTY_ANIM = null;
+  if (typeof pbPending === 'function' && pbPending() > 0) {
+    bar.innerHTML = '<div class="party-wait">⚔️ กำลังต่อสู้...</div>';
+    PARTY_ANIM = setTimeout(partyPaintBar, 120);   // เช็คใหม่จนกว่าจะนิ่ง
+    return;
+  }
+
   if (b.over) {
     const win = b.winner === 'party';
+    // 💀 ล้มยกทีม = จบการเดินทางรอบนี้ ต้องเริ่มใหม่จากรอบ 1 ไม่ใช่ไปต่อ
+    const wiped = !!PARTY.wiped;
+    const head = wiped ? '💀 ปาร์ตี้ล้มยกทีม!'
+      : win ? '🏆 ปาร์ตี้ชนะ!'
+      : b.winner === 'flee' ? '🏃 หนีออกมาได้' : '💀 ปาร์ตี้แพ้';
     bar.innerHTML = `
       <div class="party-result ${win ? 'win' : 'lose'}">
-        <b>${win ? '🏆 ปาร์ตี้ชนะ!' : b.winner === 'flee' ? '🏃 หนีออกมาได้' : '💀 ปาร์ตี้แพ้'}</b>
-        ${partyRewardHtml()}
+        <b>${head}</b>
+        ${wiped ? partyPenaltyHtml() : partyRewardHtml()}
         <div class="party-btns">
           ${PARTY.host
-            ? '<button class="go" id="partyAgain">🧭 ออกเดินทางต่อ</button>'
-            : '<span class="party-hint">รอหัวห้องพาออกเดินทางต่อ...</span>'}
+            ? (wiped
+                ? '<button class="go" id="partyRestart">🧭 เริ่มออกเดินทางใหม่</button>'
+                : '<button class="go" id="partyAgain">🧭 ออกเดินทางต่อ</button>')
+            : `<span class="party-hint">รอหัวห้อง${wiped ? 'เริ่มออกเดินทางใหม่' : 'พาออกเดินทางต่อ'}...</span>`}
           <button class="out" id="partyOut">← ออกจากปาร์ตี้</button>
         </div>
       </div>`;
     document.getElementById('partyOut').onclick = () => partyDo('leave');
     const again = document.getElementById('partyAgain');
-    if (again) {
-      again.onclick = () => partyDo('again');
-    }
+    if (again) again.onclick = () => partyDo('again');
+    const restart = document.getElementById('partyRestart');
+    if (restart) restart.onclick = () => partyDo('restart');
     return;
   }
 
@@ -261,7 +306,10 @@ function partyPaintBar() {
   if (!mine) {
     const who = (b.units || []).find(u => u.id === b.turn_of);
     bar.innerHTML = `<div class="party-wait">⏳ รอ ${who ? who.name : '...'} เลือกคำสั่ง
-      ${b.turn_left != null ? `<span class="party-clock">${b.turn_left} วิ</span>` : ''}
+      <span class="party-clock">
+        ${PARTY.round ? `🧭 รอบที่ ${PARTY.round}` : ''}
+        ${b.turn_left != null ? ` · ${b.turn_left} วิ` : ''}
+      </span>
     </div>`;
     return;
   }
@@ -299,6 +347,7 @@ function partyPaintBar() {
       ? '<button class="pb" data-a="revive" data-t="fallen">💗 ชุบ</button>' : ''}
     <button class="pb" data-a="flee" data-t="self">🏃 หนี</button>
     <span class="party-clock">
+      ${PARTY.round ? `🧭 รอบที่ ${PARTY.round} · ` : ''}
       ${me.mana_max ? `💎 ${me.mana}/${me.mana_max}` : ''}
       ${b.turn_left != null ? ` · ⏱️ ${b.turn_left} วิ` : ''}
     </span>`;

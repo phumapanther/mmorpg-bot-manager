@@ -272,3 +272,61 @@ def test_เลือดลดต้องผ่าน_hurt_ที่เดี�
         code = chr(10).join(ln.split("#")[0] for ln in src.splitlines())
         assert '"hp"] = max(0,' not in code, \
             f"{f} หักเลือดตรง ๆ ต้องเรียก engine.hurt() แทน"
+
+
+# ── เลือดน้อย = ทอยเสียเปรียบ (เจ้าของเกมเคาะ 2026-09-04) ──
+
+def test_เลือดเต็มไม่เสียเปรียบ():
+    assert contest.frail_penalty(_u(hp=100, hp_max=100)) == 0
+    assert contest.frail_penalty(_u(hp=50, hp_max=100)) == 0
+
+
+def test_ยิ่งเลือดน้อยยิ่งหนัก():
+    """⭐ ไล่ระดับ ไม่ใช่เกณฑ์เดียว — เลือด 49% กับ 1% ไม่ควรเท่ากัน"""
+    a = contest.frail_penalty(_u(hp=49, hp_max=100))
+    b = contest.frail_penalty(_u(hp=24, hp_max=100))
+    c = contest.frail_penalty(_u(hp=9, hp_max=100))
+    assert 0 > a > b > c, f"ไม่ไล่ระดับ: 49%={a} 24%={b} 9%={c}"
+
+
+def test_ตัวเลขตรงกับที่เคาะ():
+    """ตรึงเลขดิบ — ต่ำกว่า 50% → −2 · 25% → −4 · 10% → −6"""
+    assert contest.frail_penalty(_u(hp=49, hp_max=100)) == -2
+    assert contest.frail_penalty(_u(hp=24, hp_max=100)) == -4
+    assert contest.frail_penalty(_u(hp=9, hp_max=100)) == -6
+
+
+def test_คนฟื้นมา_1_เปอร์เซ็นต์ทอยแย่ลงเอง():
+    """ไม่ต้องติดสถานะอะไร — ฟื้นมาเลือดน้อยก็เสียเปรียบเองอัตโนมัติ"""
+    from bot.games.party import journey
+    u = _u(hp=journey.revived_hp(200), hp_max=200)
+    assert contest.frail_penalty(u) == -6
+
+
+def test_ฮีลแล้วหายเองไม่ต้องล้างสถานะ():
+    """จุดสำคัญของการไม่ใช้สถานะแยก — หายเองทันทีที่เลือดกลับมา"""
+    u = _u(hp=5, hp_max=200)
+    assert contest.frail_penalty(u) < 0
+    u["hp"] = 200
+    assert contest.frail_penalty(u) == 0
+
+
+def test_เลือดน้อยทำให้ทอยจริงได้แต้มน้อยลง():
+    """เชื่อมกันจริงไหม — ไม่ใช่แค่ฟังก์ชันคำนวณลอย ๆ"""
+    healthy = contest.roll_off(_u(hp=100, hp_max=100),
+                               _u(id="m1", side="monster"), Dice(15, 9))
+    hurt = contest.roll_off(_u(hp=5, hp_max=100),
+                            _u(id="m1", side="monster"), Dice(15, 9))
+    assert hurt["atk"] < healthy["atk"]
+
+
+def test_เลือดน้อยก็ยังทอยได้อย่างน้อย_1():
+    u = _u(hp=1, hp_max=999, fx={"slow": 9})
+    r = contest.roll_off(u, _u(id="m1", side="monster"), Dice(1, 1))
+    assert r["atk"] >= 1
+
+
+def test_มอนเลือดน้อยก็เสียเปรียบเหมือนกัน():
+    """กติกาเดียวกันทั้งสองฝั่ง ไม่ใช่ลงโทษเฉพาะผู้เล่น"""
+    assert contest.frail_penalty(
+        {"side": "monster", "hp": 5, "hp_max": 100}) == -6

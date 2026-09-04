@@ -306,3 +306,90 @@ def test_ตัวหนาในกล่องรางวัลไม่ก�
 def test_เตือนก่อนติ๊กล่าบอส():
     """วัดจริง 2026-09-04: ปาร์ตี้เลเวล 1 ล่าบอสชนะ 0/30 — ต้องบอกก่อนกด"""
     assert "party-warn" in LOBBY and ".party-warn" in CSS
+
+
+# ── รอบการเดินทาง + ล้มยกทีม (เฟส 10a) ──
+
+def test_หน้าเว็บโชว์รอบการเดินทาง():
+    """ผู้เล่นต้องรู้ว่าเดินมาไกลแค่ไหน ไม่งั้นไม่รู้ว่าเสี่ยงแค่ไหน"""
+    assert "PARTY.round ?" in LOBBY, "ไม่ได้เอารอบมาแสดงจริง"
+    assert "🧭 รอบที่ ${PARTY.round}" in LOBBY
+
+
+def test_ล้มยกทีมโชว์ปุ่มเริ่มใหม่ไม่ใช่ไปต่อ():
+    """⭐ กด "ไปต่อ" หลังล้มยกทีมไม่ได้ (เซิร์ฟเวอร์ปฏิเสธ) — ปุ่มต้องเปลี่ยนด้วย"""
+    assert 'id="partyRestart"' in LOBBY
+    assert "partyDo('restart')" in LOBBY
+    assert "PARTY.wiped" in LOBBY, "ไม่ได้ดูธงล้มยกทีมเลย"
+
+
+def test_จอสรุปโทษบอกครบว่าเสียอะไร():
+    """เงินหายเงียบ ๆ = ผู้เล่นคิดว่าเป็นบั๊ก"""
+    # ⚠️ เช็คแค่ว่า "มีฟังก์ชันอยู่" ไม่พอ — ตัวนิยามก็นับ แม้ไม่มีใครเรียก
+    #    ต้องตรึง **จุดที่เรียก** ด้วย (ย้อนเทสจับได้ 2026-09-04)
+    assert "wiped ? partyPenaltyHtml() : partyRewardHtml()" in LOBBY,         "ไม่ได้เรียกจอสรุปโทษตอนล้มยกทีม"
+    for want in ("เสีย", "ทอง", "EXP", "เลเวลลด", "รอบ 1"):
+        assert want in LOBBY, f"จอสรุปโทษไม่บอกเรื่อง {want}"
+
+
+def test_ไม่คำนวณโทษฝั่งเบราว์เซอร์():
+    """🔒 ตัวเลขที่เสียต้องมาจากเซิร์ฟเวอร์ล้วน ๆ"""
+    for bad in ("wipe_gold_pct", "* 0.1", "wipe_exp_pct"):
+        assert bad not in LOBBY, f"lobby.js คำนวณโทษเอง ({bad})"
+
+
+def test_api_รับคำสั่งเริ่มออกเดินทางใหม่():
+    from license_server import web_api
+
+    def flat(r, pre=""):
+        out = []
+        for x in getattr(r, "routes", []):
+            o = getattr(x, "original_router", None)
+            if o is not None:
+                out += flat(o, pre + getattr(x, "prefix", ""))
+            elif hasattr(x, "path"):
+                out.append(pre + x.path)
+        return out
+
+    assert "/party/room" in flat(web_api.router)
+    src = pathlib.Path("license_server/api_web/games/party.py").read_text(encoding="utf-8")
+    assert 'body.action == "restart"' in src
+    assert "room.restart(uid)" in src
+
+
+# ── ห้ามแซงอนิเมชัน (เจ้าของเกมเจอตอนเทสด้วยมือ 2026-09-04) ──
+
+def test_รอให้อนิเมชันจบก่อนโชว์ผลกับเปิดปุ่ม():
+    """⭐ เซิร์ฟเวอร์สรุปผลทั้งตาเสร็จก่อนอนิเมชันเริ่มเล่น
+
+    วาดตามสถานะทันที = เห็น "ปาร์ตี้ชนะ!" ตั้งแต่เลือดมอนยังไม่ทันลด
+    และกดปุ่มได้ทั้งที่ตายังเป็นของมอน
+    """
+    assert "pbPending() > 0" in LOBBY, "ไม่ได้เช็คว่าอนิเมชันจบหรือยัง"
+    i = LOBBY.index("function partyPaintBar()")
+    head = LOBBY[i:i + 1200]
+    assert head.index("pbPending() > 0") < head.index("if (b.over)"), \
+        "เช็คอนิเมชันทีหลังการโชว์ผล — ผลจะขึ้นก่อนอยู่ดี"
+
+
+def test_เช็คซ้ำจนอนิเมชันนิ่ง():
+    """เช็คครั้งเดียวไม่พอ — ต้องมีตัวนัดมาดูใหม่ ไม่งั้นค้างที่ "กำลังต่อสู้" """
+    assert "setTimeout(partyPaintBar" in LOBBY
+
+
+def test_ออกจากห้องแล้วไม่มีตัวจับเวลาค้าง():
+    """ยิงทิ้งไว้ = เปลืองเครื่องผู้เล่น (บทเรียนเดียวกับ PARTY_POLL)"""
+    assert "clearTimeout(PARTY_ANIM)" in LOBBY
+
+
+def test_เข้าคิวเหตุการณ์แล้ววาดปุ่มใหม่():
+    """⭐ รอบ poll เรียก partyPaint() ก่อน partyPlayNew() เสมอ
+
+    ถ้าไม่วาดปุ่มใหม่หลังเข้าคิว ตอนวาดปุ่มจะยังเห็นคิวว่างแล้วเปิดปุ่มทันที
+    ทั้งที่อนิเมชันกำลังจะเริ่ม (เจ้าของเกมเจอ: เพื่อนตีปุ๊บ อีกคนกดได้เลย)
+    """
+    i = LOBBY.index("function partyPlayNew()")
+    body = LOBBY[i:LOBBY.index("function partyPaint()", i)]
+    assert "partyPaintBar()" in body, "เข้าคิวแล้วไม่ได้วาดปุ่มใหม่"
+    assert body.index("pbPlay(") < body.index("partyPaintBar()"), \
+        "วาดปุ่มก่อนเข้าคิว — ปุ่มจะเปิดทั้งที่อนิเมชันยังไม่เริ่ม"
