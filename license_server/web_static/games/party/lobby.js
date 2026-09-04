@@ -8,6 +8,7 @@
 let PARTY = null;              // สถานะห้องล่าสุดที่เซิร์ฟเวอร์ส่งมา
 let PARTY_POLL = null;         // ตัวจับเวลาถามสถานะซ้ำ
 let PARTY_SEQ = 0;             // เหตุการณ์ล่าสุดที่เล่นอนิเมชันไปแล้ว (กันเล่นซ้ำ)
+let PARTY_BID = null;          // รหัสสมรภูมิที่กำลังดูอยู่ — เปลี่ยน = ขึ้นรอบใหม่
 
 /** ถามสถานะห้องซ้ำ ๆ — ทั้งตอนรอคนเข้าห้อง **และตอนสู้อยู่**
  *
@@ -54,9 +55,10 @@ async function partyDo(action, extra) {
 function partyPlayNew() {
   const b = PARTY && PARTY.battle;
   if (!b || !b.seq) return;
-  // เลขลำดับถอยหลัง = เริ่มสมรภูมิใหม่ ต้องนับใหม่ ไม่งั้นรอบใหม่ไม่มีอนิเมชันเลย
-  // จนกว่าจะเกินเลขของรอบเก่า
-  if (b.seq < PARTY_SEQ) {
+  // ⚠️ ใช้รหัสสมรภูมิ ไม่ใช่ "เลขถอยหลัง" — รอบเก่าจบที่ seq 1 รอบใหม่ก็เริ่มที่ 1
+  //    เหมือนกัน ตัวจับแบบถอยหลังจะไม่ทำงาน แล้วจอนิ่งสนิททั้งรอบ
+  if (b.bid && b.bid !== PARTY_BID) {
+    PARTY_BID = b.bid;
     PARTY_SEQ = 0;
     const cv = document.getElementById('partyCanvas');
     if (cv) cv.innerHTML = '';        // ล้างจอเก่า pbMount จะสร้างใหม่พร้อมล้างสถานะ
@@ -117,7 +119,8 @@ function partyPaint() {
       <div class="party-btns">
         ${PARTY.host
           ? `<label class="party-raid">
-               <input type="checkbox" id="partyBoss"> 👑 ล่าบอส (ยากกว่า รางวัลดีกว่า)
+               <input type="checkbox" id="partyBoss"> 👑 ล่าบอส
+               <span class="party-warn">ยากมาก — แนะนำเลเวล 20 ขึ้นไป</span>
              </label>
              <button class="go" id="partyStart" ${seats.length < 2 ? 'disabled' : ''}>
                ⚔️ เริ่มออกเดินทาง${seats.length < 2 ? ' (รออีกอย่างน้อย 1 คน)' : ''}
@@ -160,10 +163,13 @@ function onPartyPick(unitId, side, alive) {
   if (!PARTY_PICK) return;
   // กันคลิกผิดตั้งแต่หน้าจอ (เซิร์ฟเวอร์ยังตัดสินซ้ำอยู่ดี):
   // ชุบเล็งได้เฉพาะคนที่ล้ม · ท่าอื่นเล็งได้เฉพาะคนที่ยังอยู่
-  if (alive !== undefined && (PARTY_PICK === 'revive' ? alive : !alive)) {
-    toast(PARTY_PICK === 'revive'
-      ? 'ชุบได้เฉพาะเพื่อนที่ล้มแล้ว' : 'คนนี้ล้มไปแล้ว', true);
-    return;
+  // ชุบเล็งได้เฉพาะคนล้ม · ✨ Heal เล็งได้ทั้งคนที่ยืนและคนที่ล้ม · ท่าอื่นเฉพาะคนที่ยืน
+  if (alive !== undefined && PARTY_PICK !== 'heal') {
+    if (PARTY_PICK === 'revive' ? alive : !alive) {
+      toast(PARTY_PICK === 'revive'
+        ? 'ชุบได้เฉพาะเพื่อนที่ล้มแล้ว' : 'คนนี้ล้มไปแล้ว', true);
+      return;
+    }
   }
   partyAct(PARTY_PICK, unitId);
 }
@@ -244,10 +250,7 @@ function partyPaintBar() {
     document.getElementById('partyOut').onclick = () => partyDo('leave');
     const again = document.getElementById('partyAgain');
     if (again) {
-      again.onclick = () => {
-        PARTY_SEQ = 0;                 // สมรภูมิใหม่นับเหตุการณ์ใหม่ตั้งแต่ต้น
-        partyDo('again');
-      };
+      again.onclick = () => partyDo('again');
     }
     return;
   }
@@ -275,24 +278,36 @@ function partyPaintBar() {
     return;
   }
 
-  // ชุบได้เฉพาะตอนมีเพื่อนล้มจริง ๆ และตัวเองชุบเป็น (เซิร์ฟเวอร์เป็นคนบอก)
+  // ⚠️ ปุ่มสกิลสร้างจาก me.skills ที่เซิร์ฟเวอร์ส่งมา **ห้ามฝังรายชื่อท่าไว้ที่นี่**
+  //    คลาสต่างกันปุ่มต่างกัน (เจ้าของเกมสั่ง 2026-09-04) ฝังไว้เมื่อไหร่
+  //    เพิ่มคลาสใหม่หรือปรับท่าที่เกมหลักแล้วหน้าเว็บจะไม่ตามไปด้วย
   const fallen = (b.units || []).some(u => u.side === 'party' && !u.alive);
+  const kit = (me.skills || []).map(sk => {
+    const cool = sk.cd > 0;
+    const noMana = (me.mana || 0) <= 0;
+    const why = cool ? `รออีก ${sk.cd} ตา` : noMana ? 'เม็ดคริสตัลหมด' : sk.desc;
+    return `<button class="pb" data-a="${sk.key}" data-t="${sk.target}"
+              ${cool || noMana ? 'disabled' : ''} title="${why}">
+              ${sk.name}${cool ? ` (${sk.cd})` : ''}
+            </button>`;
+  }).join('');
+
   bar.innerHTML = `
-    <button class="pb" data-a="attack">⚔️ โจมตี</button>
-    <button class="pb" data-a="skill">✨ สกิล</button>
-    <button class="pb" data-a="aoe">💥 กวาด</button>
-    <button class="pb" data-a="heal">💚 ฮีล</button>
-    <button class="pb" data-a="revive" ${me.can_revive && fallen ? '' : 'disabled'}
-      title="${me.can_revive ? 'ชุบเพื่อนที่ล้ม' : 'ต้องเป็นนักบวชหรือมีใบชุบชีวิต'}"
-      >💗 ชุบ</button>
-    <button class="pb" data-a="defend">🛡️ ป้องกัน</button>
-    <button class="pb" data-a="flee">🏃 หนี</button>
-    ${b.turn_left != null ? `<span class="party-clock">⏱️ ${b.turn_left} วิ</span>` : ''}`;
+    <button class="pb" data-a="attack" data-t="single">⚔️ โจมตี</button>
+    ${kit}
+    ${me.can_revive && fallen
+      ? '<button class="pb" data-a="revive" data-t="fallen">💗 ชุบ</button>' : ''}
+    <button class="pb" data-a="flee" data-t="self">🏃 หนี</button>
+    <span class="party-clock">
+      ${me.mana_max ? `💎 ${me.mana}/${me.mana_max}` : ''}
+      ${b.turn_left != null ? ` · ⏱️ ${b.turn_left} วิ` : ''}
+    </span>`;
   bar.querySelectorAll('.pb').forEach(btn => {
     btn.onclick = () => {
       const a = btn.dataset.a;
-      // ท่าที่ไม่ต้องเล็ง สั่งได้เลย · ท่าที่ต้องเล็งรอคลิกเป้าบนจอ
-      if (a === 'defend' || a === 'flee' || a === 'aoe') {
+      // ⚠️ ดูจาก data-t ที่เซิร์ฟเวอร์บอกมา ไม่ใช่เช็คชื่อท่าทีละตัว
+      //    ฝังชื่อท่าไว้แล้วเพิ่มท่าใหม่ทีไรก็ต้องมาแก้ที่นี่ทุกที
+      if (['self', 'all', 'party'].includes(btn.dataset.t)) {
         partyAct(a, '');
       } else {
         PARTY_PICK = a;

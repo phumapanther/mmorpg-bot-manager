@@ -11,7 +11,6 @@ from bot.games.party import events
 
 ALL_MAKERS = [
     ("turn_start", lambda: events.turn_start("p1")),
-    ("dice", lambda: events.dice("p1", [17, 4])),
     ("attack", lambda: events.attack("p1", "m2", 120, "fire")),
     ("aoe", lambda: events.aoe("p3", ["m1", "m2"], [40, 35], "water")),
     ("heal", lambda: events.heal("p2", "p4", 80)),
@@ -19,6 +18,8 @@ ALL_MAKERS = [
     ("phase", lambda: events.phase("boss", "rage")),
     ("miss", lambda: events.miss("p1", "m2")),
     ("telegraph", lambda: events.telegraph("m1", "🔥 คลื่นเพลิงคลั่ง", ["p1", "p2"])),
+    ("contest", lambda: events.contest("p1", "m2", 17, 12, True)),
+    ("buff", lambda: events.buff("p1", "aura", 3)),
 ]
 
 
@@ -53,11 +54,6 @@ def test_ดาเมจเป็นจำนวนเต็มเสมอ():
     assert isinstance(events.heal("p1", "p2", 12.9)["amount"], int)
 
 
-def test_ทอยเต๋าเก็บทุกลูกกับผลรวม():
-    e = events.dice("p1", [17, 4])
-    assert e["rolls"] == [17, 4] and e["total"] == 21
-
-
 def test_aoe_จำนวนเป้ากับดาเมจต้องเท่ากัน():
     """ไม่เท่ากัน = บั๊ก renderer จะวาดเลขผิดตัว ต้องดักที่ต้นทาง"""
     with pytest.raises(ValueError):
@@ -86,3 +82,15 @@ def test_เตือนท่าใหญ่บอกทั้งชื่อ�
     """ป้ายเตือนต้องบอกครบ ไม่งั้นผู้เล่นตัดสินใจไม่ได้ว่าจะกันหรือจะฮีล"""
     e = events.telegraph("m1", "🔥 คลื่นเพลิงคลั่ง", ["p1", "p2"])
     assert e["move"] and e["targets"] == ["p1", "p2"]
+
+
+def test_ทอยแข่งส่งแต้มทั้งสองฝั่งเสมอ():
+    """เจ้าของเกมสั่ง: ต้องเห็นเต๋าทั้งคู่ ไม่ว่าใครเป็นฝ่ายโจมตี"""
+    e = events.contest("m1", "p2", 9, 15, False)
+    assert e["atk"] == 9 and e["def"] == 15 and e["hit"] is False
+
+
+def test_หลบได้ส่งธงบอกด้วย():
+    """renderer จะได้เล่นอนิเมชันหลบแทนอนิเมชันทอยเต๋า"""
+    e = events.contest("m1", "p2", 0, 0, False, evaded=True)
+    assert e["evaded"] is True

@@ -15,7 +15,6 @@
 # ชนิดเหตุการณ์ทั้งหมดที่ renderer ต้องรองรับ
 EVENT_TYPES = (
     "turn_start",   # ถึงตาใคร
-    "dice",         # ทอยเต๋า
     "attack",       # โจมตีเป้าเดียว
     "aoe",          # โจมตีหลายเป้า
     "heal",         # ฮีล / ชุบ
@@ -23,18 +22,14 @@ EVENT_TYPES = (
     "die",          # ล้ม
     "phase",        # บอสเปลี่ยนเฟส
     "telegraph",    # บอสเตือนล่วงหน้าว่าจะออกท่าใหญ่
+    "contest",      # ทอยเต๋าแข่งกันสองฝั่ง (ใครมากกว่าชนะ)
+    "buff",         # ติดสถานะ (ออร่า · หลบ · ฟื้นคืนสติ)
 )
 
 
 def turn_start(who):
     """ถึงตาของ who แล้ว — renderer เอาไปเลื่อนแถบคิวกับโฟกัสกล้อง"""
     return {"t": "turn_start", "who": who}
-
-
-def dice(who, rolls):
-    """ทอยเต๋า — ส่งทุกลูกไปด้วยเพื่อให้ renderer เล่นอนิเมชันทีละลูกได้"""
-    rolls = [int(r) for r in rolls]
-    return {"t": "dice", "who": who, "rolls": rolls, "total": sum(rolls)}
 
 
 def attack(frm, to, dmg, element, crit=False):
@@ -85,3 +80,23 @@ def telegraph(who, move, targets):
     """
     return {"t": "telegraph", "who": who, "move": str(move),
             "targets": list(targets)}
+
+
+def contest(frm, to, atk_roll, def_roll, hit, evaded=False):
+    """ทอยเต๋าแข่งกัน — renderer เล่นอนิเมชันเต๋าสองฝั่งแล้วชี้ว่าใครชนะ
+
+    ⚠️ ส่งแต้ม **ทั้งสองฝั่งเสมอ** ไม่ว่าใครเป็นฝ่ายโจมตี
+       (เจ้าของเกมสั่ง 2026-09-04: ต้องเห็นเต๋าทั้งคู่ทุกครั้ง)
+    evaded=True คือหลบได้โดยไม่ต้องทอย (💨 Evasion) แต้มจะเป็น 0 ทั้งคู่
+    """
+    return {"t": "contest", "from": frm, "to": to,
+            "atk": int(atk_roll), "def": int(def_roll),
+            "hit": bool(hit), "evaded": bool(evaded)}
+
+
+def buff(who, kind, turns):
+    """ติดสถานะให้หน่วยนี้ — renderer เอาไปขึ้นไอคอนบนตัวละคร
+
+    kind: aura · evade · slow · dazed · burn · revived
+    """
+    return {"t": "buff", "who": who, "kind": str(kind), "turns": int(turns)}

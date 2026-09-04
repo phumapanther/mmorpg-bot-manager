@@ -12,7 +12,7 @@
 import time
 
 from bot import adventure_core, config_loader
-from bot.games.party import bot_ai, combat, events, monsters, rules
+from bot.games.party import bot_ai, combat, contest, events, monsters, rules, skills
 
 # โบนัสความไวตามอาชีพ — อาชีพที่ไม่รู้จักได้ 0 (ไม่พัง)
 CLASS_SPEED = {
@@ -43,6 +43,11 @@ def _unit_from_player(p):
         "level": int(p.get("level") or 1),
         "element": p.get("element"), "class_name": p.get("class_name"),
         "defending": False,
+        # 🛡️ คุ้มกันรอบแรก — มอนที่ไวกว่าทุกคนกวาดปาร์ตี้ร่วงก่อนใครทันกดอะไร
+        #    ไม่สนุกเลย (เจ้าของเกมสั่งให้กันไว้ 2026-09-04)
+        "grace": True,
+        "fx": {},                   # สถานะชั่วคราว (ช้า · มึน · หลบ · ออร่า)
+        "cd": {},                   # คูลดาวน์รายสกิล
     }
 
 
@@ -55,6 +60,7 @@ def _unit_from_monster(m, idx):
         "atk": int(m.get("atk") or 8), "def": int(m.get("def") or 0),
         "level": int(m.get("level") or 1),
         "element": m.get("element"), "defending": False,
+        "fx": {},                   # สถานะชั่วคราว
         # ⚠️ ต้องพก rank/stats ติดตัวมาด้วย — rewards.pay คิดทองจาก gold_mult
         #    ในนี้ ไม่มีก็ตกกลับเป็น 1 ทุกตัว บอส Unbeatable (gold_mult 1000)
         #    จ่ายเท่ามอนทั่วไป และ roll_drop ก็แยกแรงค์ไม่ออก
@@ -93,6 +99,10 @@ def start_battle(st, players, monsters, rng):
         "over": False, "winner": None, "log": [],
         "turn_at": time.time(),     # นาฬิกาของตานี้ — หมดเวลาแล้วบอทเล่นแทน
         "seq": 0, "recent": [],     # เหตุการณ์ล่าสุด + เลขลำดับ ให้คนที่ poll ตามทัน
+        # ⚠️ รหัสประจำสมรภูมิ — หน้าเว็บใช้จับว่า "ขึ้นรอบใหม่แล้ว"
+        #    ดูแค่ seq ถอยหลังไม่พอ: รอบเก่าจบที่ 1 รอบใหม่ก็เริ่มที่ 1 เหมือนกัน
+        #    แล้วหน้าเว็บจะนิ่งสนิท ไม่เล่นอนิเมชันอะไรเลยทั้งรอบ
+        "bid": time.time(),
     }
     return st
 
@@ -119,6 +129,9 @@ def _advance(st):
         if b["units"][b["order"][i]]["hp"] > 0:
             if i <= b["turn"]:
                 b["round"] += 1
+                if b["round"] > 1:
+                    for u in b["units"].values():
+                        u["grace"] = False      # พ้นรอบแรกแล้ว ล้มได้ตามปกติ
             b["turn"] = i
             b["turn_at"] = time.time()      # เริ่มนาฬิกาใหม่ทุกตา
             return
@@ -158,6 +171,11 @@ def _check(st, uid, action, target):
     if kind is None:
         return False, {"error": "ไม่รู้จักคำสั่งนี้"}, None
 
+    if action in skills.SPEC:
+        ok, why = can_use_skill(me, action)
+        if not ok:
+            return False, {"error": why}, None
+
     # 🐛 "all" ต้องอยู่ตรงนี้ด้วย — AoE กวาดทุกตัวอยู่แล้ว ไม่ต้องเล็ง
     #    เฟส 3 ลืมข้อนี้ ปุ่ม 💥 บนเว็บจึงตอบ "ไม่มีเป้าหมายนี้ในสมรภูมิ" มาตลอด
     #    (เจอตอนเขียนบอทเล่นแทนในเฟส 6 — บอทสั่ง aoe แล้วโดนปฏิเสธ)
@@ -173,6 +191,8 @@ def _check(st, uid, action, target):
             return False, {"error": "คนนี้ยังไม่ล้ม ชุบไม่ได้"}, None
         if not can_revive(me):
             return False, {"error": "คุณชุบไม่เป็น — ต้องเป็นนักบวชหรือมีใบชุบชีวิต"}, None
+    elif kind == "ally_any":
+        pass                    # ✨ Heal ของ Cleric ฟื้นได้ทั้งคนที่ยืนอยู่และคนที่ล้ม
     elif tgt["hp"] <= 0:
         return False, {"error": "เป้าหมายนี้ล้มไปแล้ว"}, None
     if not rules.can_target(kind, me["side"], tgt["side"]):
@@ -181,15 +201,19 @@ def _check(st, uid, action, target):
 
 
 # คำสั่ง -> ชนิดการเล็ง (None = ไม่ต้องเล็ง)
+#
+# ⚠️ เจ้าของเกมสั่ง 2026-09-04: **ไม่มีคำสั่งกลางอย่างฮีล/ป้องกัน/กวาดแล้ว**
+#    เพราะเป็นสกิลของคลาสอยู่แล้ว ทุกคนกดปุ่มเหมือนกันหมดทั้งที่คลาสต่างกันไม่ได้
+#    เหลือ: ตีปกติ · หนี · ชุบ(ใช้ไอเทม) + สกิลของคลาสตัวเอง
 ACTIONS = {
     "attack": "single",
-    "skill": "single",
-    "aoe": "all",
-    "heal": "ally",
-    "revive": "fallen",     # เล็งเพื่อนที่ล้มแล้วเท่านั้น
-    "defend": "self",
+    "revive": "fallen",     # เล็งเพื่อนที่ล้มแล้วเท่านั้น (ใช้ใบชุบชีวิต)
     "flee": "self",
 }
+_TARGET_KIND = {"single": "single", "all": "all", "ally": "ally",
+                "ally_any": "ally_any", "self": "self", "party": "self"}
+for _k, _s in skills.SPEC.items():
+    ACTIONS[_k] = _TARGET_KIND[_s["target"]]
 
 TURN_SECONDS = 60           # ช้ากว่านี้บอทเล่นแทน (สเปกข้อ 4)
 REVIVE_CLASS = "Cleric"     # นักบวชชุบได้ฟรี
@@ -222,6 +246,83 @@ def can_revive(unit):
     return bool(unit.get("uid") and revive_item(unit["uid"]))
 
 
+def can_use_skill(unit, key):
+    """ออกท่านี้ได้ไหม — คืน (ได้ไหม, เหตุผล)
+
+    🔒 ด่านนี้กันคนยิง API ตรง ๆ ใช้ท่าของคลาสอื่น หรือกดรัวข้ามคูลดาวน์
+    """
+    spec = skills.SPEC.get(key)
+    if not spec:
+        return False, "ไม่รู้จักท่านี้"
+    if key not in skills.kit_for(unit.get("class_name")):
+        return False, f"ท่านี้เป็นของคลาส {spec['cls']} ไม่ใช่ของคุณ"
+    left = int((unit.get("cd") or {}).get(key) or 0)
+    if left > 0:
+        return False, f"{spec['name']} ยังไม่พร้อม รออีก {left} ตา"
+    if unit.get("uid") and not _has_mana(unit["uid"]):
+        return False, "💎 เม็ดคริสตัลหมดแล้ว — ออกท่าไม่ได้ (ไปนอนพักที่เมือง)"
+    return True, ""
+
+
+def _has_mana(uid):
+    from bot import mana as _mana
+    try:
+        return _mana.can_use_skill(int(uid))
+    except Exception as e:
+        print(f"⚠️ [party] อ่านมานาไม่ได้ uid={uid}: {e}")
+        return True          # อ่านไม่ได้ก็อย่าไปขวางผู้เล่น
+
+
+def _tick_cd(unit):
+    """คูลดาวน์ลดลง 1 ตอนถึงตาเจ้าตัว"""
+    cd = unit.get("cd")
+    if not cd:
+        return
+    for k in list(cd):
+        left = int(cd[k] or 0) - 1
+        if left > 0:
+            cd[k] = left
+        else:
+            cd.pop(k, None)
+
+
+def hurt(tgt, dmg):
+    """หักเลือดหนึ่งครั้ง — **รอบแรกไม่ล้ม** เหลืออย่างน้อย 1
+
+    ⚠️ ทางเดียวที่เลือดจะลดในโหมดนี้ ทุกที่ต้องผ่านตรงนี้
+       ไม่งั้นมีช่องที่ข้ามการคุ้มกันรอบแรกไปได้
+    """
+    low = 1 if tgt.get("grace") else 0
+    tgt["hp"] = max(low, tgt["hp"] - int(dmg))
+    return tgt["hp"]
+
+
+def strike(me, tgt, action, rng, mult=1.0, skill_used=False, crit_bonus=0):
+    """ตีหนึ่งครั้งด้วยกติกา **ทอยแข่งกัน** — คืนรายการเหตุการณ์
+
+    ⚠️ ทางเดียวที่ดาเมจจะเกิดในโหมดนี้ ทั้งฝั่งคนและฝั่งมอน
+       ทอยแพ้ = พลาดสนิท ไม่ใช่โดนน้อยลง (เจ้าของเกมสั่ง 2026-09-04)
+    """
+    out = []
+    r = contest.roll_off(me, tgt, rng, skill_used=skill_used)
+    out.append(events.contest(me["id"], tgt["id"], r["atk"], r["def"],
+                              r["hit"], r["evaded"]))
+    if not r["hit"]:
+        out.append(events.miss(me["id"], tgt["id"]))
+        return out
+
+    dmg, crit = combat.damage(me, tgt, action, r["atk"] + crit_bonus)
+    dmg = combat.incoming(me, tgt, int(dmg * mult), tgt["defending"])
+    if dmg <= 0:
+        out.append(events.miss(me["id"], tgt["id"]))
+        return out
+    hurt(tgt, dmg)
+    out.append(events.attack(me["id"], tgt["id"], dmg, me.get("element"), crit))
+    if tgt["hp"] == 0:
+        out.append(events.die(tgt["id"]))
+    return out
+
+
 def act(st, uid, action, target, rng):
     """ผู้เล่นสั่งหนึ่งท่า — คืน (ok, {"events": [...]})"""
     ok, me, tgt = _check(st, uid, action, target)
@@ -231,12 +332,22 @@ def act(st, uid, action, target, rng):
     b = st["extra"]["battle"]
     out = [events.turn_start(me["id"])]
     me["defending"] = False        # ป้องกันมีผลแค่ตาเดียว
+    contest.tick_fx(me)            # สถานะนับถอยหลังตอนถึงตาเจ้าตัว
+    _tick_cd(me)
 
-    if action == "defend":
-        me["defending"] = True
-
-    elif action == "flee":
+    if action == "flee":
         b["over"], b["winner"] = True, "flee"
+
+    elif action in skills.SPEC:
+        allies = [u for u in b["units"].values()
+                  if u["side"] == me["side"] and u["hp"] > 0]
+        foes = [u for u in b["units"].values()
+                if u["side"] != me["side"] and u["hp"] > 0]
+        evs, lost = skills.use(me, tgt, action, allies, foes, rng)
+        out += evs
+        me.setdefault("cd", {})[action] = int(skills.SPEC[action]["cd"])
+        if lost and me.get("uid"):
+            _spend_mana(me["uid"])       # กฎเกมหลัก: ทอยแพ้เท่านั้นถึงเสียเม็ด
 
     elif action == "revive":
         # นักบวชชุบฟรี คนอื่นใบชุบชีวิตหายไปหนึ่งใบ (ไม่หัก = ใบเดียวชุบไม่จำกัด)
@@ -245,36 +356,8 @@ def act(st, uid, action, target, rng):
         tgt["hp"] = max(1, int(tgt["hp_max"] * REVIVE_PCT))
         out.append(events.heal(me["id"], tgt["id"], tgt["hp"]))
 
-    elif action == "heal":
-        amount = int(me["level"] * 3 + adventure_core.roll_player_die(rng))
-        tgt["hp"] = min(tgt["hp_max"], tgt["hp"] + amount)
-        out.append(events.heal(me["id"], tgt["id"], amount))
-
-    elif action == "aoe":
-        foes = [u for u in b["units"].values()
-                if u["side"] != me["side"] and u["hp"] > 0]
-        roll = adventure_core.roll_player_die(rng, skill_used=True)
-        out.append(events.dice(me["id"], [roll]))
-        dmgs = combat.splash(me, foes, "skill", roll)
-        for f, d in zip(foes, dmgs):
-            f["hp"] = max(0, f["hp"] - combat.incoming(me, f, d, f["defending"]))
-        out.append(events.aoe(me["id"], [f["id"] for f in foes], dmgs, me.get("element")))
-        for f in foes:
-            if f["hp"] == 0:
-                out.append(events.die(f["id"]))
-
     else:                           # attack / skill
-        roll = adventure_core.roll_player_die(rng, skill_used=(action == "skill"))
-        out.append(events.dice(me["id"], [roll]))
-        dmg, crit = combat.damage(me, tgt, action, roll)
-        dmg = combat.incoming(me, tgt, dmg, tgt["defending"])
-        if dmg <= 0:
-            out.append(events.miss(me["id"], tgt["id"]))
-        else:
-            tgt["hp"] = max(0, tgt["hp"] - dmg)
-            out.append(events.attack(me["id"], tgt["id"], dmg, me.get("element"), crit))
-            if tgt["hp"] == 0:
-                out.append(events.die(tgt["id"]))
+        out += strike(me, tgt, action, rng, skill_used=(action == "skill"))
 
     if not check_over(st):
         _advance(st)
@@ -297,11 +380,18 @@ def _boss_turn(st, me, alive, rng):
     if me.get("charging"):
         me["charging"] = False
         me["since_big"] = 0
-        roll = adventure_core.roll_player_die(rng, skill_used=True)
-        out.append(events.dice(me["id"], [roll]))
-        dmgs = combat.splash(me, alive, "skill", roll)
-        for t, d in zip(alive, dmgs):
-            t["hp"] = max(0, t["hp"] - combat.incoming(me, t, d, t["defending"]))
+        dmgs = []
+        for t in alive:
+            r = contest.roll_off(me, t, rng, skill_used=True)
+            out.append(events.contest(me["id"], t["id"], r["atk"], r["def"],
+                                      r["hit"], r["evaded"]))
+            if not r["hit"]:
+                dmgs.append(0)                    # กันไว้ได้ = ไม่โดน
+                continue
+            d = combat.incoming(me, t, combat.splash(me, [t], "skill", r["atk"])[0],
+                                t["defending"])
+            hurt(t, d)
+            dmgs.append(d)
         out.append(events.aoe(me["id"], [t["id"] for t in alive], dmgs,
                               me.get("element")))
         for t in alive:
@@ -331,6 +421,7 @@ def monster_turn(st, rng):
 
     out = [events.turn_start(me_id)]
     me["defending"] = False
+    contest.tick_fx(me)
     alive = [u for u in b["units"].values() if u["side"] == "party" and u["hp"] > 0]
     if not alive:
         check_over(st)
@@ -345,17 +436,7 @@ def monster_turn(st, rng):
             return out
 
     tgt = rng.choice(alive)
-    roll = adventure_core.roll_player_die(rng)
-    out.append(events.dice(me_id, [roll]))
-    dmg, crit = combat.damage(me, tgt, "attack", roll)
-    dmg = combat.incoming(me, tgt, dmg, tgt["defending"])
-    if dmg <= 0:
-        out.append(events.miss(me_id, tgt["id"]))
-    else:
-        tgt["hp"] = max(0, tgt["hp"] - dmg)
-        out.append(events.attack(me_id, tgt["id"], dmg, me.get("element"), crit))
-        if tgt["hp"] == 0:
-            out.append(events.die(tgt["id"]))
+    out += strike(me, tgt, "attack", rng)
 
     if not check_over(st):
         _advance(st)
@@ -379,11 +460,19 @@ def view(st, uid):
         item = {"id": u["id"], "side": u["side"], "name": u["name"],
                 "alive": u["hp"] > 0, "defending": u["defending"]}
         if u["side"] == "party":
-            item.update(hp=u["hp"], hp_max=u["hp_max"],
+            item.update(hp=u["hp"], hp_max=u["hp_max"], grace=bool(u.get("grace")),
                         you=(u.get("uid") == str(uid)))
             if item["you"]:
                 # ปุ่มชุบต้องเทาไว้ถ้าใช้ไม่ได้ ไม่ใช่ให้กดแล้วค่อยด่า
                 item["can_revive"] = can_revive(u)
+                # หน้าเว็บสร้างปุ่มจากตรงนี้ — คลาสต่างกันปุ่มต่างกัน
+                item["skills"] = [
+                    {"key": k, "name": skills.SPEC[k]["name"],
+                     "desc": skills.SPEC[k]["desc"],
+                     "target": skills.SPEC[k]["target"],
+                     "cd": int((u.get("cd") or {}).get(k) or 0)}
+                    for k in skills.kit_for(u.get("class_name"))]
+                item["mana"], item["mana_max"] = _mana_of(u.get("uid"))
         else:
             item["hp_pct"] = int(u["hp"] * 100 / max(1, u["hp_max"]))
             item["boss"] = bool(u.get("boss"))
@@ -403,6 +492,7 @@ def view(st, uid):
         # (ไม่มีสองอย่างนี้ เพื่อนกดอะไรเราเห็นแค่เลือดเปลี่ยนวูบ ไม่รู้ว่าเกิดอะไร)
         "seq": int(b.get("seq") or 0),
         "recent": list(b.get("recent") or []),
+        "bid": str(b.get("bid") or ""),
         # หน้าเว็บเอาไปนับถอยหลัง — หมดเวลาแล้วบอทเล่นแทน
         "turn_left": max(0, int(TURN_SECONDS - (time.time() - float(b.get("turn_at") or 0)))),
     }
@@ -443,13 +533,44 @@ def timeout_act(st, rng, now=None):
 
     allies = [u for u in b["units"].values() if u["side"] == "party"]
     foes = [u for u in b["units"].values() if u["side"] == "monster"]
-    me = dict(me, can_revive=can_revive(me))
+    # บอทต้องรู้ว่าชุบได้ไหมกับยังมีเม็ดคริสตัลไหม ไม่งั้นเลือกท่าที่สั่งไม่ได้
+    left = _mana_of(me.get("uid"))[0] if me.get("uid") else None
+    me = dict(me, can_revive=can_revive(me), mana_left=left)
     action, target = bot_ai.choose(me, allies, foes, rng)
     ok, r = act(st, int(me_id[1:]), action, target, rng)
     if ok:
         return r["events"]
 
-    # บอทเลือกท่าที่สั่งไม่ได้ — ห้ามปล่อยให้ค้าง ป้องกันไว้แทน
-    print(f"⚠️ [party] บอทสั่ง {action} ไม่ผ่าน: {r.get('error')} — ป้องกันแทน")
-    ok, r = act(st, int(me_id[1:]), "defend", None, rng)
+    # บอทเลือกท่าที่สั่งไม่ได้ — ห้ามปล่อยให้ค้าง ตีปกติแทน
+    #
+    # ⚠️ ตัวสำรองเคยเป็น "defend" ซึ่งถูกถอดออกตอนเฟส 9 (กลายเป็นสกิลของคลาส)
+    #    ผลคือตัวสำรองพังเงียบ ๆ — บอทเลือกท่าไม่ได้เมื่อไหร่ เกมค้างถาวร
+    #    ซึ่งเป็นสิ่งเดียวที่เฟส 6 ตั้งใจกันไว้ (เจอเพราะเทสแดงแบบสุ่ม 2026-09-04)
+    #    ตีปกติไม่มีเงื่อนไขอะไรเลย จึงเป็นตัวสำรองที่พังไม่ได้
+    print(f"⚠️ [party] บอทสั่ง {action} ไม่ผ่าน: {r.get('error')} — ตีปกติแทน")
+    foe = next((u["id"] for u in b["units"].values()
+                if u["side"] != me.get("side") and u["hp"] > 0), None)
+    if foe is None:
+        return []
+    ok, r = act(st, int(me_id[1:]), "attack", foe, rng)
     return r["events"] if ok else []
+
+
+def _spend_mana(uid):
+    from bot import mana as _mana
+    try:
+        _mana.spend(int(uid), 1)
+    except Exception as e:
+        print(f"⚠️ [party] หักมานาไม่ได้ uid={uid}: {e}")
+
+
+def _mana_of(uid):
+    """เม็ดคริสตัลที่เหลือกับเต็ม — อ่านไม่ได้ก็ส่ง 0/0 ไม่ทำให้หน้าเว็บพัง"""
+    from bot import mana as _mana
+    from bot.models import player_model
+    try:
+        p = player_model.get_player(int(uid)) or {}
+        return int(_mana.get(int(uid), p)), int(_mana.max_mana(p.get("level", 1)))
+    except Exception as e:
+        print(f"⚠️ [party] อ่านมานาไม่ได้ uid={uid}: {e}")
+        return 0, 0

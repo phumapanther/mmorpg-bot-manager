@@ -95,7 +95,23 @@ def _one(uid, rng):
     return m
 
 
-def _promote(m, rng):
+def boss_rank_for(level, rng):
+    """แรงค์บอสที่เลเวลนี้ควรเจอ — สุ่มด้วย **ตารางน้ำหนักของเกมหลัก**
+
+    ⚠️ เดิมบังคับเป็น Mini-Boss ทุกเลเวล วัดจริง 2026-09-04 แล้วเพี้ยนสองทาง:
+       เลเวล 60 ล่าบอสชนะ 30/30 (ง่ายจนไม่มีความหมาย)
+       เลเวล 1 ชนะ 0/30 (แต่อันนี้ตรงกับเกมหลัก — เลเวลต่ำเจอบอสก็ควรหนี)
+       สุ่มตามเลเวลแล้วเลเวลสูงจะเจอ Main-Boss/Secret ขึ้นไปเอง
+    """
+    keys = list(adventure_core.MONSTER_RANKS)
+    w = adventure_core.spawn_weights_for(int(level or 1), keys)
+    pool = [(k, x) for k, x in zip(keys, w) if k in BOSS_RANKS and x > 0]
+    if not pool:
+        return BOSS_RANKS[0]
+    return rng.choices([k for k, _ in pool], weights=[x for _, x in pool], k=1)[0]
+
+
+def _promote(m, rng, level=1):
     """ดันมอนธรรมดาให้เป็นบอส — ใช้สเปกแรงค์ของเกมหลัก ไม่ตั้งตัวเลขเอง
 
     `spawn_monster` สุ่มแรงค์ตามเลเวลผู้เล่น บอสเรดจึงอาจได้มอนทั่วไปมา
@@ -103,7 +119,7 @@ def _promote(m, rng):
     """
     if m.get("rank") in BOSS_RANKS:
         return m
-    rank = "Mini-Boss"
+    rank = boss_rank_for(level, rng)
     stats = dict(adventure_core.MONSTER_RANKS[rank])
     lo, hi = stats["hp_range"]
     m["rank"] = rank
@@ -114,11 +130,12 @@ def _promote(m, rng):
     return m
 
 
-def spawn_group(uid, party_size, rng=None, boss=False):
+def spawn_group(uid, party_size, rng=None, boss=False, level=1):
     """กลุ่มมอนสำหรับหนึ่งสมรภูมิ — คืนลิสต์ที่ engine เอาไปใช้ได้เลย
 
     ปาร์ตี้ปกติ: 3-5 ตัว ตามจำนวนคน
-    บอสเรด: บอส 1 + ลูกน้อง 2-4 (ยากกว่าเพราะแรงค์บอส ไม่ใช่เพราะคูณเพิ่ม)
+    บอสเรด: บอส 1 + ลูกน้อง 2-4 — **แรงค์บอสสุ่มตามเลเวลปาร์ตี้**
+            (ยากกว่าเพราะแรงค์ ไม่ใช่เพราะคูณตัวเลขเพิ่ม)
 
     ความแรงรวมคุมด้วย `_budget` ไม่ใช่ปล่อยตามจำนวนตัว
 
@@ -130,7 +147,7 @@ def spawn_group(uid, party_size, rng=None, boss=False):
 
     if boss:
         n_minion = min(MINION_MAX, max(MINION_MIN, size))
-        group = [_promote(_one(uid, rng), rng)]
+        group = [_promote(_one(uid, rng), rng, level)]
         group[0]["boss"] = True
         group += [_one(uid, rng) for _ in range(n_minion)]
     else:

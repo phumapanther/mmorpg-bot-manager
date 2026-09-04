@@ -20,11 +20,25 @@ const PX = {
   hp: {},            // เลือดที่ "กำลังวาด" — ไล่ตามเลือดจริงแบบนุ่ม ๆ
   lunge: {},         // ตัวที่กำลังพุ่งเข้าใส่ (id -> ความคืบหน้า 0..1)
   warn: null,        // ป้ายเตือนท่าใหญ่ ค้างจนบอสปล่อยท่า
+  duel: null,        // เต๋าที่กำลังทอยแข่ง {from,to,atk,def,hit,t}
+  queue: [],         // เหตุการณ์ที่รอเล่น — เล่นทีละอัน ไม่รัวทับกัน
+  wait: 0,           // เฟรมที่ต้องรอก่อนเล่นอันถัดไป
   flash: 0,          // จอวาบตอนคริ
   shake: 0,
   t: 0,              // ตัวนับเฟรม ใช้ทำจังหวะหายใจ/กะพริบ
   raf: null,
 };
+
+// จังหวะของแต่ละเหตุการณ์ (เฟรม @60fps) — เล่นทีละอันไม่ให้ทับกัน
+// เจ้าของเกมสั่ง 2026-09-04: ถึงตาบอท/มอน ให้รอสักพักแล้วค่อยตี จะได้ดูทัน
+const EV_FRAMES = {
+  contest: 46, attack: 22, aoe: 28, heal: 20, miss: 18,
+  die: 24, phase: 28, telegraph: 36, buff: 16,
+};
+const EV_DEFAULT = 18;
+
+const DUEL_FRAMES = 46;      // กี่เฟรมที่โชว์เต๋า (คลึงอยู่ครึ่งแรก เฉลยครึ่งหลัง)
+const DUEL_SPIN = 20;        // คลึงกี่เฟรมก่อนเฉลยแต้ม
 
 const PX_W = 900;
 const PX_H = 420;
@@ -66,6 +80,8 @@ const px = {
     //    ไม่งั้นวนวาดยาวจนกว่าบอสจะปล่อยท่า (นานได้ถึง 60 วิ) เปลืองแบตเปล่า ๆ
     //    (เทสชุดร่วมจับได้ตอนเฟส 7 — renderer_basic นิ่ง แต่ตัวนี้ไม่นิ่ง)
     if (PX.warn && PX.warn.pulse > 0) return true;
+    if (PX.duel && PX.duel.t < DUEL_FRAMES) return true;
+    if (PX.queue.length || PX.wait > 0) return true;
     if (Object.keys(PX.lunge).length) return true;
     return PX.units.some(u => {
       const h = px.hpPct(u);
@@ -92,6 +108,9 @@ function pbMount(mountId) {
     PX.hp = {};
     PX.lunge = {};
     PX.warn = null;
+    PX.duel = null;
+    PX.queue = [];
+    PX.wait = 0;
     PX.shake = 0;
     PX.flash = 0;
   }
@@ -105,10 +124,32 @@ function pbSetState(battle) {
   pxLoop();
 }
 
-/** เล่นเหตุการณ์ที่เพิ่งเกิด — แปลงเป็นภาพ */
+/** รับเหตุการณ์ที่เพิ่งเกิด — **เข้าคิวไว้** แล้วค่อยเล่นทีละอัน
+ *
+ * ⚠️ เดิมเล่นรวดเดียวทั้งชุด ตาของมอน 3 ตัวจึงเกิดพร้อมกันในเฟรมเดียว
+ *    ดูไม่ทันว่าใครตีใคร (เจ้าของเกมสั่งให้หน่วงตอนถึงตาบอท 2026-09-04)
+ */
 function pbPlay(events) {
+  for (const e of events || []) PX.queue.push(e);
+  pxLoop();
+}
+
+/** ดึงเหตุการณ์ถัดไปมาเล่นเมื่อถึงจังหวะ — เรียกทุกเฟรม */
+function pxStep() {
+  if (PX.wait > 0) { PX.wait -= 1; return; }
+  const e = PX.queue.shift();
+  if (!e) return;
+  pxApply([e]);
+  PX.wait = EV_FRAMES[e.t] || EV_DEFAULT;
+}
+
+function pxApply(events) {
   for (const e of events || []) {
-    if (e.t === 'attack') {
+    if (e.t === 'contest') {
+      // 🎲 เจ้าของเกมสั่ง: ต้องเห็นเต๋าทั้งสองฝั่งทุกครั้ง ไม่ว่าใครเป็นฝ่ายตี
+      PX.duel = { from: e.from, to: e.to, atk: e.atk, def: e.def,
+                  hit: e.hit, evaded: e.evaded, t: 0 };
+    } else if (e.t === 'attack') {
       pxLunge(e.from);
       pxPop(e.to, `-${e.dmg}`, e.crit ? '#ffd34a' : '#ff8080', e.crit);
       pxBurst(e.to, e.element, e.crit ? 22 : 12);
@@ -141,7 +182,6 @@ function pbPlay(events) {
       PX.warn = null;                                // ปล่อยท่าแล้วป้ายหมดหน้าที่
     }
   }
-  pxLoop();
 }
 
 function pxPop(id, text, color, big) {
@@ -163,6 +203,13 @@ function pxBurst(id, element, n) {
       x: 0, y: 0,
     });
   }
+}
+
+/** เหตุการณ์ที่ยังค้างคิวอยู่กี่อัน — 0 = อนิเมชันเล่นจบแล้ว
+ *  หน้าเว็บ/เทสใช้เช็คว่ายังเล่นอยู่ไหม (ส่วนหนึ่งของสัญญา renderer)
+ */
+function pbPending() {
+  return PX.queue.length + (PX.wait > 0 ? 1 : 0);
 }
 
 function pbClick(ev) {
@@ -345,6 +392,66 @@ function pxHpBar(c, s, u, w, h) {
   }
 }
 
+/** ลูกเต๋าหนึ่งลูก — คลึงอยู่ก็สุ่มเลขไปเรื่อย ๆ พอเฉลยค่อยหยุดที่แต้มจริง */
+function pxDie(c, x, y, value, spinning, win) {
+  const n = spinning ? 1 + Math.floor(Math.random() * 20) : value;
+  c.fillStyle = win ? '#ffd34a' : 'rgba(255,255,255,.13)';
+  c.beginPath();
+  c.roundRect(x - 26, y - 26, 52, 52, 12);
+  c.fill();
+  c.strokeStyle = win ? '#fff3c4' : 'rgba(255,255,255,.28)';
+  c.lineWidth = 2;
+  c.stroke();
+  c.fillStyle = win ? '#1a1a1a' : '#e9edf5';
+  c.font = 'bold 24px system-ui, sans-serif';
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.fillText(String(n), x, y + 1);
+  c.textBaseline = 'alphabetic';
+}
+
+/** จอทอยเต๋าแข่ง — ฝั่งซ้ายคนตี ฝั่งขวาคนโดน แล้วเฉลยว่าใครชนะ */
+function pxDuel(c) {
+  const d = PX.duel;
+  if (!d) return;
+  d.t += 1;
+  if (d.t > DUEL_FRAMES) { PX.duel = null; return; }
+
+  const spin = d.t < DUEL_SPIN;
+  const fade = d.t > DUEL_FRAMES - 8 ? (DUEL_FRAMES - d.t) / 8 : 1;
+  const cy = 210;
+  c.globalAlpha = fade;
+
+  c.fillStyle = 'rgba(8,10,16,.72)';
+  c.beginPath();
+  c.roundRect(PX_W / 2 - 150, cy - 46, 300, 92, 16);
+  c.fill();
+
+  if (d.evaded) {
+    c.fillStyle = '#9df0e4';
+    c.font = 'bold 22px system-ui, sans-serif';
+    c.textAlign = 'center';
+    c.fillText('💨 หลบได้!', PX_W / 2, cy + 8);
+    c.globalAlpha = 1;
+    return;
+  }
+
+  pxDie(c, PX_W / 2 - 72, cy, d.atk, spin, !spin && d.hit);
+  pxDie(c, PX_W / 2 + 72, cy, d.def, spin, !spin && !d.hit);
+
+  c.fillStyle = '#9aa4b2';
+  c.font = 'bold 18px system-ui, sans-serif';
+  c.textAlign = 'center';
+  c.fillText('VS', PX_W / 2, cy + 7);
+
+  if (!spin) {
+    c.fillStyle = d.hit ? '#ffd34a' : '#9aa4b2';
+    c.font = 'bold 15px system-ui, sans-serif';
+    c.fillText(d.hit ? '⚔️ โจมตีเข้า!' : '🛡️ ป้องกันไว้ได้', PX_W / 2, cy + 40);
+  }
+  c.globalAlpha = 1;
+}
+
 function pxWarnBanner(c) {
   if (!PX.warn) return;
   if (PX.warn.pulse > 0) PX.warn.pulse -= 1;
@@ -362,6 +469,7 @@ function pbDraw() {
   const c = PX.ctx;
   if (!c) return;
   PX.t += 1;
+  pxStep();
 
   const sx = PX.shake ? (Math.random() - 0.5) * PX.shake : 0;
   const sy = PX.shake ? (Math.random() - 0.5) * PX.shake : 0;
@@ -423,6 +531,7 @@ function pbDraw() {
   PX.pops = PX.pops.filter(p => p.life > 0);
 
   pxQueue(c);
+  pxDuel(c);
   pxWarnBanner(c);
 
   // จอวาบตอนคริ

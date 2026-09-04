@@ -25,6 +25,8 @@ for (const FILE of RENDERERS) {
 }
 
 function runSuite(FILE) {
+  /** จำนวนเหตุการณ์ที่ยังค้างคิวใน renderer ตัวที่กำลังเทส */
+  const PB_len = () => sandbox.pbPending();
   ok = (label, cond, why) => {
     if (cond) console.log(`  ✅ ${label}`);
     else { console.log(`  ❌ ${label}${why ? ' — ' + why : ''}`); fail++; }
@@ -72,7 +74,7 @@ function runSuite(FILE) {
   vm.createContext(sandbox);
 
   /** ระบายคิวเฟรมแบบเบราว์เซอร์จริง — เฟรมถัดไปรันหลังเฟรมนี้จบ */
-  function drain(max = 200) {
+  function drain(max = 900) {
     let n = 0;
     while (sandbox.__raf.length && n < max) {
       const cb = sandbox.__raf.shift();
@@ -91,7 +93,7 @@ function runSuite(FILE) {
     return;
   }
 
-  for (const fn of ['pbMount', 'pbSetState', 'pbPlay', 'pbDraw']) {
+  for (const fn of ['pbMount', 'pbSetState', 'pbPlay', 'pbDraw', 'pbPending']) {
     ok(`มีฟังก์ชัน ${fn}`, typeof sandbox[fn] === 'function');
   }
 
@@ -229,7 +231,62 @@ try {
     ok('สถานะว่าง', false, e.message);
   }
 
-    // ── ตัดชื่อยาวห้ามผ่ากลางอิโมจิ ──
+    // ── เหตุการณ์ต้องเล่นทีละอัน ไม่รัวทับกัน ──
+  // เจ้าของเกมสั่ง 2026-09-04: ถึงตาบอท/มอนให้รอสักพักแล้วค่อยตี จะได้ดูทัน
+  try {
+    drain();
+    const many = [
+      { t: 'attack', from: 'm1', to: 'p1', dmg: 10, element: null, crit: false },
+      { t: 'attack', from: 'm2', to: 'p2', dmg: 11, element: null, crit: false },
+      { t: 'attack', from: 'm1', to: 'p1', dmg: 12, element: null, crit: false },
+    ];
+    sandbox.pbPlay(many);
+    const one = drain(1);
+    ok('เฟรมแรกเล่นแค่เหตุการณ์เดียว ไม่รัวหมดชุด', PB_len() === 3,
+       `เหลือในคิว ${PB_len()}`);
+    const all = drain();
+    ok('เล่นครบทั้งคิวในที่สุด', PB_len() === 0);
+    ok('ใช้เวลาหลายเฟรมกว่าจะครบ (มีจังหวะหน่วง)', all > 40, `ใช้ ${all} เฟรม`);
+  } catch (e) {
+    ok('เล่นเหตุการณ์ทีละอัน', false, e.message);
+  }
+
+  // ── ทอยเต๋าแข่งต้องเห็นแต้มทั้งสองฝั่ง ──
+  // เจ้าของเกมสั่ง 2026-09-04: ไม่ว่ามอนหรือคนเป็นฝ่ายตี ต้องเห็นเต๋าทั้งคู่
+  //
+  // ⚠️ ต้องดู **เฟรมเดียวหลังเต๋าหยุดคลึง** ไม่ใช่รวมทุกเฟรม
+  //    ตอนคลึงเต๋าวาดเลขสุ่ม 1-20 ทุกเฟรม เลขที่อยากเช็คจึงโผล่มาเองได้
+  //    (ย้อนเทสจับได้: ลบเต๋าฝั่งผู้ป้องกันทิ้งแล้วเทสยังเขียว)
+  try {
+    drain();
+    sandbox.pbPlay([{ t: 'contest', from: 'm1', to: 'p1',
+                      atk: 18, def: 6, hit: true, evaded: false }]);
+    let spun = 0;
+    for (let i = 0; i < 30; i++) spun += drain(1);
+    ok('ทอยเต๋าเล่นหลายเฟรม (มีอนิเมชันคลึงเต๋า)', spun > 5, `ได้ ${spun} เฟรม`);
+
+    const n0 = calls.length;
+    drain(1);                                  // เฟรมเดียว ตอนเฉลยแต้มแล้ว
+    const one = calls.slice(n0)
+      .filter(x => x[0] === 'fillText').map(x => String(x[1]));
+    ok('โชว์แต้มฝั่งผู้โจมตี', one.includes('18'), one.join(' '));
+    ok('โชว์แต้มฝั่งผู้ป้องกัน', one.includes('6'), one.join(' '));
+    ok('บอกผลว่าใครชนะ',
+       one.some(t => t.includes('โจมตีเข้า') || t.includes('ป้องกันไว้')));
+
+    drain();
+    const n1 = calls.length;
+    sandbox.pbPlay([{ t: 'contest', from: 'm1', to: 'p1',
+                      atk: 0, def: 0, hit: false, evaded: true }]);
+    drain(1);
+    ok('หลบได้ขึ้นข้อความหลบ ไม่ใช่โชว์เต๋า 0-0',
+       calls.slice(n1).some(x => x[0] === 'fillText' && String(x[1]).includes('หลบได้')));
+    drain();
+  } catch (e) {
+    ok('ทอยเต๋าแข่ง', false, e.message);
+  }
+
+  // ── ตัดชื่อยาวห้ามผ่ากลางอิโมจิ ──
   // slice() ธรรมดานับหน่วย UTF-16 อิโมจิ 1 ตัว = 2 หน่วย ตัดคาไว้แล้วจอขึ้น �
   // (เจ้าของเกมเห็นตัว � ในชื่อมอนตอนเทสด้วยมือ 2026-09-04)
   try {

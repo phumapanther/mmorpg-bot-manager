@@ -148,16 +148,35 @@ def test_หน้าจอต่อสู้วาดได้จริง():
     assert r.returncode == 0, r.stdout + r.stderr
 
 
-def test_แถบคำสั่งมีครบทุกท่า():
-    """ต้องตรงกับ engine.ACTIONS ฝั่งเซิร์ฟเวอร์ ไม่งั้นกดแล้วเซิร์ฟปฏิเสธ"""
-    from bot.games.party import engine
-    for a in engine.ACTIONS:
-        assert f'data-a="{a}"' in LOBBY, f"แถบคำสั่งไม่มีปุ่ม {a}"
+def test_แถบคำสั่งสร้างจากคลาสไม่ใช่ฝังรายชื่อไว้():
+    """⭐ เจ้าของเกมสั่ง 2026-09-04: คลาสต่างกันปุ่มต้องต่างกัน
+
+    ฝังรายชื่อท่าไว้ในหน้าเว็บเมื่อไหร่ = เพิ่มคลาสใหม่หรือปรับท่าที่เกมหลัก
+    แล้วหน้าเว็บไม่ตามไปด้วย ต้องสร้างจาก me.skills ที่เซิร์ฟเวอร์ส่งมา
+    """
+    from bot.games.party import skills
+    assert "me.skills" in LOBBY, "ไม่ได้สร้างปุ่มจากชุดสกิลที่เซิร์ฟเวอร์ส่งมา"
+    for key in skills.SPEC:
+        assert f'data-a="{key}"' not in LOBBY, \
+            f"ฝังชื่อท่า {key} ไว้ในหน้าเว็บ — ต้องสร้างจากข้อมูลเซิร์ฟเวอร์"
+    for fixed in ("attack", "flee"):
+        assert f'data-a="{fixed}"' in LOBBY, f"ไม่มีปุ่ม {fixed}"
 
 
-def test_ท่าที่ไม่ต้องเล็งสั่งได้เลย():
-    """defend/flee/aoe ไม่ต้องเลือกเป้า — บังคับเลือกจะกดไม่ได้"""
-    assert "a === 'defend' || a === 'flee' || a === 'aoe'" in LOBBY
+def test_ปุ่มสกิลเทาไว้ตอนติดคูลดาวน์หรือเม็ดหมด():
+    assert "sk.cd > 0" in LOBBY and "me.mana" in LOBBY
+    assert "disabled" in LOBBY
+
+
+def test_หน้าเว็บโชว์เม็ดคริสตัล():
+    """ไม่โชว์ = กดสกิลไม่ได้แล้วไม่รู้ว่าทำไม"""
+    assert "me.mana_max" in LOBBY
+
+
+def test_ท่าที่ไม่ต้องเล็งดูจากข้อมูลเซิร์ฟเวอร์():
+    """เช็คชื่อท่าทีละตัวแล้วเพิ่มท่าใหม่ทีไรก็ต้องมาแก้ที่นี่ทุกที"""
+    assert "['self', 'all', 'party'].includes(btn.dataset.t)" in LOBBY
+    assert "a === 'defend'" not in LOBBY, "ยังเช็คชื่อท่าทีละตัวอยู่"
 
 
 def test_หัวห้องเลือกล่าบอสได้():
@@ -228,8 +247,10 @@ def test_จบสมรภูมิแล้วยังฟังต่อว�
 def test_สมรภูมิใหม่นับเหตุการณ์ใหม่():
     """seq รอบใหม่เริ่มจาก 0 — ไม่รีเซ็ตฝั่งเบราว์เซอร์ก็ไม่มีอนิเมชันเลย
        จนกว่าจะเกินเลขรอบเก่า"""
-    assert "if (b.seq < PARTY_SEQ) {" in LOBBY, "ไม่มีตัวจับว่าสมรภูมิเริ่มใหม่"
+    assert "b.bid !== PARTY_BID" in LOBBY, "ไม่มีตัวจับว่าสมรภูมิเริ่มใหม่"
     assert "PARTY_SEQ = 0;" in LOBBY
+    # ⚠️ ห้ามกลับไปใช้ "เลขถอยหลัง" — รอบเก่าจบที่ 1 รอบใหม่เริ่มที่ 1 จับไม่ได้
+    assert "b.seq < PARTY_SEQ" not in LOBBY
 
 
 def test_เล่นอนิเมชันของเพื่อนไม่ซ้ำ():
@@ -280,3 +301,8 @@ def test_ตัวหนาในกล่องรางวัลไม่ก�
     # สีชนะ/แพ้ก็ต้องลูกตรง ไม่งั้นทับสีตัวเลขในกล่องรางวัล
     for sel in (".party-result.win b {", ".party-result.lose b {"):
         assert sel not in CSS, f"{sel} ไม่มี > จะโดนกล่องรางวัลด้วย"
+
+
+def test_เตือนก่อนติ๊กล่าบอส():
+    """วัดจริง 2026-09-04: ปาร์ตี้เลเวล 1 ล่าบอสชนะ 0/30 — ต้องบอกก่อนกด"""
+    assert "party-warn" in LOBBY and ".party-warn" in CSS

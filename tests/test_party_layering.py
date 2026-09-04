@@ -78,3 +78,25 @@ def test_มีสัญญาเสียบเกมให้ทีมอ่�
     doc = p.read_text(encoding="utf-8")
     for kw in ("inline", "iframe"):
         assert kw in doc, f"MOUNT.md ไม่ได้อธิบายแบบ {kw}"
+
+
+def test_ไฟล์เทสที่สั่งแกนได้ต้องหนีบฐานข้อมูลตัวละคร():
+    """🔴 ตั้งแต่เฟส 9 สกิลไปอ่าน/หัก "เม็ดคริสตัล" จากฐานข้อมูลจริง
+
+    ไฟล์เทสที่เรียก engine.act / room.begin แล้วไม่หนีบ player_model.DB_NAME
+    จะไปเขียนทับข้อมูลตัวละครจริงทุกครั้งที่รันเทส
+    (test_party_engine.py พลาดข้อนี้จริง เจอตอนเทสชุดเต็ม 2026-09-04)
+
+    เทสนี้เงียบตอนนี้ แต่จะแดงทันทีที่มีคนเพิ่มไฟล์เทสใหม่โดยลืมหนีบ
+    """
+    import pathlib
+    touches = ("engine.act(", "engine.strike(", "engine.monster_turn(",
+               "room.begin(", "room.act(", "room.settle(", "skills.use(")
+    bad = []
+    for f in sorted(pathlib.Path("tests").glob("test_party_*.py")):
+        src = f.read_text(encoding="utf-8")
+        if not any(t in src for t in touches):
+            continue
+        if 'player_model, "DB_NAME"' not in src:
+            bad.append(f.name)
+    assert not bad, f"ไฟล์พวกนี้สั่งแกนได้แต่ไม่หนีบ DB ตัวละคร: {bad}"

@@ -1347,3 +1347,6 @@ body.bar-min .pbar .money { margin-left: auto; }
   .party-wait { text-align: center; }
   .party-reward { justify-content: center; text-align: center; }
 }
+
+/* คำเตือนข้างตัวเลือกที่ยาก — วัดแล้วเลเวลต่ำล่าบอสชนะ 0/30 */
+.party-warn { color: #ff9a5a; font-size: 12px; }

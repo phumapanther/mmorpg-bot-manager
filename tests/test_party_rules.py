@@ -102,6 +102,8 @@ def test_ชนิดการเล็งที่รองรับครบ�
     """เพิ่ม/ลดต้องตั้งใจ ไม่ใช่หลุดมาเอง — ชนิดที่ไม่รู้จักต้องเล็งไม่ได้เลย
 
     สเปกแรกมี 4 แบบ · "fallen" เพิ่มตอนเฟส 6 (ท่าชุบเล็งคนที่ล้มแล้ว)
+    · "ally_any" เพิ่มตอนเฟส 9 (✨ Heal ของ Cleric เล็งได้ทั้งคนยืนและคนล้ม)
     """
-    assert set(rules.TARGET_KINDS) == {"single", "all", "ally", "self", "fallen"}
+    assert set(rules.TARGET_KINDS) == {"single", "all", "ally", "self",
+                                       "fallen", "ally_any"}
     assert not rules.can_target("ชนิดมั่ว", "party", "monster")

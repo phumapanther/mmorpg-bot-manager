@@ -496,12 +496,16 @@ def test_เพื่อนเห็นสมรภูมิใหม่ที�
     assert friend.get("reward") is None, "รางวัลรอบเก่ายังค้างอยู่หน้าเพื่อน"
 
 
-def test_สมรภูมิใหม่เริ่มนับลำดับเหตุการณ์ใหม่():
-    """หน้าเว็บใช้ seq ตัดสินว่ามีอะไรใหม่ — ไม่รีเซ็ตก็เล่นอนิเมชันผิดรอบ"""
+def test_สมรภูมิใหม่ได้รหัสใหม่():
+    """หน้าเว็บใช้รหัสนี้จับว่า "ขึ้นรอบใหม่แล้ว" เพื่อล้างจอกับเริ่มนับเหตุการณ์ใหม่
+
+    ⚠️ เคยใช้ "เลขลำดับถอยหลัง" แทน แต่รอบเก่าจบที่ 1 รอบใหม่ก็เริ่มที่ 1
+       จับไม่ได้ แล้วจอนิ่งสนิททั้งรอบ (เจอตอนเขียนเฟส 8)
+    """
     st = _win()
     for uid in (1, 2):
         p = player_model.get_player(uid)
         player_model.update_player_field(uid, "hp", p["max_hp"])
-    old_seq = room.view(1)["battle"]["seq"]
+    old_bid = room.view(1)["battle"]["bid"]
     room.again(1)
-    assert room.view(1)["battle"]["seq"] < old_seq or old_seq == 0
+    assert room.view(1)["battle"]["bid"] != old_bid, "รอบใหม่ยังใช้รหัสเดิม"

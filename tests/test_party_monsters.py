@@ -194,6 +194,12 @@ def test_ท่าใหญ่ต้องเตือนก่อนเสม�
     seen = 0
     for seed in range(25):
         st = _battle(boss_raid=True)
+        # ⚠️ ตั้งให้บอสพร้อมออกท่าตั้งแต่ต้น แล้วค่อยเล่นจริง
+        #    ปล่อยตามธรรมชาติแล้วสมรภูมิจบใน 3-6 รอบ บอสแทบไม่ทันเข้าเฟสคลั่ง
+        #    เจอ 1 ครั้งใน 25 กระดาน = เทสไม่ได้พิสูจน์อะไร (ตัวกัน seen จับได้)
+        boss = st["extra"]["battle"]["units"]["m1"]
+        boss["hp"] = max(1, int(boss["hp_max"] * 0.5))     # เข้าเฟสคลั่ง
+        boss["since_big"] = 99                              # ถึงรอบออกท่าพอดี
         evs = _play(st, random.Random(seed))
         warned = set()
         for e in evs:
@@ -278,3 +284,22 @@ def test_ปาร์ตี้เจอมอนหลายตัวจริ�
     mons = [u for u in st["extra"]["battle"]["units"].values()
             if u["side"] == "monster"]
     assert len(mons) >= 3, f"ปาร์ตี้ 2 คนเจอมอนแค่ {len(mons)} ตัว"
+
+
+def test_แรงค์บอสสุ่มตามเลเวลปาร์ตี้():
+    """⭐ วัดจริง 2026-09-04: บังคับ Mini-Boss ทุกเลเวล ทำให้เลเวล 60 ชนะ 30/30
+
+    ตารางน้ำหนักของเกมหลักให้เลเวลสูงมีสิทธิ์เจอแรงค์สูงกว่ามาก
+    """
+    order = list(monsters.adventure_core.MONSTER_RANKS)
+    low = [monsters.boss_rank_for(1, random.Random(s)) for s in range(60)]
+    high = [monsters.boss_rank_for(100, random.Random(s)) for s in range(60)]
+    avg = lambda xs: sum(order.index(x) for x in xs) / len(xs)
+    assert avg(high) > avg(low), \
+        f"เลเวล 100 เจอแรงค์เฉลี่ย {avg(high):.1f} ไม่สูงกว่าเลเวล 1 ({avg(low):.1f})"
+
+
+def test_แรงค์บอสเป็นแรงค์บอสจริงเสมอ():
+    for lv in (1, 10, 50, 100):
+        for s in range(20):
+            assert monsters.boss_rank_for(lv, random.Random(s)) in monsters.BOSS_RANKS

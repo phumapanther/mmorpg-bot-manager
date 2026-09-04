@@ -13,8 +13,19 @@ const PB = {
   pops: [],           // เลขดาเมจลอย
   shake: 0,           // สั่นจอตอนโดนตี
   warn: null,         // ป้ายเตือนท่าใหญ่ของบอส — ค้างไว้จนบอสปล่อยท่า
+  duel: null,         // เต๋าที่กำลังทอยแข่งกัน
+  queue: [],          // เหตุการณ์ที่รอเล่น — เล่นทีละอัน ไม่รัวทับกัน
+  wait: 0,
   raf: null,
 };
+
+// จังหวะของแต่ละเหตุการณ์ (เฟรม @60fps) — เล่นทีละอันไม่ให้ทับกัน
+// เจ้าของเกมสั่ง 2026-09-04: ถึงตาบอท/มอน ให้รอสักพักแล้วค่อยตี จะได้ดูทัน
+const EV_FRAMES = {
+  contest: 46, attack: 22, aoe: 28, heal: 20, miss: 18,
+  die: 24, phase: 28, telegraph: 36, buff: 16,
+};
+const EV_DEFAULT = 18;
 
 const PB_COLORS = {
   fire: '#ff6b4a', water: '#4aa3ff', wood: '#5bd67d', earth: '#c9a227',
@@ -37,6 +48,9 @@ function pbMount(mountId) {
     // (ป้ายเตือนท่าใหญ่/เลขดาเมจค้างข้ามรอบจะงงมาก)
     PB.pops = [];
     PB.warn = null;
+    PB.duel = null;
+    PB.queue = [];
+    PB.wait = 0;
     PB.shake = 0;
   }
   return PB.cv;
@@ -49,10 +63,27 @@ function pbSetState(battle) {
   pbLoop();
 }
 
-/** เล่นเหตุการณ์ที่เพิ่งเกิด — แปลงเป็นเลขลอย/สั่นจอ */
+/** รับเหตุการณ์ — **เข้าคิวไว้** แล้วค่อยเล่นทีละอัน
+ *  เดิมเล่นรวดเดียว ตาของมอนหลายตัวเกิดพร้อมกันจนดูไม่ทัน */
 function pbPlay(events) {
+  for (const e of events || []) PB.queue.push(e);
+  pbLoop();
+}
+
+function pbStep() {
+  if (PB.wait > 0) { PB.wait -= 1; return; }
+  const e = PB.queue.shift();
+  if (!e) return;
+  pbApply([e]);
+  PB.wait = EV_FRAMES[e.t] || EV_DEFAULT;
+}
+
+function pbApply(events) {
   for (const e of events || []) {
-    if (e.t === 'attack') {
+    if (e.t === 'contest') {
+      // 🎲 ต้องเห็นเต๋าทั้งสองฝั่งทุกครั้ง (เจ้าของเกมสั่ง 2026-09-04)
+      PB.duel = { atk: e.atk, def: e.def, hit: e.hit, evaded: e.evaded, t: 0 };
+    } else if (e.t === 'attack') {
       pbPop(e.to, `-${e.dmg}`, e.crit ? '#ffd34a' : '#ff7a7a', e.crit);
       PB.shake = e.crit ? 10 : 5;
     } else if (e.t === 'aoe') {
@@ -77,7 +108,6 @@ function pbPlay(events) {
       PB.warn = null;
     }
   }
-  pbLoop();
 }
 
 function pbPop(unitId, text, color, big) {
@@ -95,6 +125,13 @@ function pbSlots() {
   place(mons, 130);
   place(party, 330);
   return out;
+}
+
+/** เหตุการณ์ที่ยังค้างคิวอยู่กี่อัน — 0 = อนิเมชันเล่นจบแล้ว
+ *  หน้าเว็บ/เทสใช้เช็คว่ายังเล่นอยู่ไหม (ส่วนหนึ่งของสัญญา renderer)
+ */
+function pbPending() {
+  return PB.queue.length + (PB.wait > 0 ? 1 : 0);
 }
 
 function pbClick(ev) {
@@ -122,6 +159,7 @@ function pbShortName(name) {
 function pbDraw() {
   const c = PB.ctx;
   if (!c) return;
+  pbStep();
   const sx = PB.shake ? (Math.random() - 0.5) * PB.shake : 0;
   const sy = PB.shake ? (Math.random() - 0.5) * PB.shake : 0;
   if (PB.shake > 0) PB.shake -= 0.6;
@@ -193,6 +231,40 @@ function pbDraw() {
     }
   }
 
+  // จอทอยเต๋าแข่ง
+  if (PB.duel) {
+    const d = PB.duel;
+    d.t += 1;
+    if (d.t > 42) {
+      PB.duel = null;
+    } else {
+      const spin = d.t < 18;
+      c.fillStyle = 'rgba(8,10,16,.72)';
+      c.fillRect(300, 170, 300, 80);
+      c.textAlign = 'center';
+      if (d.evaded) {
+        c.fillStyle = '#9df0e4';
+        c.font = 'bold 20px system-ui, sans-serif';
+        c.fillText('💨 หลบได้!', 450, 215);
+      } else {
+        const a = spin ? 1 + Math.floor(Math.random() * 20) : d.atk;
+        const b = spin ? 1 + Math.floor(Math.random() * 20) : d.def;
+        c.font = 'bold 26px system-ui, sans-serif';
+        c.fillStyle = !spin && d.hit ? '#ffd34a' : '#e9edf5';
+        c.fillText(String(a), 380, 212);
+        c.fillStyle = !spin && !d.hit ? '#ffd34a' : '#e9edf5';
+        c.fillText(String(b), 520, 212);
+        c.fillStyle = '#9aa4b2';
+        c.font = 'bold 15px system-ui, sans-serif';
+        c.fillText('VS', 450, 210);
+        if (!spin) {
+          c.font = '13px system-ui, sans-serif';
+          c.fillText(d.hit ? '⚔️ โจมตีเข้า!' : '🛡️ ป้องกันไว้ได้', 450, 238);
+        }
+      }
+    }
+  }
+
   // ป้ายเตือนท่าใหญ่ — ค้างจนกว่าบอสจะปล่อยท่า
   if (PB.warn) {
     c.fillStyle = 'rgba(220,38,38,.85)';
@@ -225,7 +297,8 @@ function pbLoop() {
   if (PB.raf) return;
   const tick = () => {
     pbDraw();
-    if (PB.pops.length || PB.shake > 0) {
+    if (PB.pops.length || PB.shake > 0 || PB.queue.length || PB.wait > 0
+        || (PB.duel && PB.duel.t < 42)) {
       PB.raf = requestAnimationFrame(tick);
     } else {
       PB.raf = null;

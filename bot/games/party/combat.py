@@ -16,6 +16,7 @@ DEFAULTS = {
     "skill_mult": 1.6,      # สกิลแรงกว่าตีปกติ (แลกกับเต๋าที่เสี่ยงกว่า)
     "guard_cut": 0.5,       # ป้องกันแล้วโดนเหลือกี่ส่วน
     "aoe_cut": 0.6,         # AoE ต่อตัวอ่อนกว่าตีเดี่ยว
+    "aura_cut": 0.5,        # 🛡️ Holy Aura รับดาเมจเหลือกี่ส่วน
     "level_scale": 1.5,     # เลเวลมีผลกับดาเมจแค่ไหน
     "roll_scale": 2.0,      # เต๋ามีผลกับดาเมจแค่ไหน
 }
@@ -69,6 +70,17 @@ def incoming(attacker, defender, dmg, defending=False):
     out = float(dmg)
     if defending:
         out *= _bal("guard_cut")
+    fx = defender.get("fx") or {}
+    # 🛡️ Holy Aura ของ Cleric — ทั้งปาร์ตี้รับดาเมจครึ่งเดียวหลายตา
+    if int(fx.get("aura") or 0) > 0:
+        out *= _bal("aura_cut")
+    # 🛡️ Shield Bash ของ Warrior — ยกโล่รับ ลดตามคอนฟิกเกมหลัก
+    if int(fx.get("ward") or 0) > 0:
+        from bot.games.party import skills
+        cut = min(0.9, skills.cfg("shield_bash", "reduction_base", 0.6)
+                  + skills.cfg("shield_bash", "reduction_lvl_scale", 0)
+                  * int(defender.get("level") or 1))
+        out *= max(0.1, 1.0 - cut)
     return max(0, int(out))
 
 

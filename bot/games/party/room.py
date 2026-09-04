@@ -155,8 +155,9 @@ def _spawn_battle(st):
     """
     rng = random.Random()
     players = _players_of(st)
+    lv = max(1, sum(int(p.get("level") or 1) for p in players) // max(1, len(players)))
     mons = monsters.spawn_group(int(st["host"]), len(players), rng,
-                                boss=bool(st["extra"].get("boss_raid")))
+                                boss=bool(st["extra"].get("boss_raid")), level=lv)
     engine.start_battle(st, players, mons, rng)
     # มอนที่ไวกว่าผู้เล่นต้องได้เดินก่อน ไม่งั้นเกมค้าง
     _record(st, _run_monsters(st, rng))

@@ -4,10 +4,26 @@
    (UNO เคยพลาดข้อนี้ คนอื่นลงไพ่แทนกันได้ กว่าจะเจอก็หลังเทสจริง)
 """
 import random
+import sqlite3
 
 import pytest
 
+from bot.models import player_model
 from bot.games.party import engine
+
+
+@pytest.fixture(autouse=True)
+def _iso(tmp_path, monkeypatch):
+    """⚠️ ต้องหนีบ DB ตัวละครทุกไฟล์ที่สั่ง engine.act ได้
+
+    ตั้งแต่เฟส 9 สกิลไปอ่าน/หัก **เม็ดคริสตัลจากฐานข้อมูลจริง**
+    ไม่หนีบ = เทสรันทีไรตัวละครจริงเสียเม็ดทุกที (เจอตอนเทสชุดเต็ม 2026-09-04)
+    """
+    monkeypatch.setattr(player_model, "DB_NAME", str(tmp_path / "game.db"))
+    player_model.init_db()
+    for uid in range(1, 7):
+        player_model.get_player(uid)
+    yield
 
 
 def _player(uid, name, level=10, cls="Warrior", el="fire"):
@@ -33,7 +49,7 @@ def _b(st):
     return st["extra"]["battle"]
 
 
-def _act_current(st, action="defend", target=None, seed=1):
+def _act_current(st, action="attack", target="m1", seed=1):
     """สั่งแทนคนที่ถึงตาอยู่ตอนนี้ (ถ้าเป็นผู้เล่น)"""
     who = engine.current_actor(st)
     if not who.startswith("p"):
@@ -193,13 +209,20 @@ def test_ตายแล้วมีเหตุการณ์_die(battle):
             assert any(e["t"] == "die" for e in out["events"])
 
 
-def test_ป้องกันแล้วตาถัดไปโดนน้อยลง(battle):
-    """ป้องกันต้องมีผลจริง ไม่ใช่แค่เสียตาเปล่า"""
+def test_ท่าป้องกันเป็นสกิลของคลาสไม่ใช่ปุ่มกลาง(battle):
+    """เจ้าของเกมสั่ง 2026-09-04: ถอดปุ่ม "ป้องกัน" กลางออก
+    นักรบใช้ 🛡️ Shield Bash ซึ่งเกมหลักนิยามว่าเป็นท่าลดดาเมจอยู่แล้ว"""
+    from bot.games.party import skills
+    assert "defend" not in engine.ACTIONS
     b = _b(battle)
     who = engine.current_actor(battle)
-    if who.startswith("p"):
-        engine.act(battle, int(who[1:]), "defend", None, random.Random(1))
-        assert b["units"][who].get("defending") is True
+    if not who.startswith("p"):
+        pytest.skip("ตามอน")
+    b["units"][who]["class_name"] = "Warrior"
+    b["units"][who]["hp"] = b["units"][who]["hp_max"]
+    ok, r = engine.act(battle, int(who[1:]), "shield_bash", "m1", random.Random(1))
+    assert ok, r
+    assert int(b["units"][who]["fx"].get("ward") or 0) > 0
 
 
 def test_ข้ามคนที่ตายแล้วในคิว(battle):

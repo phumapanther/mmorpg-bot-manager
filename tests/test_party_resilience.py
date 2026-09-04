@@ -16,7 +16,7 @@ import pytest
 
 from bot import lobby
 from bot.models import player_model
-from bot.games.party import bot_ai, engine, room
+from bot.games.party import bot_ai, engine, room, skills
 
 
 @pytest.fixture(autouse=True)
@@ -39,30 +39,83 @@ def db(tmp_path, monkeypatch):
 
 
 def _battle(uids=(1, 2)):
+    """สมรภูมิที่เริ่มจากจุดเดียวกันทุกครั้ง
+
+    ⚠️ ต้องเติมเลือดเต็มหลัง begin() — มอนที่ไวกว่าได้เดินก่อน อาจซัดผู้เล่น
+       ร่วงตั้งแต่ยังไม่ทันเริ่มเทส แล้วเทสแดงแบบสุ่ม ๆ ไม่เกี่ยวกับสิ่งที่ตรวจ
+       (เจอตอนเปลี่ยนเป็นกติกาทอยแข่ง เฟส 8)
+    """
     _, st = room.open_party(uids[0], "เอ")
     for u in uids[1:]:
         room.join_party(u, f"P{u}", st["room"])
     room.begin(uids[0])
-    return room._room(uids[0])
+    st = room._room(uids[0])
+    b = st["extra"]["battle"]
+    # ⚠️ มอนที่ไวกว่าอาจกวาดปาร์ตี้ร่วงตั้งแต่ยังไม่ทันเริ่ม — เติมเลือด
+    #    **และล้างธงจบเกม** ไม่งั้นสั่งอะไรก็เจอ "สมรภูมินี้จบไปแล้ว" แบบสุ่ม ๆ
+    b["over"], b["winner"] = False, None
+    for u in b["units"].values():
+        if u["side"] == "party":
+            u["hp"] = u["hp_max"]
+    return st
 
 
 def _unit(hp=100, hp_max=100, **kw):
     u = {"id": "p1", "uid": "1", "side": "party", "hp": hp, "hp_max": hp_max,
-         "class_name": "Warrior", "alive": hp > 0}
+         "class_name": "Warrior", "alive": hp > 0, "cd": {}, "fx": {},
+         "defending": False, "level": 1, "atk": 10, "def": 2}
     u.update(kw)
     return u
 
 
 # ── บอทเลือกท่าเป็น ──
 
-def test_บอทตีศัตรูที่ใกล้ตายก่อน():
-    """เก็บให้ตายทีละตัวลดดาเมจที่ปาร์ตี้จะโดน — บอทโง่กว่านี้ไม่ได้"""
+def test_บอทตีตัวที่ใกล้ตายก่อน():
+    """เก็บให้ตายทีละตัวลดดาเมจที่ปาร์ตี้จะโดน — จะใช้ท่าไหนก็ได้ แต่ต้องเล็งถูกตัว"""
     foes = [_unit(hp=90, id="m1", side="monster"), _unit(hp=5, id="m2", side="monster")]
     act, tgt = bot_ai.choose(_unit(), [_unit()], foes, random.Random(1))
-    assert (act, tgt) == ("attack", "m2")
+    assert tgt == "m2", f"เล็ง {tgt} แทนที่จะเล็งตัวที่ใกล้ตาย"
 
 
-def test_บอทฮีลเพื่อนที่เลือดวิกฤต():
+def test_บอทใช้สกิลของคลาสตัวเองถ้าพร้อม():
+    """มีท่าดี ๆ อยู่แล้วไม่ใช้ = บอทโง่เกินไป"""
+    me = _unit(class_name="Warrior")
+    act, _ = bot_ai.choose(me, [me], [_unit(id="m1", side="monster")],
+                           random.Random(1))
+    assert act in skills.kit_for("Warrior"), f"ไม่ได้ใช้ท่าของนักรบเลย ({act})"
+
+
+def test_บอทไม่ใช้ท่าที่ยังติดคูลดาวน์():
+    me = _unit(class_name="Warrior", cd={k: 3 for k in skills.kit_for("Warrior")})
+    act, _ = bot_ai.choose(me, [me], [_unit(id="m1", side="monster")],
+                           random.Random(1))
+    assert act == "attack", f"ท่าติดคูลดาวน์หมดแล้วยังสั่ง {act}"
+
+
+def test_บอทไม่ใช้ท่าตอนเม็ดคริสตัลหมด():
+    me = _unit(class_name="Mage", mana_left=0)
+    act, _ = bot_ai.choose(me, [me], [_unit(id=f"m{i}", side="monster")
+                                      for i in range(1, 5)], random.Random(1))
+    assert act == "attack", f"เม็ดหมดแล้วยังสั่ง {act}"
+
+
+def test_บอทมาจิกกวาดเมื่อศัตรูเยอะ():
+    me = _unit(class_name="Mage")
+    foes = [_unit(id=f"m{i}", side="monster") for i in range(1, 5)]
+    act, _ = bot_ai.choose(me, [me], foes, random.Random(1))
+    assert act == "fireball"
+
+
+def test_บอทนักบวชฮีลเพื่อนที่ล้มก่อนอย่างอื่น():
+    """คนตายนั่งดูอยู่ — ช่วยก่อนตี"""
+    me = _unit(class_name="Cleric")
+    dead = _unit(hp=0, id="p2", uid="2")
+    act, tgt = bot_ai.choose(me, [me, dead], [_unit(id="m1", side="monster")],
+                             random.Random(1))
+    assert (act, tgt) == ("heal", "p2")
+
+
+def test_บอทนักบวชฮีลคนเลือดวิกฤต():
     me = _unit(class_name="Cleric")
     hurt = _unit(hp=8, id="p2", uid="2")
     act, tgt = bot_ai.choose(me, [me, hurt], [_unit(id="m1", side="monster")],
@@ -70,15 +123,8 @@ def test_บอทฮีลเพื่อนที่เลือดวิก�
     assert (act, tgt) == ("heal", "p2")
 
 
-def test_บอทกวาดเมื่อศัตรูเยอะ():
-    foes = [_unit(id=f"m{i}", side="monster") for i in range(1, 5)]
-    act, _ = bot_ai.choose(_unit(), [_unit()], foes, random.Random(1))
-    assert act == "aoe"
-
-
-def test_บอทชุบเพื่อนที่ล้มก่อนอย่างอื่น():
-    """คนตายนั่งดูอยู่ — ชุบสำคัญกว่าตี"""
-    me = _unit(class_name="Cleric")
+def test_บอทคลาสอื่นใช้ใบชุบชีวิตถ้ามี():
+    me = _unit(class_name="Warrior", can_revive=True)
     dead = _unit(hp=0, id="p2", uid="2")
     act, tgt = bot_ai.choose(me, [me, dead], [_unit(id="m1", side="monster")],
                              random.Random(1))
@@ -86,12 +132,12 @@ def test_บอทชุบเพื่อนที่ล้มก่อนอ�
 
 
 def test_บอทไม่สั่งท่าที่ตัวเองใช้ไม่ได้():
-    """นักรบชุบไม่เป็น สั่งไปก็โดนเซิร์ฟปฏิเสธแล้วเกมค้าง"""
-    me = _unit(class_name="Warrior")
+    """นักรบไม่มีใบชุบก็ชุบไม่ได้ สั่งไปก็โดนปฏิเสธแล้วเกมค้าง"""
+    me = _unit(class_name="Warrior", can_revive=False)
     dead = _unit(hp=0, id="p2", uid="2")
     act, _ = bot_ai.choose(me, [me, dead], [_unit(id="m1", side="monster")],
                            random.Random(1))
-    assert act != "revive"
+    assert act not in ("revive", "heal")
 
 
 def test_บอทสั่งท่าที่มีจริงเสมอ():
@@ -99,12 +145,16 @@ def test_บอทสั่งท่าที่มีจริงเสมอ()
     rng = random.Random(3)
     for hp in (100, 40, 5):
         for n_foe in (1, 2, 4):
-            for cls in ("Warrior", "Cleric", "Mage", None):
+            for cls in ("Warrior", "Cleric", "Mage", "Rogue", None):
                 me = _unit(hp=hp, class_name=cls)
                 foes = [_unit(id=f"m{i}", side="monster") for i in range(1, n_foe + 1)]
                 act, tgt = bot_ai.choose(me, [me], foes, rng)
                 assert act in engine.ACTIONS, f"บอทสั่ง {act} ซึ่งไม่มีจริง"
-                if engine.ACTIONS[act] not in ("self", "all", None):
+                if cls:
+                    assert act == "attack" or act in skills.kit_for(cls), \
+                        f"{cls} สั่ง {act} ซึ่งไม่ใช่ท่าของคลาสตัวเอง"
+                kind = engine.ACTIONS[act]
+                if kind not in ("self", "all", None):
                     assert tgt, f"ท่า {act} ต้องมีเป้า แต่บอทไม่เลือก"
 
 
@@ -113,22 +163,21 @@ def test_บอทไม่หนี():
 
     ⚠️ ต้องกวาดทุกทางแยกจริง ๆ ฉบับแรกเทสแต่ตอนเลือดวิกฤต (hp=3)
        ซึ่งเข้าทางฮีลตลอด ไม่เคยไปถึงบรรทัดที่คืนท่าโจมตีเลย
-       ย้อนเทสใส่ flee ตรงนั้นแล้วเทสยังเขียว (2026-09-04)
     """
     rng = random.Random(5)
     seen = set()
     for hp in (100, 80, 40, 20, 3):
         for n_foe in (1, 2, 3, 5):
             for n_dead in (0, 1):
-                for cls in ("Warrior", "Cleric"):
-                    me = _unit(hp=hp, class_name=cls)
+                for cls in ("Warrior", "Cleric", "Mage", "Rogue"):
+                    me = _unit(hp=hp, class_name=cls, can_revive=(cls == "Cleric"))
                     allies = [me] + [_unit(hp=0, id="p2", uid="2")] * n_dead
                     foes = [_unit(id=f"m{i}", side="monster")
                             for i in range(1, n_foe + 1)]
                     act, _ = bot_ai.choose(me, allies, foes, rng)
-                    assert act != "flee", f"บอทกดหนีตอน hp={hp} ศัตรู={n_foe}"
+                    assert act != "flee", f"บอทกดหนีตอน hp={hp} คลาส={cls}"
                     seen.add(act)
-    assert {"attack", "heal", "aoe"} <= seen,         f"เทสไม่ได้แตะทุกทางแยก แตะแค่ {seen}"
+    assert len(seen) >= 4, f"เทสไม่ได้แตะหลายทางแยก แตะแค่ {seen}"
 
 
 def test_ในโค้ดบอทไม่มีคำว่า_flee_เลย():
@@ -180,14 +229,21 @@ def test_ทั้งปาร์ตี้_afk_เกมยังเดินจ
 
 
 def test_นาฬิกาเริ่มใหม่ทุกตา():
-    """ไม่รีเซ็ต = คนถัดไปโดนบอทแย่งเล่นทันทีทั้งที่เพิ่งถึงตา"""
+    """ไม่รีเซ็ต = คนถัดไปโดนบอทแย่งเล่นทันทีทั้งที่เพิ่งถึงตา
+
+    ⚠️ อย่าเทียบกับเวลาจริง (t1 > t0) — นาฬิกาวินโดวส์ละเอียดแค่ ~15 มิลลิวินาที
+       ทั้งเทิร์นรันจบภายในติ๊กเดียวได้ แล้วเทสแดงทั้งที่โค้ดถูก
+       ตั้งเป็น 0 แล้วดูว่าถูกประทับใหม่ไหมแทน
+    """
     st = _battle()
     b = st["extra"]["battle"]
-    t0 = b["turn_at"]
-    who = engine.current_actor(st)
-    foes = [u["id"] for u in b["units"].values() if u["side"] == "monster"]
-    engine.act(st, int(who[1:]), "attack", foes[0], random.Random(1))
-    assert b["turn_at"] > t0, "เดินตาแล้วนาฬิกาไม่เริ่มใหม่"
+    b["turn"] = b["order"].index("p1")
+    foes = [u["id"] for u in b["units"].values()
+            if u["side"] == "monster" and u["hp"] > 0]
+    b["turn_at"] = 0
+    ok, r = engine.act(st, 1, "attack", foes[0], random.Random(1))
+    assert ok, r
+    assert b["turn_at"] > 0, "เดินตาแล้วนาฬิกาไม่ถูกประทับใหม่"
 
 
 # ── ชุบ ──
@@ -378,20 +434,21 @@ def test_กวาดได้โดยไม่ต้องเล็งเป�
     """
     st = _battle()
     b = st["extra"]["battle"]
-    who = engine.current_actor(st)
-    if b["units"][who]["side"] != "party":
-        b["turn"] = b["order"].index("p1")
-        who = "p1"
-    ok, r = engine.act(st, int(who[1:]), "aoe", None, random.Random(1))
+    b["turn"] = b["order"].index("p1")
+    who = "p1"
+    b["units"]["p1"]["class_name"] = "Mage"
+    ok, r = engine.act(st, int(who[1:]), "fireball", None, random.Random(1))
     assert ok, f"กวาดโดยไม่เล็งไม่ได้: {r}"
     assert any(e["t"] == "aoe" for e in r["events"])
 
 
-def test_ป้องกันกับหนีก็ไม่ต้องเล็ง():
+def test_ท่าใส่ตัวเองไม่ต้องเล็ง():
+    """💨 Evasion ของ Rogue — กดแล้วต้องผ่านเลย ไม่ต้องเลือกเป้า"""
     st = _battle()
     b = st["extra"]["battle"]
+    b["units"]["p1"]["class_name"] = "Rogue"
     b["turn"] = b["order"].index("p1")
-    ok, r = engine.act(st, 1, "defend", None, random.Random(1))
+    ok, r = engine.act(st, 1, "evasion", None, random.Random(1))
     assert ok, r
 
 
@@ -429,3 +486,37 @@ def test_view_ส่งเหตุการณ์ล่าสุดให้ค
     assert got["seq"] > 0, "ไม่ได้นับลำดับเหตุการณ์"
     assert got["recent"], "เพื่อนตีไปแล้วแต่คนอื่นไม่เห็นเหตุการณ์เลย"
     assert any(e["t"] in ("attack", "miss") for e in got["recent"])
+
+
+def test_บอทเลือกท่าไม่ได้ก็ยังไม่ค้าง():
+    """🔴 บั๊กจริง: ตัวสำรองเคยเป็น "defend" ซึ่งถูกถอดออกตอนเฟส 9
+
+    ตัวสำรองพังเงียบ ๆ = บอทเลือกท่าไม่ได้เมื่อไหร่ เกมค้างถาวร
+    ซึ่งเป็นสิ่งเดียวที่เฟส 6 ตั้งใจกันไว้ตั้งแต่แรก
+    """
+    st = _battle()
+    b = st["extra"]["battle"]
+    b["turn"] = b["order"].index("p1")
+    who = engine.current_actor(st)
+
+    # บังคับให้บอทเลือกท่าที่สั่งไม่ผ่านเสมอ
+    import bot.games.party.bot_ai as ai
+    real = ai.choose
+    try:
+        ai.choose = lambda *a, **k: ("holy_aura", None)   # นักรบใช้ไม่ได้
+        b["units"]["p1"]["class_name"] = "Warrior"
+        evs = engine.timeout_act(st, random.Random(1),
+                                 now=b["turn_at"] + engine.TURN_SECONDS + 1)
+    finally:
+        ai.choose = real
+    assert evs, "บอทเลือกท่าไม่ได้แล้วไม่ทำอะไรเลย — เกมค้าง"
+    assert b["over"] or engine.current_actor(st) != who, "ตาไม่เดิน"
+
+
+def test_ตัวสำรองของบอทเป็นคำสั่งที่มีจริง():
+    """กันไว้อีกชั้น — ถอดคำสั่งทิ้งแล้วลืมแก้ตัวสำรองอีก"""
+    src = pathlib.Path("bot/games/party/engine.py").read_text(encoding="utf-8")
+    i = src.index("บอทสั่ง {action} ไม่ผ่าน")
+    tail = src[i:i + 400]
+    used = [a for a in engine.ACTIONS if f'"{a}"' in tail]
+    assert used, f"ตัวสำรองไม่ได้ใช้คำสั่งที่มีจริงเลย: {tail[:200]}"
