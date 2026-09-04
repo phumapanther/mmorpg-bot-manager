@@ -14,7 +14,8 @@ from bot import game_modifiers
 TARGET_KINDS = {
     "single": "enemy",   # ตัวเดียว
     "all": "enemy",      # ทุกตัว (AoE)
-    "ally": "same",      # ฮีล / ชุบเพื่อน
+    "ally": "same",      # ฮีลเพื่อนที่ยังไม่ล้ม
+    "fallen": "same",    # ชุบเพื่อนที่ล้มแล้ว (engine กลับเงื่อนไข hp ให้)
     "self": "same",      # บัฟตัวเอง
 }
 

@@ -99,5 +99,9 @@ def test_ชนิดการเล็งที่ไม่รู้จัก�
 
 
 def test_ชนิดการเล็งที่รองรับครบตามสเปก():
-    """สเปกกำหนดไว้ 4 แบบ — เพิ่ม/ลดต้องตั้งใจ ไม่ใช่หลุดมาเอง"""
-    assert set(rules.TARGET_KINDS) == {"single", "all", "ally", "self"}
+    """เพิ่ม/ลดต้องตั้งใจ ไม่ใช่หลุดมาเอง — ชนิดที่ไม่รู้จักต้องเล็งไม่ได้เลย
+
+    สเปกแรกมี 4 แบบ · "fallen" เพิ่มตอนเฟส 6 (ท่าชุบเล็งคนที่ล้มแล้ว)
+    """
+    assert set(rules.TARGET_KINDS) == {"single", "all", "ally", "self", "fallen"}
+    assert not rules.can_target("ชนิดมั่ว", "party", "monster")

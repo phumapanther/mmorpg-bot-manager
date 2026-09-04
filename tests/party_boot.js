@@ -162,6 +162,20 @@ try {
   ok('ป้ายเตือนท่าใหญ่', false, e.message);
 }
 
+// ── คนที่ล้มแล้วต้องยังคลิกได้ (ท่าชุบเล็งคนล้มเท่านั้น) ──
+try {
+  sandbox.pbSetState(state);
+  drain();
+  const picked = [];
+  sandbox.onPartyPick = (id, side, alive) => picked.push([id, side, alive]);
+  // m2 ในสถานะทดสอบคือตัวที่ alive:false — มอน 2 ตัว จึงอยู่ที่ x = 900/3*2
+  sandbox.pbClick({ clientX: 600, clientY: 130 });
+  ok('คลิกตัวที่ล้มแล้วได้ (ไม่งั้นชุบไม่ได้เลย)', picked.length > 0);
+  ok('บอกด้วยว่าตัวนั้นล้มหรือยัง', picked.length > 0 && picked[0][2] === false);
+} catch (e) {
+  ok('คลิกตัวที่ล้ม', false, e.message);
+}
+
 // ── เหตุการณ์ที่ไม่รู้จักต้องไม่ทำให้พัง ──
 try {
   sandbox.pbPlay([{ t: 'ยังไม่มีชนิดนี้', who: 'p1' }]);

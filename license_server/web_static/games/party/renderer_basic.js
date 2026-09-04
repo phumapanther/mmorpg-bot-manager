@@ -98,8 +98,10 @@ function pbClick(ev) {
   const y = (ev.clientY - r.top) * (PB.cv.height / r.height);
   const slots = pbSlots();
   for (const [id, s] of Object.entries(slots)) {
-    if (Math.abs(x - s.x) < 55 && Math.abs(y - s.y) < 55 && s.u.alive) {
-      if (typeof onPartyPick === 'function') onPartyPick(id, s.u.side);
+    if (Math.abs(x - s.x) < 55 && Math.abs(y - s.y) < 55) {
+      // ⚠️ ห้ามตัดคนที่ล้มทิ้งตรงนี้ — ท่าชุบต้องเล็งคนที่ล้มเท่านั้น
+      //    renderer ไม่รู้กติกา ส่งต่อให้คนเรียกตัดสิน (เจอบั๊กนี้ตอนเฟส 6)
+      if (typeof onPartyPick === 'function') onPartyPick(id, s.u.side, s.u.alive);
       return;
     }
   }

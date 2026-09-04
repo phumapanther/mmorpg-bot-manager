@@ -9,8 +9,10 @@
 
 ไฟล์นี้ไม่รู้จักการวาดภาพ — ทุกอย่างที่เกิดขึ้นออกไปเป็น "เหตุการณ์" (events.py)
 """
+import time
+
 from bot import adventure_core, config_loader
-from bot.games.party import combat, events, monsters, rules
+from bot.games.party import bot_ai, combat, events, monsters, rules
 
 # โบนัสความไวตามอาชีพ — อาชีพที่ไม่รู้จักได้ 0 (ไม่พัง)
 CLASS_SPEED = {
@@ -83,6 +85,7 @@ def start_battle(st, players, monsters, rng):
         "order": order, "turn": 0, "round": 1,
         "units": units, "speed": speed,
         "over": False, "winner": None, "log": [],
+        "turn_at": time.time(),     # นาฬิกาของตานี้ — หมดเวลาแล้วบอทเล่นแทน
     }
     return st
 
@@ -110,6 +113,7 @@ def _advance(st):
             if i <= b["turn"]:
                 b["round"] += 1
             b["turn"] = i
+            b["turn_at"] = time.time()      # เริ่มนาฬิกาใหม่ทุกตา
             return
     b["turn"] = (b["turn"] + 1) % n
 
@@ -147,13 +151,22 @@ def _check(st, uid, action, target):
     if kind is None:
         return False, {"error": "ไม่รู้จักคำสั่งนี้"}, None
 
-    if kind in ("self", None):
+    # 🐛 "all" ต้องอยู่ตรงนี้ด้วย — AoE กวาดทุกตัวอยู่แล้ว ไม่ต้องเล็ง
+    #    เฟส 3 ลืมข้อนี้ ปุ่ม 💥 บนเว็บจึงตอบ "ไม่มีเป้าหมายนี้ในสมรภูมิ" มาตลอด
+    #    (เจอตอนเขียนบอทเล่นแทนในเฟส 6 — บอทสั่ง aoe แล้วโดนปฏิเสธ)
+    if kind in ("self", "all", None):
         return True, me, None
 
     tgt = b["units"].get(target)
     if tgt is None:
         return False, {"error": "ไม่มีเป้าหมายนี้ในสมรภูมิ"}, None
-    if tgt["hp"] <= 0:
+    if kind == "fallen":
+        # ท่าชุบกลับกัน: เล็งได้เฉพาะคนที่ล้มแล้ว
+        if tgt["hp"] > 0:
+            return False, {"error": "คนนี้ยังไม่ล้ม ชุบไม่ได้"}, None
+        if not can_revive(me):
+            return False, {"error": "คุณชุบไม่เป็น — ต้องเป็นนักบวชหรือมีใบชุบชีวิต"}, None
+    elif tgt["hp"] <= 0:
         return False, {"error": "เป้าหมายนี้ล้มไปแล้ว"}, None
     if not rules.can_target(kind, me["side"], tgt["side"]):
         return False, {"error": "เล็งเป้าหมายฝั่งนี้ไม่ได้"}, None
@@ -166,9 +179,40 @@ ACTIONS = {
     "skill": "single",
     "aoe": "all",
     "heal": "ally",
+    "revive": "fallen",     # เล็งเพื่อนที่ล้มแล้วเท่านั้น
     "defend": "self",
     "flee": "self",
 }
+
+TURN_SECONDS = 60           # ช้ากว่านี้บอทเล่นแทน (สเปกข้อ 4)
+REVIVE_CLASS = "Cleric"     # นักบวชชุบได้ฟรี
+REVIVE_PCT = 0.4            # ฟื้นมาพร้อมเลือดกี่ส่วน
+
+
+def revive_item(uid):
+    """ใบชุบชีวิตในกระเป๋า — คืน item_id หรือ None
+
+    หาจาก effect == "revive" ไม่ใช่ hard-code เลขไอเทม
+    (คนแก้ไฟล์ไอเทมจะได้ไม่ต้องมาตามแก้ตรงนี้)
+    """
+    from bot.models import player_model
+    try:
+        p = player_model.get_player(int(uid)) or {}
+        inv = player_model.load_inventory(p.get("inventory", ""))
+        items = config_loader.get_all_items()
+        for i in inv:
+            if str(items.get(str(i), {}).get("effect", "")) == "revive":
+                return str(i)
+    except Exception as e:
+        print(f"⚠️ [party] หาใบชุบชีวิตไม่ได้: {e}")
+    return None
+
+
+def can_revive(unit):
+    """นักบวชชุบได้ฟรี คนอื่นต้องมีใบชุบชีวิต"""
+    if unit.get("class_name") == REVIVE_CLASS:
+        return True
+    return bool(unit.get("uid") and revive_item(unit["uid"]))
 
 
 def act(st, uid, action, target, rng):
@@ -186,6 +230,13 @@ def act(st, uid, action, target, rng):
 
     elif action == "flee":
         b["over"], b["winner"] = True, "flee"
+
+    elif action == "revive":
+        # นักบวชชุบฟรี คนอื่นใบชุบชีวิตหายไปหนึ่งใบ (ไม่หัก = ใบเดียวชุบไม่จำกัด)
+        if me.get("class_name") != REVIVE_CLASS:
+            _consume_revive_item(me.get("uid"))
+        tgt["hp"] = max(1, int(tgt["hp_max"] * REVIVE_PCT))
+        out.append(events.heal(me["id"], tgt["id"], tgt["hp"]))
 
     elif action == "heal":
         amount = int(me["level"] * 3 + adventure_core.roll_player_die(rng))
@@ -323,6 +374,9 @@ def view(st, uid):
         if u["side"] == "party":
             item.update(hp=u["hp"], hp_max=u["hp_max"],
                         you=(u.get("uid") == str(uid)))
+            if item["you"]:
+                # ปุ่มชุบต้องเทาไว้ถ้าใช้ไม่ได้ ไม่ใช่ให้กดแล้วค่อยด่า
+                item["can_revive"] = can_revive(u)
         else:
             item["hp_pct"] = int(u["hp"] * 100 / max(1, u["hp_max"]))
             item["boss"] = bool(u.get("boss"))
@@ -338,4 +392,53 @@ def view(st, uid):
         "winner": b["winner"],
         "units": units,
         "actions": sorted(ACTIONS),
+        # หน้าเว็บเอาไปนับถอยหลัง — หมดเวลาแล้วบอทเล่นแทน
+        "turn_left": max(0, int(TURN_SECONDS - (time.time() - float(b.get("turn_at") or 0)))),
     }
+
+
+def _consume_revive_item(uid):
+    """หักใบชุบชีวิตออกจากกระเป๋าหนึ่งใบ"""
+    import json
+
+    from bot.models import player_model
+    item = revive_item(uid)
+    if not item:
+        return False
+    p = player_model.get_player(int(uid)) or {}
+    inv = player_model.load_inventory(p.get("inventory", ""))
+    inv.remove(item)
+    player_model.update_player_field(int(uid), "inventory", json.dumps(inv))
+    return True
+
+
+def timeout_act(st, rng, now=None):
+    """ถึงตาผู้เล่นแต่ไม่ขยับเกิน TURN_SECONDS → บอทเล่นแทนตานั้น
+
+    ⚠️ ไม่มีตัวนี้ **คน AFK คนเดียวค้างทั้งปาร์ตี้** (สเปกข้อ 4)
+       คนที่หลุดกลับเข้ามาเมื่อไหร่ก็คุมตัวเองต่อได้ทันที — บอทไม่ยึดตัวถาวร
+
+    คืนรายการเหตุการณ์ ([] = ยังไม่ถึงเวลา หรือไม่ใช่ตาผู้เล่น)
+    """
+    b = st.get("extra", {}).get("battle")
+    if not b or b.get("over"):
+        return []
+    me_id = current_actor(st)
+    me = b["units"].get(me_id) or {}
+    if me.get("side") != "party" or me.get("hp", 0) <= 0:
+        return []
+    if (now or time.time()) - float(b.get("turn_at") or 0) < TURN_SECONDS:
+        return []
+
+    allies = [u for u in b["units"].values() if u["side"] == "party"]
+    foes = [u for u in b["units"].values() if u["side"] == "monster"]
+    me = dict(me, can_revive=can_revive(me))
+    action, target = bot_ai.choose(me, allies, foes, rng)
+    ok, r = act(st, int(me_id[1:]), action, target, rng)
+    if ok:
+        return r["events"]
+
+    # บอทเลือกท่าที่สั่งไม่ได้ — ห้ามปล่อยให้ค้าง ป้องกันไว้แทน
+    print(f"⚠️ [party] บอทสั่ง {action} ไม่ผ่าน: {r.get('error')} — ป้องกันแทน")
+    ok, r = act(st, int(me_id[1:]), "defend", None, rng)
+    return r["events"] if ok else []

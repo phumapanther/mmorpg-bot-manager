@@ -1346,3 +1346,8 @@ body.bar-min .pbar .money { margin-left: auto; }
 .party-reward { display: flex; flex-wrap: wrap; gap: 6px 14px;
   margin: 8px 0; font-size: 14px; color: var(--g-ink); }
 .party-reward b { color: var(--g-gold); }
+
+/* นาฬิกาถอยหลังของเทิร์น — หมดเวลาแล้วบอทเล่นแทน */
+.party-clock { margin-left: auto; align-self: center;
+  color: var(--g-muted); font-size: 13px; }
+.party-bar .pb[disabled] { opacity: .4; cursor: not-allowed; }

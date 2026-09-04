@@ -152,6 +152,19 @@ def act(uid, action, target=None):
     return True, {"events": evs}
 
 
+def _tick(st):
+    """เดินเวลาให้สมรภูมิ — คืน True ถ้ามีอะไรเปลี่ยนจนต้องเซฟ
+
+    หมดเวลาผู้เล่น → บอทเล่นแทน แล้วปล่อยมอนเดินต่อจนถึงตาคนถัดไป
+    """
+    rng = random.Random()
+    if not engine.timeout_act(st, rng):
+        return False
+    _run_monsters(st, rng)
+    settle(st)
+    return True
+
+
 def settle(st):
     """จ่ายรางวัลตอนจบสมรภูมิ — **จ่ายได้ครั้งเดียวเท่านั้น**
 
@@ -189,6 +202,11 @@ def view(uid):
         out["max"] = MAX_PARTY                       # ทับค่า 6 ของล็อบบี้กลาง
         out["phase"] = st["extra"].get("phase", "lobby")
         if st["extra"].get("battle"):
+            # ⏱️ คนที่ยังเปิดจออยู่เป็นคนเดินนาฬิกาให้ — หมดเวลาแล้วบอทเล่นแทน
+            #    (ไม่มีตรงนี้ คน AFK คนเดียวค้างทั้งปาร์ตี้ ไม่มีใครปลด)
+            #    ทุกคนหลุดหมดก็ไม่มีใคร poll = ไม่มีอะไรต้องเดิน
+            if _tick(st):
+                lobby.save(st["room"], st)
             # engine.view คัดค่าลับของมอนออกให้แล้ว (ส่ง hp_pct ไม่ใช่ hp จริง)
             out["battle"] = engine.view(st, uid)
             settle(st)                  # จบตอนตามอนก็ต้องได้รางวัล ไม่ต้องรอกดอะไร

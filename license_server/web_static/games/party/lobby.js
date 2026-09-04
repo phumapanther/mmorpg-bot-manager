@@ -125,8 +125,15 @@ async function fillParty() {
 let PARTY_PICK = null;      // ท่าที่เลือกไว้ รอเลือกเป้า
 
 /** ผู้เล่นคลิกเลือกเป้าบน canvas — renderer เรียกกลับมาที่นี่ */
-function onPartyPick(unitId, side) {
+function onPartyPick(unitId, side, alive) {
   if (!PARTY_PICK) return;
+  // กันคลิกผิดตั้งแต่หน้าจอ (เซิร์ฟเวอร์ยังตัดสินซ้ำอยู่ดี):
+  // ชุบเล็งได้เฉพาะคนที่ล้ม · ท่าอื่นเล็งได้เฉพาะคนที่ยังอยู่
+  if (alive !== undefined && (PARTY_PICK === 'revive' ? alive : !alive)) {
+    toast(PARTY_PICK === 'revive'
+      ? 'ชุบได้เฉพาะเพื่อนที่ล้มแล้ว' : 'คนนี้ล้มไปแล้ว', true);
+    return;
+  }
   partyAct(PARTY_PICK, unitId);
 }
 
@@ -204,7 +211,9 @@ function partyPaintBar() {
 
   if (!mine) {
     const who = (b.units || []).find(u => u.id === b.turn_of);
-    bar.innerHTML = `<div class="party-wait">⏳ รอ ${who ? who.name : '...'} เลือกคำสั่ง</div>`;
+    bar.innerHTML = `<div class="party-wait">⏳ รอ ${who ? who.name : '...'} เลือกคำสั่ง
+      ${b.turn_left != null ? `<span class="party-clock">${b.turn_left} วิ</span>` : ''}
+    </div>`;
     return;
   }
 
@@ -220,13 +229,19 @@ function partyPaintBar() {
     return;
   }
 
+  // ชุบได้เฉพาะตอนมีเพื่อนล้มจริง ๆ และตัวเองชุบเป็น (เซิร์ฟเวอร์เป็นคนบอก)
+  const fallen = (b.units || []).some(u => u.side === 'party' && !u.alive);
   bar.innerHTML = `
     <button class="pb" data-a="attack">⚔️ โจมตี</button>
     <button class="pb" data-a="skill">✨ สกิล</button>
     <button class="pb" data-a="aoe">💥 กวาด</button>
     <button class="pb" data-a="heal">💚 ฮีล</button>
+    <button class="pb" data-a="revive" ${me.can_revive && fallen ? '' : 'disabled'}
+      title="${me.can_revive ? 'ชุบเพื่อนที่ล้ม' : 'ต้องเป็นนักบวชหรือมีใบชุบชีวิต'}"
+      >💗 ชุบ</button>
     <button class="pb" data-a="defend">🛡️ ป้องกัน</button>
-    <button class="pb" data-a="flee">🏃 หนี</button>`;
+    <button class="pb" data-a="flee">🏃 หนี</button>
+    ${b.turn_left != null ? `<span class="party-clock">⏱️ ${b.turn_left} วิ</span>` : ''}`;
   bar.querySelectorAll('.pb').forEach(btn => {
     btn.onclick = () => {
       const a = btn.dataset.a;

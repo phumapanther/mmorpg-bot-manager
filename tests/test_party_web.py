@@ -143,7 +143,7 @@ def test_หน้าจอต่อสู้วาดได้จริง():
     assert r.returncode == 0, r.stdout + r.stderr
 
 
-def test_แถบคำสั่งมีครบ_6_ท่า():
+def test_แถบคำสั่งมีครบทุกท่า():
     """ต้องตรงกับ engine.ACTIONS ฝั่งเซิร์ฟเวอร์ ไม่งั้นกดแล้วเซิร์ฟปฏิเสธ"""
     from bot.games.party import engine
     for a in engine.ACTIONS:
@@ -179,3 +179,17 @@ def test_ไม่คำนวณทองฝั่งเบราว์เซ�
     """🔒 ตัวเลขเงินต้องมาจากเซิร์ฟเวอร์ล้วน ๆ"""
     for bad in ("PARTY_MULT", "* 1.5", "split_gold"):
         assert bad not in LOBBY, f"lobby.js คำนวณเงินเอง ({bad})"
+
+
+# ── คนหลุด/ชุบ (เฟส 6) ──
+
+def test_ปุ่มชุบเทาไว้เมื่อใช้ไม่ได้():
+    """ให้กดแล้วค่อยด่าคือ UX แย่ — เซิร์ฟเวอร์บอก can_revive มาแล้ว"""
+    assert "me.can_revive" in LOBBY
+    assert "disabled" in LOBBY
+
+
+def test_หน้าเว็บโชว์เวลาถอยหลัง():
+    """ไม่โชว์ = อยู่ ๆ บอทก็เล่นแทน ผู้เล่นงงว่าเกิดอะไรขึ้น"""
+    assert "turn_left" in LOBBY
+    assert ".party-clock" in CSS
