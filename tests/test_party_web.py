@@ -165,3 +165,17 @@ def test_หัวห้องเลือกล่าบอสได้():
 def test_api_รับธงล่าบอส():
     from license_server.api_web.games.party import PartyBody
     assert "boss_raid" in PartyBody.model_fields
+
+
+# ── สรุปรางวัล (เฟส 5) ──
+
+def test_หน้าเว็บโชว์รางวัลหลังจบ():
+    for want in ("partyRewardHtml", "party-reward"):
+        assert want in LOBBY, f"ไม่มี {want} — ชนะแล้วผู้เล่นไม่รู้ว่าได้อะไร"
+    assert ".party-reward" in CSS
+
+
+def test_ไม่คำนวณทองฝั่งเบราว์เซอร์():
+    """🔒 ตัวเลขเงินต้องมาจากเซิร์ฟเวอร์ล้วน ๆ"""
+    for bad in ("PARTY_MULT", "* 1.5", "split_gold"):
+        assert bad not in LOBBY, f"lobby.js คำนวณเงินเอง ({bad})"

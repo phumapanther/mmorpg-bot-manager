@@ -7,12 +7,17 @@ import sqlite3
 
 import pytest
 
+from bot.models import player_model
 from bot.games.party import room
 
 
 @pytest.fixture(autouse=True)
 def db(tmp_path, monkeypatch):
-    """ฐานข้อมูลใหม่ทุกเทส — ห้องจากเทสก่อนหน้าห้ามค้างมากวน"""
+    """ฐานข้อมูลใหม่ทุกเทส — **ทั้งห้องและตัวละคร**
+
+    ⚠️ ไม่หนีบ player_model.DB_NAME ด้วย เทสจะไปอ่าน/เขียน game_data.db ของจริง
+       ผลคือ (ก) ผลเทสขึ้นกับตัวละครจริงในเครื่อง (ข) เฟส 5 จ่ายทองใส่ DB จริง
+    """
     from license_server import web_db
     path = tmp_path / "web.db"
 
@@ -23,6 +28,10 @@ def db(tmp_path, monkeypatch):
         return conn
 
     monkeypatch.setattr(web_db, "connect", _connect)
+    monkeypatch.setattr(player_model, "DB_NAME", str(tmp_path / "game.db"))
+    player_model.init_db()
+    for uid in range(1, 7):
+        player_model.get_player(uid)          # สร้างแถวตัวละครไว้ล่วงหน้า
     yield
 
 

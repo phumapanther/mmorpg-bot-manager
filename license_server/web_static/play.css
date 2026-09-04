@@ -1341,3 +1341,8 @@ body.bar-min .pbar .money { margin-left: auto; }
 .party-raid { display: flex; align-items: center; gap: 8px;
   color: var(--g-muted); font-size: 14px; cursor: pointer; }
 .party-raid input { accent-color: var(--g-gold); cursor: pointer; }
+
+/* สรุปรางวัลหลังจบสมรภูมิ */
+.party-reward { display: flex; flex-wrap: wrap; gap: 6px 14px;
+  margin: 8px 0; font-size: 14px; color: var(--g-ink); }
+.party-reward b { color: var(--g-gold); }

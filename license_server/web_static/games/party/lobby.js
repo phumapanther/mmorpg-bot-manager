@@ -158,6 +158,29 @@ function partyPaintBattle() {
   partyPaintBar();
 }
 
+/** สรุปรางวัล — ตัวเลขทั้งหมดมาจากเซิร์ฟเวอร์ ห้ามคำนวณเองแม้แต่นิดเดียว */
+function partyRewardHtml() {
+  const r = PARTY && PARTY.reward;
+  if (!r) return '';
+  const me = (PARTY.battle.units || []).find(u => u.you);
+  const mine = me ? (r.gold || {})[String(me.id).slice(1)] : null;
+  const drop = r.drop;
+  return `
+    <div class="party-reward">
+      ${mine != null ? `<span>💰 คุณได้ <b>${mine.toLocaleString()}</b> ทอง</span>` : ''}
+      ${r.exp ? `<span>⭐ +${r.exp} EXP</span>` : ''}
+      ${drop ? `<span>${drop.full_bag
+          ? `🎒 กระเป๋าเต็ม! <b>${drop.name}</b> หลุดมือไป`
+          : `📦 <b>${drop.name}</b> ตกเป็นของ ${partyNameOf(drop.uid)}`}</span>` : ''}
+    </div>`;
+}
+
+/** ชื่อคนในปาร์ตี้จาก uid — ใช้โชว์ว่าไอเทมตกที่ใคร */
+function partyNameOf(uid) {
+  const u = (PARTY.battle.units || []).find(x => x.id === 'p' + uid);
+  return u ? (u.you ? 'คุณ' : u.name) : 'เพื่อนร่วมทาง';
+}
+
 /** แถบคำสั่ง — โชว์ปุ่มเฉพาะตอนถึงตาเรา */
 function partyPaintBar() {
   const bar = document.getElementById('partyBar');
@@ -169,6 +192,7 @@ function partyPaintBar() {
     bar.innerHTML = `
       <div class="party-result ${win ? 'win' : 'lose'}">
         <b>${win ? '🏆 ปาร์ตี้ชนะ!' : b.winner === 'flee' ? '🏃 หนีออกมาได้' : '💀 ปาร์ตี้แพ้'}</b>
+        ${partyRewardHtml()}
         <button class="out" id="partyOut">← ออกจากปาร์ตี้</button>
       </div>`;
     document.getElementById('partyOut').onclick = () => partyDo('leave');

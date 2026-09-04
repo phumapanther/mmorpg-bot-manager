@@ -9,7 +9,7 @@
 import random
 
 from bot import lobby
-from bot.games.party import engine, monsters
+from bot.games.party import engine, monsters, rewards
 
 GAME = "party"
 MAX_PARTY = 5          # เจ้าของเกมเคาะ 2026-09-03
@@ -147,8 +147,34 @@ def act(uid, action, target=None):
         return False, r
 
     evs = list(r["events"]) + _run_monsters(st, rng)
+    settle(st)                          # จบแล้วจ่ายทันที (กันจ่ายซ้ำอยู่ในนั้น)
     lobby.save(st["room"], st)
     return True, {"events": evs}
+
+
+def settle(st):
+    """จ่ายรางวัลตอนจบสมรภูมิ — **จ่ายได้ครั้งเดียวเท่านั้น**
+
+    ⚠️ ธง `paid` คือด่านกันพิมพ์เงิน หน้าเว็บ poll ทุก 2 วิ และ act() ก็เรียกซ้ำ
+       ไม่มีธงนี้ = ทองงอกทุกครั้งที่รีเฟรช (ล็อบบี้ UNO เคยเจอบั๊กทำนองนี้)
+
+    จ่ายเฉพาะตอน **ปาร์ตี้ชนะ** — แพ้หรือหนีไม่ได้อะไร
+    (ไม่งั้นฟาร์มด้วยการเปิดห้องแล้วกดหนีรัว ๆ ได้)
+    """
+    b = st.get("extra", {}).get("battle")
+    if not b or not b.get("over") or st["extra"].get("paid"):
+        return st["extra"].get("reward")
+    st["extra"]["paid"] = True          # ตั้งก่อนจ่าย กันเรียกซ้อนกัน
+    if b.get("winner") != "party":
+        st["extra"]["reward"] = None
+        lobby.save(st["room"], st)
+        return None
+
+    mons = [u for u in b["units"].values() if u["side"] == "monster"]
+    uids = [u["uid"] for u in b["units"].values() if u["side"] == "party"]
+    st["extra"]["reward"] = rewards.pay(uids, mons, random.Random())
+    lobby.save(st["room"], st)
+    return st["extra"]["reward"]
 
 
 def view(uid):
@@ -165,4 +191,6 @@ def view(uid):
         if st["extra"].get("battle"):
             # engine.view คัดค่าลับของมอนออกให้แล้ว (ส่ง hp_pct ไม่ใช่ hp จริง)
             out["battle"] = engine.view(st, uid)
+            settle(st)                  # จบตอนตามอนก็ต้องได้รางวัล ไม่ต้องรอกดอะไร
+            out["reward"] = st["extra"].get("reward")
     return out
