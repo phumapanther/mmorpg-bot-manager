@@ -33,6 +33,11 @@ function pbMount(mountId) {
     box.appendChild(PB.cv);
     PB.ctx = PB.cv.getContext('2d');
     PB.cv.onclick = pbClick;
+    // สร้างจอใหม่ = สมรภูมิใหม่ ล้างของค้างจากรอบก่อนให้หมด
+    // (ป้ายเตือนท่าใหญ่/เลขดาเมจค้างข้ามรอบจะงงมาก)
+    PB.pops = [];
+    PB.warn = null;
+    PB.shake = 0;
   }
   return PB.cv;
 }
@@ -107,6 +112,13 @@ function pbClick(ev) {
   }
 }
 
+/** ตัดชื่อให้สั้นแบบ **นับอักขระจริง** ไม่ใช่นับหน่วย UTF-16
+ *  slice() ธรรมดาผ่ากลางอิโมจิได้ (อิโมจิ 1 ตัว = 2 หน่วย) แล้วขึ้น � บนจอ */
+function pbShortName(name) {
+  const c = [...String(name || '')];
+  return c.length > 14 ? c.slice(0, 14).join('') : c.join('');
+}
+
 function pbDraw() {
   const c = PB.ctx;
   if (!c) return;
@@ -159,7 +171,7 @@ function pbDraw() {
     c.fillStyle = u.alive ? '#e9edf5' : '#6b7280';
     c.font = '13px system-ui, sans-serif';
     c.textAlign = 'center';
-    c.fillText(u.name.slice(0, 14), s.x, s.y + 60);
+    c.fillText(pbShortName(u.name), s.x, s.y + 60);
 
     // แถบเลือด — ผู้เล่นเห็นตัวเลข มอนเห็นแค่แถบ (เซิร์ฟเวอร์ไม่ส่ง hp จริงของมอน)
     const pct = u.side === 'party'

@@ -127,8 +127,13 @@ def test_ใช้ตัวแปรสีที่นิยามจริง()
 # ── หน้าจอต่อสู้ (เฟส 3) ──
 
 def test_โหลด_renderer_ก่อน_lobby():
-    """lobby.js เรียก pbMount/pbSetState — โหลดทีหลังจะพัง"""
-    assert HTML.index("/games/party/renderer_basic.js") < HTML.index("/games/party/lobby.js")
+    """lobby.js เรียก pbMount/pbSetState — โหลดทีหลังจะพัง
+
+    ไม่ผูกกับชื่อไฟล์ตัวใดตัวหนึ่ง เพราะสลับ renderer ได้ (เฟส 7)
+    """
+    at = re.search(r"/games/party/renderer_[a-z_]+\.js", HTML)
+    assert at, "play.html ไม่ได้โหลด renderer เลย"
+    assert at.start() < HTML.index("/games/party/lobby.js")
 
 
 def test_หน้าจอต่อสู้วาดได้จริง():
@@ -193,3 +198,85 @@ def test_หน้าเว็บโชว์เวลาถอยหลัง()
     """ไม่โชว์ = อยู่ ๆ บอทก็เล่นแทน ผู้เล่นงงว่าเกิดอะไรขึ้น"""
     assert "turn_left" in LOBBY
     assert ".party-clock" in CSS
+
+
+# ── บั๊กที่เจอตอนเทสด้วยมือ 2026-09-04 ──
+
+def test_ยัง_poll_ต่อตอนสู้อยู่():
+    """⭐ หยุด poll ตอนเข้าสู้ = พังสองเด้ง
+
+    1. คนที่นั่งรอเห็นจอค้าง เพื่อนกดอะไรก็ไม่รู้
+    2. นาฬิกาเทิร์นฝั่งเซิร์ฟเวอร์เดินตอน view() เท่านั้น — ไม่มีใคร poll
+       ก็ไม่มีใครปลด ตาค้างตลอดกาลแม้หมดเวลา
+    โค้ดเดิมมี partyWatch(false) ตอน phase === 'battle' พร้อมคอมเมนต์ว่า
+    "เฟส 3 รับช่วงต่อ" แต่เฟส 3 ไม่เคยทำต่อ
+    """
+    assert "phase !== 'battle'" not in LOBBY, "ยังกันไม่ให้ poll ตอนสู้อยู่"
+    assert "PARTY.phase === 'battle') partyWatch(false)" not in LOBBY
+
+
+def test_จบสมรภูมิแล้วยังฟังต่อว่าหัวห้องพาไปต่อไหม():
+    """⭐ เทสข้อนี้เคยเขียนกลับด้าน — บังคับให้ "หยุด poll เมื่อจบ"
+       ผลคือหัวห้องกดออกเดินทางต่อแล้ว **เพื่อนค้างหน้าสรุปผลตลอดกาล**
+       (เจ้าของเกมเจอตอนเทสด้วยมือ 2026-09-04)
+       หยุดได้อย่างเดียวคือตอนออกจากห้อง
+    """
+    assert "PARTY.battle.over) partyWatch(false)" not in LOBBY,         "ยังหยุดฟังตอนจบสมรภูมิ เพื่อนจะไม่รู้ว่าหัวห้องพาไปต่อ"
+    assert "if (!PARTY.in_room) partyWatch(false)" in LOBBY
+
+
+def test_สมรภูมิใหม่นับเหตุการณ์ใหม่():
+    """seq รอบใหม่เริ่มจาก 0 — ไม่รีเซ็ตฝั่งเบราว์เซอร์ก็ไม่มีอนิเมชันเลย
+       จนกว่าจะเกินเลขรอบเก่า"""
+    assert "if (b.seq < PARTY_SEQ) {" in LOBBY, "ไม่มีตัวจับว่าสมรภูมิเริ่มใหม่"
+    assert "PARTY_SEQ = 0;" in LOBBY
+
+
+def test_เล่นอนิเมชันของเพื่อนไม่ซ้ำ():
+    """เห็นแต่เลือดเปลี่ยนวูบไม่รู้ว่าใครทำอะไร — ต้องเล่น events ของเพื่อนด้วย
+       และต้องมี seq กันเล่นซ้ำรอบ poll ถัดไป"""
+    assert "partyPlayNew" in LOBBY
+    # ⚠️ เช็คแค่ว่ามีชื่อ PARTY_SEQ ไม่พอ — ย้อนเทสถอดเงื่อนไขทิ้งแล้วยังเขียว
+    #    ต้องตรึงตัวเปรียบเทียบจริง ไม่งั้นเลขดาเมจเด้งซ้ำทุก 2 วิไม่หยุด
+    assert "b.seq > PARTY_SEQ" in LOBBY, "ไม่มีตัวกันเล่นอนิเมชันซ้ำ"
+    assert "PARTY_SEQ = PARTY.battle.seq" in LOBBY, "กดเองแล้วไม่จำ seq จะเล่นซ้ำ"
+
+
+def test_css_เลือกโดนแคนวาสที่ซ้อนอยู่():
+    """⭐ lobby.js ห่อ canvas ไว้ใน <div id="partyCanvas"> อีกชั้น
+       CSS ที่ใช้ลูกตรง (>) จะไม่โดน canvas กางเต็ม 900px ทะลุจอมือถือ
+    """
+    assert 'id="partyCanvas"' in LOBBY, "โครง DOM เปลี่ยนไป ต้องมาทบทวน CSS ด้วย"
+    assert ".party-mount > canvas" not in CSS, "ใช้ลูกตรงแล้วไม่โดนแคนวาสที่ซ้อนอยู่"
+    assert ".party-mount canvas" in CSS
+
+
+def test_จอกับแถบคำสั่งเรียงบนล่างไม่ใช่ซ้ายขวา():
+    """.party-mount เป็น flex — ไม่ตั้ง column แถบคำสั่งจะไปแปะข้างจอ
+       จนบีบเป็นเสาผอม ๆ (เจอตอนเทสด้วยมือ)"""
+    block = CSS[CSS.index(".party-mount {"):CSS.index(".party-mount canvas")]
+    assert "flex-direction: column" in block
+
+
+def test_มี_media_query_สำหรับจอแคบ():
+    assert "@media (max-width: 560px)" in CSS
+
+
+def test_มีปุ่มออกเดินทางต่อหลังจบ():
+    """ชนะแล้วมีแต่ปุ่มออกจากปาร์ตี้ = ต้องตั้งห้องใหม่ทุกรอบ"""
+    assert 'id="partyAgain"' in LOBBY
+    assert "partyDo('again')" in LOBBY
+    assert "PARTY_SEQ = 0" in LOBBY, "สมรภูมิใหม่ต้องนับเหตุการณ์ใหม่"
+
+
+def test_ตัวหนาในกล่องรางวัลไม่กลายเป็นบรรทัดใหญ่():
+    """⭐ .party-result b (ไม่มี >) ไปโดน <b> ในกล่องรางวัลด้วย
+       ตัวเลขทองกับชื่อไอเทมเด้งขึ้นบรรทัดใหม่ 22px หน้าเบี้ยวทั้งแถบ
+       (เจ้าของเกมเจอตอนเทสด้วยมือบนเดสก์ท็อป)
+    """
+    assert ".party-result b {" not in CSS, "ต้องใช้ลูกตรง (>) ไม่งั้นโดนกล่องรางวัลด้วย"
+    assert ".party-result > b {" in CSS
+    assert ".party-reward b { display: inline" in CSS
+    # สีชนะ/แพ้ก็ต้องลูกตรง ไม่งั้นทับสีตัวเลขในกล่องรางวัล
+    for sel in (".party-result.win b {", ".party-result.lose b {"):
+        assert sel not in CSS, f"{sel} ไม่มี > จะโดนกล่องรางวัลด้วย"

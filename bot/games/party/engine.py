@@ -55,6 +55,12 @@ def _unit_from_monster(m, idx):
         "atk": int(m.get("atk") or 8), "def": int(m.get("def") or 0),
         "level": int(m.get("level") or 1),
         "element": m.get("element"), "defending": False,
+        # ⚠️ ต้องพก rank/stats ติดตัวมาด้วย — rewards.pay คิดทองจาก gold_mult
+        #    ในนี้ ไม่มีก็ตกกลับเป็น 1 ทุกตัว บอส Unbeatable (gold_mult 1000)
+        #    จ่ายเท่ามอนทั่วไป และ roll_drop ก็แยกแรงค์ไม่ออก
+        #    (เจ้าของเกมเห็น "ได้ 8 ทอง" ตอนเทสด้วยมือ 2026-09-04 จึงจับได้)
+        "rank": m.get("rank"),
+        "stats": dict(m.get("stats") or {}),
         # ── สถานะบอส (เฟส 4) — ห้ามหลุดขึ้นเบราว์เซอร์ ดู view() ──
         "boss": bool(m.get("boss")),
         "phase": None,              # เฟสล่าสุดที่ประกาศไปแล้ว
@@ -86,6 +92,7 @@ def start_battle(st, players, monsters, rng):
         "units": units, "speed": speed,
         "over": False, "winner": None, "log": [],
         "turn_at": time.time(),     # นาฬิกาของตานี้ — หมดเวลาแล้วบอทเล่นแทน
+        "seq": 0, "recent": [],     # เหตุการณ์ล่าสุด + เลขลำดับ ให้คนที่ poll ตามทัน
     }
     return st
 
@@ -392,6 +399,10 @@ def view(st, uid):
         "winner": b["winner"],
         "units": units,
         "actions": sorted(ACTIONS),
+        # คนที่นั่งรออยู่ poll มาเจอ seq ใหม่ = มีอะไรเกิดขึ้น เอา recent ไปเล่นอนิเมชัน
+        # (ไม่มีสองอย่างนี้ เพื่อนกดอะไรเราเห็นแค่เลือดเปลี่ยนวูบ ไม่รู้ว่าเกิดอะไร)
+        "seq": int(b.get("seq") or 0),
+        "recent": list(b.get("recent") or []),
         # หน้าเว็บเอาไปนับถอยหลัง — หมดเวลาแล้วบอทเล่นแทน
         "turn_left": max(0, int(TURN_SECONDS - (time.time() - float(b.get("turn_at") or 0)))),
     }

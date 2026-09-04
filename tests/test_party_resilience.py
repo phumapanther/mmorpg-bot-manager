@@ -393,3 +393,39 @@ def test_ป้องกันกับหนีก็ไม่ต้องเ�
     b["turn"] = b["order"].index("p1")
     ok, r = engine.act(st, 1, "defend", None, random.Random(1))
     assert ok, r
+
+
+def test_เปิดจอดูอยู่แล้วนาฬิกาเดินเอง():
+    """⭐ นาฬิกาเดินตอน view() เท่านั้น — คนที่ยังเปิดจอเป็นคนปลดตาที่ค้างให้
+
+    (เทสด้วยมือ 2026-09-04 เจอตาค้าง เพราะหน้าเว็บหยุด poll ตอนเข้าสู้)
+    """
+    st = _battle()
+    lobby.save(st["room"], st)
+    b = st["extra"]["battle"]
+    if b["units"][engine.current_actor(st)]["side"] != "party":
+        pytest.skip("ตามอน")
+    who = engine.current_actor(st)
+
+    b["turn_at"] = time.time() - engine.TURN_SECONDS - 1
+    lobby.save(st["room"], st)
+    room.view(1)                                  # แค่เปิดจอดู ไม่ได้กดอะไร
+
+    after = room._room(1)["extra"]["battle"]
+    assert after["over"] or engine.current_actor(room._room(1)) != who,         "เปิดจอดูอยู่แต่ตาที่หมดเวลาไม่ถูกปลด — จะค้างตลอดกาล"
+
+
+def test_view_ส่งเหตุการณ์ล่าสุดให้คนที่นั่งดู():
+    """ไม่มี recent/seq คนที่รอเห็นแค่เลือดเปลี่ยนวูบ ไม่รู้ว่าใครทำอะไร"""
+    st = _battle()
+    b = st["extra"]["battle"]
+    b["turn"] = b["order"].index("p1")
+    lobby.save(st["room"], st)
+    foes = [u["id"] for u in b["units"].values()
+            if u["side"] == "monster" and u["hp"] > 0]
+    room.act(1, "attack", foes[0])
+
+    got = room.view(2)["battle"]
+    assert got["seq"] > 0, "ไม่ได้นับลำดับเหตุการณ์"
+    assert got["recent"], "เพื่อนตีไปแล้วแต่คนอื่นไม่เห็นเหตุการณ์เลย"
+    assert any(e["t"] in ("attack", "miss") for e in got["recent"])

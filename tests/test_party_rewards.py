@@ -4,6 +4,7 @@
    ต้องไปไล่ลดของผู้เล่นที่ได้ไปแล้ว ซึ่งไม่มีใครยอม
    กฎเหล็ก: ทองรวมที่จ่ายออก ≤ 1.5 เท่าของที่ควรได้ตอนเล่นเดี่ยว
 """
+import pathlib
 import random
 import sqlite3
 
@@ -264,3 +265,243 @@ def test_เส้นทางปาร์ตี้อยู่กลุ่ม_m
     """
     from license_server import rate_limit
     assert rate_limit.group_for("/api/web/party/room", "POST") == "money"
+
+
+# ── ออกเดินทางต่อ (เจ้าของเกมขอ 2026-09-04) ──
+
+def test_หัวห้องพาออกเดินทางต่อได้():
+    st = _win()
+    for uid in (1, 2):                      # พักให้เต็มก่อน (เลือดแดงกดต่อไม่ได้)
+        p = player_model.get_player(uid)
+        player_model.update_player_field(uid, "hp", p["max_hp"])
+    ok, r = room.again(1)
+    assert ok, r
+    b = room.view(1)["battle"]
+    assert b["in_battle"] and not b["over"], "กดแล้วยังอยู่สมรภูมิเดิม"
+
+
+def test_ออกเดินทางต่อแล้วได้รางวัลรอบใหม่จริง():
+    """⭐ ธง paid ค้างจากรอบก่อน = รอบใหม่ชนะแล้วไม่ได้อะไรเลย"""
+    st = _win()
+    for uid in (1, 2):
+        p = player_model.get_player(uid)
+        player_model.update_player_field(uid, "hp", p["max_hp"])
+    room.again(1)
+    st = room._room(1)
+    assert st["extra"].get("paid") is False, "ธงจ่ายเงินยังค้างจากรอบก่อน"
+    assert st["extra"].get("reward") is None, "รางวัลรอบเก่ายังค้างอยู่"
+
+    st["extra"]["battle"].update(over=True, winner="party")
+    before = {u: _cash(u) for u in (1, 2)}
+    room.settle(st)
+    assert any(_cash(u) > before[u] for u in (1, 2)), "รอบใหม่ชนะแล้วไม่ได้ทอง"
+
+
+def test_คนที่ไม่ใช่หัวห้องพาออกเดินทางต่อไม่ได้():
+    _win()
+    ok, r = room.again(2)
+    assert not ok and "หัวห้อง" in r["error"]
+
+
+def test_สมรภูมิยังไม่จบพาออกเดินทางต่อไม่ได้():
+    """กดได้ตอนกำลังสู้ = รีเซ็ตมอนหนีความตายได้ฟรี"""
+    _, st = room.open_party(1, "เอ")
+    room.join_party(2, "บี", st["room"])
+    room.begin(1)
+    ok, r = room.again(1)
+    assert not ok and "ยังไม่จบ" in r["error"]
+
+
+# ── ชุด/อาวุธ กับเลือดสูงสุด ──
+
+def test_เคสจริงจากหน้าจอ_320_ทับ_220():
+    """เจ้าของเกมเจอ "320/220" บนหน้าจอ — max_hp 220 + Steel_H (+100) = 320
+       เลข 220 คือค่าดิบในฐานข้อมูล เพดานจริงต้องเป็น 320
+    """
+    from bot import config_loader
+    armors = config_loader.get_config().get("item_catalog", {}).get("armor_stats", {})
+    best = max(armors, key=lambda k: int(armors[k].get("hp") or 0))
+    _, max_hp = room.gear_stats(
+        {"max_hp": 220, "armor": best, "armor_dur": 50, "weapon_dur": 0})
+    assert max_hp == 220 + int(armors[best]["hp"])
+
+
+def test_เลือดสูงสุดรวมโบนัสจากชุด():
+    """⭐ บั๊กจริง: หน้าจอขึ้น "320/220" เพราะอ่าน max_hp ดิบ ไม่บวกชุด
+       ที่แย่กว่านั้น ฮีลใช้ min(hp_max, ...) → ฮีลแล้วเลือดลดจาก 320 เหลือ 220
+    """
+    # ⚠️ อ่านชื่อชุดจากคอนฟิกจริง อย่าเดาเอง — ฉบับแรกเดาว่า "Iron_Armor"
+    #    ซึ่งไม่มีอยู่จริง เทสเลย skip ผ่านไปเฉย ๆ ไม่ได้ตรวจอะไรเลย
+    from bot import config_loader
+    armors = config_loader.get_config().get(
+        "item_catalog", {}).get("armor_stats", {})
+    hit = [(k, int(v["hp"])) for k, v in armors.items() if int(v.get("hp") or 0) > 0]
+    assert hit, "เกมนี้ไม่มีชุดที่ให้เลือดเพิ่มเลย — ทบทวนเทสข้อนี้"
+    key, bonus = hit[0]
+    atk, max_hp = room.gear_stats(
+        {"max_hp": 220, "armor": key, "armor_dur": 50, "weapon_dur": 0})
+    assert max_hp == 220 + bonus, f"ควรได้ {220 + bonus} แต่ได้ {max_hp}"
+
+
+def test_ชุดพังแล้วไม่ให้โบนัส():
+    """เหมือนเกมหลัก — dur เหลือ 0 คือใช้ไม่ได้"""
+    armors = __import__("bot.config_loader", fromlist=["x"]).get_config().get(
+        "item_catalog", {}).get("armor_stats", {})
+    best = max(armors, key=lambda k: int(armors[k].get("hp") or 0))
+    _, worn = room.gear_stats(
+        {"max_hp": 220, "armor": best, "armor_dur": 0, "weapon_dur": 0})
+    assert worn == 220, f"ชุด {best} พังแล้วแต่ยังให้เลือดเพิ่ม"
+
+
+def test_พลังโจมตีมาจากอาวุธจริง():
+    """หน้าเว็บโฆษณาว่า "ใช้ตัวละคร ชุด อาวุธ ชุดเดียวกับเกมหลัก" ต้องทำจริง"""
+    from bot import config_loader
+    w = config_loader.get_weapon_stats("Wooden_Weapon") or {}
+    if not w.get("atk"):
+        pytest.skip("ไม่มีข้อมูลอาวุธ")
+    atk, _ = room.gear_stats(
+        {"max_hp": 100, "weapon": "Wooden_Weapon", "weapon_dur": 50})
+    assert atk == int(w["atk"])
+
+
+def test_เลือดในสมรภูมิไม่เกินเลือดสูงสุด():
+    """ผู้เล่นที่เลือดเกินเพดาน (บัฟเก่า) ต้องถูกตัดลงมา ไม่ใช่โชว์ 320/220"""
+    _, st = room.open_party(1, "เอ")
+    room.join_party(2, "บี", st["room"])
+    room.begin(1)
+    for u in room.view(1)["battle"]["units"]:
+        if u["side"] == "party":
+            assert u["hp"] <= u["hp_max"], f"{u['name']} เลือด {u['hp']}/{u['hp_max']}"
+
+
+def test_เลือดที่เหลือกลับไปเข้าตัวละครจริง():
+    """⚠️ ไม่เขียนกลับ = สู้ปาร์ตี้ไม่มีต้นทุน กดออกเดินทางต่อรัว ๆ = ก๊อกทอง
+
+    เทสทางตรง ไม่ผ่าน settle เพราะ add_exp อาจเลเวลอัปแล้วเติมเลือดเต็มบังผลไว้
+    (ฉบับแรกเทสผ่าน settle แล้วเจอ 120 == 52 — เลเวลอัปเติมทีหลัง)
+    """
+    _, st = room.open_party(1, "เอ")
+    room.join_party(2, "บี", st["room"])
+    room.begin(1)
+    b = room._room(1)["extra"]["battle"]
+    b["units"]["p1"]["hp"] = 37
+    room._carry_hp(b)
+    assert int(player_model.get_player(1)["hp"]) == 37
+
+
+def test_settle_เขียนเลือดกลับก่อนจ่ายรางวัล():
+    """ลำดับสำคัญ — เลเวลอัปตอนจ่าย EXP ต้องเติมเลือดทับได้ ไม่ใช่ถูกทับ"""
+    src = pathlib.Path("bot/games/party/room.py").read_text(encoding="utf-8")
+    assert src.index("_carry_hp(b)") < src.index("rewards.pay(")
+
+
+def test_ล้มในโหมดนี้ไม่ทำให้ตัวละครหลักตาย():
+    """โหมดนี้เป็นของแถม ไม่ควรมีโทษหนักกว่าเกมหลัก — เลือดต่ำสุดคือ 1"""
+    _, st = room.open_party(1, "เอ")
+    room.join_party(2, "บี", st["room"])
+    room.begin(1)
+    b = room._room(1)["extra"]["battle"]
+    for u in b["units"].values():
+        if u["side"] == "party":
+            u["hp"] = 0
+    room._carry_hp(b)
+    assert int(player_model.get_player(1)["hp"]) >= 1
+
+
+def test_เลือดแดงออกเดินทางต่อไม่ได้():
+    """⭐ เลือดติดตัวข้ามรอบ กดต่อทั้งที่เลือดแดง = แพ้ฟรีตั้งแต่ยังไม่ทันเดิน"""
+    _, st = room.open_party(1, "เอ")
+    room.join_party(2, "บี", st["room"])
+    room.begin(1)
+    st = room._room(1)
+    st["extra"]["battle"].update(over=True, winner="party")
+    lobby.save(st["room"], st)
+    player_model.update_player_field(1, "hp", 1)
+
+    ok, r = room.again(1)
+    assert not ok and "พัก" in r["error"], f"ควรกันไว้ แต่ได้ {r}"
+
+
+# ── รางวัลต้องรู้จักมอนตัวจริง (บั๊กจากการเทสด้วยมือ) ──
+
+def test_หน่วยมอนในสมรภูมิพกแรงค์กับสเปกมาด้วย():
+    """⭐ engine เก็บ unit ไว้แค่ค่าที่ใช้ต่อสู้ stats/rank เลยหายไประหว่างทาง
+       rewards คิด gold_mult = 1 ตลอด — บอส Unbeatable (gold_mult 1000)
+       จ่ายเท่ามอนทั่วไป และ roll_drop แยกแรงค์ไม่ออก
+
+       เทสของ rewards ผ่านหมดเพราะป้อน dict ที่มี stats ให้เอง
+       ไม่เคยตรวจว่าของจริงที่ส่งเข้าไปหน้าตาเป็นยังไง
+    """
+    _, st = room.open_party(1, "เอ")
+    room.join_party(2, "บี", st["room"])
+    room.begin(1)
+    b = room._room(1)["extra"]["battle"]
+    mons = [u for u in b["units"].values() if u["side"] == "monster"]
+    assert mons
+    for u in mons:
+        assert u.get("rank"), f"{u['id']} ไม่มีแรงค์ — รางวัลกับดรอปคิดผิด"
+        assert (u.get("stats") or {}).get("gold_mult"), f"{u['id']} ไม่มี gold_mult"
+
+
+def test_ล่าบอสได้ทองมากกว่ามอนธรรมดา():
+    """แรงค์บอส gold_mult สูงกว่ามาก จ่ายเท่ากันเมื่อไหร่แปลว่าแรงค์หายระหว่างทาง
+
+    ⚠️ ฉบับแรกสุ่มเกิดมอนหลายรอบแล้วเทียบผลรวม — แดงประมาณ 1 ใน 5
+       เพราะกลุ่ม "ธรรมดา" สุ่มได้บอสมาเองก็มี ต้องเทียบแบบไม่พึ่งดวง
+    """
+    from bot import adventure_core
+    _, st = room.open_party(1, "เอ")
+    room.join_party(2, "บี", st["room"])
+    room.begin(1, boss_raid=True)
+    b = room._room(1)["extra"]["battle"]
+    mons = [u for u in b["units"].values() if u["side"] == "monster"]
+    boss = b["units"]["m1"]
+
+    common = float(adventure_core.MONSTER_RANKS["Common"]["gold_mult"])
+    assert float(boss["stats"]["gold_mult"]) > common,         f"บอสมี gold_mult {boss['stats'].get('gold_mult')} ไม่มากกว่ามอนทั่วไป"
+
+    rng = FixedRng()                      # เต๋าออกหน้าเดิม เหลือแค่แรงค์ที่ต่างกัน
+    real = rewards.encounter_value(mons, 2, rng)[0]
+    plain = rewards.encounter_value(_mons(len(mons)), 2, rng)[0]
+    assert real > plain, f"ล่าบอสได้ {real} แต่มอนธรรมดาล้วนได้ {plain}"
+
+
+def test_view_ไม่ปล่อยสเปกมอนหลุดขึ้นเบราว์เซอร์():
+    """พก stats ติดตัวได้ แต่ห้ามส่งขึ้นไป — บอกเลือดสูงสุดกับเรทดรอปหมด"""
+    import json
+    _, st = room.open_party(1, "เอ")
+    room.join_party(2, "บี", st["room"])
+    room.begin(1)
+    blob = json.dumps(room.view(1), ensure_ascii=False)
+    for leak in ("gold_mult", "exp_reward", "hp_range", "flee_chance"):
+        assert leak not in blob, f"view() ปล่อย {leak} หลุด"
+
+
+def test_เพื่อนเห็นสมรภูมิใหม่ที่หัวห้องเปิด():
+    """⭐ หัวห้องกดออกเดินทางต่อแล้วเพื่อนต้องถูกลากมาด้วย
+
+    (เจ้าของเกมเจอตอนเทสด้วยมือ 2026-09-04: เพื่อนค้างหน้าสรุปผล
+     เพราะหน้าเว็บหยุดถามเซิร์ฟเวอร์ตอนจบสมรภูมิ)
+    """
+    st = _win()
+    for uid in (1, 2):
+        p = player_model.get_player(uid)
+        player_model.update_player_field(uid, "hp", p["max_hp"])
+    ok, _ = room.again(1)
+    assert ok
+
+    friend = room.view(2)                      # เพื่อนแค่ถามสถานะเฉย ๆ
+    assert friend["battle"]["in_battle"]
+    assert not friend["battle"]["over"], "เพื่อนยังเห็นสมรภูมิเก่าที่จบไปแล้ว"
+    assert friend.get("reward") is None, "รางวัลรอบเก่ายังค้างอยู่หน้าเพื่อน"
+
+
+def test_สมรภูมิใหม่เริ่มนับลำดับเหตุการณ์ใหม่():
+    """หน้าเว็บใช้ seq ตัดสินว่ามีอะไรใหม่ — ไม่รีเซ็ตก็เล่นอนิเมชันผิดรอบ"""
+    st = _win()
+    for uid in (1, 2):
+        p = player_model.get_player(uid)
+        player_model.update_player_field(uid, "hp", p["max_hp"])
+    old_seq = room.view(1)["battle"]["seq"]
+    room.again(1)
+    assert room.view(1)["battle"]["seq"] < old_seq or old_seq == 0

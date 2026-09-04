@@ -14,6 +14,7 @@ from bot.games.party import engine, monsters, rewards
 GAME = "party"
 MAX_PARTY = 5          # เจ้าของเกมเคาะ 2026-09-03
 MIN_TO_START = 2
+REST_AT = 0.25         # เลือดต่ำกว่านี้ต้องไปพักก่อน ถึงจะออกเดินทางต่อได้
 
 
 def _room(uid):
@@ -69,31 +70,81 @@ def begin(uid, boss_raid=False):
     return True, lobby.save(st["room"], st)
 
 
+def again(uid):
+    """จบสมรภูมิแล้วออกเดินทางต่อกับปาร์ตี้เดิม — เฉพาะหัวห้อง
+
+    ⚠️ ต้องล้าง `paid` กับ `reward` ของเก่าให้หมด ไม่งั้นรอบใหม่ไม่จ่ายรางวัล
+       (settle เห็นธง paid ค้างอยู่ก็ข้ามไปเลย)
+    """
+    st = _room(uid)
+    if not st:
+        return False, {"error": "ยังไม่ได้อยู่ปาร์ตี้ไหน"}
+    if st["host"] != str(uid):
+        return False, {"error": "เฉพาะหัวห้องเท่านั้นที่พาออกเดินทางต่อได้"}
+    b = st["extra"].get("battle")
+    if not b or not b.get("over"):
+        return False, {"error": "สมรภูมิยังไม่จบ"}
+
+    # ⚠️ เลือดติดตัวข้ามรอบ (ดู _carry_hp) — ออกเดินทางต่อทั้งที่เลือดแดง
+    #    คือแพ้ฟรีตั้งแต่ตายังไม่ทันเดิน ต้องกันไว้ ไม่ใช่ปล่อยให้กดแล้วงง
+    weak = [p for p in _players_of(st) if p["hp"] < p["max_hp"] * REST_AT]
+    if weak:
+        who = " · ".join(p["name"] for p in weak)
+        return False, {"error": f"🩸 เลือดน้อยเกินไป ({who}) — "
+                                "ไปพักที่เมืองก่อนค่อยออกเดินทางต่อ"}
+
+    st["extra"].pop("battle", None)
+    st["extra"].pop("reward", None)
+    st["extra"]["paid"] = False
+    _spawn_battle(st)
+    return True, lobby.save(st["room"], st)
+
+
 def _players_of(st):
     """ดึงค่าสถานะจริงของผู้เล่นแต่ละคนมาลงสมรภูมิ
 
     ใช้ดาต้าจากเกมหลักทั้งหมด (ชุด · อาวุธ · เลเวล · ธาตุ) ตามที่เจ้าของเกมสั่ง
     ไม่มีตัวละครแยกสำหรับโหมดนี้
     """
-    from bot import game_modifiers
+    from bot import config_loader, game_modifiers
     from bot.models import player_model
 
     out = []
     for seat in st["seats"]:
         p = player_model.get_player(int(seat["uid"])) or {}
         els = game_modifiers.resolve_player_elements([p.get("race") or ""])
+        atk, max_hp = gear_stats(p)
         out.append({
             "uid": seat["uid"],
             "name": seat["name"],
             "level": int(p.get("level") or 1),
             "class_name": p.get("class_name"),
             "element": els[0] if els else None,
-            "hp": int(p.get("hp") or 100),
-            "max_hp": int(p.get("max_hp") or 100),
-            "atk": int(p.get("level") or 1) + 8,
+            "hp": min(int(p.get("hp") or 100), max_hp),
+            "max_hp": max_hp,
+            "atk": atk,
             "def": 2,
         })
     return out
+
+
+def gear_stats(p):
+    """พลังโจมตีกับเลือดสูงสุด **ตามสูตรเกมหลักเป๊ะ ๆ** — คืน (atk, max_hp)
+
+    ⚠️ เลือดสูงสุดจริง = max_hp ในฐานข้อมูล **บวกโบนัสจากชุด**
+       เฟส 2-7 อ่านแต่ max_hp ดิบ คนใส่ชุดดีเลยขึ้น "320/220"
+       (เจ้าของเกมเจอตอนเทสด้วยมือ 2026-09-04) ที่แย่กว่านั้นคือ
+       ฮีลใช้ min(hp_max, ...) → ฮีลแล้วเลือด **ลด** จาก 320 เหลือ 220
+
+    ⚠️ ชุด/อาวุธพังแล้ว (dur = 0) ไม่ให้ค่าอะไรเลย — เหมือนเกมหลัก
+    """
+    from bot import config_loader
+
+    w = config_loader.get_weapon_stats(p.get("weapon") or "Wooden_Weapon") or {}
+    a = config_loader.get_armor_stats(p.get("armor") or "None") or {}
+    atk = int(w.get("atk", 0) or 0) if int(p.get("weapon_dur") or 0) > 0 else 0
+    hp_bonus = int(a.get("hp", 0) or 0) if int(p.get("armor_dur") or 0) > 0 else 0
+    return max(1, atk), max(1, int(p.get("max_hp") or 100) + hp_bonus)
 
 
 def _spawn_battle(st):
@@ -107,7 +158,21 @@ def _spawn_battle(st):
     mons = monsters.spawn_group(int(st["host"]), len(players), rng,
                                 boss=bool(st["extra"].get("boss_raid")))
     engine.start_battle(st, players, mons, rng)
-    _run_monsters(st, rng)      # มอนที่ไวกว่าผู้เล่นต้องได้เดินก่อน ไม่งั้นเกมค้าง
+    # มอนที่ไวกว่าผู้เล่นต้องได้เดินก่อน ไม่งั้นเกมค้าง
+    _record(st, _run_monsters(st, rng))
+
+
+def _record(st, evs):
+    """เก็บเหตุการณ์ล่าสุดไว้ให้คนที่ยังไม่ได้กดอะไรเห็นด้วย
+
+    ⚠️ ไม่มีตรงนี้ คนที่นั่งรอจะเห็นแค่เลือดเปลี่ยนวูบ ไม่รู้ว่าใครทำอะไร
+       (เจอตอนเทสด้วยมือ 2026-09-04)
+    """
+    if not evs:
+        return
+    b = st["extra"]["battle"]
+    b["seq"] = int(b.get("seq") or 0) + 1
+    b["recent"] = list(evs)[-40:]
 
 
 def _run_monsters(st, rng):
@@ -147,6 +212,7 @@ def act(uid, action, target=None):
         return False, r
 
     evs = list(r["events"]) + _run_monsters(st, rng)
+    _record(st, evs)
     settle(st)                          # จบแล้วจ่ายทันที (กันจ่ายซ้ำอยู่ในนั้น)
     lobby.save(st["room"], st)
     return True, {"events": evs}
@@ -158,11 +224,31 @@ def _tick(st):
     หมดเวลาผู้เล่น → บอทเล่นแทน แล้วปล่อยมอนเดินต่อจนถึงตาคนถัดไป
     """
     rng = random.Random()
-    if not engine.timeout_act(st, rng):
+    evs = engine.timeout_act(st, rng)
+    if not evs:
         return False
-    _run_monsters(st, rng)
+    _record(st, evs + _run_monsters(st, rng))
     settle(st)
     return True
+
+
+def _carry_hp(b):
+    """เลือดที่เหลือหลังสมรภูมิ เขียนกลับเข้าตัวละครจริง
+
+    ⚠️ ไม่เขียนกลับ = สู้ปาร์ตี้ไม่มีต้นทุนอะไรเลย เลือดเต็มทุกรอบ
+       พอมีปุ่ม "ออกเดินทางอีกครั้ง" ก็กลายเป็นก๊อกทองไม่รู้จบ
+    ⚠️ ไม่ให้ต่ำกว่า 1 — ล้มในโหมดนี้ไม่ควรทำให้ตัวละครหลักตายไปด้วย
+       (โหมดนี้เป็นของแถม ไม่ควรมีโทษหนักกว่าเกมหลัก)
+    """
+    from bot.models import player_model
+    for u in b["units"].values():
+        if u["side"] != "party" or not u.get("uid"):
+            continue
+        try:
+            player_model.update_player_field(
+                int(u["uid"]), "hp", max(1, int(u["hp"])))
+        except Exception as e:
+            print(f"⚠️ [party] เขียนเลือดกลับไม่ได้ uid={u.get('uid')}: {e}")
 
 
 def settle(st):
@@ -178,6 +264,7 @@ def settle(st):
     if not b or not b.get("over") or st["extra"].get("paid"):
         return st["extra"].get("reward")
     st["extra"]["paid"] = True          # ตั้งก่อนจ่าย กันเรียกซ้อนกัน
+    _carry_hp(b)                        # เลือดที่เหลือติดตัวกลับไปเกมหลัก
     if b.get("winner") != "party":
         st["extra"]["reward"] = None
         lobby.save(st["room"], st)

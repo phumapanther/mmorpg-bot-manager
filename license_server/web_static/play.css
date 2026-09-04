@@ -1218,50 +1218,26 @@ body.bar-min .pbar .money { margin-left: auto; }
 .party-mount {
   min-height: 320px;
   display: flex;
+  /* ⚠️ ต้องเป็นคอลัมน์ — ตอนสู้มีทั้งจอกับแถบคำสั่ง เรียงแถวแล้วแถบคำสั่ง
+     ไปแปะข้างจอจนบีบเป็นเสาผอม ๆ (เจอตอนเทสด้วยมือ 2026-09-04) */
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  width: 100%;
 }
-.party-mount > canvas,
-.party-mount > iframe {
+/* ⚠️ ใช้ selector ลูกหลาน ไม่ใช่ลูกตรง (>) — lobby.js ห่อ canvas ไว้ใน
+   <div id="partyCanvas"> อีกชั้น ใช้ > แล้วไม่โดน canvas ก็กางเต็ม 900px
+   ทะลุกรอบบนมือถือ */
+.party-mount canvas,
+.party-mount iframe {
   width: 100%;
   max-width: 900px;
+  height: auto;
   border: 0;
   border-radius: 12px;
   display: block;
 }
-.party-soon {
-  text-align: center;
-  padding: 28px 18px;
-  color: var(--g-muted);
-}
-.party-soon .ic {
-  font-size: 42px;
-  display: block;
-  margin-bottom: 10px;
-}
-.party-soon b {
-  color: var(--g-ink);   /* --g-ink คือตัวที่นิยามจริง (ของเดิมบางจุดใช้ --g-text ที่ไม่มีนิยาม) */
-  font-size: 18px;
-}
-.party-soon p {
-  margin: 8px 0 16px;
-  line-height: 1.7;
-}
-.party-plan {
-  list-style: none;
-  padding: 0;
-  margin: 0 auto;
-  max-width: 380px;
-  text-align: left;
-}
-.party-plan li {
-  padding: 6px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: 14px;
-}
-.party-plan li:last-child {
-  border-bottom: 0;
-}
+.party-mount > div { width: 100%; }
 
 /* ── ล็อบบี้ปาร์ตี้ (เฟส 2) ── */
 .party-lobby { width: 100%; max-width: 520px; text-align: center; }
@@ -1332,22 +1308,42 @@ body.bar-min .pbar .money { margin-left: auto; }
   border: 1px solid var(--g-line); background: none;
   color: var(--g-muted); cursor: pointer;
 }
-.party-result { text-align: center; padding: 14px; }
-.party-result b { display: block; font-size: 22px; margin-bottom: 10px; }
-.party-result.win b { color: var(--g-gold); }
-.party-result.lose b { color: #ff6b6b; }
+.party-result { text-align: center; padding: 14px; width: 100%; }
+/* ⚠️ ต้องเป็นลูกตรง (>) เท่านั้น — ไม่งั้นโดน <b> ในกล่องรางวัลด้วย
+   แล้วตัวเลขทองกับชื่อไอเทมเด้งขึ้นบรรทัดใหม่ตัวใหญ่ หน้าเบี้ยวทั้งแถบ
+   (เจ้าของเกมเจอตอนเทสด้วยมือบนเดสก์ท็อป 2026-09-04) */
+.party-result > b { display: block; font-size: 22px; margin-bottom: 10px; }
+/* ลูกตรงเหมือนกัน — ไม่งั้นสีแพ้ (แดง) ไปทับตัวเลขในกล่องรางวัลด้วย */
+.party-result.win > b { color: var(--g-gold); }
+.party-result.lose > b { color: #ff6b6b; }
 
 /* ติ๊กล่าบอสก่อนกดเริ่ม — เห็นเฉพาะหัวห้อง */
 .party-raid { display: flex; align-items: center; gap: 8px;
   color: var(--g-muted); font-size: 14px; cursor: pointer; }
 .party-raid input { accent-color: var(--g-gold); cursor: pointer; }
 
-/* สรุปรางวัลหลังจบสมรภูมิ */
-.party-reward { display: flex; flex-wrap: wrap; gap: 6px 14px;
-  margin: 8px 0; font-size: 14px; color: var(--g-ink); }
-.party-reward b { color: var(--g-gold); }
+/* สรุปรางวัลหลังจบสมรภูมิ — เรียงเป็นการ์ดเล็ก ๆ กลางจอ */
+.party-reward { display: flex; flex-wrap: wrap; gap: 8px 10px;
+  justify-content: center; margin: 4px 0 14px; }
+.party-reward span {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  padding: 7px 13px; border: 1px solid var(--g-line); border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 14px; color: var(--g-ink); white-space: nowrap;
+}
+.party-reward b { display: inline; font-size: 15px; margin: 0;
+  color: var(--g-gold); }
 
 /* นาฬิกาถอยหลังของเทิร์น — หมดเวลาแล้วบอทเล่นแทน */
 .party-clock { margin-left: auto; align-self: center;
   color: var(--g-muted); font-size: 13px; }
 .party-bar .pb[disabled] { opacity: .4; cursor: not-allowed; }
+
+/* จอแคบ — ปุ่มคำสั่งต้องกดถูกด้วยนิ้ว ไม่ใช่บีบจนจิ้มพลาด */
+@media (max-width: 560px) {
+  .party-bar { gap: 6px; }
+  .party-bar .pb { padding: 10px 10px; font-size: 13px; flex: 1 1 30%; }
+  .party-clock { margin: 4px auto 0; width: 100%; text-align: center; }
+  .party-wait { text-align: center; }
+  .party-reward { justify-content: center; text-align: center; }
+}

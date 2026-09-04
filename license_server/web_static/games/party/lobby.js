@@ -7,9 +7,16 @@
 
 let PARTY = null;              // สถานะห้องล่าสุดที่เซิร์ฟเวอร์ส่งมา
 let PARTY_POLL = null;         // ตัวจับเวลาถามสถานะซ้ำ
+let PARTY_SEQ = 0;             // เหตุการณ์ล่าสุดที่เล่นอนิเมชันไปแล้ว (กันเล่นซ้ำ)
 
-/** ถามสถานะห้องซ้ำ ๆ เพื่อเห็นคนเข้า/ออกแบบสด
- *  on=false ต้องหยุดเสมอตอนออกจากหน้า ไม่งั้นยิงทิ้งไว้ตลอด */
+/** ถามสถานะห้องซ้ำ ๆ — ทั้งตอนรอคนเข้าห้อง **และตอนสู้อยู่**
+ *
+ * ⚠️ เคยหยุด poll ตอนเข้าสู้ ("เดี๋ยวเฟส 3 รับช่วงต่อ") แล้วลืมทำต่อ ผลคือ
+ *    1. คนที่รออยู่เห็นจอค้าง เพื่อนกดอะไรก็ไม่รู้
+ *    2. นาฬิกาฝั่งเซิร์ฟเวอร์ไม่เดิน (เดินตอน view เท่านั้น) หมดเวลาก็ไม่มีใครปลด
+ *    เจอตอนเทสด้วยมือ 2026-09-04 — ตาค้างตลอดกาล
+ *
+ * on=false ต้องหยุดเสมอตอนออกจากหน้า ไม่งั้นยิงทิ้งไว้ตลอด */
 function partyWatch(on) {
   clearInterval(PARTY_POLL);
   PARTY_POLL = null;
@@ -19,7 +26,11 @@ function partyWatch(on) {
       const r = await api('GET', '/api/web/party/room');
       PARTY = r.room;
       partyPaint();
-      if (PARTY.phase === 'battle') partyWatch(false);   // เข้าสู้แล้ว เฟส 3 รับช่วงต่อ
+      partyPlayNew();                                  // เห็นอนิเมชันของเพื่อนด้วย
+      // ⚠️ จบสมรภูมิแล้ว **ห้ามหยุด** — หัวห้องกด "ออกเดินทางต่อ" ได้ตลอด
+      //    เพื่อนที่หยุดถามไปแล้วจะค้างอยู่หน้าสรุปผลตลอดกาล
+      //    (เจ้าของเกมเจอตอนเทสด้วยมือ 2026-09-04) หยุดเมื่อออกจากห้องเท่านั้น
+      if (!PARTY.in_room) partyWatch(false);
     } catch (e) {
       /* เน็ตสะดุดครั้งเดียวไม่ต้องทำอะไร รอบหน้าถามใหม่ */
     }
@@ -32,9 +43,29 @@ async function partyDo(action, extra) {
     const r = await api('POST', '/api/web/party/room', { action, ...(extra || {}) });
     PARTY = r.room;
     partyPaint();
-    partyWatch(PARTY.in_room && PARTY.phase !== 'battle');
+    partyWatch(PARTY.in_room);
   } catch (e) {
     toast(e.message, true);
+  }
+}
+
+/** เล่นอนิเมชันเหตุการณ์ที่เพิ่งเกิด — เฉพาะที่ยังไม่เคยเล่น
+ *  seq เป็นตัวกันเล่นซ้ำ: คนที่กดเองเล่นไปแล้วตอนได้คำตอบจาก POST */
+function partyPlayNew() {
+  const b = PARTY && PARTY.battle;
+  if (!b || !b.seq) return;
+  // เลขลำดับถอยหลัง = เริ่มสมรภูมิใหม่ ต้องนับใหม่ ไม่งั้นรอบใหม่ไม่มีอนิเมชันเลย
+  // จนกว่าจะเกินเลขของรอบเก่า
+  if (b.seq < PARTY_SEQ) {
+    PARTY_SEQ = 0;
+    const cv = document.getElementById('partyCanvas');
+    if (cv) cv.innerHTML = '';        // ล้างจอเก่า pbMount จะสร้างใหม่พร้อมล้างสถานะ
+    pbMount('partyCanvas');
+    pbSetState(b);
+  }
+  if (b.seq > PARTY_SEQ) {
+    PARTY_SEQ = b.seq;
+    pbPlay(b.recent || []);
   }
 }
 
@@ -116,7 +147,7 @@ async function fillParty() {
     PARTY = null;
   }
   partyPaint();
-  partyWatch(PARTY && PARTY.in_room && PARTY.phase !== 'battle');
+  partyWatch(PARTY && PARTY.in_room);
 }
 
 
@@ -144,10 +175,13 @@ async function partyAct(action, target) {
     const r = await api('POST', '/api/web/party/room',
                         { action, target: target || '' });
     PARTY = r.room;
-    if (PARTY.battle) pbSetState(PARTY.battle);
+    if (PARTY.battle) {
+      pbSetState(PARTY.battle);
+      PARTY_SEQ = PARTY.battle.seq || PARTY_SEQ;   // เล่นเองแล้ว poll ไม่ต้องเล่นซ้ำ
+    }
     pbPlay(r.events || []);
     partyPaintBar();
-    if (PARTY.battle && PARTY.battle.over) partyWatch(false);
+    partyWatch(PARTY.in_room);        // จบแล้วก็ยังต้องคอยฟังว่าหัวห้องพาไปต่อไหม
   } catch (e) {
     toast(e.message, true);
     partyPaintBar();
@@ -200,9 +234,21 @@ function partyPaintBar() {
       <div class="party-result ${win ? 'win' : 'lose'}">
         <b>${win ? '🏆 ปาร์ตี้ชนะ!' : b.winner === 'flee' ? '🏃 หนีออกมาได้' : '💀 ปาร์ตี้แพ้'}</b>
         ${partyRewardHtml()}
-        <button class="out" id="partyOut">← ออกจากปาร์ตี้</button>
+        <div class="party-btns">
+          ${PARTY.host
+            ? '<button class="go" id="partyAgain">🧭 ออกเดินทางต่อ</button>'
+            : '<span class="party-hint">รอหัวห้องพาออกเดินทางต่อ...</span>'}
+          <button class="out" id="partyOut">← ออกจากปาร์ตี้</button>
+        </div>
       </div>`;
     document.getElementById('partyOut').onclick = () => partyDo('leave');
+    const again = document.getElementById('partyAgain');
+    if (again) {
+      again.onclick = () => {
+        PARTY_SEQ = 0;                 // สมรภูมิใหม่นับเหตุการณ์ใหม่ตั้งแต่ต้น
+        partyDo('again');
+      };
+    }
     return;
   }
 

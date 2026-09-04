@@ -13,7 +13,7 @@ router = APIRouter()
 
 
 class PartyBody(BaseModel):
-    action: str = "view"       # create|join|leave|start|view + attack|skill|aoe|heal|defend|flee
+    action: str = "view"       # create|join|leave|start|again|view + attack|skill|aoe|heal|defend|flee
     code: str = ""             # รหัสห้องตอน join
     target: str = ""           # เป้าหมายตอนสั่งท่า (เช่น "m2" หรือ "p3")
     boss_raid: bool = False    # หัวห้องติ๊กก่อนกดเริ่ม = เจอบอสแทนมอนธรรมดา
@@ -56,6 +56,12 @@ def party_room(body: PartyBody, request: Request):
             ok, r = room.begin(uid, body.boss_raid)
             if not ok:
                 raise HTTPException(400, r.get("error", "เริ่มไม่ได้"))
+            return {"ok": True, "room": room.view(uid)}
+
+        if body.action == "again":
+            ok, r = room.again(uid)
+            if not ok:
+                raise HTTPException(400, r.get("error", "ออกเดินทางต่อไม่ได้"))
             return {"ok": True, "room": room.view(uid)}
 
         if body.action == "view":

@@ -45,8 +45,12 @@ function openMyGame() {
 
 ```css
 .party-mount { min-height: 320px; display: flex; align-items: center; justify-content: center; }
-.party-mount > canvas,
-.party-mount > iframe { width: 100%; max-width: 900px; border: 0; border-radius: 12px; display: block; }
+.party-mount canvas,
+.party-mount iframe { width: 100%; max-width: 900px; height: auto; border: 0; border-radius: 12px; display: block; }
+
+⚠️ ใช้ selector **ลูกหลาน** ไม่ใช่ลูกตรง (`>`) — เกมส่วนใหญ่ห่อจอไว้ในกล่องอีกชั้น
+   ใช้ `>` แล้วกฎไม่โดน จอกางเต็มความกว้างจริงจนทะลุกรอบบนมือถือ
+   (ชวนเพื่อนเดินทางเจอบั๊กนี้จริงตอนเทสด้วยมือ 2026-09-04)
 ```
 
 ---
