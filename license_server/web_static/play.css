@@ -1350,3 +1350,41 @@ body.bar-min .pbar .money { margin-left: auto; }
 
 /* คำเตือนข้างตัวเลือกที่ยาก — วัดแล้วเลเวลต่ำล่าบอสชนะ 0/30 */
 .party-warn { color: #ff9a5a; font-size: 12px; }
+
+/* ── 🎲 จอเหตุการณ์ปาร์ตี้ (หมู่บ้าน · หีบ · ...) ── */
+.party-event { width: 100%; max-width: 900px; }
+.ev-art {
+  position: relative; height: 200px; border-radius: 12px;
+  background: #11151f center/cover no-repeat;
+  box-shadow: inset 0 -60px 60px -20px rgba(8, 10, 16, 0.95);
+}
+.ev-round {
+  position: absolute; top: 10px; right: 12px;
+  padding: 5px 12px; border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55); color: var(--g-gold);
+  font-size: 14px; font-weight: 700;
+}
+.ev-log {
+  list-style: none; margin: 10px 0; padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.04); border-radius: 10px;
+  max-height: 132px; overflow-y: auto;
+  color: var(--g-ink); font-size: 14px; line-height: 1.9;
+}
+.ev-party { list-style: none; margin: 0 0 10px; padding: 0; }
+.ev-party li {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 7px 12px; margin-bottom: 6px; border-radius: 9px;
+  background: rgba(255, 255, 255, 0.04); font-size: 14px;
+}
+.ev-hp { color: var(--g-muted); font-size: 12px; }
+.ev-bar {
+  flex: 1 1 90px; min-width: 70px; height: 7px; border-radius: 4px;
+  background: rgba(0, 0, 0, 0.5); overflow: hidden;
+}
+.ev-bar i { display: block; height: 100%; background: var(--g-ok); }
+.ev-roll { color: var(--g-gold); font-size: 13px; }
+
+@media (max-width: 560px) {
+  .ev-art { height: 140px; }
+  .ev-log { max-height: 100px; font-size: 13px; }
+}

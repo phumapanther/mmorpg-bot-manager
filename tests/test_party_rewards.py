@@ -33,6 +33,11 @@ def db(tmp_path, monkeypatch):
 
     monkeypatch.setattr(web_db, "connect", _connect)
     monkeypatch.setattr(player_model, "DB_NAME", str(tmp_path / "game.db"))
+    # ⚠️ ตรึงให้เจอมอนเสมอ — ตั้งแต่เฟส 10b begin() สุ่มเหตุการณ์ได้หลายแบบ
+    #    เทสชุดนี้ตรวจการต่อสู้ จึงต้องล็อกไว้ ไม่งั้นแดงแบบสุ่ม
+    #    (เทสของเหตุการณ์อื่นอยู่ที่ test_party_events_roll.py)
+    from bot.games.party import encounter as _enc
+    monkeypatch.setattr(_enc, "roll_kind", lambda *a, **k: "monster")
     player_model.init_db()
     for uid in range(1, 7):
         player_model.get_player(uid)          # สร้างแถวตัวละครไว้ล่วงหน้า
@@ -390,9 +395,17 @@ def test_เลือดที่เหลือกลับไปเข้า�
 
 
 def test_settle_เขียนเลือดกลับก่อนจ่ายรางวัล():
-    """ลำดับสำคัญ — เลเวลอัปตอนจ่าย EXP ต้องเติมเลือดทับได้ ไม่ใช่ถูกทับ"""
+    """ลำดับสำคัญ — เลเวลอัปตอนจ่าย EXP ต้องเติมเลือดทับได้ ไม่ใช่ถูกทับ
+
+    ⚠️ ต้องดู **เฉพาะในตัว settle()** ไม่ใช่ทั้งไฟล์
+       เทียบตำแหน่งทั้งไฟล์พังทันทีที่มี rewards.pay( โผล่ที่อื่น
+       (หีบสมบัติในเฟส 10b ก็เรียก — เจอ 2026-09-05)
+    """
     src = pathlib.Path("bot/games/party/room.py").read_text(encoding="utf-8")
-    assert src.index("_carry_hp(b)") < src.index("rewards.pay(")
+    i = src.index("def settle(st):")
+    body = src[i:src.index(chr(10) + "def ", i + 10)]
+    assert "_carry_hp(b)" in body and "rewards.pay(" in body
+    assert body.index("_carry_hp(b)") < body.index("rewards.pay(")
 
 
 def test_ล้มในโหมดนี้ไม่ทำให้ตัวละครหลักตาย():

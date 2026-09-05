@@ -29,6 +29,11 @@ def db(tmp_path, monkeypatch):
 
     monkeypatch.setattr(web_db, "connect", _connect)
     monkeypatch.setattr(player_model, "DB_NAME", str(tmp_path / "game.db"))
+    # ⚠️ ตรึงให้เจอมอนเสมอ — ตั้งแต่เฟส 10b begin() สุ่มเหตุการณ์ได้หลายแบบ
+    #    เทสชุดนี้ตรวจการต่อสู้ จึงต้องล็อกไว้ ไม่งั้นแดงแบบสุ่ม
+    #    (เทสของเหตุการณ์อื่นอยู่ที่ test_party_events_roll.py)
+    from bot.games.party import encounter as _enc
+    monkeypatch.setattr(_enc, "roll_kind", lambda *a, **k: "monster")
     player_model.init_db()
     for uid in range(1, 7):
         player_model.get_player(uid)

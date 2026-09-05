@@ -393,3 +393,55 @@ def test_เข้าคิวเหตุการณ์แล้ววาด�
     assert "partyPaintBar()" in body, "เข้าคิวแล้วไม่ได้วาดปุ่มใหม่"
     assert body.index("pbPlay(") < body.index("partyPaintBar()"), \
         "วาดปุ่มก่อนเข้าคิว — ปุ่มจะเปิดทั้งที่อนิเมชันยังไม่เริ่ม"
+
+
+# ── 🎲 จอเหตุการณ์ (เฟส 10b) ──
+
+def test_มีจอเหตุการณ์แยกจากจอต่อสู้():
+    """หมู่บ้าน/หีบ ใช้จอคนละแบบกับสมรภูมิ — ไม่มีก็เห็นจอว่าง"""
+    assert "function partyPaintEvent()" in LOBBY
+    i = LOBBY.index("function partyPaint()")
+    body = LOBBY[i:LOBBY.index("function partyPaintEvent()")]
+    assert "PARTY.event" in body, "เส้นทางวาดไม่ได้เช็คก้อน event เลย"
+    assert body.index("PARTY.event") < body.index("PARTY.battle"), \
+        "เช็คสมรภูมิก่อนเหตุการณ์ — เหตุการณ์จะไม่มีวันถูกวาด"
+
+
+def test_ปุ่มเหตุการณ์มาจากเซิร์ฟเวอร์ไม่ฝังไว้():
+    """⭐ เพิ่มเหตุการณ์ใหม่ใน 10c ต้องไม่ต้องแก้หน้าเว็บ
+
+    (บทเรียนเดียวกับปุ่มสกิลตามคลาสในเฟส 9)
+    """
+    assert "ev.actions" in LOBBY, "ไม่ได้สร้างปุ่มจาก actions ที่เซิร์ฟเวอร์ส่งมา"
+    for fixed in ("พักผ่อน", "เปิดโหวต", "ทอยหลบ"):
+        assert fixed not in LOBBY, f"ฝังชื่อปุ่ม \"{fixed}\" ไว้ในหน้าเว็บ"
+
+
+def test_ใช้ภาพเหตุการณ์ของเกมหลัก():
+    """มีภาพ 176 ใบอยู่แล้วที่ /assets/events/ ไม่ต้องวาดใหม่"""
+    assert "/assets/events/" in LOBBY
+    assert "${ev.art}" in LOBBY, "ไม่ได้เลือกภาพตามชนิดเหตุการณ์"
+
+
+def test_จอเหตุการณ์โชว์รอบกับเลือดทุกคน():
+    for want in ("ev.round", "ev-party", "ev-bar", "ev-log"):
+        assert want in LOBBY, f"จอเหตุการณ์ขาด {want}"
+    for cls in (".ev-art", ".ev-log", ".ev-party", ".ev-bar", ".ev-round"):
+        assert cls in CSS, f"ไม่มี CSS {cls}"
+
+
+def test_จอเหตุการณ์บอกว่ารอใครกับเหลือกี่วิ():
+    """คน AFK ทำทั้งปาร์ตี้รอ — ต้องรู้ว่ารอใครและอีกนานไหมบอทจะเล่นแทน"""
+    i = LOBBY.index("function partyPaintEvent()")
+    body = LOBBY[i:LOBBY.index("function partyEventEndHtml()")]
+    # ⚠️ เช็คแค่ว่ามีชื่อ ev.turn_left ไม่พอ — มันโผล่ 2 ที่ในเทมเพลตเดียวกัน
+    #    ถอดเงื่อนไขทิ้งอันหนึ่งแล้วเทสยังเขียว (ย้อนเทสจับได้ 2026-09-05)
+    assert "ev.turn_left != null" in body, "ไม่ได้เช็คก่อนแสดงเวลาที่เหลือ"
+    assert "${ev.turn_left} วิ" in body, "ไม่ได้แสดงเวลาที่เหลือจริง"
+    assert "party-clock" in body
+
+
+def test_ไม่คำนวณกติกาเหตุการณ์ฝั่งเบราว์เซอร์():
+    """🔒 ทอยเต๋า/ค่าพัก/ผลโหวต ตัดสินที่เซิร์ฟเวอร์ล้วน ๆ"""
+    for bad in ("save_need", "trap_chance", "rest_cost", "Math.random"):
+        assert bad not in LOBBY, f"lobby.js ตัดสินกติกาเอง ({bad})"

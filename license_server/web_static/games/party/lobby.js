@@ -86,6 +86,12 @@ function partyPaint() {
   const box = document.getElementById('partyMount');
   if (!box) return;
 
+  // 🎲 เจอเหตุการณ์ที่ไม่ใช่การต่อสู้ (หมู่บ้าน/หีบ) — จอคนละแบบกับสมรภูมิ
+  if (PARTY && PARTY.in_room && PARTY.event) {
+    partyPaintEvent();
+    return;
+  }
+
   // เข้าสู้แล้ว — renderer รับช่วงวาด หน้าล็อบบี้ถอยไป
   if (PARTY && PARTY.in_room && PARTY.battle) {
     partyPaintBattle();
@@ -203,6 +209,84 @@ async function partyAct(action, target) {
     toast(e.message, true);
     partyPaintBar();
   }
+}
+
+/** 🎲 จอเหตุการณ์ — ใช้ร่วมกันทุกชนิด (หมู่บ้าน · หีบ · ที่จะมาใน 10c)
+ *
+ * ⚠️ ปุ่มทั้งหมดมาจาก `ev.actions` ที่เซิร์ฟเวอร์ส่งมา **ห้ามฝังชื่อปุ่มไว้ที่นี่**
+ *    เพิ่มเหตุการณ์ใหม่จะได้ไม่ต้องแก้หน้าเว็บเลย (บทเรียนเดียวกับปุ่มสกิล)
+ */
+function partyPaintEvent() {
+  const box = document.getElementById('partyMount');
+  const ev = PARTY && PARTY.event;
+  if (!box || !ev) return;
+
+  const me = (ev.members || []).find(m => m.you) || {};
+  const waiting = ev.turn_of && ev.turn_of !== me.id;
+  const who = (ev.members || []).find(m => m.id === ev.turn_of);
+
+  const rows = (ev.members || []).map(m => {
+    const pct = Math.max(0, Math.min(100, Math.round(
+      (m.hp || 0) * 100 / Math.max(1, m.hp_max || 1))));
+    const mark = m.done ? '✅' : (m.id === ev.turn_of ? '👉' : '⏳');
+    const extra = m.roll != null
+      ? ` <span class="ev-roll">🎲 ${m.roll}${m.dmg ? ` · −${m.dmg}` : ''}</span>` : '';
+    return `<li>${mark} ${m.name}${m.you ? ' <b>(คุณ)</b>' : ''}
+      <span class="ev-hp">${m.hp}/${m.hp_max}</span>
+      <span class="ev-bar"><i style="width:${pct}%"></i></span>${extra}</li>`;
+  }).join('');
+
+  const buttons = ev.over ? '' : (ev.actions || []).map(a =>
+    `<button class="pb" data-a="${a.key}" title="${a.hint || ''}">${a.name}</button>`
+  ).join('');
+
+  box.innerHTML = `
+    <div class="party-event">
+      <div class="ev-art" style="background-image:url('/assets/events/${ev.art}.png')">
+        <span class="ev-round">🧭 รอบที่ ${ev.round}</span>
+      </div>
+      <ul class="ev-log">${(ev.log || []).map(t => `<li>${t}</li>`).join('')}</ul>
+      <ul class="ev-party">${rows}</ul>
+      <div class="party-bar" id="partyBar">
+        ${ev.over
+          ? partyEventEndHtml()
+          : buttons || `<div class="party-wait">⏳ รอ ${who ? who.name : 'หัวห้อง'}
+              ${ev.turn_left != null ? `<span class="party-clock">${ev.turn_left} วิ</span>` : ''}
+            </div>`}
+      </div>
+    </div>`;
+
+  box.querySelectorAll('.pb').forEach(b => {
+    b.onclick = () => partyDo(b.dataset.a);
+  });
+  const again = document.getElementById('partyAgain');
+  if (again) again.onclick = () => partyDo('again');
+  const out = document.getElementById('partyOut');
+  if (out) out.onclick = () => partyDo('leave');
+  void waiting;
+}
+
+/** ปุ่มตอนเหตุการณ์จบ — เหมือนตอนจบสมรภูมิ */
+function partyEventEndHtml() {
+  const r = PARTY.event.reward;
+  const me = (PARTY.event.members || []).find(m => m.you) || {};
+  const gold = r && r.gold ? r.gold[String(me.id || '').slice(1)] : null;
+  return `
+    <div class="party-result win">
+      <b>✅ ผ่านเหตุการณ์นี้แล้ว</b>
+      ${gold != null || (r && r.drop) ? `
+        <div class="party-reward">
+          ${gold != null ? `<span>💰 คุณได้ <b>${gold.toLocaleString()}</b> ทอง</span>` : ''}
+          ${r && r.exp ? `<span>⭐ +${r.exp} EXP</span>` : ''}
+          ${r && r.drop ? `<span>📦 <b>${r.drop.name}</b></span>` : ''}
+        </div>` : ''}
+      <div class="party-btns">
+        ${PARTY.host
+          ? '<button class="go" id="partyAgain">🧭 ออกเดินทางต่อ</button>'
+          : '<span class="party-hint">รอหัวห้องพาออกเดินทางต่อ...</span>'}
+        <button class="out" id="partyOut">← ออกจากปาร์ตี้</button>
+      </div>
+    </div>`;
 }
 
 function partyPaintBattle() {

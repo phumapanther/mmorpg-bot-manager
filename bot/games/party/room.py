@@ -7,9 +7,11 @@
 กติกาอยู่ที่ engine.py (เฟส 3)
 """
 import random
+import time
 
 from bot import lobby
-from bot.games.party import engine, events, journey, monsters, rewards
+from bot.games.party import (encounter, engine, events, journey, monsters,
+                             rewards, treasure, village)
 
 GAME = "party"
 MAX_PARTY = 5          # เจ้าของเกมเคาะ 2026-09-03
@@ -86,9 +88,19 @@ def begin(uid, boss_raid=False):
     #    ห้องว่างหมดแล้วห้องถูกลบทิ้ง รอบจึงหายไปเอง ไม่ต้องล้างเพิ่ม
     st["extra"]["round"] = 1
     st["extra"]["score"] = {}  # ตารางอันดับเริ่มนับใหม่ทุกการเดินทาง
+    st["extra"].pop("last_kind", None)
     _heal_full(st)             # ออกเดินทางครั้งใหม่ = ฟื้นเต็ม (เฉพาะที่นี่เท่านั้น)
-    _spawn_battle(st)
+    _next_encounter(st)
     return True, lobby.save(st["room"], st)
+
+
+def _round_over(st):
+    """รอบนี้จบหรือยัง — เป็นได้ทั้งสมรภูมิและเหตุการณ์อื่น"""
+    ev = st["extra"].get("event")
+    if ev:
+        return bool(ev.get("over"))
+    b = st["extra"].get("battle")
+    return bool(b and b.get("over"))
 
 
 def again(uid):
@@ -102,9 +114,8 @@ def again(uid):
         return False, {"error": "ยังไม่ได้อยู่ปาร์ตี้ไหน"}
     if st["host"] != str(uid):
         return False, {"error": "เฉพาะหัวห้องเท่านั้นที่พาออกเดินทางต่อได้"}
-    b = st["extra"].get("battle")
-    if not b or not b.get("over"):
-        return False, {"error": "สมรภูมิยังไม่จบ"}
+    if not _round_over(st):
+        return False, {"error": "รอบนี้ยังไม่จบ"}
 
     # ⚠️ เคยมีเกณฑ์ "เลือดต่ำกว่า 25% ห้ามเดินต่อ" — **ถอดออกแล้ว**
     #    สเปกเสริม 2026-09-04 บอกว่าคนที่ล้มฟื้นมา 1% แล้วเดินทางต่อได้เลย
@@ -117,7 +128,7 @@ def again(uid):
     st["extra"].pop("reward", None)
     st["extra"]["paid"] = False
     st["extra"]["round"] = int(st["extra"].get("round") or 1) + 1
-    _spawn_battle(st)
+    _next_encounter(st)
     return True, lobby.save(st["room"], st)
 
 
@@ -152,7 +163,8 @@ def restart(uid):
     st["extra"].pop("reward", None)
     st["extra"]["paid"] = False
     st["extra"]["round"] = 1
-    _spawn_battle(st)
+    st["extra"].pop("last_kind", None)
+    _next_encounter(st)
     return True, lobby.save(st["room"], st)
 
 
@@ -230,6 +242,111 @@ def gear_stats(p):
     return max(1, atk), max(1, int(p.get("max_hp") or 100) + hp_bonus)
 
 
+def _next_encounter(st, rng=None):
+    """รอบนี้เจออะไร — สุ่มแล้วเปิดฉากให้เลย
+
+    ⚠️ ทางเดียวที่รอบใหม่จะเริ่ม ทั้งตอน begin / again / restart
+       เหตุการณ์ที่ยังไม่ได้ทำจะตกเป็น "เจอมอน" ให้เอง (ดู encounter.READY)
+    """
+    rng = rng or random.Random()
+    st["extra"].pop("event", None)
+    st["extra"].pop("battle", None)
+    kind = encounter.roll_kind(int(st["extra"].get("round") or 1), rng,
+                               last=st["extra"].get("last_kind"))
+    st["extra"]["last_kind"] = kind
+    if kind == "monster":
+        _spawn_battle(st)
+        return kind
+
+    members = [{"id": f"p{p['uid']}", "uid": p["uid"], "name": p["name"],
+                "hp": p["hp"], "hp_max": p["max_hp"]} for p in _players_of(st)]
+    ev = village.start(members, rng) if kind == "village" \
+        else treasure.start(members, rng)
+    ev["turn_at"] = time.time()
+    st["extra"]["event"] = ev
+    return kind
+
+
+def _ev_actions(st, ev, uid):
+    """ปุ่มที่คนนี้กดได้ตอนนี้ — แต่ละเหตุการณ์ตอบเอง"""
+    me = f"p{uid}"
+    if ev.get("over") or encounter.current(ev) not in (me, None):
+        if ev["kind"] != "treasure" or ev.get("stage") != treasure.PHASE_CHOOSE:
+            return []
+    if ev["kind"] == "village":
+        return village.options(ev, me)
+    return treasure.options(ev, me, is_host=(st["host"] == str(uid)))
+
+
+def _ev_act(st, ev, uid, action, rng):
+    """สั่งหนึ่งอย่างในเหตุการณ์ — คืน (ok, ผล|ข้อความผิดพลาด)"""
+    me = f"p{uid}"
+    if ev["kind"] == "village":
+        ok, err = village.act(ev, me, action, rng)
+    else:
+        ok, err = treasure.act(ev, me, action, rng,
+                               is_host=(st["host"] == str(uid)))
+    if not ok:
+        return False, {"error": err or "สั่งไม่ได้"}
+    ev["turn_at"] = time.time()
+    _ev_finish(st, ev)
+    return True, {"events": []}
+
+
+def _ev_finish(st, ev):
+    """เช็คว่าเหตุการณ์จบหรือยัง แล้วเก็บผลเข้าตัวละครจริง"""
+    if ev["kind"] == "village" and encounter.all_done(ev):
+        ev["over"] = True
+    if not ev.get("over") or ev.get("paid"):
+        return
+    ev["paid"] = True
+    if ev["kind"] == "treasure":
+        _treasure_payout(st, ev)
+
+
+def _treasure_payout(st, ev):
+    """เก็บผลหีบเข้าตัวละครจริง — ดาเมจกับดัก และรางวัลถ้าได้"""
+    from bot.models import player_model
+    for m in ev["members"]:
+        if not m.get("dmg") or not m.get("uid"):
+            continue
+        try:
+            uid = int(m["uid"])
+            p = player_model.get_player(uid) or {}
+            left = max(1, int(p.get("hp") or 1) - int(m["dmg"]))
+            player_model.update_player_field(uid, "hp", left)
+        except Exception as e:
+            print(f"⚠️ [party] หักเลือดกับดักไม่ได้ uid={m.get('uid')}: {e}")
+
+    if not ev.get("prize"):
+        return
+    mons = [{"rank": "Mini-Boss", "stats": {"gold_mult": 5, "exp_reward": 30}}]
+    uids = [m["uid"] for m in ev["members"] if m.get("uid")]
+    got = rewards.pay(uids, mons, random.Random(),
+                      rnd=int(st["extra"].get("round") or 1))
+    ev["reward"] = got
+    encounter.say(ev, "🎁 แบ่งของในหีบกันเรียบร้อย")
+
+
+def _ev_tick(st, ev):
+    """หมดเวลาแล้วบอทเลือกแทน — เหตุการณ์ก็ต้องไม่ค้างเหมือนตอนสู้"""
+    if ev.get("over"):
+        return False
+    who = encounter.current(ev)
+    if not who:
+        if ev["kind"] == "treasure" and ev.get("stage") == treasure.PHASE_CHOOSE:
+            return False        # รอหัวห้อง ไม่มีคิวเทิร์น
+        _ev_finish(st, ev)
+        return True
+    if time.time() - float(ev.get("turn_at") or 0) < engine.TURN_SECONDS:
+        return False
+    pick = village.bot_pick(ev, who) if ev["kind"] == "village" \
+        else treasure.bot_pick(ev, who)
+    uid = int(who[1:])
+    ok, _ = _ev_act(st, ev, uid, pick, random.Random())
+    return bool(ok)
+
+
 def _spawn_battle(st):
     """เกิดมอนแล้วเริ่มสมรภูมิ
 
@@ -288,6 +405,14 @@ def act(uid, action, target=None):
     st = _room(uid)
     if not st:
         return False, {"error": "ยังไม่ได้อยู่ปาร์ตี้ไหน"}
+
+    ev = st["extra"].get("event")
+    if ev:
+        ok, r = _ev_act(st, ev, uid, action, random.Random())
+        if ok:
+            lobby.save(st["room"], st)
+        return ok, r
+
     if not st.get("extra", {}).get("battle"):
         return False, {"error": "ยังไม่ได้เริ่มสมรภูมิ"}
 
@@ -450,7 +575,28 @@ def view(uid):
         out["phase"] = st["extra"].get("phase", "lobby")
         if st["extra"].get("round"):
             out["round"] = int(st["extra"]["round"])
-        if st["extra"].get("battle"):
+        ev = st["extra"].get("event")
+        if ev:
+            if _ev_tick(st, ev):
+                lobby.save(st["room"], st)
+            out["event"] = {
+                "kind": ev["kind"],
+                "art": ev.get("art") or ev["kind"],
+                "stage": ev.get("stage"),
+                "turn_of": encounter.current(ev),
+                "turn_left": max(0, int(engine.TURN_SECONDS
+                                        - (time.time() - float(ev.get("turn_at") or 0)))),
+                "members": [{k: m.get(k) for k in
+                             ("id", "name", "hp", "hp_max", "done", "choice", "roll", "dmg")}
+                            | {"you": m.get("uid") == str(uid)}
+                            for m in ev["members"]],
+                "log": list(ev.get("log") or []),
+                "over": bool(ev.get("over")),
+                "actions": _ev_actions(st, ev, uid),
+                "round": int(st["extra"].get("round") or 1),
+                "reward": ev.get("reward"),
+            }
+        elif st["extra"].get("battle"):
             # ⏱️ คนที่ยังเปิดจออยู่เป็นคนเดินนาฬิกาให้ — หมดเวลาแล้วบอทเล่นแทน
             #    (ไม่มีตรงนี้ คน AFK คนเดียวค้างทั้งปาร์ตี้ ไม่มีใครปลด)
             #    ทุกคนหลุดหมดก็ไม่มีใคร poll = ไม่มีอะไรต้องเดิน
