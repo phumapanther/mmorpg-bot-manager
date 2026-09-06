@@ -29,7 +29,7 @@ def cost_for(uid):
     return int(adventure_core.rest_cost(p))
 
 
-def options(ev, unit_id):
+def options(ev, unit_id, is_host=False):
     """ปุ่มที่คนนี้กดได้ — บอกราคาไปด้วยเลย ไม่ให้กดแล้วค่อยรู้"""
     m = encounter.member(ev, unit_id) or {}
     price = cost_for(m.get("uid") or 0) if m.get("uid") else 0
@@ -40,7 +40,7 @@ def options(ev, unit_id):
     ]
 
 
-def act(ev, unit_id, action, rng=None):
+def act(ev, unit_id, action, rng=None, is_host=False):
     """คนนี้เลือกทำอะไร — คืน (ok, ข้อความผิดพลาด|None)
 
     🔒 ด่านเดียวที่ตัดสินว่าสั่งได้ไหม (ถึงตาจริงไหม · เลือกไปแล้วหรือยัง)

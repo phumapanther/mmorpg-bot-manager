@@ -21,8 +21,10 @@ import random
 
 from bot import adventure_core
 
-# ชนิดที่ทำเสร็จแล้วจริง ๆ — เติมชื่อตอนทำ 10c เสร็จ
-READY = ("monster", "village", "treasure")
+# ชนิดที่ทำเสร็จแล้วจริง ๆ — ครบทุกชนิดของเกมหลักแล้วตั้งแต่ 10c (2026-09-05)
+# ยังเก็บด่านนี้ไว้: Panel เพิ่มชื่ออีเวนต์ใหม่เมื่อไหร่ ปาร์ตี้จะตกเป็น "เจอมอน"
+# แทนที่จะระเบิด KeyError กลางการเดินทาง
+READY = ("monster", "village", "treasure", "dungeon", "npc", "trap")
 
 FALLBACK = "monster"
 

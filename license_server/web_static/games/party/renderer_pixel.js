@@ -500,6 +500,17 @@ function pxRoundBadge(c) {
   c.textAlign = 'center';
   c.textBaseline = 'middle';
   c.fillText(txt, PX_W - w / 2 - 12, 24);
+  // 🚪 อยู่ในดันเจี้ยน — ป้ายเวฟซ้อนใต้ป้ายรอบ (ข้อความมาจากเซิร์ฟเวอร์)
+  const wv = PX.state.wave;
+  if (!wv) return;
+  c.font = 'bold 14px system-ui, sans-serif';
+  const w2 = c.measureText(wv).width + 24;
+  c.fillStyle = 'rgba(0,0,0,.5)';
+  c.beginPath();
+  c.roundRect(PX_W - w2 - 12, 42, w2, 26, 13);
+  c.fill();
+  c.fillStyle = '#9ad0ff';
+  c.fillText(wv, PX_W - w2 / 2 - 12, 56);
   c.textBaseline = 'alphabetic';
 }
 

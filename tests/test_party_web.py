@@ -418,9 +418,17 @@ def test_ปุ่มเหตุการณ์มาจากเซิร์�
 
 
 def test_ใช้ภาพเหตุการณ์ของเกมหลัก():
-    """มีภาพ 176 ใบอยู่แล้วที่ /assets/events/ ไม่ต้องวาดใหม่"""
-    assert "/assets/events/" in LOBBY
-    assert "${ev.art}" in LOBBY, "ไม่ได้เลือกภาพตามชนิดเหตุการณ์"
+    """มีภาพ 176 ใบอยู่แล้วที่ /assets/events/ ไม่ต้องวาดใหม่
+
+    ⚠️ เทสเดิมบังคับว่า **หน้าเว็บต้องต่อ URL เอง** (`${ev.art}`) ซึ่งคือต้นเหตุ
+       ที่พื้นหลังเหตุการณ์ 404 มาตลอด เพราะชื่อไฟล์จริงมีคำนำหน้าทวีป
+       (`main_village.png` ไม่ใช่ `village.png`) — เทสเขียวแต่ล็อกของที่ผิดไว้
+       ตอนนี้เซิร์ฟเวอร์เป็นคนต่อ URL ให้ (ดู event_images.web_url)
+    """
+    assert "ev.art_url" in LOBBY, "ไม่ได้ใช้ url ที่เซิร์ฟเวอร์ส่งมา"
+    assert "/assets/events/${" not in LOBBY, "หน้าเว็บยังต่อ URL ภาพเอง"
+    from bot import event_images
+    assert event_images.web_url("village"), "หาภาพหมู่บ้านไม่เจอทั้งที่มีไฟล์"
 
 
 def test_จอเหตุการณ์โชว์รอบกับเลือดทุกคน():

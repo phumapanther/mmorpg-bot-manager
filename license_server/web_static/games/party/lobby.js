@@ -242,9 +242,11 @@ function partyPaintEvent() {
 
   box.innerHTML = `
     <div class="party-event">
-      <div class="ev-art" style="background-image:url('/assets/events/${ev.art}.png')">
+      <div class="ev-art"${ev.art_url
+        ? ` style="background-image:url('${ev.art_url}')"` : ''}>
         <span class="ev-round">🧭 รอบที่ ${ev.round}</span>
       </div>
+      ${partyFxHtml()}
       <ul class="ev-log">${(ev.log || []).map(t => `<li>${t}</li>`).join('')}</ul>
       <ul class="ev-party">${rows}</ul>
       <div class="party-bar" id="partyBar">
@@ -264,6 +266,21 @@ function partyPaintEvent() {
   const out = document.getElementById('partyOut');
   if (out) out.onclick = () => partyDo('leave');
   void waiting;
+}
+
+/** แถบสถานะติดลบของคุณ — ติดเฉพาะการเดินทางนี้ ไม่ตามไปโหมดเดี่ยว
+ *
+ * ป้ายทั้งหมดมาจากเซิร์ฟเวอร์ (PARTY.fx) หน้าเว็บไม่รู้จักชื่อสถานะเองสักตัว
+ */
+function partyFxHtml() {
+  const fx = (PARTY && PARTY.fx) || {};
+  const keys = Object.keys(fx);
+  const log = (PARTY && PARTY.fx_log) || [];
+  if (!keys.length && !log.length) return '';
+  return `<div class="party-fx">
+    ${keys.map(k => `<span class="fx-chip">${fx[k]}</span>`).join('')}
+    ${log.map(t => `<span class="fx-tick">🩸 ${t}</span>`).join('')}
+  </div>`;
 }
 
 /** ปุ่มตอนเหตุการณ์จบ — เหมือนตอนจบสมรภูมิ */
@@ -293,8 +310,11 @@ function partyPaintBattle() {
   const box = document.getElementById('partyMount');
   if (!box) return;
   if (!document.getElementById('partyBar')) {
-    box.innerHTML = '<div id="partyCanvas"></div><div id="partyBar" class="party-bar"></div>';
+    box.innerHTML = '<div id="partyCanvas"></div><div id="partyFx"></div>'
+      + '<div id="partyBar" class="party-bar"></div>';
   }
+  const fx = document.getElementById('partyFx');
+  if (fx) fx.innerHTML = partyFxHtml();
   pbMount('partyCanvas');
   pbSetState(PARTY.battle);
   partyPaintBar();

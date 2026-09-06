@@ -201,6 +201,14 @@ function pbRoundBadge(c) {
   c.font = 'bold 15px system-ui, sans-serif';
   c.textAlign = 'center';
   c.fillText(`🧭 รอบที่ ${r}`, 814, 28);
+  // 🚪 อยู่ในดันเจี้ยน — ป้ายเวฟซ้อนใต้ป้ายรอบ (ข้อความมาจากเซิร์ฟเวอร์)
+  const w = PB.state.wave;
+  if (!w) return;
+  c.fillStyle = 'rgba(0,0,0,.5)';
+  c.fillRect(740, 40, 148, 26);
+  c.fillStyle = '#9ad0ff';
+  c.font = 'bold 14px system-ui, sans-serif';
+  c.fillText(w, 814, 58);
 }
 
 /** ป้ายจบการต่อสู้ + ตารางอันดับ — ขึ้นหลังอนิเมชันจบเท่านั้น */

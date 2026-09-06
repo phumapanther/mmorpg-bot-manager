@@ -50,10 +50,15 @@ def test_สุ่มได้เฉพาะชนิดที่ทำเส�
 
 
 def test_ชนิดที่ยังไม่ทำตกเป็นมอน():
-    """dungeon/npc/trap ยังไม่ทำ — ต้องกลายเป็นมอน ไม่ใช่พัง"""
-    assert "dungeon" not in encounter.READY
-    assert "npc" not in encounter.READY
+    """⭐ 10c ทำครบทุกชนิดแล้ว — ด่านนี้เหลือไว้เผื่อ Panel เพิ่มชื่ออีเวนต์ใหม่
+
+    ไม่มีใน READY ต้องกลายเป็นมอน ไม่ใช่ KeyError กลางการเดินทาง
+    """
     assert encounter.FALLBACK == "monster"
+    assert encounter.roll_kind.__doc__
+    import unittest.mock as _m
+    with _m.patch.object(adventure_core, "EVENT_LIST", ["อีเวนต์ใหม่"]),          _m.patch.object(adventure_core, "event_weights", lambda *_: [1]):
+        assert encounter.roll_kind(1, random.Random(1)) == "monster"
 
 
 def test_น้ำหนักมาจากเกมหลักไม่ใช่ตั้งใหม่():

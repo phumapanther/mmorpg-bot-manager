@@ -234,6 +234,17 @@ try {
     let seen = calls.filter(x => x[0] === 'fillText').map(x => String(x[1]));
     ok('โชว์รอบการเดินทางบนจอ', seen.some(t => t.includes('รอบที่ 7')));
 
+    // 🚪 ป้ายเวฟดันเจี้ยน (เฟส 10c) — ข้อความมาจากเซิร์ฟเวอร์ renderer วาดตามที่สั่ง
+    ok('ไม่ได้อยู่ในดันเจี้ยนก็ไม่มีป้ายเวฟ', !seen.some(t => t.includes('เวฟ')));
+    const dg = JSON.parse(JSON.stringify(live));
+    dg.wave = '🚪 เวฟ 3/10 👑';
+    const nDg = calls.length;
+    sandbox.pbSetState(dg);
+    drain();
+    seen = calls.slice(nDg).filter(x => x[0] === 'fillText').map(x => String(x[1]));
+    ok('โชว์เวฟดันเจี้ยนบนจอ', seen.some(t => t.includes('เวฟ 3/10')));
+    ok('อยู่ในดันเจี้ยนก็ยังเห็นรอบ', seen.some(t => t.includes('รอบที่ 7')));
+
     const done = JSON.parse(JSON.stringify(state));
     done.over = true;
     done.winner = 'monster';

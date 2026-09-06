@@ -1384,6 +1384,17 @@ body.bar-min .pbar .money { margin-left: auto; }
 .ev-bar i { display: block; height: 100%; background: var(--g-ok); }
 .ev-roll { color: var(--g-gold); font-size: 13px; }
 
+/* 🧪 สถานะติดลบจากภัยพิบัติ — ติดเฉพาะการเดินทางนี้ */
+.party-fx {
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0;
+}
+.party-fx:empty { display: none; }
+.fx-chip, .fx-tick {
+  padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 700;
+}
+.fx-chip { background: rgba(200, 60, 60, 0.22); color: #ffb0b0; }
+.fx-tick { background: rgba(255, 255, 255, 0.05); color: var(--g-muted); font-weight: 500; }
+
 @media (max-width: 560px) {
   .ev-art { height: 140px; }
   .ev-log { max-height: 100px; font-size: 13px; }

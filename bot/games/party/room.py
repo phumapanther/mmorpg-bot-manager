@@ -10,8 +10,13 @@ import random
 import time
 
 from bot import lobby
-from bot.games.party import (encounter, engine, events, journey, monsters,
-                             rewards, treasure, village)
+from bot.games.party import (disaster, dungeon, encounter, engine, events,
+                             journey, monsters, npc, rewards, treasure, village)
+
+# 🎲 เหตุการณ์ที่ไม่ใช่การต่อสู้ — ทุกโมดูลหน้าตาเหมือนกัน (start · options · act · bot_pick)
+#    เพิ่มเหตุการณ์ใหม่ = เขียนโมดูลแล้วเติมบรรทัดเดียวตรงนี้ ไม่ต้องแก้ if/else ที่ไหนอีก
+EVENT_MODS = {"village": village, "treasure": treasure,
+              "trap": disaster, "npc": npc}      # "trap" = ภัยพิบัติ (ชื่อตามเกมหลัก)
 
 GAME = "party"
 MAX_PARTY = 5          # เจ้าของเกมเคาะ 2026-09-03
@@ -89,6 +94,8 @@ def begin(uid, boss_raid=False):
     st["extra"]["round"] = 1
     st["extra"]["score"] = {}  # ตารางอันดับเริ่มนับใหม่ทุกการเดินทาง
     st["extra"].pop("last_kind", None)
+    st["extra"].pop("party_fx", None)      # สถานะติดลบมีอายุแค่การเดินทางเดียว
+    dungeon.clear(st)
     _heal_full(st)             # ออกเดินทางครั้งใหม่ = ฟื้นเต็ม (เฉพาะที่นี่เท่านั้น)
     _next_encounter(st)
     return True, lobby.save(st["room"], st)
@@ -164,6 +171,8 @@ def restart(uid):
     st["extra"]["paid"] = False
     st["extra"]["round"] = 1
     st["extra"].pop("last_kind", None)
+    st["extra"].pop("party_fx", None)
+    dungeon.clear(st)
     _next_encounter(st)
     return True, lobby.save(st["room"], st)
 
@@ -251,20 +260,84 @@ def _next_encounter(st, rng=None):
     rng = rng or random.Random()
     st["extra"].pop("event", None)
     st["extra"].pop("battle", None)
+    _fx_tick(st, rng)          # สถานะจากภัยพิบัติกัดกินหนึ่งครั้งต่อรอบ
+
+    # 🚪 อยู่กลางดันเจี้ยน = ไม่ต้องสุ่ม เวฟถัดไปมาเลย (นับเวฟละรอบ)
+    if dungeon.active(st):
+        w = dungeon.advance(st)
+        if w:
+            st["extra"]["last_kind"] = "dungeon"
+            # ⚠️ or ไม่ใช่ = — ปาร์ตี้ที่ติ๊ก "ล่าบอส" ไว้ต้องเจอบอสทุกเวฟเหมือนเดิม
+            #    เขียนทับด้วย False จะกลายเป็นว่ามุดดันเจี้ยนแล้วโหมดล่าบอสหายไป
+            _spawn_battle(st, boss=dungeon.is_boss(w)
+                          or bool(st["extra"].get("boss_raid")))
+            return "dungeon"
+
     kind = encounter.roll_kind(int(st["extra"].get("round") or 1), rng,
                                last=st["extra"].get("last_kind"))
     st["extra"]["last_kind"] = kind
+    if kind == "dungeon":
+        dungeon.start(st)
+        disaster.cleanse(st, "dungeon")     # ในดันเจี้ยนอุ่น — ตามที่เกมหลักกำหนด
+        _spawn_battle(st, boss=dungeon.is_boss(dungeon.advance(st))
+                      or bool(st["extra"].get("boss_raid")))
+        return kind
     if kind == "monster":
         _spawn_battle(st)
         return kind
 
     members = [{"id": f"p{p['uid']}", "uid": p["uid"], "name": p["name"],
                 "hp": p["hp"], "hp_max": p["max_hp"]} for p in _players_of(st)]
-    ev = village.start(members, rng) if kind == "village" \
-        else treasure.start(members, rng)
+    ev = EVENT_MODS[kind].start(members, rng)
     ev["turn_at"] = time.time()
     st["extra"]["event"] = ev
     return kind
+
+
+def _fx_tick(st, rng=None):
+    """สถานะติดลบกัดกินตอนขึ้นรอบใหม่ — หักเลือดจริงแล้วเก็บข้อความไว้เล่า
+
+    ⚠️ หักไม่ถึงตาย เหลืออย่างน้อย 1 เสมอ (ตายระหว่างเดินไม่มีในสเปก)
+    """
+    from bot.models import player_model
+    lines = []
+    for uid, key, dmg in disaster.tick_round(st, rng):
+        try:
+            pl = player_model.get_player(int(uid)) or {}
+            player_model.update_player_field(
+                int(uid), "hp", max(1, int(pl.get("hp") or 1) - int(dmg)))
+            lines.append(f"{pl.get('name') or uid} เสีย {dmg:,} เลือดจาก"
+                         f"{disaster.label(key)}")
+        except Exception as e:
+            print(f"⚠️ [party] หักเลือดสถานะไม่ได้ uid={uid}: {e}")
+    if lines:
+        st["extra"]["fx_log"] = lines
+    else:
+        st["extra"].pop("fx_log", None)
+    return lines
+
+
+def in_event(uid):
+    """ตอนนี้ปาร์ตี้ของคนนี้อยู่ในเหตุการณ์ (ไม่ใช่สมรภูมิ) หรือเปล่า
+
+    ชั้น API ใช้ตัดสินว่าจะส่งคำสั่งต่อให้ `act()` ไหม — **ไม่ได้ตรวจว่าสั่งได้จริง**
+    ด่านนั้นคือ `_ev_act` (ถึงตาจริงไหม · ของอยู่ในเป้จริงไหม) ที่เดียวเหมือนเดิม
+    """
+    st = _room(uid)
+    return bool(st and (st.get("extra") or {}).get("event"))
+
+
+def _art_url(st, ev):
+    """ภาพพื้นหลังของเหตุการณ์ — ลองภาพประจำทวีปของหัวห้องก่อน"""
+    from bot import event_images
+    from bot.models import player_model
+    try:
+        p = player_model.get_player(int(st["host"])) or {}
+        cont = p.get("continent") or None
+    except Exception as e:
+        print(f"⚠️ [party] อ่านทวีปหัวห้องไม่ได้: {e}")
+        cont = None
+    return event_images.web_url(ev.get("art") or ev["kind"], cont)
 
 
 def _ev_actions(st, ev, uid):
@@ -273,19 +346,14 @@ def _ev_actions(st, ev, uid):
     if ev.get("over") or encounter.current(ev) not in (me, None):
         if ev["kind"] != "treasure" or ev.get("stage") != treasure.PHASE_CHOOSE:
             return []
-    if ev["kind"] == "village":
-        return village.options(ev, me)
-    return treasure.options(ev, me, is_host=(st["host"] == str(uid)))
+    return EVENT_MODS[ev["kind"]].options(ev, me, is_host=(st["host"] == str(uid)))
 
 
 def _ev_act(st, ev, uid, action, rng):
     """สั่งหนึ่งอย่างในเหตุการณ์ — คืน (ok, ผล|ข้อความผิดพลาด)"""
     me = f"p{uid}"
-    if ev["kind"] == "village":
-        ok, err = village.act(ev, me, action, rng)
-    else:
-        ok, err = treasure.act(ev, me, action, rng,
-                               is_host=(st["host"] == str(uid)))
+    ok, err = EVENT_MODS[ev["kind"]].act(ev, me, action, rng,
+                                         is_host=(st["host"] == str(uid)))
     if not ok:
         return False, {"error": err or "สั่งไม่ได้"}
     ev["turn_at"] = time.time()
@@ -295,13 +363,42 @@ def _ev_act(st, ev, uid, action, rng):
 
 def _ev_finish(st, ev):
     """เช็คว่าเหตุการณ์จบหรือยัง แล้วเก็บผลเข้าตัวละครจริง"""
-    if ev["kind"] == "village" and encounter.all_done(ev):
+    if ev["kind"] in ("village", "npc", disaster.KIND) and encounter.all_done(ev):
         ev["over"] = True
     if not ev.get("over") or ev.get("paid"):
         return
     ev["paid"] = True
     if ev["kind"] == "treasure":
         _treasure_payout(st, ev)
+    elif ev["kind"] == disaster.KIND:
+        _disaster_payout(st, ev)
+    elif ev["kind"] in ("village", "npc"):
+        # 🧼 หมู่บ้าน/NPC ล้างสถานะให้ — เกมหลักเป็นคนบอกว่าล้างอะไรได้ (cleanse_on)
+        gone = disaster.cleanse(st, ev["kind"])
+        if gone:
+            encounter.say(ev, "🧼 หายจาก " + " · ".join(sorted(set(gone))))
+
+
+def _disaster_payout(st, ev):
+    """เก็บผลภัยพิบัติเข้าตัวละครจริง — หักเลือดและติดสถานะของการเดินทางนี้
+
+    ⚠️ สถานะลงที่ห้อง **ไม่ลงตัวละคร** — ติดเฉพาะการเดินทางนี้
+       (เจ้าของเกมเคาะ 2026-09-05) ไปโหมดเดี่ยวแล้วต้องไม่ติดตามไป
+    """
+    from bot.models import player_model
+    for m in ev["members"]:
+        if not m.get("uid") or m.get("choice") != "hit":
+            continue
+        try:
+            uid = int(m["uid"])
+            pl = player_model.get_player(uid) or {}
+            left = max(1, int(pl.get("hp") or 1) - int(m.get("dmg") or 0))
+            player_model.update_player_field(uid, "hp", left)
+            m["hp"] = left          # แถบเลือดบนจอเหตุการณ์อ่านค่านี้ ไม่ได้อ่านฐานข้อมูล
+        except Exception as e:
+            print(f"⚠️ [party] หักเลือดภัยพิบัติไม่ได้ uid={m.get('uid')}: {e}")
+        if m.get("status"):
+            disaster.afflict(st, m["uid"], m["status"], m.get("turns"))
 
 
 def _treasure_payout(st, ev):
@@ -315,6 +412,7 @@ def _treasure_payout(st, ev):
             p = player_model.get_player(uid) or {}
             left = max(1, int(p.get("hp") or 1) - int(m["dmg"]))
             player_model.update_player_field(uid, "hp", left)
+            m["hp"] = left          # แถบเลือดบนจอเหตุการณ์อ่านค่านี้ ไม่ได้อ่านฐานข้อมูล
         except Exception as e:
             print(f"⚠️ [party] หักเลือดกับดักไม่ได้ uid={m.get('uid')}: {e}")
 
@@ -340,14 +438,13 @@ def _ev_tick(st, ev):
         return True
     if time.time() - float(ev.get("turn_at") or 0) < engine.TURN_SECONDS:
         return False
-    pick = village.bot_pick(ev, who) if ev["kind"] == "village" \
-        else treasure.bot_pick(ev, who)
+    pick = EVENT_MODS[ev["kind"]].bot_pick(ev, who)
     uid = int(who[1:])
     ok, _ = _ev_act(st, ev, uid, pick, random.Random())
     return bool(ok)
 
 
-def _spawn_battle(st):
+def _spawn_battle(st, boss=None):
     """เกิดมอนแล้วเริ่มสมรภูมิ
 
     ⚠️ มอนมาจาก adventure_core.spawn_monster ของเกมหลัก ไม่สร้างพันธุ์ใหม่
@@ -356,8 +453,10 @@ def _spawn_battle(st):
     rng = random.Random()
     players = _players_of(st)
     lv = max(1, sum(int(p.get("level") or 1) for p in players) // max(1, len(players)))
+    if boss is None:
+        boss = bool(st["extra"].get("boss_raid"))
     mons = monsters.spawn_group(int(st["host"]), len(players), rng,
-                                boss=bool(st["extra"].get("boss_raid")), level=lv,
+                                boss=bool(boss), level=lv,
                                 rnd=int(st["extra"].get("round") or 1))
     engine.start_battle(st, players, mons, rng)
     # มอนที่ไวกว่าผู้เล่นต้องได้เดินก่อน ไม่งั้นเกมค้าง
@@ -549,6 +648,8 @@ def settle(st):
         st["extra"]["penalty"] = _punish(b)
 
     _carry_hp(b)                        # เลือดที่เหลือติดตัวกลับไปเกมหลัก
+    if b.get("winner") != "party" and dungeon.active(st):
+        dungeon.clear(st)               # หนีหรือล้มยกทีม = จบดันเจี้ยน ของที่ได้ไม่ถูกริบ
     if b.get("winner") != "party":
         st["extra"]["reward"] = None
         lobby.save(st["room"], st)
@@ -575,6 +676,10 @@ def view(uid):
         out["phase"] = st["extra"].get("phase", "lobby")
         if st["extra"].get("round"):
             out["round"] = int(st["extra"]["round"])
+        out["dungeon"] = dungeon.view(st)
+        out["fx"] = {k: disaster.label(k) for k in disaster.of(st, uid)}
+        if st["extra"].get("fx_log"):
+            out["fx_log"] = list(st["extra"]["fx_log"])
         ev = st["extra"].get("event")
         if ev:
             if _ev_tick(st, ev):
@@ -582,6 +687,9 @@ def view(uid):
             out["event"] = {
                 "kind": ev["kind"],
                 "art": ev.get("art") or ev["kind"],
+                # 🖼️ ต่อ URL ที่นี่ที่เดียว — ชื่อไฟล์ภาพมีคำนำหน้าทวีป
+                #    หน้าเว็บเดาเองแล้วได้ 404 (ดู event_images.web_url)
+                "art_url": _art_url(st, ev),
                 "stage": ev.get("stage"),
                 "turn_of": encounter.current(ev),
                 "turn_left": max(0, int(engine.TURN_SECONDS
@@ -611,6 +719,12 @@ def view(uid):
             out["battle"] = engine.view(st, uid)
             # renderer รับแค่ก้อน battle — ยัดรอบกับตารางอันดับเข้าไปด้วย
             out["battle"]["round"] = int(st["extra"].get("round") or 1)
+            # 🚪 ป้ายเวฟดันเจี้ยน — ประกอบข้อความที่นี่ที่เดียว renderer ทั้งสองตัว
+            #    จะได้ไม่ต้องรู้กติกาเวฟ (วาดตัวหนังสือที่ส่งไปให้เฉย ๆ)
+            d = dungeon.view(st)
+            out["battle"]["wave"] = (
+                f"🚪 เวฟ {d['wave']}/{d['waves']}" + (" 👑" if d["boss"] else "")
+            ) if d else None
             out["battle"]["score"] = _score_board(st)
             out["reward"] = st["extra"].get("reward")
             out["wiped"] = bool(st["extra"].get("wiped"))

@@ -13,7 +13,9 @@ router = APIRouter()
 
 
 class PartyBody(BaseModel):
-    action: str = "view"       # create|join|leave|start|again|restart|view + attack|skill|aoe|heal|defend|flee
+    action: str = "view"       # create|join|leave|start|again|restart|view
+    #                          + คำสั่งในสมรภูมิ (attack|revive|flee|<สกิล>)
+    #                          + คำสั่งในเหตุการณ์ (rest|walk|open|dodge|talk|buy:<id>|...)
     code: str = ""             # รหัสห้องตอน join
     target: str = ""           # เป้าหมายตอนสั่งท่า (เช่น "m2" หรือ "p3")
     boss_raid: bool = False    # หัวห้องติ๊กก่อนกดเริ่ม = เจอบอสแทนมอนธรรมดา
@@ -72,6 +74,21 @@ def party_room(body: PartyBody, request: Request):
 
         if body.action == "view":
             return {"ok": True, "room": room.view(uid)}
+
+        # ── คำสั่งในเหตุการณ์ที่ไม่ใช่การต่อสู้ (เฟส 10b-10c) ──
+        #
+        # 🔒 อยู่ในเหตุการณ์ = ส่งต่อให้ room.act ตัดสินทั้งดุ้น เพราะโมดูลเหตุการณ์
+        #    เป็นด่านเดียวที่รู้ว่าถึงตาจริงไหม · ของอยู่ในเป้จริงไหม
+        #    ทำลิสต์คำสั่งซ้ำที่นี่จะพลาดคำสั่งแบบ "buy:<id>" ที่สร้างตอนรันทันที
+        #
+        # ⚠️ ต้องอยู่ **หลัง** create/join/leave/start/again/restart
+        #    ไม่งั้นชื่อคำสั่งที่ซ้ำกันจะถูกเหตุการณ์กินไปหมด
+        if room.in_event(uid):
+            ok, r = room.act(uid, body.action)
+            if not ok:
+                raise HTTPException(400, r.get("error", "สั่งไม่ได้"))
+            return {"ok": True, "room": room.view(uid),
+                    "events": r.get("events", [])}
 
         # ── คำสั่งในสมรภูมิ (เฟส 3) ──
         # 🔒 engine._check() เป็นด่านเดียวที่ตัดสินว่าสั่งได้ไหม

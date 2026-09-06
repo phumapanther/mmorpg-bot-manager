@@ -7,7 +7,13 @@
 import re
 from pathlib import Path
 
-import discord
+# ⚠️ discord เป็นของ "ไม่จำเป็น" ที่นี่ — ฝั่งเว็บเรียกแค่ `web_url()` ซึ่งคืนสตริง
+#    ก่อนหน้านี้ import ตรง ๆ ทำให้แกนปาร์ตี้ (`room._art_url`) พังบนโฮสต์ที่ไม่มี
+#    discord ทั้งที่ไม่ได้ใช้เลย · ฟังก์ชันที่คืน discord.File จะฟ้องตอนเรียกเอง
+try:
+    import discord
+except ImportError:
+    discord = None
 
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets" / "events"
 
@@ -26,9 +32,11 @@ def _file(stem):
     if not config_loader.get_config().get("event_images", {}).get("enabled", True):
         return None
     p = ASSETS_DIR / f"{stem}.png"
-    if p.is_file():
-        return discord.File(str(p), filename=f"{stem}.png")
-    return None
+    if not p.is_file():
+        return None
+    if discord is None:
+        raise RuntimeError("ต้องมี discord ถึงจะแนบภาพได้ — ฝั่งเว็บใช้ web_url() แทน")
+    return discord.File(str(p), filename=f"{stem}.png")
 
 
 def monster_slug(name):
@@ -46,6 +54,21 @@ def event_image(key, continent=None):
         if f:
             return f
     return _file(key)
+
+
+def web_url(key, continent=None):
+    """URL ภาพอีเวนต์สำหรับหน้าเว็บ — กติกาชื่อไฟล์เดียวกับฝั่งดิสเป๊ะ ๆ
+
+    ⚠️ ในโฟลเดอร์ไม่มีไฟล์ชื่อ `village.png` เปล่า ๆ — มีแต่ `main_village.png`
+       กับ `frozen_village.png` ราย "ทวีป" ต่อ URL เองแบบ `/assets/events/<key>.png`
+       จึงได้ 404 เงียบ ๆ ทุกครั้ง (พื้นหลังเหตุการณ์บนเว็บหายไปตั้งแต่ 10b)
+
+    ไม่มีภาพไหนตรงเลยคืน None — หน้าเว็บต้องวาดได้โดยไม่มีพื้นหลัง
+    """
+    for stem in ([f"{continent}_{key}"] if continent else []) + [f"main_{key}", str(key)]:
+        if (ASSETS_DIR / f"{stem}.png").is_file():
+            return f"/assets/events/{stem}.png"
+    return None
 
 
 def monster_image(name, rank=None):
