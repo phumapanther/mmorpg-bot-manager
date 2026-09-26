@@ -3,9 +3,15 @@
 ต้องเปิดโปรแกรมนี้ทิ้งไว้เสมอ: ตัวบอทของลูกค้าจะเช็คคีย์ผ่าน API นี้ทุกครั้งที่สตาร์ท
 ถ้าปิดโปรแกรมนี้ บอทของลูกค้าจะสตาร์ทไม่ได้ (เช็คคีย์ไม่ผ่าน)
 
-ถ้ามี license_server/tools/cloudflared.exe จะเปิด quick tunnel ให้อัตโนมัติ และโชว์ลิงก์ปัจจุบัน
-ในหน้าต่างนี้ (ลิงก์เปลี่ยนทุกครั้งที่เปิดโปรแกรมใหม่ — โปรแกรมจะเขียนลิงก์ใหม่ลง
-LICENSE_SERVER_URL.txt ที่ root โปรเจ็คให้อัตโนมัติ เหลือแค่กด build ใหม่แจกลูกค้า)
+ลิงก์ที่ลูกค้าใช้มี 2 แบบ — ดูที่ LICENSE_SERVER_URL.txt ว่าเป็นแบบไหน:
+
+  1. 🔒 **โดเมนถาวร** (เช่น https://fragmentrift.com ผ่าน Cloudflare named tunnel)
+     ใส่ไว้ในไฟล์เองครั้งเดียว → โปรแกรมนี้ **ไม่เปิด quick tunnel และไม่เขียนทับไฟล์**
+     ลิงก์คงที่ตลอด ลูกค้าเก่าไม่พัง ไม่ต้อง build ใหม่ทุกครั้งที่รีสตาร์ท
+
+  2. 🎲 **quick tunnel** (ไฟล์ว่าง/ยังเป็นลิงก์ *.trycloudflare.com)
+     ถ้ามี license_server/tools/cloudflared.exe จะเปิดให้อัตโนมัติ แล้วเขียนลิงก์ใหม่
+     ทับไฟล์ให้เอง — **ลิงก์เปลี่ยนทุกครั้งที่เปิดโปรแกรมใหม่** ต้อง build ใหม่ทุกครั้ง
 
 รัน: python -m license_server.keygen_gui
 """
@@ -18,6 +24,7 @@ import sys
 import threading
 import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
+from urllib.parse import urlparse
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -38,6 +45,33 @@ PROJECT_ROOT = os.path.dirname(_HERE)
 CLOUDFLARED_PATH = os.path.join(_HERE, "tools", "cloudflared.exe")
 URL_FILE = os.path.join(PROJECT_ROOT, "LICENSE_SERVER_URL.txt")
 TUNNEL_URL_PATTERN = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
+
+
+def fixed_url(path=None):
+    """ลิงก์ถาวรที่เจ้าของตั้งเองใน LICENSE_SERVER_URL.txt — ไม่ได้ตั้งไว้คืน None
+
+    🔑 กฎ: อะไรก็ตามที่เป็น https:// และ **ไม่ใช่** ลิงก์ quick tunnel = ถือว่าตั้งเอง
+       ไม่ต้องมีไฟล์คอนฟิกตัวที่สอง ไม่ต้องมีปุ่มเพิ่ม — แก้ไฟล์เดิมไฟล์เดียวจบ
+
+    คืน None เมื่อ: ไม่มีไฟล์ · ว่าง · เป็นลิงก์ quick tunnel · ยังเป็น placeholder
+    ทั้งสี่กรณีคือ "ยังไม่ได้ตั้งโดเมน" → ให้เปิด quick tunnel ต่อเหมือนเดิม
+    """
+    try:
+        with open(path or URL_FILE, encoding="utf-8") as f:
+            url = f.read().strip()
+    except OSError:
+        return None
+    if not url.startswith("https://"):
+        return None
+    if "YOUR-LICENSE-SERVER-ADDRESS" in url:
+        return None
+    # ⚠️ เทียบที่ "ชื่อโฮสต์" ไม่ใช่ทั้งสตริง — ลิงก์ quick tunnel ที่มี / ต่อท้าย
+    #    หรือมี path ติดมาจะรอดด่านที่เทียบทั้งสตริงไปได้ แล้วถูกตีว่าเป็นโดเมนถาวร
+    #    ผลคือลิงก์สุ่มที่ตายแล้วถูกล็อกไว้ถาวร ไม่มีอะไรเขียนทับได้อีก
+    host = urlparse(url).hostname or ""      # hostname เป็นพิมพ์เล็กให้อยู่แล้ว
+    if host == "trycloudflare.com" or host.endswith(".trycloudflare.com"):
+        return None
+    return url
 
 
 def run_server_in_background():
@@ -114,6 +148,17 @@ class KeygenApp:
         self.start_tunnel()
 
     def start_tunnel(self):
+        # 🔒 ตั้งโดเมนถาวรไว้แล้ว — ห้ามเปิด quick tunnel ซ้อน
+        #    ไม่ดักตรงนี้ = cloudflared เด้งขึ้นมาตัวที่สอง แล้วเขียนลิงก์สุ่ม
+        #    ทับโดเมนถาวรทิ้ง ชุดที่ build ต่อจากนั้นจะชี้ผิดที่ทั้งหมด
+        fixed = fixed_url()
+        if fixed:
+            self.tunnel_var.set(fixed)
+            self.url_status_var.set(
+                "🔒 ใช้โดเมนถาวรจาก LICENSE_SERVER_URL.txt — ไม่เปิด quick tunnel "
+                "และไม่เขียนทับไฟล์ · ลิงก์นี้คงที่ ไม่ต้อง build ใหม่ทุกครั้งที่รีสตาร์ท")
+            return
+
         if not os.path.exists(CLOUDFLARED_PATH):
             self.tunnel_var.set(f"ไม่พบ cloudflared.exe — ใช้ได้เฉพาะเครื่องนี้ (http://localhost:{PORT})")
             return
@@ -161,25 +206,28 @@ class KeygenApp:
 
     def start_build(self):
         """กดปุ่ม Build — ทำเหมือน build_release.bat แต่รันเบื้องหลัง หน้าต่างไม่ค้าง"""
-        current = self.tunnel_var.get()
-        if current.startswith("https://"):
-            try:
-                with open(URL_FILE, encoding="utf-8") as f:
-                    saved = f.read().strip()
-            except OSError:
-                saved = ""
-            if saved != current:
-                messagebox.showwarning(
-                    "ลิงก์ยังไม่ถูกบันทึก",
-                    "ลิงก์ tunnel ปัจจุบันยังไม่ตรงกับ LICENSE_SERVER_URL.txt — แก้ไฟล์ให้ตรงก่อนแล้วค่อย build",
-                )
-                return
-        elif os.path.exists(CLOUDFLARED_PATH):
-            if not messagebox.askyesno(
-                "ยังไม่มีลิงก์ tunnel",
-                "tunnel ยังไม่ขึ้น — ถ้า build ตอนนี้จะได้ลิงก์เก่าใน LICENSE_SERVER_URL.txt\nbuild ต่อเลยไหม?",
-            ):
-                return
+        # 🔒 ตั้งโดเมนถาวรไว้แล้ว = ไฟล์ถูกต้องอยู่แล้วโดยนิยาม ข้ามด่านเตือนไปเลย
+        #    (ด่านพวกนี้มีไว้กัน quick tunnel ที่ลิงก์เปลี่ยนทุกครั้ง)
+        if not fixed_url():
+            current = self.tunnel_var.get()
+            if current.startswith("https://"):
+                try:
+                    with open(URL_FILE, encoding="utf-8") as f:
+                        saved = f.read().strip()
+                except OSError:
+                    saved = ""
+                if saved != current:
+                    messagebox.showwarning(
+                        "ลิงก์ยังไม่ถูกบันทึก",
+                        "ลิงก์ tunnel ปัจจุบันยังไม่ตรงกับ LICENSE_SERVER_URL.txt — แก้ไฟล์ให้ตรงก่อนแล้วค่อย build",
+                    )
+                    return
+            elif os.path.exists(CLOUDFLARED_PATH):
+                if not messagebox.askyesno(
+                    "ยังไม่มีลิงก์ tunnel",
+                    "tunnel ยังไม่ขึ้น — ถ้า build ตอนนี้จะได้ลิงก์เก่าใน LICENSE_SERVER_URL.txt\nbuild ต่อเลยไหม?",
+                ):
+                    return
 
         self.build_btn.config(state="disabled")
         threading.Thread(target=self._run_build, daemon=True).start()

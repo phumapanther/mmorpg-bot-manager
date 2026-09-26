@@ -1,4 +1,12 @@
-"""เช็คไลเซนส์กับ License Server ทุกครั้งที่บอทสตาร์ท — ปิด License Server (keygen_gui.py) เมื่อไหร่ บอทจะสตาร์ทไม่ได้
+"""เช็คไลเซนส์กับ License Server ทุกครั้งที่บอทสตาร์ท
+
+⚠️ **ปิดสวิตช์ไว้แล้ว** (LICENSE_REQUIRED = False · เจ้าของเกมเคาะ 2026-09-24)
+   ไม่ขาย ไม่แจกจ่ายแล้ว รันใช้เองเครื่องเดียว — บอทสตาร์ทได้โดยไม่ต้องมีคีย์
+   และไม่ต้องเปิดโปรแกรม License Server ทิ้งไว้อีกต่อไป
+
+   🔁 **กลับมาขายเมื่อไหร่:** แก้ LICENSE_REQUIRED เป็น True บรรทัดเดียว
+      โค้ดเช็คคีย์ยังอยู่ครบ ไม่ได้ลบอะไรทิ้ง (เก็บไว้ถูกกว่าเขียนใหม่)
+      อย่าลืมตั้ง LICENSE_SERVER_URL.txt เป็นที่อยู่จริงก่อน build ด้วย
 
 จุดที่ต้องแก้เวลาลิงก์ License Server เปลี่ยน (เช่น tunnel รีสตาร์ทแล้วได้ลิงก์ใหม่):
 แก้ไฟล์ "LICENSE_SERVER_URL.txt" ที่ root ของโปรเจ็ค (ไฟล์ข้อความธรรมดา บรรทัดเดียว ไม่ต้องแตะโค้ด)
@@ -13,6 +21,11 @@ import platform
 import uuid
 
 import httpx
+
+# 🔐 สวิตช์ใหญ่ — False = ข้ามการเช็คคีย์ทั้งหมด (ดูหัวไฟล์)
+#    ตั้งใจให้เป็นค่าในโค้ด **ไม่ใช่** ค่าใน config.json ที่ลูกค้าแก้เองได้
+#    ไม่งั้นวันที่กลับมาขาย คนซื้อก็แค่พิมพ์ false ใส่ไฟล์แล้วบายพาสไปเลย
+LICENSE_REQUIRED = False
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _URL_FILE = os.path.join(os.path.dirname(_HERE), "LICENSE_SERVER_URL.txt")
@@ -36,6 +49,9 @@ def check_license(license_key, bot_token):
     ข้ามการเช็คไปเลย ไม่งั้นจะสตาร์ทบอทตัวเองไม่ได้เลยจนกว่าจะตั้ง License Server จริงก่อน —
     การบังคับเช็คจะเริ่มมีผลก็ต่อเมื่อแก้ค่านี้เป็นที่อยู่เซิร์ฟเวอร์จริงก่อน build แจกลูกค้าแล้วเท่านั้น
     """
+    if not LICENSE_REQUIRED:
+        return True, "ℹ️ ปิดระบบไลเซนส์ไว้ (รันใช้เอง ไม่แจกจ่าย) — ข้ามการเช็คคีย์"
+
     if "YOUR-LICENSE-SERVER-ADDRESS" in LICENSE_SERVER_URL:
         return True, "ℹ️ ยังไม่ได้ตั้งค่า License Server (โหมด dev) — ข้ามการเช็คคีย์"
 
