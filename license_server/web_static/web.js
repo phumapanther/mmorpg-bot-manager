@@ -75,7 +75,7 @@ const CATEGORY_LABEL = { news: "📢 ข่าว", patch: "🛠️ แพทช
 // ── navbar + footer ใช้ร่วมทุกหน้า ──
 const NAV_ITEMS = [
   ["/", "หน้าแรก"], ["/news", "ข่าวสาร"], ["/game", "ข้อมูลเกม"],
-  ["/play", "🎮 เล่นเกม"], ["/topup", "เติมเกม"],
+  ["/play", "🎮 เล่นเกม"], ["/wold", "🏰 WOLD Arture"], ["/topup", "เติมเกม"],
 ];
 
 async function renderChrome(active) {

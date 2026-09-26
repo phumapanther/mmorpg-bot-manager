@@ -76,7 +76,7 @@ def create_app():
     assets_dir = os.path.join(os.path.dirname(_HERE), "assets")
     if os.path.isdir(web_static):
         # URL สวยไม่ต้องมี .html — หน้าเพจทั้งหมดชี้ไฟล์ตรงใน web_static
-        for _page in ("news", "game", "topup", "me", "login", "admin", "play"):
+        for _page in ("news", "game", "topup", "me", "login", "admin", "play", "wold"):
             def _serve(page=_page):
                 return FileResponse(os.path.join(web_static, f"{page}.html"))
             app.get(f"/{_page}", include_in_schema=False)(_serve)
