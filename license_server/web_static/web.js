@@ -2,7 +2,7 @@
 // 🎨 แก้ชื่อเกม/คำโปรยได้ที่นี่จุดเดียว
 const SITE = {
   name: "Fragment Rift",
-  tagline: "MMORPG ผจญภัยเต็มรูปแบบใน Discord — 9 ทวีป 7 ธาตุ บอสลับ กิลด์วอร์ และเพื่อนร่วมทาง",
+  tagline: tr("MMORPG ผจญภัยเต็มรูปแบบใน Discord — 9 ทวีป 7 ธาตุ บอสลับ กิลด์วอร์ และเพื่อนร่วมทาง"),
 };
 
 // 401 จากสามอันนี้แปลว่า "ยังไม่ได้ล็อกอิน" ซึ่งเป็นเรื่องปกติ ไม่ใช่ session หมดอายุ
@@ -21,7 +21,7 @@ async function api(method, url, body) {
   if (res.status === 401 && !AUTH_PROBES.some((p) => url.includes(p))) {
     // session หมดอายุ/ถูกลบ — บอกให้รู้แล้วพากลับไปล็อกอิน ไม่ใช่ปล่อยให้กดแล้วเงียบ
     onSessionExpired();
-    throw new Error(data.detail || "หมดเวลาเข้าสู่ระบบ — กรุณาล็อกอินใหม่");
+    throw new Error(data.detail || tr("หมดเวลาเข้าสู่ระบบ — กรุณาล็อกอินใหม่"));
   }
   if (!res.ok) {
     // แนบสถานะกับเวลาที่ต้องรอไปด้วย — ผู้เรียกจะได้ถอยเองเมื่อโดนจำกัดอัตรา (429)
@@ -44,11 +44,11 @@ function onSessionExpired() {
     "background:rgba(8,6,4,.86);color:#f2e7d8;font-family:inherit;text-align:center;padding:24px";
   box.innerHTML = '<div style="max-width:420px">' +
     '<div style="font-size:44px;margin-bottom:10px">🔒</div>' +
-    '<h2 style="margin:0 0 8px">หมดเวลาเข้าสู่ระบบ</h2>' +
-    '<p style="color:#a99274;margin:0 0 18px">เพื่อความปลอดภัย ระบบให้ล็อกอินใหม่อีกครั้ง</p>' +
+    '<h2 style="margin:0 0 8px">' + tr("หมดเวลาเข้าสู่ระบบ") + '</h2>' +
+    '<p style="color:#a99274;margin:0 0 18px">' + tr("เพื่อความปลอดภัย ระบบให้ล็อกอินใหม่อีกครั้ง") + '</p>' +
     '<a href="' + (location.pathname.startsWith("/admin") ? "/admin" : "/login") +
     '" style="display:inline-block;padding:12px 26px;border-radius:10px;' +
-    'background:#c8452f;color:#fff;text-decoration:none;font-weight:700">ไปหน้าล็อกอิน</a></div>';
+    'background:#c8452f;color:#fff;text-decoration:none;font-weight:700">' + tr("ไปหน้าล็อกอิน") + '</a></div>';
   document.body.appendChild(box);
 }
 
@@ -70,18 +70,22 @@ function md(src) {
   return h.split(/\n{2,}/).map((b) => (/^<(h\d|ul|img)/.test(b.trim()) ? b : `<p>${b.replace(/\n/g, "<br>")}</p>`)).join("\n");
 }
 
-const CATEGORY_LABEL = { news: "📢 ข่าว", patch: "🛠️ แพทช์", event: "🎪 อีเวนต์" };
+const CATEGORY_LABEL = { news: tr("📢 ข่าว"), patch: tr("🛠️ แพทช์"), event: tr("🎪 อีเวนต์") };
 
 // ── navbar + footer ใช้ร่วมทุกหน้า ──
 const NAV_ITEMS = [
-  ["/", "หน้าแรก"], ["/news", "ข่าวสาร"], ["/game", "ข้อมูลเกม"],
-  ["/play", "🎮 เล่นเกม"], ["/wold", "🏰 WOLD Arture"], ["/topup", "เติมเกม"],
+  ["/", tr("หน้าแรก")], ["/news", tr("ข่าวสาร")], ["/game", tr("ข้อมูลเกม")],
+  ["/play", tr("🎮 เล่นเกม")], ["/wold", "🏰 WOLD Arture"], ["/topup", tr("เติมเกม")],
 ];
 
 async function renderChrome(active) {
   const nav = document.getElementById("navbar");
   const links = NAV_ITEMS.map(([href, label]) =>
     `<a class="nav-link${active === href ? " active" : ""}" href="${href}">${label}</a>`).join("");
+  // 🌐 ปุ่มเลือกภาษา — ชื่อภาษาเขียนด้วยภาษาตัวเอง · เลือกแล้ว i18n.js จำในคุกกี้แล้วรีโหลด
+  const langPick = `<select class="lang-pick" aria-label="${tr("ภาษา")}">` +
+    I18N_LANGS.map((c) => `<option value="${c}"${c === I18N_LANG ? " selected" : ""}>${I18N_NAMES[c]}</option>`).join("") +
+    "</select>";
   // 📱 มือถือ: เมนูพับเก็บได้ ไม่ให้กินครึ่งจอ — ใช้ <details> ของเบราว์เซอร์ตรง ๆ
   // เปิด/ปิดเอง กดคีย์บอร์ดได้ ไม่ต้องเขียน JS สักบรรทัด · จอกว้าง CSS สั่งกางค้างไว้
   nav.innerHTML = `<details class="nav">
@@ -89,8 +93,9 @@ async function renderChrome(active) {
       <a class="logo" href="/">${esc(SITE.name)}</a>
       <span class="burger" aria-hidden="true"><i></i><i></i><i></i></span>
     </summary>
-    <div class="links">${links}<a class="nav-link" id="navProfile" href="/login">🔑 ล็อกอิน</a></div>
+    <div class="links">${links}<a class="nav-link" id="navProfile" href="/login">${tr("🔑 ล็อกอิน")}</a>${langPick}</div>
   </details>`;
+  nav.querySelector(".lang-pick").addEventListener("change", (e) => setLang(e.target.value));
 
   // จอกว้าง = กางค้างไว้เสมอ (ไม่มีปุ่มพับให้เห็นด้วยซ้ำ) · จอแคบ = เริ่มแบบพับเก็บ
   // ไม่บังคับปิดตอน resize เพราะบนมือถือคีย์บอร์ดเด้งก็นับเป็น resize เมนูจะหุบเองกลางคัน
@@ -104,10 +109,10 @@ async function renderChrome(active) {
     foot.innerHTML = `<div class="container">
       <div class="cols">
         <div><h4>${esc(SITE.name)}</h4><p>${esc(SITE.tagline)}</p></div>
-        <div><h4>เมนู</h4><a href="/">หน้าแรก</a><a href="/news">ข่าวสาร</a><a href="/game">ข้อมูลเกม</a><a href="/play">เล่นเกม</a><a href="/topup">เติมเกม</a></div>
-        <div><h4>ชุมชน</h4><a id="footDiscord" href="#" target="_blank" rel="noopener">💬 Discord เซิร์ฟหลัก</a><a href="/me">โปรไฟล์ของฉัน</a></div>
+        <div><h4>${tr("เมนู")}</h4><a href="/">${tr("หน้าแรก")}</a><a href="/news">${tr("ข่าวสาร")}</a><a href="/game">${tr("ข้อมูลเกม")}</a><a href="/play">${tr("เล่นเกม")}</a><a href="/topup">${tr("เติมเกม")}</a></div>
+        <div><h4>${tr("ชุมชน")}</h4><a id="footDiscord" href="#" target="_blank" rel="noopener">${tr("💬 Discord เซิร์ฟหลัก")}</a><a href="/me">${tr("โปรไฟล์ของฉัน")}</a></div>
       </div>
-      <p class="tiny">© ${new Date().getFullYear()} ${esc(SITE.name)} — เล่นฟรีใน Discord</p>
+      <p class="tiny">© ${new Date().getFullYear()} ${esc(SITE.name)} — ${tr("เล่นฟรีใน Discord")}</p>
     </div>`;
   }
 
@@ -116,7 +121,7 @@ async function renderChrome(active) {
     const s = await api("GET", "/api/web/me/session");
     if (s.discord_id) {
       const el = document.getElementById("navProfile");
-      el.textContent = "👤 โปรไฟล์";
+      el.textContent = tr("👤 โปรไฟล์");
       el.href = "/me";
     }
   } catch (e) { /* ไม่ล็อกอิน */ }

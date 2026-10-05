@@ -43,6 +43,15 @@ a { color: var(--accent); text-decoration: none; }
 }
 .nav a.nav-link:hover { background: #f4f1ff; }
 .nav a.nav-link.active { color: var(--accent); font-weight: 700; text-decoration: underline; text-underline-offset: 6px; }
+/* 🌐 ปุ่มเลือกภาษา — ไม่เอาขนาดเต็มความกว้างแบบ select ในฟอร์ม (กฎ select ด้านล่าง) */
+.nav select.lang-pick {
+  width: auto; padding: 6px 10px; border-width: 1px; border-radius: 10px;
+  font-size: .9rem; align-self: center; margin-left: 6px; cursor: pointer;
+}
+/* 🌐 จีน/ญี่ปุ่น — Prompt ไม่มีอักษรพวกนี้ ให้ไปใช้ฟอนต์ระบบของแต่ละภาษา
+   แยกสองภาษาเพราะคันจิกับอักษรจีนหน้าตาต่างกัน (i18n.js ตั้ง <html lang> ให้) */
+html:lang(zh) body { font-family: "Prompt", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif; }
+html:lang(ja) body { font-family: "Prompt", "Yu Gothic UI", "Hiragino Sans", "Meiryo", "Noto Sans JP", sans-serif; }
 
 /* ── hero ── */
 .hero { position: relative; overflow: hidden; padding: 90px 0 70px; }
@@ -160,5 +169,6 @@ footer .tiny { text-align: center; color: #b6b1a5; margin-top: 30px; font-size: 
     padding-top: 8px; margin-top: 6px; border-top: 1px solid #eee7da;
   }
   .nav a.nav-link { padding: 11px 12px; }        /* แตะง่ายขึ้นบนจอสัมผัส */
+  .nav select.lang-pick { align-self: flex-start; margin: 6px 12px; }   /* เมนูเป็นคอลัมน์ → ชิดซ้ายตามลิงก์ */
   .nav .logo { font-size: 1rem; padding: 7px 13px; }
 }
