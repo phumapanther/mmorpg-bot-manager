@@ -12,8 +12,8 @@ const vm = require('vm');
 const { WEB, playSource } = require('./_js_source');
 
 const read = f => fs.readFileSync(f, 'utf8');
-// ลำดับ <script> จริงใน play.html (บรรทัด 1444-1451 ก่อนผ่า)
-const HEAD = ['web.js', 'sfx.js', 'worms.js', 'walk.js', 'sprite.js', 'scene.js']
+// ลำดับ <script> จริงใน play.html (บรรทัด 1444-1451 ก่อนผ่า) — i18n.js ต้องมาก่อน web.js (web.js เรียก tr())
+const HEAD = ['i18n.js', 'web.js', 'sfx.js', 'worms.js', 'walk.js', 'sprite.js', 'scene.js']
   .map(f => read(path.join(WEB, f))).join('\n');
 const TAIL = read(path.join(WEB, 'uno.js'));
 const MID = playSource();   // play.js (+ games/worms_ui.js + shop_ui.js ถ้ามีไฟล์แล้ว)

@@ -103,7 +103,7 @@ def create_app():
     async def _no_stale_pages(request, call_next):
         resp = await call_next(request)
         path = request.url.path
-        if path.endswith((".html", ".js", ".css")) or "." not in path.rsplit("/", 1)[-1]:
+        if path.endswith((".html", ".js", ".css", ".json")) or "." not in path.rsplit("/", 1)[-1]:
             resp.headers["Cache-Control"] = "no-cache, must-revalidate"
         return resp
 
