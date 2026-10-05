@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ข่าวสาร — Fragment Rift</title>
+  <title data-i18n>ข่าวสาร — Fragment Rift</title>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
 </head>
@@ -12,19 +12,19 @@
 
 <section class="block">
   <div class="container" id="listView">
-    <h2 class="sec">📰 ข่าวสารทั้งหมด</h2>
-    <p class="sec-sub">ประกาศ แพทช์โน้ต และอีเวนต์จากทีมงาน</p>
+    <h2 class="sec" data-i18n>📰 ข่าวสารทั้งหมด</h2>
+    <p class="sec-sub" data-i18n>ประกาศ แพทช์โน้ต และอีเวนต์จากทีมงาน</p>
     <div class="btn-row" style="margin-bottom:24px" id="filters">
-      <button class="btn btn-primary" data-cat="">ทั้งหมด</button>
-      <button class="btn btn-ghost" data-cat="news">📢 ข่าว</button>
-      <button class="btn btn-ghost" data-cat="patch">🛠️ แพทช์</button>
-      <button class="btn btn-ghost" data-cat="event">🎪 อีเวนต์</button>
+      <button class="btn btn-primary" data-cat="" data-i18n>ทั้งหมด</button>
+      <button class="btn btn-ghost" data-cat="news" data-i18n>📢 ข่าว</button>
+      <button class="btn btn-ghost" data-cat="patch" data-i18n>🛠️ แพทช์</button>
+      <button class="btn btn-ghost" data-cat="event" data-i18n>🎪 อีเวนต์</button>
     </div>
-    <div class="grid c3" id="newsList"><p>กำลังโหลด...</p></div>
+    <div class="grid c3" id="newsList"><p data-i18n>กำลังโหลด...</p></div>
   </div>
 
   <div class="container hidden" id="articleView">
-    <p style="margin-bottom:14px"><a href="/news">← กลับหน้าข่าว</a></p>
+    <p style="margin-bottom:14px"><a href="/news" data-i18n>← กลับหน้าข่าว</a></p>
     <div class="article">
       <span class="badge" id="artCat"></span>
       <h1 id="artTitle"></h1>
@@ -58,8 +58,8 @@
             <p>${esc(n.excerpt).slice(0, 110)}…</p>
             <p style="margin-top:8px;font-size:.85rem">${esc(n.created_at)}</p>
           </div>
-        </a>`).join("") : "<p>ยังไม่มีข่าวในหมวดนี้</p>";
-    } catch (e) { box.innerHTML = "<p>โหลดข่าวไม่สำเร็จ</p>"; }
+        </a>`).join("") : "<p>" + tr("ยังไม่มีข่าวในหมวดนี้") + "</p>";
+    } catch (e) { box.innerHTML = "<p>" + tr("โหลดข่าวไม่สำเร็จ") + "</p>"; }
   }
 
   async function showArticle(id) {
@@ -67,13 +67,13 @@
     document.getElementById("articleView").classList.remove("hidden");
     try {
       const n = await api("GET", `/api/web/news/${id}`);
-      document.title = `${n.title} — ข่าวสาร`;
+      document.title = tr("{title} — ข่าวสาร", { title: n.title });
       document.getElementById("artCat").textContent = CATEGORY_LABEL[n.category] || n.category;
       document.getElementById("artTitle").textContent = n.title;
-      document.getElementById("artDate").textContent = `เผยแพร่ ${n.created_at}`;
+      document.getElementById("artDate").textContent = tr("เผยแพร่ {date}", { date: n.created_at });
       document.getElementById("artBody").innerHTML = md(n.body);
     } catch (e) {
-      document.getElementById("artTitle").textContent = "ไม่พบข่าวนี้";
+      document.getElementById("artTitle").textContent = tr("ไม่พบข่าวนี้");
     }
   }
 

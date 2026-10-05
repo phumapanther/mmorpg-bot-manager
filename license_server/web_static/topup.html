@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>เติมเกม — Fragment Rift</title>
+  <title data-i18n>เติมเกม — Fragment Rift</title>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
 </head>
@@ -11,14 +11,14 @@
 <div class="nav-wrap"><header id="navbar"></header></div>
 
 <section class="block"><div class="container" style="max-width:620px">
-  <h2 class="sec">💎 เติมเกม</h2>
-  <p class="sec-sub">เติมทองผ่าน PromptPay — โอนแล้วแอดมินตรวจสอบและอนุมัติ ทองเข้าธนาคารในเกมอัตโนมัติ</p>
+  <h2 class="sec" data-i18n>💎 เติมเกม</h2>
+  <p class="sec-sub" data-i18n>เติมทองผ่าน PromptPay — โอนแล้วแอดมินตรวจสอบและอนุมัติ ทองเข้าธนาคารในเกมอัตโนมัติ</p>
 
   <div id="needLogin" class="hidden">
-    <p class="notice">ต้องล็อกอินก่อนเติมเกม — <a href="/login">ล็อกอินด้วยไอดี Discord</a></p>
+    <p class="notice" data-i18n-html>ต้องล็อกอินก่อนเติมเกม — <a href="/login">ล็อกอินด้วยไอดี Discord</a></p>
     <div class="card" style="padding:22px;margin-top:16px">
-      <h3>วิธีเติมเกม 3 ขั้น</h3>
-      <p>1️⃣ ล็อกอินเว็บด้วยไอดี Discord (ปุ่มด้านบน)<br>
+      <h3 data-i18n>วิธีเติมเกม 3 ขั้น</h3>
+      <p data-i18n-html>1️⃣ ล็อกอินเว็บด้วยไอดี Discord (ปุ่มด้านบน)<br>
          2️⃣ ใส่จำนวนเงิน → สแกน QR PromptPay โอนได้เลย<br>
          3️⃣ แอดมินตรวจยอด → ทองเข้าธนาคารในเกมอัตโนมัติ</p>
       <p id="rateNoteLogin" style="margin-top:8px"></p>
@@ -27,21 +27,21 @@
 
   <div id="formBox" class="hidden">
     <div class="card" style="padding:26px">
-      <label class="f">จำนวนเงิน (บาท)</label>
-      <input type="number" id="amount" min="1" placeholder="เช่น 100">
+      <label class="f" data-i18n>จำนวนเงิน (บาท)</label>
+      <input type="number" id="amount" min="1" placeholder="เช่น 100" data-i18n-attr="placeholder">
       <p style="color:var(--muted);margin-top:6px" id="rateNote"></p>
-      <button class="btn btn-primary" id="payBtn" style="margin-top:14px">🧾 สร้าง QR โอนเงิน</button>
+      <button class="btn btn-primary" id="payBtn" style="margin-top:14px" data-i18n>🧾 สร้าง QR โอนเงิน</button>
       <p class="notice hidden" id="errBox"></p>
     </div>
 
     <div class="card hidden" style="padding:26px;margin-top:18px;text-align:center" id="qrBox">
-      <h3>สแกนจ่ายด้วยแอปธนาคาร</h3>
+      <h3 data-i18n>สแกนจ่ายด้วยแอปธนาคาร</h3>
       <img id="qrImg" style="width:260px;margin:14px auto;border-radius:12px" alt="PromptPay QR">
       <p id="qrDetail"></p>
       <div class="btn-row" style="justify-content:center;margin-top:12px">
-        <button class="btn btn-primary" id="slipBtn">📎 แนบสลิปโอนเงิน</button>
+        <button class="btn btn-primary" id="slipBtn" data-i18n>📎 แนบสลิปโอนเงิน</button>
       </div>
-      <p class="notice">โอนแล้ว<b>แนบสลิป</b>ไว้เลย แอดมินจะตรวจเร็วขึ้น (ดูสถานะได้ที่<a href="/me">หน้าโปรไฟล์</a>) — รายการ #<span id="qrId"></span></p>
+      <p class="notice" data-i18n-html>โอนแล้ว<b>แนบสลิป</b>ไว้เลย แอดมินจะตรวจเร็วขึ้น (ดูสถานะได้ที่<a href="/me">หน้าโปรไฟล์</a>) — รายการ #<span id="qrId"></span></p>
     </div>
   </div>
   <input type="file" id="slipInput" accept="image/*" style="display:none">
@@ -63,16 +63,18 @@
   api("GET", "/api/web/topup/rate").then(r => {
     if (!(r.rate > 0)) return;
     const fmt = n => Number(n).toLocaleString();
-    const base = `💱 อัตราเติม: <b>1 บาท ได้ 🪙 ${fmt(r.rate)} ทอง</b>` +
-      (r.min_amount ? ` (ขั้นต่ำ ${fmt(r.min_amount)}${r.max_amount ? ` – สูงสุด ${fmt(r.max_amount)}` : ""} บาท)` : "");
+    const base = tr("💱 อัตราเติม: <b>1 บาท ได้ 🪙 {rate} ทอง</b>", { rate: fmt(r.rate) }) +
+      (!r.min_amount ? "" : " " + (r.max_amount
+        ? tr("(ขั้นต่ำ {min} – สูงสุด {max} บาท)", { min: fmt(r.min_amount), max: fmt(r.max_amount) })
+        : tr("(ขั้นต่ำ {min} บาท)", { min: fmt(r.min_amount) })));
     const loginNote = document.getElementById("rateNoteLogin");
     if (loginNote) loginNote.innerHTML = base;
     const note = document.getElementById("rateNote");
     const amount = document.getElementById("amount");
-    amount.placeholder = `เช่น 100 (ได้ ${fmt(Math.floor(100 * r.rate))} ทอง)`;
+    amount.placeholder = tr("เช่น 100 (ได้ {gold} ทอง)", { gold: fmt(Math.floor(100 * r.rate)) });
     const update = () => {
       const v = parseFloat(amount.value) || 0;
-      note.innerHTML = v > 0 ? `เติม ${fmt(v)} บาท ได้ <b>🪙 ${fmt(Math.floor(v * r.rate))} ทอง</b>` : base;
+      note.innerHTML = v > 0 ? tr("เติม {amount} บาท ได้ <b>🪙 {gold} ทอง</b>", { amount: fmt(v), gold: fmt(Math.floor(v * r.rate)) }) : base;
     };
     update();
     amount.addEventListener("input", update);
@@ -89,9 +91,10 @@
       document.getElementById("qrBox").classList.remove("hidden");
       document.getElementById("qrImg").src = `data:image/png;base64,${d.qr}`;
       document.getElementById("qrDetail").innerHTML =
-        `PromptPay: <b>${esc(d.promptpay_id)}</b> (${esc(d.promptpay_name)})<br>จะได้รับ <b>🪙 ${d.gold.toLocaleString()}</b> ทอง`;
+        tr("PromptPay: <b>{pp}</b> ({name})<br>จะได้รับ <b>🪙 {gold}</b> ทอง",
+          { pp: esc(d.promptpay_id), name: esc(d.promptpay_name), gold: d.gold.toLocaleString() });
       document.getElementById("qrId").textContent = d.id;
-      document.getElementById("slipBtn").textContent = "📎 แนบสลิปโอนเงิน";
+      document.getElementById("slipBtn").textContent = tr("📎 แนบสลิปโอนเงิน");
     } catch (e) {
       err.textContent = e.message;
       err.classList.remove("hidden");
@@ -109,9 +112,9 @@
     try {
       const res = await fetch(`/api/web/topup/${topupId}/slip`, { method: "POST", body: file });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.detail || "อัพโหลดไม่สำเร็จ");
-      document.getElementById("slipBtn").textContent = "✅ แนบสลิปแล้ว (กดเปลี่ยนรูปได้)";
-    } catch (e) { alert("แนบสลิปไม่สำเร็จ: " + e.message); }
+      if (!res.ok) throw new Error(data.detail || tr("อัพโหลดไม่สำเร็จ"));
+      document.getElementById("slipBtn").textContent = tr("✅ แนบสลิปแล้ว (กดเปลี่ยนรูปได้)");
+    } catch (e) { alert(tr("แนบสลิปไม่สำเร็จ: {msg}", { msg: e.message })); }
   });
 </script>
 </body>

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Fragment Rift — MMORPG ใน Discord</title>
+  <title data-i18n>Fragment Rift — MMORPG ใน Discord</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
@@ -14,36 +14,36 @@
 <section class="hero">
   <div class="bg" style="background-image:url('/assets/events/arrival_main.png')"></div>
   <div class="container inner">
-    <h1 id="heroTitle">ออกผจญภัย<br>ได้ทุกที่ใน Discord</h1>
+    <h1 id="heroTitle" data-i18n-html>ออกผจญภัย<br>ได้ทุกที่ใน Discord</h1>
     <p class="tagline" id="heroTagline"></p>
     <div class="btn-row">
-      <a class="btn btn-primary js-invite" href="#" target="_blank" rel="noopener">💬 เข้าเล่นใน Discord</a>
-      <a class="btn btn-ghost" href="/news">📰 อ่านข่าวสาร</a>
+      <a class="btn btn-primary js-invite" href="#" target="_blank" rel="noopener" data-i18n>💬 เข้าเล่นใน Discord</a>
+      <a class="btn btn-ghost" href="/news" data-i18n>📰 อ่านข่าวสาร</a>
     </div>
   </div>
 </section>
 
 <section class="block">
   <div class="container">
-    <h2 class="sec">ข่าวสารล่าสุด</h2>
-    <p class="sec-sub">อัพเดทแพทช์ อีเวนต์ และประกาศจากทีมงาน</p>
-    <div class="grid c3" id="latestNews"><p>กำลังโหลด...</p></div>
+    <h2 class="sec" data-i18n>ข่าวสารล่าสุด</h2>
+    <p class="sec-sub" data-i18n>อัพเดทแพทช์ อีเวนต์ และประกาศจากทีมงาน</p>
+    <div class="grid c3" id="latestNews"><p data-i18n>กำลังโหลด...</p></div>
   </div>
 </section>
 
 <section class="block">
   <div class="container">
-    <h2 class="sec">โลกใบใหญ่รอคุณอยู่</h2>
-    <p class="sec-sub">ระบบเกมแน่นๆ ที่เล่นได้จากแชท Discord ตรงๆ ไม่ต้องลงอะไรเพิ่ม</p>
+    <h2 class="sec" data-i18n>โลกใบใหญ่รอคุณอยู่</h2>
+    <p class="sec-sub" data-i18n>ระบบเกมแน่นๆ ที่เล่นได้จากแชท Discord ตรงๆ ไม่ต้องลงอะไรเพิ่ม</p>
     <div class="grid c4">
-      <a class="card" href="/game#sec-continents"><img class="cover" src="/assets/events/arrival_skyward.png" alt="ทวีป" loading="lazy">
-        <div class="pad"><h3>🗺️ 9 ทวีป 7 ธาตุ</h3><p>เดินสำรวจตั้งแต่ทุ่งหญ้าจนถึงเกาะลอยฟ้า มอนสเตอร์และสมบัติต่างกันทุกแดน</p></div></a>
-      <a class="card" href="/game?codex=วิธีเล่น#sec-codex"><img class="cover" src="/assets/events/unbeatable_summon.png" alt="บอส" loading="lazy">
-        <div class="pad"><h3>💀 บอสไร้พ่าย</h3><p>อัญเชิญบอสระดับตำนานมาท้าดวล ของดรอปหายากที่สุดในเกม</p></div></a>
-      <a class="card" href="/game?codex=กิลด์#sec-codex"><img class="cover" src="/assets/events/theme_faction_war.png" alt="กิลด์วอร์" loading="lazy">
-        <div class="pad"><h3>⚔️ กิลด์วอร์ & สงครามฝ่าย</h3><p>รวมพลตีป้อม ชิงอันดับ รับรางวัลประจำสัปดาห์กับเพื่อนทั้งกิลด์</p></div></a>
-      <a class="card" href="/game?codex=สังคม#sec-codex"><img class="cover" src="/assets/events/theme_black_market.png" alt="ตลาด" loading="lazy">
-        <div class="pad"><h3>🏪 ตลาดผู้เล่น</h3><p>ซื้อขายของแรร์กันเอง เศรษฐกิจขับเคลื่อนด้วยผู้เล่นจริง</p></div></a>
+      <a class="card" href="/game#sec-continents"><img class="cover" src="/assets/events/arrival_skyward.png" alt="ทวีป" data-i18n-attr="alt" loading="lazy">
+        <div class="pad"><h3 data-i18n>🗺️ 9 ทวีป 7 ธาตุ</h3><p data-i18n>เดินสำรวจตั้งแต่ทุ่งหญ้าจนถึงเกาะลอยฟ้า มอนสเตอร์และสมบัติต่างกันทุกแดน</p></div></a>
+      <a class="card" href="/game?codex=วิธีเล่น#sec-codex"><img class="cover" src="/assets/events/unbeatable_summon.png" alt="บอส" data-i18n-attr="alt" loading="lazy">
+        <div class="pad"><h3 data-i18n>💀 บอสไร้พ่าย</h3><p data-i18n>อัญเชิญบอสระดับตำนานมาท้าดวล ของดรอปหายากที่สุดในเกม</p></div></a>
+      <a class="card" href="/game?codex=กิลด์#sec-codex"><img class="cover" src="/assets/events/theme_faction_war.png" alt="กิลด์วอร์" data-i18n-attr="alt" loading="lazy">
+        <div class="pad"><h3 data-i18n>⚔️ กิลด์วอร์ & สงครามฝ่าย</h3><p data-i18n>รวมพลตีป้อม ชิงอันดับ รับรางวัลประจำสัปดาห์กับเพื่อนทั้งกิลด์</p></div></a>
+      <a class="card" href="/game?codex=สังคม#sec-codex"><img class="cover" src="/assets/events/theme_black_market.png" alt="ตลาด" data-i18n-attr="alt" loading="lazy">
+        <div class="pad"><h3 data-i18n>🏪 ตลาดผู้เล่น</h3><p data-i18n>ซื้อขายของแรร์กันเอง เศรษฐกิจขับเคลื่อนด้วยผู้เล่นจริง</p></div></a>
     </div>
   </div>
 </section>
@@ -69,8 +69,8 @@
             <p>${esc(n.excerpt).slice(0, 90)}…</p>
             <p style="margin-top:8px;font-size:.85rem">${esc(n.created_at)}</p>
           </div>
-        </a>`).join("") : "<p>ยังไม่มีข่าว — ติดตามเร็วๆ นี้!</p>";
-    } catch (e) { box.innerHTML = "<p>โหลดข่าวไม่สำเร็จ</p>"; }
+        </a>`).join("") : "<p>" + tr("ยังไม่มีข่าว — ติดตามเร็วๆ นี้!") + "</p>";
+    } catch (e) { box.innerHTML = "<p>" + tr("โหลดข่าวไม่สำเร็จ") + "</p>"; }
   })();
 </script>
 </body>

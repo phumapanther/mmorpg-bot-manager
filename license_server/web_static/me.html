@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>โปรไฟล์ — Fragment Rift</title>
+  <title data-i18n>โปรไฟล์ — Fragment Rift</title>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
 </head>
@@ -11,13 +11,13 @@
 <div class="nav-wrap"><header id="navbar"></header></div>
 
 <section class="block"><div class="container" style="max-width:760px">
-  <h2 class="sec">👤 โปรไฟล์ของฉัน</h2>
+  <h2 class="sec" data-i18n>👤 โปรไฟล์ของฉัน</h2>
   <div id="needLogin" class="hidden">
-    <p class="notice">ยังไม่ได้ล็อกอิน — <a href="/login">ล็อกอินด้วยไอดี Discord ก่อน</a></p>
+    <p class="notice" data-i18n-html>ยังไม่ได้ล็อกอิน — <a href="/login">ล็อกอินด้วยไอดี Discord ก่อน</a></p>
   </div>
   <div id="newPlayer" class="hidden">
-    <p class="notice">ไอดีนี้ยังไม่มีตัวละครในเกม — เข้าเซิร์ฟ Discord แล้วพิมพ์ <b>!play</b> เพื่อเริ่มผจญภัย!</p>
-    <a class="btn btn-primary js-invite" href="#" target="_blank" rel="noopener">💬 เข้าเซิร์ฟ Discord</a>
+    <p class="notice" data-i18n-html>ไอดีนี้ยังไม่มีตัวละครในเกม — เข้าเซิร์ฟ Discord แล้วพิมพ์ <b>!play</b> เพื่อเริ่มผจญภัย!</p>
+    <a class="btn btn-primary js-invite" href="#" target="_blank" rel="noopener" data-i18n>💬 เข้าเซิร์ฟ Discord</a>
   </div>
 
   <div id="profileBox" class="hidden">
@@ -26,30 +26,30 @@
       <h3 style="font-size:1.5rem" id="pTitleLine"></h3>
       <p id="pContinent" style="color:var(--muted)"></p>
 
-      <label class="f">❤️ พลังชีวิต <span id="hpText"></span></label>
+      <label class="f" data-i18n-html>❤️ พลังชีวิต <span id="hpText"></span></label>
       <div class="stat-bar"><div id="hpBar" style="background:#e05a4c"></div></div>
-      <label class="f">💰 กระเป๋าเงิน</label>
-      <p>เงินสด <b id="pCash"></b> ทอง · ธนาคาร <b id="pBank"></b> ทอง</p>
+      <label class="f" data-i18n>💰 กระเป๋าเงิน</label>
+      <p data-i18n-html>เงินสด <b id="pCash"></b> ทอง · ธนาคาร <b id="pBank"></b> ทอง</p>
       <p id="pPet" style="margin-top:8px"></p>
       <div class="btn-row" style="margin-top:18px">
-        <a class="btn btn-primary" href="/topup">💎 เติมเกม</a>
-        <a class="btn btn-ghost" href="/game">📖 ข้อมูลเกม</a>
-        <button class="btn btn-ghost" id="logoutBtn">🚪 ออกจากระบบ</button>
+        <a class="btn btn-primary" href="/topup" data-i18n>💎 เติมเกม</a>
+        <a class="btn btn-ghost" href="/game" data-i18n>📖 ข้อมูลเกม</a>
+        <button class="btn btn-ghost" id="logoutBtn" data-i18n>🚪 ออกจากระบบ</button>
       </div>
     </div>
 
-    <h2 class="sec" style="margin-top:36px">🧾 ประวัติเติมเงินล่าสุด</h2>
-    <p class="sec-sub">รายการ ⏳ รอตรวจ กดปุ่ม 🧾 เพื่อเปิด QR สแกนโอนอีกครั้งได้</p>
+    <h2 class="sec" style="margin-top:36px" data-i18n>🧾 ประวัติเติมเงินล่าสุด</h2>
+    <p class="sec-sub" data-i18n>รายการ ⏳ รอตรวจ กดปุ่ม 🧾 เพื่อเปิด QR สแกนโอนอีกครั้งได้</p>
     <div class="table-scroll"><table class="data">
-      <thead><tr><th>#</th><th>จำนวน (บาท)</th><th>ทอง</th><th>สถานะ</th><th>เวลา</th><th></th></tr></thead>
-      <tbody id="topupRows"><tr><td colspan="6">ยังไม่เคยเติม</td></tr></tbody>
+      <thead><tr><th>#</th><th data-i18n>จำนวน (บาท)</th><th data-i18n>ทอง</th><th data-i18n>สถานะ</th><th data-i18n>เวลา</th><th></th></tr></thead>
+      <tbody id="topupRows"><tr><td colspan="6" data-i18n>ยังไม่เคยเติม</td></tr></tbody>
     </table></div>
 
     <div class="card hidden" style="padding:26px;margin-top:18px;text-align:center" id="qrBox">
-      <h3>สแกนจ่ายรายการ #<span id="qrId"></span></h3>
+      <h3 data-i18n-html>สแกนจ่ายรายการ #<span id="qrId"></span></h3>
       <img id="qrImg" style="width:260px;margin:14px auto;border-radius:12px" alt="PromptPay QR">
       <p id="qrDetail"></p>
-      <button class="btn btn-ghost" id="qrCloseBtn">ปิด</button>
+      <button class="btn btn-ghost" id="qrCloseBtn" data-i18n>ปิด</button>
     </div>
   </div>
   <input type="file" id="slipInput" accept="image/*" style="display:none">
@@ -62,7 +62,7 @@
 <script>
   renderChrome("");
   fillDiscordInvite();
-  const STATUS_TH = { pending: "⏳ รอตรวจ", approved: "✅ สำเร็จ", rejected: "❌ ปฏิเสธ" };
+  const STATUS_TH = { pending: tr("⏳ รอตรวจ"), approved: tr("✅ สำเร็จ"), rejected: tr("❌ ปฏิเสธ") };
 
   (async () => {
     try {
@@ -70,20 +70,20 @@
       if (d.new_player) { document.getElementById("newPlayer").classList.remove("hidden"); return; }
       const p = d.profile;
       document.getElementById("profileBox").classList.remove("hidden");
-      document.getElementById("pRank").textContent = `แรงค์ ${p.rank || "-"} · เลเวล ${p.level}`;
-      document.getElementById("pTitleLine").textContent = p.title ? `『${p.title}』` : "นักผจญภัย";
-      document.getElementById("pContinent").textContent = `📍 อยู่ที่ ${p.continent_label}`;
+      document.getElementById("pRank").textContent = tr("แรงค์ {rank} · เลเวล {level}", { rank: p.rank || "-", level: p.level });
+      document.getElementById("pTitleLine").textContent = p.title ? `『${p.title}』` : tr("นักผจญภัย");
+      document.getElementById("pContinent").textContent = tr("📍 อยู่ที่ {place}", { place: p.continent_label });
       document.getElementById("hpText").textContent = `${p.hp}/${p.max_hp}`;
       document.getElementById("hpBar").style.width = `${Math.min(100, p.hp / (p.max_hp || 1) * 100)}%`;
       document.getElementById("pCash").textContent = (p.cash ?? 0).toLocaleString();
       document.getElementById("pBank").textContent = (p.bank ?? 0).toLocaleString();
-      document.getElementById("pPet").textContent = p.pet ? `🐾 สัตว์เลี้ยงคู่ใจ: ${p.pet}` : "";
+      document.getElementById("pPet").textContent = p.pet ? tr("🐾 สัตว์เลี้ยงคู่ใจ: {pet}", { pet: p.pet }) : "";
       if (d.topups.length) {
         document.getElementById("topupRows").innerHTML = d.topups.map((t) =>
           `<tr><td>${t.id}</td><td>${t.amount_thb}</td><td>🪙 ${t.gold.toLocaleString()}</td>
            <td>${STATUS_TH[t.status] || t.status}</td><td>${esc(t.created_at)}</td>
-           <td>${t.status === "pending" ? `<button class="btn btn-ghost" data-qr="${t.id}">🧾 ดู QR</button>
-             <button class="btn btn-ghost" data-slip="${t.id}">${t.has_slip ? "📎✅ เปลี่ยนสลิป" : "📎 แนบสลิป"}</button>` : ""}</td></tr>`).join("");
+           <td>${t.status === "pending" ? `<button class="btn btn-ghost" data-qr="${t.id}">${tr("🧾 ดู QR")}</button>
+             <button class="btn btn-ghost" data-slip="${t.id}">${t.has_slip ? tr("📎✅ เปลี่ยนสลิป") : tr("📎 แนบสลิป")}</button>` : ""}</td></tr>`).join("");
         document.querySelectorAll("[data-qr]").forEach((b) =>
           b.addEventListener("click", () => showQr(b.dataset.qr)));
         document.querySelectorAll("[data-slip]").forEach((b) =>
@@ -101,7 +101,8 @@
       document.getElementById("qrId").textContent = d.id;
       document.getElementById("qrImg").src = `data:image/png;base64,${d.qr}`;
       document.getElementById("qrDetail").innerHTML =
-        `โอน <b>${d.amount_thb}</b> บาท ไป PromptPay <b>${esc(d.promptpay_id)}</b> (${esc(d.promptpay_name)})<br>จะได้รับ <b>🪙 ${d.gold.toLocaleString()}</b> ทอง`;
+        tr("โอน <b>{amount}</b> บาท ไป PromptPay <b>{pp}</b> ({name})<br>จะได้รับ <b>🪙 {gold}</b> ทอง",
+          { amount: d.amount_thb, pp: esc(d.promptpay_id), name: esc(d.promptpay_name), gold: d.gold.toLocaleString() });
       document.getElementById("qrBox").scrollIntoView({ behavior: "smooth" });
     } catch (e) { alert(e.message); }
   }
@@ -117,9 +118,9 @@
       try {
         const res = await fetch(`/api/web/topup/${id}/slip`, { method: "POST", body: file });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.detail || "อัพโหลดไม่สำเร็จ");
-        btn.textContent = "📎✅ เปลี่ยนสลิป";
-      } catch (e) { alert("แนบสลิปไม่สำเร็จ: " + e.message); }
+        if (!res.ok) throw new Error(data.detail || tr("อัพโหลดไม่สำเร็จ"));
+        btn.textContent = tr("📎✅ เปลี่ยนสลิป");
+      } catch (e) { alert(tr("แนบสลิปไม่สำเร็จ: {msg}", { msg: e.message })); }
     };
     input.click();
   }

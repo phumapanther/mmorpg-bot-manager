@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ข้อมูลเกม — Fragment Rift</title>
+  <title data-i18n>ข้อมูลเกม — Fragment Rift</title>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
 </head>
@@ -12,34 +12,34 @@
 
 <section class="block" id="sec-continents">
   <div class="container">
-    <h2 class="sec">🗺️ ทวีปทั้ง 9</h2>
-    <p class="sec-sub">แต่ละทวีปมีบรรยากาศ มอนสเตอร์ และของดรอปเป็นของตัวเอง — ข้อมูลนี้ดึงจากเกมจริงเสมอ</p>
-    <div class="grid c2" id="continents"><p>กำลังโหลด...</p></div>
+    <h2 class="sec" data-i18n>🗺️ ทวีปทั้ง 9</h2>
+    <p class="sec-sub" data-i18n>แต่ละทวีปมีบรรยากาศ มอนสเตอร์ และของดรอปเป็นของตัวเอง — ข้อมูลนี้ดึงจากเกมจริงเสมอ</p>
+    <div class="grid c2" id="continents"><p data-i18n>กำลังโหลด...</p></div>
   </div>
 </section>
 
 <section class="block">
   <div class="container">
-    <h2 class="sec">🔮 ธาตุทั้ง 7</h2>
-    <p class="sec-sub">มอนสเตอร์ทุกตัวเกิดมาพร้อมธาตุ — รู้จุดแข็งจุดอ่อนก่อนบุก</p>
+    <h2 class="sec" data-i18n>🔮 ธาตุทั้ง 7</h2>
+    <p class="sec-sub" data-i18n>มอนสเตอร์ทุกตัวเกิดมาพร้อมธาตุ — รู้จุดแข็งจุดอ่อนก่อนบุก</p>
     <div class="grid c4" id="elements"></div>
   </div>
 </section>
 
 <section class="block">
   <div class="container">
-    <h2 class="sec">🎪 ธีมสัปดาห์</h2>
-    <p class="sec-sub">ทุกวันจันทร์โลกเปลี่ยน — อีเวนต์พิเศษหมุนเวียนตลอดทั้งปี</p>
+    <h2 class="sec" data-i18n>🎪 ธีมสัปดาห์</h2>
+    <p class="sec-sub" data-i18n>ทุกวันจันทร์โลกเปลี่ยน — อีเวนต์พิเศษหมุนเวียนตลอดทั้งปี</p>
     <div class="grid c3" id="themes"></div>
   </div>
 </section>
 
 <section class="block" id="sec-codex">
   <div class="container">
-    <h2 class="sec">📖 Codex — คู่มือเกมฉบับเต็ม</h2>
-    <p class="sec-sub">เนื้อหาชุดเดียวกับคำสั่ง <code>!codex</code> ในเกม — อัพเดทตามเกมเสมอ</p>
+    <h2 class="sec" data-i18n>📖 Codex — คู่มือเกมฉบับเต็ม</h2>
+    <p class="sec-sub" data-i18n-html>เนื้อหาชุดเดียวกับคำสั่ง <code>!codex</code> ในเกม — อัพเดทตามเกมเสมอ</p>
     <div class="btn-row" style="margin-bottom:22px" id="codexTabs"></div>
-    <div class="article" id="codexBody"><p>กำลังโหลด...</p></div>
+    <div class="article" id="codexBody"><p data-i18n>กำลังโหลด...</p></div>
   </div>
 </section>
 
@@ -51,7 +51,7 @@
   renderChrome("/game");
   (async () => {
     const g = await fillDiscordInvite();
-    if (!g) { document.getElementById("continents").innerHTML = "<p>โหลดข้อมูลไม่สำเร็จ</p>"; return; }
+    if (!g) { document.getElementById("continents").innerHTML = "<p>" + tr("โหลดข้อมูลไม่สำเร็จ") + "</p>"; return; }
 
     document.getElementById("continents").innerHTML = g.continents.map((c) => `
       <div class="card">
@@ -59,7 +59,7 @@
         <div class="pad">
           <h3>${esc(c.label)}</h3>
           <p>${esc(c.arrival_text)}</p>
-          <div style="margin-top:10px">${c.monsters.map((m) => `<span class="chip">${esc(m.name)}</span>`).join("") || '<span class="chip">มอนสเตอร์มาตรฐานทุกแรงค์</span>'}</div>
+          <div style="margin-top:10px">${c.monsters.map((m) => `<span class="chip">${esc(m.name)}</span>`).join("") || '<span class="chip">' + tr("มอนสเตอร์มาตรฐานทุกแรงค์") + '</span>'}</div>
         </div>
       </div>`).join("");
 
@@ -79,7 +79,7 @@
     try {
       topics = (await api("GET", "/api/web/codex")).topics;
     } catch (e) {
-      document.getElementById("codexBody").innerHTML = "<p>โหลดคู่มือไม่สำเร็จ</p>";
+      document.getElementById("codexBody").innerHTML = "<p>" + tr("โหลดคู่มือไม่สำเร็จ") + "</p>";
       return;
     }
     const tabs = document.getElementById("codexTabs");
