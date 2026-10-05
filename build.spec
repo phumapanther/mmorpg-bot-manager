@@ -12,6 +12,8 @@ a = Analysis(
     datas=[
         ('panel/static', 'panel/static'),
         ('assets', 'assets'),   # ภาพพิกเซลอาร์ตประกอบเหตุการณ์ (assets/events)
+        # 🌐 คำแปลของบอท (แค่ JSON — ไม่ใช่โค้ดฝั่งผู้ขาย) · bot/i18n.py หาจากตำแหน่งนี้
+        ('license_server/web_static/locales', 'license_server/web_static/locales'),
         ('config.example.json', '.'),
         ('VERSION', '.'),
         ('LICENSE_SERVER_URL.txt', '.'),
