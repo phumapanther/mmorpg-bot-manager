@@ -48,7 +48,7 @@ const _i18nMissing = new Set();
 function tr(text, vars) {
   let s = text;
   if (I18N_LANG !== "th") {
-    if (Object.hasOwn(I18N_DICT, text) && I18N_DICT[text]) s = I18N_DICT[text];
+    if (Object.prototype.hasOwnProperty.call(I18N_DICT, text) && I18N_DICT[text]) s = I18N_DICT[text];
     else if (!_i18nMissing.has(text)) { _i18nMissing.add(text); console.warn("[i18n] ไม่มีคำแปล:", text); }
   }
   return vars ? s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m)) : s;
