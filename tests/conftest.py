@@ -1,6 +1,7 @@
 """ค่าตั้งต้นร่วมของเทสทั้งชุด"""
 import functools
 import pathlib
+import re
 
 import pytest
 
@@ -22,6 +23,15 @@ def web_api_source():
         for f in sorted(api_web_dir.rglob("*.py")):
             parts.append(f.read_text(encoding="utf-8"))
     return "\n".join(parts)
+
+
+def strip_i18n(html):
+    """ถอดป้าย data-i18n* ออกก่อนค้นข้อความ HTML ตรงตัว
+
+    ป้ายแปลภาษา (แผน i18n ก้อน 1) ต่อท้ายแท็กเดิม — เทสที่ค้น '<button class="x">' ทั้งแท็ก
+    จะหาไม่เจอทั้งที่ปุ่มยังอยู่ครบ · ป้ายไม่ใช่เรื่องที่เทสพวกนั้นสนใจ
+    """
+    return re.sub(r'\s+data-i18n(?:-html|-attr="[^"]*")?(?=[\s/>])', "", html)
 
 
 @functools.lru_cache(maxsize=1)

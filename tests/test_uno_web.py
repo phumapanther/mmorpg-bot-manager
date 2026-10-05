@@ -13,7 +13,7 @@ import pytest
 from tests import conftest
 
 WEB = pathlib.Path("license_server/web_static")
-HTML = (WEB / "play.html").read_text(encoding="utf-8")
+HTML = conftest.strip_i18n((WEB / "play.html").read_text(encoding="utf-8"))
 JS = (WEB / "uno.js").read_text(encoding="utf-8")
 PLAY_JS = conftest.play_js_source()
 CSS = (WEB / "play.css").read_text(encoding="utf-8")

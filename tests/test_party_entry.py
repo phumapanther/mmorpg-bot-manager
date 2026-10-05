@@ -10,8 +10,10 @@ import pathlib
 
 import pytest
 
+from tests import conftest
+
 WEB = pathlib.Path("license_server/web_static")
-HTML = (WEB / "play.html").read_text(encoding="utf-8")
+HTML = conftest.strip_i18n((WEB / "play.html").read_text(encoding="utf-8"))
 CSS = (WEB / "play.css").read_text(encoding="utf-8")
 
 

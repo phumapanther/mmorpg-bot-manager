@@ -12,10 +12,15 @@ from scripts import i18n_extract as X
 WEB = pathlib.Path("license_server/web_static")
 # หน้าที่แปลเสร็จแล้ว — เพิ่มทีละหน้า (แผนก้อน 1 Task 5-7)
 DONE_PAGES = ["index.html", "login.html", "me.html", "news.html", "topup.html", "game.html",
-              "wold.html"]
+              "wold.html", "play.html"]
 
 
 @pytest.mark.parametrize("page", DONE_PAGES)
 def test_ข้อความไทยในหน้าติดป้ายครบ(page):
     _keys, problems = X.scan_html((WEB / page).read_text(encoding="utf-8"), page)
     assert not problems, "\n".join(problems)
+
+
+def test_แปลครบทุกหน้าผู้เล่นแล้ว():
+    """เพิ่มหน้า HTML ใหม่เมื่อไหร่ ต้องติดป้ายแล้วใส่ใน DONE_PAGES ด้วย"""
+    assert sorted(DONE_PAGES) == sorted(p.name for p in X.player_pages())

@@ -13,7 +13,7 @@ from tests import conftest
 
 API = conftest.web_api_source()
 PLAY = conftest.play_js_source()
-HTML = pathlib.Path("license_server/web_static/play.html").read_text(encoding="utf-8")
+HTML = conftest.strip_i18n(pathlib.Path("license_server/web_static/play.html").read_text(encoding="utf-8"))
 
 SELLER, BUYER = 101, 202
 
