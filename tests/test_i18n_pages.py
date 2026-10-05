@@ -11,7 +11,8 @@ from scripts import i18n_extract as X
 
 WEB = pathlib.Path("license_server/web_static")
 # หน้าที่แปลเสร็จแล้ว — เพิ่มทีละหน้า (แผนก้อน 1 Task 5-7)
-DONE_PAGES = ["index.html", "login.html", "me.html", "news.html", "topup.html", "game.html"]
+DONE_PAGES = ["index.html", "login.html", "me.html", "news.html", "topup.html", "game.html",
+              "wold.html"]
 
 
 @pytest.mark.parametrize("page", DONE_PAGES)
