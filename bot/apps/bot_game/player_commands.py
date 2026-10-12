@@ -219,7 +219,7 @@ def build_element_book_embed(user_id, display_name, continent=None):
 class PlayerCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db_path = "game_data.db"
+        self.db_path = player_model.DB_NAME   # ไฟล์เดียวกับทุกที่ (Docker/NAS ชี้เข้า volume) ไม่ใช่ path ตายตัว
         self.pk_cooldowns = {} #
 
     # --- Database Context Manager ---

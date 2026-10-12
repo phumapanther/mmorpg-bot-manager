@@ -9,9 +9,11 @@ from datetime import datetime
 
 from discord.ext import commands, tasks
 
+from app_paths import get_app_root
 import bot.models.player_model as player_model
 
-BACKUP_DIR = "backups"
+# Docker/NAS: ชี้เข้า volume ผ่าน BACKUP_DIR — ไม่งั้น backup อยู่ใน container layer หายพร้อม DB ตอน build ใหม่
+BACKUP_DIR = os.environ.get("BACKUP_DIR") or os.path.join(get_app_root(), "backups")
 KEEP_LAST = 7
 
 

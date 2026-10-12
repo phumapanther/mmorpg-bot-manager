@@ -13,10 +13,16 @@ __pycache__/
 .pytest_cache/
 tests/
 
-# ค่าลับ — ส่งผ่าน env แทน ห้ามฝังใน image
+# ค่าลับ — ส่งผ่าน env แทน ห้ามฝังใน image (COPY . . จะดูดเข้า layer ไม่งั้น)
 config.json
+.env
+.env.*
 license_server/admin_secret.txt
 LICENSE_SERVER_URL.txt
 
-# ฐานข้อมูล — อยู่ใน volume ไม่ใช่ใน image
+# ฐานข้อมูล + ข้อมูลผู้เล่น + สลิปโอนเงิน — อยู่ใน volume ไม่ใช่ใน image
 *.db
+data/
+
+# compose ไม่ต้องอยู่ใน image
+docker-compose*.yml

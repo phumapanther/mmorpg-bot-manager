@@ -107,6 +107,12 @@ async def upload_slip(topup_id: int, request: Request):
         raise HTTPException(404, "ไม่พบรายการนี้ของคุณ")
     if row["status"] != "pending":
         raise HTTPException(400, "รายการนี้ถูกตัดสินไปแล้ว")
+    # กันระเบิดภาพ (ไฟล์ 5MB คลายเป็นหลายร้อย MB) — container จำกัดแรม 512MB โดน OOM ลากบอท+เว็บตายพร้อมกัน
+    # 1) เช็ค Content-Length ก่อนอ่าน body · 2) จำกัดจำนวนพิกเซลที่ยอม decode
+    clen = request.headers.get("content-length")
+    if clen and clen.isdigit() and int(clen) > _SLIP_MAX:
+        raise HTTPException(400, "ไฟล์ใหญ่เกิน 5MB")
+    Image.MAX_IMAGE_PIXELS = 25_000_000       # ~25 ล้านพิกเซล (เกินนี้ถือว่าผิดปกติ ไม่ใช่สลิปโอนเงิน)
     data = await request.body()
     if len(data) > _SLIP_MAX:
         raise HTTPException(400, "ไฟล์ใหญ่เกิน 5MB")
@@ -114,7 +120,7 @@ async def upload_slip(topup_id: int, request: Request):
         img = Image.open(io.BytesIO(data))
         img.load()
     except Exception:
-        raise HTTPException(400, "ไฟล์นี้เปิดเป็นรูปภาพไม่ได้ (รองรับ png/jpg/webp)")
+        raise HTTPException(400, "ไฟล์นี้เปิดเป็นรูปภาพไม่ได้ หรือใหญ่ผิดปกติ (รองรับ png/jpg/webp)")
     img = img.convert("RGB")
     img.thumbnail((1280, 1280))   # ย่อรูปสลิปใหญ่ๆ ให้พอดี ประหยัดที่
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -129,7 +135,10 @@ def get_slip(topup_id: int, request: Request):
     if not p.is_file():
         raise HTTPException(404, "ยังไม่มีสลิปของรายการนี้")
     # แอดมินเปิดได้ทุกใบ — ผู้เล่นเปิดได้เฉพาะรายการตัวเอง
-    if not verify(request.cookies.get("web_admin", "")):
+    # ⚠️ ต้องเช็ค role==admin ไม่ใช่แค่ลายเซ็นถูก: cookie ผู้เล่นเซ็นด้วยกุญแจเดียวกัน
+    #    ถ้าเช็คแค่ verify() ผู้เล่นเอา web_session มาใส่ช่อง web_admin แล้วเปิดสลิปคนอื่นได้ (IDOR)
+    _adm = verify(request.cookies.get("web_admin", ""))
+    if not (_adm and _adm.get("role") == "admin"):
         uid = require_player(request)["uid"]
         with web_db.connect() as conn:
             row = conn.execute("SELECT id FROM topups WHERE id=? AND discord_id=?",

@@ -95,12 +95,43 @@ import os
 
 PATH_CASES = [
     ("bot.controller.db_manager", "DB_NAME", "GAME_DB_PATH", "game_data.db"),
+    # ⚠️ player/payment/deps ต้องชี้ไฟล์เกมเดียวกับ db_manager — เคยพลาด (เจอตอนขึ้น NAS 10-12):
+    #    3 ตัวนี้อ่าน path ตายตัว ข้อมูลผู้เล่น/เติมเงินเลยอยู่ใน container layer หายตอน build ใหม่
+    ("bot.models.player_model", "DB_NAME", "GAME_DB_PATH", "game_data.db"),
+    ("bot.models.payment_model", "DB_NAME", "GAME_DB_PATH", "game_data.db"),
+    ("license_server.api_web.deps", "GAME_DB_PATH", "GAME_DB_PATH", "game_data.db"),
     ("license_server.web_db", "DB_PATH", "WEB_DB_PATH", "web.db"),
     ("license_server.db", "DB_PATH", "LICENSE_DB_PATH", "licenses.db"),
     # UPLOAD_DIR ย้ายไป api_web/topup.py ตอนผ่า web_api.py (09-02 ขั้น 4)
     # เทสนี้ reload โมดูล จึงต้องชี้ไฟล์ที่นิยามจริง ไม่ใช่สะพาน (สะพาน reload แล้วค่าไม่อัปเดต)
     ("license_server.api_web.topup", "UPLOAD_DIR", "UPLOAD_DIR", "web_uploads"),
+    ("bot.apps.bot_worker.db_backup", "BACKUP_DIR", "BACKUP_DIR", "backups"),
 ]
+
+
+def test_บอทกับเว็บใช้_web_db_ไฟล์เดียวกัน(monkeypatch, tmp_path):
+    """!weblogin กับปุ่มล็อกอินคลิกเดียว: บอทเขียนโค้ด/ตั๋วลง web.db แล้วหน้าเว็บอ่าน web.db
+
+    เคยพลาด (เจอตอนเตรียมขึ้น NAS 10-12): web_link อ่าน path ตายตัว ไม่สน WEB_DB_PATH
+    บน Docker บอทกับเว็บเลยใช้ web.db คนละไฟล์ — ล็อกอินเว็บไม่ได้ แต่ไม่มี error ให้เห็น
+    """
+    web_db_mod = importlib.import_module("license_server.web_db")
+    web_link = importlib.import_module("bot.apps.bot_game.web_link")
+    try:
+        monkeypatch.setenv("WEB_DB_PATH", str(tmp_path / "volume" / "web.db"))
+        importlib.reload(web_db_mod)
+        importlib.reload(web_link)
+        assert str(web_link.WEB_DB) == str(web_db_mod.DB_PATH), "ตั้ง WEB_DB_PATH แล้วบอทต้องตามไปไฟล์เดียวกับเว็บ"
+
+        monkeypatch.delenv("WEB_DB_PATH")
+        importlib.reload(web_db_mod)
+        importlib.reload(web_link)
+        assert os.path.normcase(os.path.abspath(web_link.WEB_DB)) == \
+            os.path.normcase(os.path.abspath(web_db_mod.DB_PATH)), "ไม่ตั้ง env ก็ต้องเป็นไฟล์เดียวกัน"
+    finally:
+        monkeypatch.delenv("WEB_DB_PATH", raising=False)
+        importlib.reload(web_db_mod)
+        importlib.reload(web_link)
 
 
 @pytest.mark.parametrize("mod_name,attr,env_key,default_name", PATH_CASES)
@@ -126,11 +157,19 @@ def test_path_ไม่ตั้ง_env_ใช้_ที่เดิม(monkeypa
 
 def test_ทุก_db_แยกไฟล์กัน(monkeypatch, tmp_path):
     # เคยพลาดได้ง่าย: ก๊อป env key ผิดแล้ว db ทับกัน
+    # แต่หลาย module ใช้ GAME_DB_PATH ร่วมกันโดยตั้งใจ (บอทเขียน เว็บอ่าน ไฟล์เดียวกัน)
+    # → เช็คเป็นราย env key: env key ต่างกันต้องคนละไฟล์ · env key เดียวกันต้องไฟล์เดียวกัน
     for _, _, env_key, name in PATH_CASES:
         monkeypatch.setenv(env_key, str(tmp_path / name))
     mods = [importlib.reload(importlib.import_module(m)) for m, *_ in PATH_CASES]
-    paths = [str(getattr(mod, attr)) for mod, (_, attr, _, _) in zip(mods, PATH_CASES)]
-    assert len(set(paths)) == len(paths), f"path ซ้ำกัน: {paths}"
+    by_key = {}
+    for mod, (_, attr, env_key, _) in zip(mods, PATH_CASES):
+        got = str(getattr(mod, attr))
+        by_key.setdefault(env_key, set()).add(got)
+    for env_key, paths in by_key.items():
+        assert len(paths) == 1, f"{env_key} ชี้คนละไฟล์ในแต่ละ module: {paths}"
+    one_per_key = [next(iter(p)) for p in by_key.values()]
+    assert len(set(one_per_key)) == len(one_per_key), f"env key ต่างกันแต่ไฟล์ซ้ำ: {one_per_key}"
     for _, _, env_key, _ in PATH_CASES:
         monkeypatch.delenv(env_key, raising=False)
     for m, *_ in PATH_CASES:

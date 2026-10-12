@@ -9,7 +9,8 @@ from app_paths import get_app_root
 
 # path เต็มเสมอ — โปรเซสที่ cwd ต่างกัน (เว็บ/พาแนล/บอท) ต้องเห็น game_data.db ไฟล์เดียวกัน
 # ถ้าปล่อยเป็น path สัมพัทธ์ ฝั่งที่ cwd ไม่ตรงจะไปสร้างไฟล์เปล่าใหม่เงียบๆ เงินผู้เล่นหาย
-DB_NAME = os.path.join(get_app_root(), "game_data.db")
+# Docker/NAS: ชี้เข้า volume ผ่าน GAME_DB_PATH — ขาดข้อนี้ข้อมูลผู้เล่นอยู่ใน container layer หายตอน build ใหม่
+DB_NAME = os.environ.get("GAME_DB_PATH") or os.path.join(get_app_root(), "game_data.db")
 
 NEW_PLAYER_DEFAULTS = {
     "level": 1,

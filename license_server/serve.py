@@ -21,6 +21,24 @@ for _stream in (sys.stdout, sys.stderr):
 
 PORT = int(os.environ.get("PORT", "8790"))
 RUN_BOT = os.environ.get("RUN_BOT", "1") != "0"
+# NAS: ลิงก์เว็บสุ่มจาก Cloudflare Quick Tunnel — ตั้งค่านี้แล้วจะคอยจับลิงก์ใหม่ให้บอทแจก (docker-compose.nas.yml)
+TUNNEL_METRICS_URL = os.environ.get("TUNNEL_METRICS_URL", "").strip()
+
+
+# .env.example ใส่ค่าตัวอย่างไว้ — ถ้าลืมแก้แล้วเปิดสู่เน็ต รหัสหลังบ้านจะเป็นค่าที่ใครก็เดาได้
+_ADMIN_SECRET_PLACEHOLDER = "ตั้งรหัสยาวๆสำหรับเข้าหลังบ้าน"
+
+
+def _check_admin_secret():
+    """บนเซิร์ฟสาธารณะ (NAS/คลาวด์) รหัสแอดมินเซ็นคุกกี้ session ทุกใบด้วย — อ่อนเมื่อไหร่ ปลอมสิทธิ์ได้ทันที
+    จึงบังคับให้ตั้งจริง ≥24 ตัว ก่อนเปิดระบบ · รันในเครื่องตัวเอง (keygen_gui) ไม่ผ่านทางนี้ ไม่กระทบ
+    """
+    secret = os.environ.get("ADMIN_SECRET", "").strip()
+    if not secret or secret == _ADMIN_SECRET_PLACEHOLDER or len(secret) < 24:
+        print("❌ ADMIN_SECRET ยังไม่ปลอดภัย — ต้องตั้งใน .env ให้ยาว ≥24 ตัว (สร้างด้วย: openssl rand -hex 24)",
+              flush=True)
+        print("   รหัสนี้ใช้เซ็นคุกกี้ล็อกอินทุกใบ ถ้าอ่อนคนอื่นปลอมเป็นแอดมิน/ผู้เล่นได้ทันที", flush=True)
+        sys.exit(1)
 
 
 def _ensure_dirs():
@@ -61,12 +79,16 @@ async def _serve_bot():
 
 
 async def main():
+    _check_admin_secret()
     _ensure_dirs()
     tasks = [_serve_web()]
     if RUN_BOT:
         tasks.append(_serve_bot())
     else:
         print("⏸️ ปิดบอทไว้ (RUN_BOT=0) — เปิดแค่เว็บ", flush=True)
+    if TUNNEL_METRICS_URL:
+        from license_server.tunnel_url import watch_tunnel
+        tasks.append(watch_tunnel(TUNNEL_METRICS_URL))
     print(f"🚀 เริ่มระบบ พอร์ต {PORT}", flush=True)
     await asyncio.gather(*tasks)
 

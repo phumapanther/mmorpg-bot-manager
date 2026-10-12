@@ -21,7 +21,10 @@ from license_server import web_db
 _ADMIN_TTL = 7 * 86400
 _SESSION_TTL = 30 * 86400
 
-GAME_DB_PATH = Path(__file__).resolve().parent.parent.parent / "game_data.db"
+# หน้าเว็บอ่าน/เครดิตทองลงไฟล์เดียวกับที่บอทเขียน — Docker/NAS ชี้เข้า volume ผ่าน GAME_DB_PATH
+# ขาดข้อนี้: อนุมัติเติมเงินแล้วทองไม่เข้า (คนละไฟล์กับบอท) หรือหายตอน build ใหม่
+GAME_DB_PATH = Path(os.environ.get("GAME_DB_PATH") or
+                    (Path(__file__).resolve().parent.parent.parent / "game_data.db"))
 
 
 def _key():
@@ -50,8 +53,14 @@ def verify(token):
         return None
 
 
+# หลัง tunnel เป็น HTTPS เสมอ → ตั้ง COOKIE_SECURE=1 ให้คุกกี้ไปเฉพาะ https (กันดักผ่าน http)
+# รันในเครื่องตัวเอง (http://localhost) ไม่ตั้ง = ปล่อยปกติ ไม่งั้นล็อกอินเองไม่ได้
+_COOKIE_SECURE = os.environ.get("COOKIE_SECURE") == "1"
+
+
 def _set_cookie(response, name, payload):
     response.set_cookie(name, sign(payload), httponly=True, samesite="lax",
+                        secure=_COOKIE_SECURE,
                         max_age=int(payload["exp"] - time.time()))
 
 

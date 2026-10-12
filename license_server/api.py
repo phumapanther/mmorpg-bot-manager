@@ -1,4 +1,5 @@
 """API ที่ให้ตัวบอทของลูกค้าเรียกมาเช็ค/ผูกคีย์ — ต้องเปิดโปรแกรมนี้ทิ้งไว้ (keygen_gui.py) บอทถึงจะสตาร์ทได้"""
+import hmac
 import os
 import secrets
 
@@ -44,25 +45,28 @@ def create_app():
 
     app = FastAPI(title="License Server")
 
-    @app.post("/redeem")
-    def redeem(req: RedeemRequest):
-        ok, reason = db.redeem_key(req.key.strip(), req.machine_id, req.bot_token_hash)
-        if not ok:
-            code = 404 if reason == "invalid_key" else 403
-            raise HTTPException(code, reason)
-        return {"ok": True}
+    # 🔑 ระบบแจกคีย์ไลเซนส์ — ใช้เฉพาะเครื่องผู้ขาย (keygen_gui) · เซิร์ฟเกม/NAS ปิดด้วย LICENSE_API=0
+    # ปิดไว้ = ไม่เปิดช่อง mint คีย์/ดูคีย์/redeem ออกสู่ลิงก์สาธารณะ (อยู่นอก /api/web จึงไม่มี rate limit)
+    if os.environ.get("LICENSE_API") != "0":
+        @app.post("/redeem")
+        def redeem(req: RedeemRequest):
+            ok, reason = db.redeem_key(req.key.strip(), req.machine_id, req.bot_token_hash)
+            if not ok:
+                code = 404 if reason == "invalid_key" else 403
+                raise HTTPException(code, reason)
+            return {"ok": True}
 
-    @app.get("/keys")
-    def keys(x_admin_secret: str = Header(default="")):
-        if x_admin_secret != get_or_create_admin_secret():
-            raise HTTPException(401, "invalid admin secret")
-        return db.list_keys()
+        @app.get("/keys")
+        def keys(x_admin_secret: str = Header(default="")):
+            if not hmac.compare_digest(x_admin_secret, get_or_create_admin_secret()):
+                raise HTTPException(401, "invalid admin secret")
+            return db.list_keys()
 
-    @app.post("/generate")
-    def generate(note: str = "", x_admin_secret: str = Header(default="")):
-        if x_admin_secret != get_or_create_admin_secret():
-            raise HTTPException(401, "invalid admin secret")
-        return {"key": db.generate_key(note)}
+        @app.post("/generate")
+        def generate(note: str = "", x_admin_secret: str = Header(default="")):
+            if not hmac.compare_digest(x_admin_secret, get_or_create_admin_secret()):
+                raise HTTPException(401, "invalid admin secret")
+            return {"key": db.generate_key(note)}
 
     # 🌐 เว็บไซต์เกม (ข่าว/ข้อมูลเกม/ล็อกอิน/เติมเงิน) — โฮสต์บนแอปเดียวกัน ลิงก์ tunnel เดียวกัน
     # ⚠️ ต้องอยู่ท้ายสุดเสมอ: Starlette จับเส้นทางตามลำดับ — mount "/" ก่อน route จะทับ /redeem (405)
@@ -90,7 +94,10 @@ def create_app():
         from license_server import rate_limit
         path = request.url.path
         if path.startswith("/api/web"):
-            who = (request.cookies.get("web_session")
+            # นับรายคนจาก IP จริง (cf-connecting-ip หลัง tunnel) — ขาดข้อนี้ถูกเลี่ยงง่าย:
+            # หลัง tunnel ทุกคำขอมาจาก IP เดียว (ตู้ tunnel) และคนร้ายสลับคุกกี้ทุกครั้งได้บัคเก็ตใหม่เรื่อย ๆ
+            who = (request.headers.get("cf-connecting-ip")
+                   or request.cookies.get("web_session")
                    or (request.client.host if request.client else "?"))
             ok, retry = rate_limit.check(who[:64], path, request.method)
             if not ok:
