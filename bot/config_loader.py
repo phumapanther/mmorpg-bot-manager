@@ -3,7 +3,8 @@ import json, os
 from app_paths import get_app_root
 
 _ROOT = get_app_root()
-CONFIG_PATH = os.path.join(_ROOT, "config.json")
+# Docker/NAS: ชี้เข้า volume ผ่าน CONFIG_PATH เพื่อให้ panel เซฟทับได้ (os.replace บน bind-mount ไฟล์เดี่ยวพัง)
+CONFIG_PATH = os.environ.get("CONFIG_PATH") or os.path.join(_ROOT, "config.json")
 EXAMPLE_PATH = os.path.join(_ROOT, "config.example.json")
 
 _cache = None

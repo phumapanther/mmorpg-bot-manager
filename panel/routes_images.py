@@ -44,6 +44,11 @@ def get_image(key: str):
 async def upload_image(key: str, request: Request):
     from PIL import Image
     p = _safe_path(key)
+    # กันรูประเบิดพิกเซลทำ container OOM: เช็ค Content-Length ก่อนอ่าน body + จำกัดจำนวนพิกเซล
+    clen = request.headers.get("content-length")
+    if clen and clen.isdigit() and int(clen) > _MAX_UPLOAD:
+        raise HTTPException(400, "ไฟล์ใหญ่เกิน 10MB")
+    Image.MAX_IMAGE_PIXELS = 25_000_000
     data = await request.body()
     if len(data) > _MAX_UPLOAD:
         raise HTTPException(400, "ไฟล์ใหญ่เกิน 10MB")
@@ -51,7 +56,7 @@ async def upload_image(key: str, request: Request):
         img = Image.open(io.BytesIO(data))
         img.load()
     except Exception:
-        raise HTTPException(400, "ไฟล์นี้เปิดเป็นรูปภาพไม่ได้ (รองรับ png/jpg/webp)")
+        raise HTTPException(400, "ไฟล์นี้เปิดเป็นรูปภาพไม่ได้ หรือใหญ่ผิดปกติ (รองรับ png/jpg/webp)")
     img = img.convert("RGB").resize((512, 512), Image.LANCZOS).quantize(colors=256)
     p.parent.mkdir(parents=True, exist_ok=True)
     img.save(p, format="PNG", optimize=True)

@@ -9,13 +9,17 @@ const state = {
 
 // ---------- generic helpers ----------
 
+// Panel ถูกเสิร์ฟใต้ /manage (หลังล็อกอินแอดมิน) — ทุก API ต้องนำหน้าด้วย base นี้
+const PANEL_BASE = "/manage";
+
 async function api(method, url, body) {
   const opts = { method, headers: {} };
   if (body !== undefined) {
     opts.headers["Content-Type"] = "application/json";
     opts.body = JSON.stringify(body);
   }
-  const res = await fetch(url, opts);
+  const res = await fetch(PANEL_BASE + url, opts);
+  if (res.status === 401) { location.href = "/admin"; throw new Error("ต้องล็อกอินแอดมิน"); }
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
     throw new Error(text || res.statusText);
@@ -1220,7 +1224,7 @@ function renderImageTable() {
     const tr = document.createElement("tr");
     const bust = r.bust ? `?t=${r.bust}` : "";
     tr.innerHTML = `
-      <td><img src="/api/event-images/${r.key}${bust}" loading="lazy" alt="${r.key}"
+      <td><img src="${PANEL_BASE}/api/event-images/${r.key}${bust}" loading="lazy" alt="${r.key}"
                style="width:56px;height:56px;image-rendering:pixelated;border-radius:4px"></td>
       <td><code>${r.key}</code></td>
       <td>${Math.round(r.size / 1024)} KB</td>
@@ -1240,7 +1244,7 @@ function pickImageFor(key) {
     if (!file) return;
     try {
       // ส่ง raw bytes ตรงๆ (ไม่ใช่ multipart) — ฝั่ง server อ่านจาก request.body
-      const res = await fetch(`/api/event-images/${key}`, { method: "POST", body: file });
+      const res = await fetch(`${PANEL_BASE}/api/event-images/${key}`, { method: "POST", body: file });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "อัพโหลดไม่สำเร็จ");
       const row = imageRows.find((r) => r.key === key);

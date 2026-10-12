@@ -3,7 +3,8 @@ import json, os, shutil, tempfile
 from app_paths import get_app_root
 
 _ROOT = get_app_root()
-CONFIG_PATH = os.path.join(_ROOT, "config.json")
+# ต้องเป็นไฟล์เดียวกับ bot/config_loader — Docker/NAS ชี้เข้า volume ผ่าน CONFIG_PATH
+CONFIG_PATH = os.environ.get("CONFIG_PATH") or os.path.join(_ROOT, "config.json")
 EXAMPLE_PATH = os.path.join(_ROOT, "config.example.json")
 
 def ensure_exists():

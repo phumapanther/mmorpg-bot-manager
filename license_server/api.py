@@ -114,6 +114,57 @@ def create_app():
             resp.headers["Cache-Control"] = "no-cache, must-revalidate"
         return resp
 
+    # 🛠️ Panel ตั้งค่าบอท — ย้ายจาก localhost:8770 มาไว้ใต้ /manage บนลิงก์เดียวกัน
+    # ⚠️ ทุก route ต้องผ่าน require_admin — panel แก้ token/ตั้งค่า/รูปได้ทั้งหมด เปิดดิบ ๆ = ยึดบอทได้
+    from fastapi import Depends, Request
+    from fastapi.responses import RedirectResponse
+
+    from starlette.routing import Route as _StarRoute
+
+    from license_server.api_web.deps import require_admin, verify
+    from panel import routes_config, routes_discord, routes_images
+    _admin = [Depends(require_admin)]
+    # ลงทะเบียนทีละ route (include_router เวอร์ชันนี้ไม่ลง) — ใส่ prefix /manage + require_admin ทุกตัว
+    for _src in (routes_config.router, routes_discord.router, routes_images.router):
+        for _rt in _src.routes:
+            if isinstance(_rt, _StarRoute):
+                app.add_api_route("/manage" + _rt.path, _rt.endpoint,
+                                  methods=list(_rt.methods or []), dependencies=_admin,
+                                  include_in_schema=False)
+
+    # บน NAS บอทรันเป็น task ใน serve.py (ไม่ใช่ subprocess ที่ panel คุม) — ปุ่ม start จะเปิดบอทซ้ำ
+    # ชนโทเค็น จึงแทนด้วย stub ปลอดภัย: โชว์ว่ารันอยู่ · start/stop ไม่ทำอะไร (รีสตาร์ตผ่าน Container Manager)
+    @app.get("/manage/api/bot/status", dependencies=_admin, include_in_schema=False)
+    def _bot_status():
+        return {"running": True, "pid": None}
+
+    @app.get("/manage/api/bot/log", dependencies=_admin, include_in_schema=False)
+    def _bot_log():
+        return {"lines": ["บอทรันใน container — ดู log จริงที่ Container Manager → server_ai-game-1",
+                          "รีสตาร์ตบอท: Container Manager → Project → server_ai → Action → Restart"]}
+
+    for _verb in ("start", "stop", "restart"):
+        app.add_api_route(f"/manage/api/bot/{_verb}", lambda: {"running": True, "pid": None},
+                          methods=["POST"], dependencies=_admin, include_in_schema=False)
+
+    _panel_static = os.path.join(os.path.dirname(_HERE), "panel", "static")
+
+    @app.get("/manage", include_in_schema=False)
+    def _panel_index(request: Request):
+        data = verify(request.cookies.get("web_admin", ""))
+        if not (data and data.get("role") == "admin"):
+            return RedirectResponse("/admin", status_code=302)   # ยังไม่ล็อกอิน → ไปหน้าแอดมิน
+        return FileResponse(os.path.join(_panel_static, "index.html"))
+
+    # ไฟล์โค้ด (ไม่มีความลับ) — ข้อมูลลับอยู่หลัง /manage/api/* ที่ require_admin
+    @app.get("/manage/app.js", include_in_schema=False)
+    def _panel_js():
+        return FileResponse(os.path.join(_panel_static, "app.js"), media_type="text/javascript")
+
+    @app.get("/manage/style.css", include_in_schema=False)
+    def _panel_css():
+        return FileResponse(os.path.join(_panel_static, "style.css"), media_type="text/css")
+
     if os.path.isdir(assets_dir):
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
     if os.path.isdir(web_static):

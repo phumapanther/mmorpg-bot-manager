@@ -15,6 +15,8 @@ services:
       LICENSE_DB_PATH: /app/data/licenses.db
       UPLOAD_DIR: /app/data/web_uploads
       BACKUP_DIR: /app/data/backups
+      # ตั้งค่าเกม/บอท อยู่ใน volume — panel (/manage) เซฟทับได้ (bind-mount ไฟล์เดี่ยว os.replace พัง)
+      CONFIG_PATH: /app/data/config.json
       # ถาม cloudflared ว่าลิงก์สุ่มตอนนี้คืออะไร แล้วเขียนให้บอทแจก (license_server/tunnel_url.py)
       TUNNEL_METRICS_URL: http://tunnel:2000/quicktunnel
       # เซิร์ฟเกม ไม่ใช่เซิร์ฟแจกไลเซนส์ → ปิดช่อง mint/redeem คีย์ ไม่ให้โผล่ออกลิงก์สาธารณะ
@@ -22,11 +24,8 @@ services:
       # tunnel เป็น https เสมอ → คุกกี้ล็อกอินไปเฉพาะ https
       COOKIE_SECURE: "1"
     volumes:
-      # ⚠️ ข้อมูลผู้เล่นอยู่ในนี้ — ห้ามลบโฟลเดอร์ data
+      # ⚠️ ข้อมูลผู้เล่น + config.json อยู่ในนี้ — ห้ามลบโฟลเดอร์ data
       - ./data:/app/data
-      # ตั้งค่าเกม/บอททั้งหมด (shop, rank, game_balance, guild ฯลฯ) — mount จากไฟล์โฮสต์ แก้แล้วบอทเห็น
-      # ⚠️ ไฟล์ config.json ต้องมีอยู่ก่อนสตาร์ท ไม่งั้น Docker สร้างเป็นโฟลเดอร์ว่างแทน
-      - ./config.json:/app/config.json
     # ไม่แย่ง NAS คนอื่น: เกมใช้จริง ~0.3 CPU / ~320 MB
     # จำกัดด้วยแรมอย่างเดียว — DS720+ เคอร์เนลไม่รองรับ cpus (CPU CFS) · แอปเบา ไม่กิน CPU อยู่แล้ว
     mem_limit: 512m

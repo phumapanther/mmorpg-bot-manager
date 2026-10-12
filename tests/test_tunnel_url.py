@@ -72,6 +72,6 @@ def test_compose_ของ_NAS_ต่อกันครบและไม่เ�
     assert "--metrics 0.0.0.0:2000" in tunnel["command"] and "--url http://game:8790" in tunnel["command"]
     assert game.get("mem_limit"), "ต้องจำกัดแรมไม่ให้แย่ง NAS คนอื่น (cpus ใช้ไม่ได้บนเคอร์เนล Synology บางรุ่น)"
     assert "./data:/app/data" in game["volumes"]
-    assert "./config.json:/app/config.json" in game["volumes"], "ต้อง mount config.json ไม่งั้นบอทได้ตั้งค่าว่าง"
+    assert game["environment"]["CONFIG_PATH"] == "/app/data/config.json", "config.json ต้องอยู่ใน volume (panel เซฟทับได้)"
     for key in ("GAME_DB_PATH", "WEB_DB_PATH", "LICENSE_DB_PATH", "UPLOAD_DIR", "BACKUP_DIR"):
         assert game["environment"][key].startswith("/app/data/"), f"{key} ต้องอยู่ใน volume ไม่งั้นข้อมูลหายตอน build ใหม่"
