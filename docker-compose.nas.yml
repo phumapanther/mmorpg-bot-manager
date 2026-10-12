@@ -3,7 +3,9 @@
 # คู่มือ: docs/nas-deploy.md
 services:
   game:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.nas   # ติดตั้ง Python package ออฟไลน์ (DNS องค์กรบล็อก pypi)
     restart: always          # NAS รีบูต/โปรแกรมล่ม → ขึ้นเอง
     env_file: .env           # ค่าลับอยู่ในนี้ ไม่เข้า git
     environment:
@@ -22,20 +24,31 @@ services:
     volumes:
       # ⚠️ ข้อมูลผู้เล่นอยู่ในนี้ — ห้ามลบโฟลเดอร์ data
       - ./data:/app/data
+      # ตั้งค่าเกม/บอททั้งหมด (shop, rank, game_balance, guild ฯลฯ) — mount จากไฟล์โฮสต์ แก้แล้วบอทเห็น
+      # ⚠️ ไฟล์ config.json ต้องมีอยู่ก่อนสตาร์ท ไม่งั้น Docker สร้างเป็นโฟลเดอร์ว่างแทน
+      - ./config.json:/app/config.json
     # ไม่แย่ง NAS คนอื่น: เกมใช้จริง ~0.3 CPU / ~320 MB
+    # จำกัดด้วยแรมอย่างเดียว — DS720+ เคอร์เนลไม่รองรับ cpus (CPU CFS) · แอปเบา ไม่กิน CPU อยู่แล้ว
     mem_limit: 512m
-    cpus: 0.5
+    # ใช้ DNS สาธารณะของ container เอง — ไม่พึ่ง DNS ภายในองค์กรของ NAS (resolve discord/cloudflare ได้เสมอ)
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     healthcheck:
-      test: ["CMD", "curl", "-fs", "http://localhost:8790/"]
+      # ใช้ python แทน curl (Dockerfile.nas ไม่ลง curl เพื่อเลี่ยง apt)
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8790/',timeout=5).getcode()==200 else 1)"]
       interval: 60s
       timeout: 10s
       start_period: 40s
 
   tunnel:
     image: cloudflare/cloudflared:latest
+    pull_policy: never       # ใช้ image ที่นำเข้าไว้ ไม่ดึงจากเน็ต (DNS องค์กรบล็อก Docker Hub)
     restart: always
     command: tunnel --no-autoupdate --metrics 0.0.0.0:2000 --url http://game:8790
     mem_limit: 128m
-    cpus: 0.25
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     depends_on:
       - game

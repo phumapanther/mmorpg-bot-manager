@@ -33,3 +33,6 @@ data/
 # ตั้งค่าเครื่องมือเฉพาะเครื่อง ไม่ต้องแชร์
 .claude/
 .superpowers/
+
+# wheel สำหรับ build NAS ออฟไลน์ (สร้างใหม่ได้ ดู docs/nas-deploy.md) — ไม่ต้องเข้า git
+wheels/

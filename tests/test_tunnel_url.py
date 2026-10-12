@@ -70,7 +70,8 @@ def test_compose_ของ_NAS_ต่อกันครบและไม่เ�
     assert "ports" not in game and "ports" not in tunnel, "NAS แชร์ไฟล์คนอื่นอยู่ — ห้ามเปิดพอร์ต ให้เข้าผ่าน tunnel อย่างเดียว"
     assert game["environment"]["TUNNEL_METRICS_URL"] == "http://tunnel:2000/quicktunnel"
     assert "--metrics 0.0.0.0:2000" in tunnel["command"] and "--url http://game:8790" in tunnel["command"]
-    assert game.get("mem_limit") and game.get("cpus"), "ต้องจำกัดแรม/CPU ไม่ให้แย่ง NAS คนอื่น"
+    assert game.get("mem_limit"), "ต้องจำกัดแรมไม่ให้แย่ง NAS คนอื่น (cpus ใช้ไม่ได้บนเคอร์เนล Synology บางรุ่น)"
     assert "./data:/app/data" in game["volumes"]
+    assert "./config.json:/app/config.json" in game["volumes"], "ต้อง mount config.json ไม่งั้นบอทได้ตั้งค่าว่าง"
     for key in ("GAME_DB_PATH", "WEB_DB_PATH", "LICENSE_DB_PATH", "UPLOAD_DIR", "BACKUP_DIR"):
         assert game["environment"][key].startswith("/app/data/"), f"{key} ต้องอยู่ใน volume ไม่งั้นข้อมูลหายตอน build ใหม่"
