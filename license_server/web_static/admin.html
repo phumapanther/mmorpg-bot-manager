@@ -21,9 +21,12 @@
   </div>
 
   <div id="panelBox" class="hidden">
-    <div style="display:flex;justify-content:space-between;align-items:center">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
       <h2 class="sec">📝 จัดการข่าว</h2>
-      <button class="btn btn-ghost" id="adminLogoutBtn">🚪 ออกจากระบบ</button>
+      <div style="display:flex;gap:10px">
+        <a class="btn btn-primary" href="/manage">⚙️ ตั้งค่าบอท (Panel)</a>
+        <button class="btn btn-ghost" id="adminLogoutBtn">🚪 ออกจากระบบ</button>
+      </div>
     </div>
     <div class="card" style="padding:22px;margin:16px 0">
       <input type="hidden" id="editId">
