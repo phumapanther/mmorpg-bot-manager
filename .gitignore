@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 config.json
+config-*.json
 game_data.db
 *.db-wal
 *.db-shm
