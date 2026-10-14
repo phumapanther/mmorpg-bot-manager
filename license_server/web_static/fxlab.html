@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>🧪 ห้องแล็บเอฟเฟกต์ — Fragment Rift</title>
+    <!--
+      เครื่องมือออกแบบเอฟเฟกต์ของเกม — เรียกโค้ดวาดจริงมาแสดงสด ปรับค่าเห็นผลทันที แล้วคัดลอก config
+      • ออร่า (รอบตัว)  → drawAura/FASHION_AURA ใน sprite.js
+      • เอฟเฟกต์อิมแพกต์ (slash/lightning/crystal/petal/meteor/rune) → ไลบรารี FX ใน games/fx_effects.js
+      วาดด้วยโค้ดล้วน ไม่มีไฟล์ภาพ — เข้าสไตล์พิกเซลของเกม 100%
+    -->
+    <style>
+      :root { --bg:#0b0e18; --card:#151a2b; --line:#273049; --txt:#e9edf5; --sub:#9aa4b2; --gold:#ffd34a; }
+      * { box-sizing:border-box; }
+      body { margin:0; background:var(--bg); color:var(--txt); font-family:"Prompt",system-ui,sans-serif; }
+      header { padding:16px 20px; border-bottom:1px solid var(--line); }
+      header h1 { margin:0; font-size:20px; }
+      header p { margin:4px 0 0; color:var(--sub); font-size:13px; }
+      .wrap { display:flex; gap:18px; padding:18px; flex-wrap:wrap; align-items:flex-start; }
+      .stage { background:#070a12; border:1px solid var(--line); border-radius:14px;
+               padding:12px; display:flex; flex-direction:column; align-items:center; gap:10px; }
+      canvas { image-rendering:pixelated; border-radius:10px;
+               background:radial-gradient(60% 60% at 50% 70%, #141a2e 0%, #070a12 100%); }
+      .stagebar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:center; }
+      .panel { background:var(--card); border:1px solid var(--line); border-radius:14px;
+               padding:16px; min-width:320px; flex:1; max-width:480px; }
+      .panel h3 { margin:0 0 10px; font-size:15px; }
+      select, .field input[type=text] { background:#0e1322; color:var(--txt);
+               border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-family:inherit; }
+      select { width:100%; font-size:14px; }
+      .row { display:flex; align-items:center; gap:10px; margin:9px 0; }
+      .row label { width:96px; color:var(--sub); font-size:13px; flex:none; }
+      .row input[type=range] { flex:1; accent-color:var(--gold); }
+      .row .val { width:42px; text-align:right; font-variant-numeric:tabular-nums; color:var(--gold); font-size:13px; }
+      .row input[type=color] { width:44px; height:30px; border:1px solid var(--line); border-radius:8px; background:none; padding:2px; cursor:pointer; }
+      .seg { display:flex; gap:6px; flex-wrap:wrap; }
+      .seg button, .preset button { background:#0e1322; color:var(--txt); border:1px solid var(--line);
+               border-radius:9px; padding:7px 12px; cursor:pointer; font-family:inherit; font-size:13px; }
+      .seg button[aria-pressed=true] { background:var(--gold); color:#1a1a1a; border-color:var(--gold); font-weight:600; }
+      .preset { display:flex; gap:6px; flex-wrap:wrap; margin:6px 0; }
+      .chk { color:var(--sub); font-size:13px; display:flex; gap:6px; align-items:center; cursor:pointer; }
+      .divide { height:1px; background:var(--line); margin:14px 0; }
+      .out { width:100%; background:#070a12; color:#bfe6c2; border:1px solid var(--line); border-radius:10px;
+             padding:10px; font-family:"JetBrains Mono",monospace; font-size:12px; resize:vertical; min-height:62px; white-space:pre; }
+      .field { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+      .field input[type=text] { flex:1; }
+      .copy { background:var(--gold); color:#1a1a1a; border:none; border-radius:9px; padding:8px 14px; cursor:pointer; font-weight:600; font-family:inherit; }
+      .hint { color:var(--sub); font-size:12px; line-height:1.6; margin-top:10px; }
+      code { background:#0e1322; padding:1px 6px; border-radius:5px; color:var(--gold); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>🧪 ห้องแล็บเอฟเฟกต์</h1>
+      <p>เลือกชนิด → ปรับค่าเห็นผลสดบนตัวละครจริง → คัดลอก config ไปใส่เกม · ทุกอย่างวาดด้วยโค้ด ไม่มีไฟล์ภาพ</p>
+    </header>
+
+    <div class="wrap">
+      <div class="stage">
+        <canvas id="fx" width="360" height="360"></canvas>
+        <div class="stagebar">
+          <div class="seg" id="poseSeg">
+            <button data-pose="idle" aria-pressed="true">ยืน</button>
+            <button data-pose="run1" aria-pressed="false">วิ่ง</button>
+            <button data-pose="atk" aria-pressed="false">โจมตี</button>
+          </div>
+          <label class="chk"><input type="checkbox" id="showChar" checked /> แสดงตัวละคร</label>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="row" style="margin-top:0">
+          <label style="width:auto">ชนิดเอฟเฟกต์</label>
+          <select id="effect"></select>
+        </div>
+
+        <div class="preset" id="presetRow" hidden>
+          <span style="color:var(--sub);font-size:12px;align-self:center">เริ่มจาก:</span>
+        </div>
+
+        <div class="divide"></div>
+        <h3 id="ctrlTitle">ค่าปรับ</h3>
+        <div id="dynamic"></div>
+
+        <div class="divide"></div>
+        <h3>🎭 ตัวละครตัวอย่าง</h3>
+        <div class="row"><label>เผ่า</label><select id="race"></select></div>
+        <div class="row"><label>คลาส</label><select id="cls"></select></div>
+        <div class="row"><label>อาวุธ</label><select id="weapon"></select></div>
+
+        <div class="divide"></div>
+        <h3>📋 คัดลอกไปใส่เกม</h3>
+        <div class="field" id="keyRow">
+          <input type="text" id="key" value="my_aura" spellcheck="false" />
+          <button class="copy" id="copyBtn">คัดลอก</button>
+        </div>
+        <textarea class="out" id="output" readonly rows="3"></textarea>
+        <p class="hint" id="useHint"></p>
+      </div>
+    </div>
+
+    <script src="/sprite.js"></script>
+    <script src="/games/fx_effects.js"></script>
+    <script>
+      const FXREG = window.FX || {};
+
+      // ── เติม dropdown ตัวละคร จากตารางจริงใน sprite.js ──
+      const fill = (sel, keys) => keys.forEach(k => {
+        const o = document.createElement('option'); o.value = k; o.textContent = k; sel.appendChild(o); });
+      fill(race, Object.keys(RACE_LOOK)); fill(cls, Object.keys(CLASS_LOOK)); fill(weapon, Object.keys(WEAPON_LOOK));
+      cls.value = 'Warrior'; weapon.value = 'Iron_Weapon';
+
+      // ── รายการชนิดเอฟเฟกต์: ออร่า (พิเศษ) + ทุกตัวในไลบรารี FX ──
+      const MODES = [{ id:'aura', label:'✨ ออร่า (รอบตัว)' },
+                     ...Object.keys(FXREG).map(k => ({ id:k, label:'💥 ' + (FXREG[k].label||k) }))];
+      for (const m of MODES) { const o=document.createElement('option'); o.value=m.id; o.textContent=m.label; effect.appendChild(o); }
+
+      // ── สถานะค่าปัจจุบันของแต่ละชนิด ──
+      const aura = { style:'ring', tongues:5, height:15, sway:2.2, c1:'#b8862a', c2:'#f0c95a', c3:'#fff6d8' };
+      const fxVals = {};                                  // ค่าของเอฟเฟกต์ FX แต่ละตัว
+      for (const k in FXREG) { fxVals[k] = {};
+        (FXREG[k].params||[]).forEach(d => fxVals[k][d.key] = d.def);
+        (FXREG[k].colors||[]).forEach(d => fxVals[k][d.key] = d.def); }
+
+      let mode = 'aura', pose = 'idle', T = 0;
+
+      // ── สร้างแถวคอนโทรลแบบทั่วไป ──
+      function rangeRow(label, val, min, max, step, on) {
+        const row = document.createElement('div'); row.className = 'row';
+        const lb = document.createElement('label'); lb.textContent = label;
+        const inp = document.createElement('input'); inp.type='range'; inp.min=min; inp.max=max; inp.step=step; inp.value=val;
+        const v = document.createElement('span'); v.className='val'; v.textContent = (+val).toString();
+        inp.oninput = () => { v.textContent = step < 1 ? (+inp.value).toFixed(1) : inp.value; on(+inp.value); syncOut(); };
+        row.append(lb, inp, v); return row;
+      }
+      function colorRow(label, val, on) {
+        const row = document.createElement('div'); row.className = 'row';
+        const lb = document.createElement('label'); lb.textContent = label;
+        const inp = document.createElement('input'); inp.type='color'; inp.value = val;
+        inp.oninput = () => { on(inp.value); syncOut(); };
+        row.append(lb, inp); return row;
+      }
+
+      // ── สร้างคอนโทรลตามชนิดที่เลือก ──
+      function buildControls() {
+        dynamic.innerHTML = ''; presetRow.querySelectorAll('button').forEach(b=>b.remove());
+        if (mode === 'aura') {
+          ctrlTitle.textContent = '✨ ออร่า';
+          keyRow.hidden = false; presetRow.hidden = false;
+          // ทรง (ring/swirl)
+          const seg = document.createElement('div'); seg.className='seg';
+          for (const st of ['ring','swirl']) { const b=document.createElement('button');
+            b.textContent = st==='ring'?'วงแหวน':'เกลียว'; b.setAttribute('aria-pressed', aura.style===st);
+            b.onclick = () => { aura.style=st; for(const x of seg.children) x.setAttribute('aria-pressed', x===b); syncOut(); };
+            seg.appendChild(b); }
+          const srow=document.createElement('div'); srow.className='row';
+          const sl=document.createElement('label'); sl.textContent='ทรง'; srow.append(sl, seg); dynamic.appendChild(srow);
+          dynamic.appendChild(rangeRow('จำนวนลิ้นไฟ', aura.tongues, 0, 12, 1, v=>aura.tongues=v));
+          dynamic.appendChild(rangeRow('ความสูง', aura.height, 4, 24, 1, v=>aura.height=v));
+          dynamic.appendChild(rangeRow('แกว่ง', aura.sway, 0, 5, 0.1, v=>aura.sway=v));
+          dynamic.appendChild(colorRow('สีขอบ (เข้ม)', aura.c1, v=>aura.c1=v));
+          dynamic.appendChild(colorRow('สีตัว', aura.c2, v=>aura.c2=v));
+          dynamic.appendChild(colorRow('แกนสว่าง', aura.c3, v=>aura.c3=v));
+          // ปุ่มเริ่มจากออร่าเดิม
+          for (const [name, v] of Object.entries(FASHION_AURA)) { if (name.startsWith('__')) continue;
+            const b=document.createElement('button'); b.textContent=name;
+            b.onclick=()=>{ Object.assign(aura, v); buildControls(); syncOut(); }; presetRow.appendChild(b); }
+        } else {
+          const e = FXREG[mode];
+          ctrlTitle.textContent = '💥 ' + (e.label||mode);
+          keyRow.hidden = true; presetRow.hidden = true;
+          for (const d of e.params||[]) dynamic.appendChild(
+            rangeRow(d.label, fxVals[mode][d.key], d.min, d.max, d.step, v => fxVals[mode][d.key]=v));
+          for (const d of e.colors||[]) dynamic.appendChild(
+            colorRow(d.label, fxVals[mode][d.key], v => fxVals[mode][d.key]=v));
+        }
+        syncOut();
+      }
+
+      // ── ข้อความ config ที่คัดลอกได้ ──
+      function syncOut() {
+        if (mode === 'aura') {
+          const k = (key.value.trim() || 'my_aura');
+          output.value =
+            `  ${k}: { style: '${aura.style}', c1: '${aura.c1}', c2: '${aura.c2}', c3: '${aura.c3}', ` +
+            `tongues: ${aura.tongues}, height: ${aura.height}, sway: ${+(+aura.sway).toFixed(1)} },`;
+          useHint.innerHTML = 'วางบรรทัดนี้ใน <code>FASHION_AURA</code> ที่ <code>sprite.js</code> → ตั้งชื่อ key ไม่ซ้ำ ' +
+            'แล้วใส่ให้ผู้เล่นด้วย <code>fashion.aura = \'&lt;key&gt;\'</code>';
+        } else {
+          output.value =
+            `// 💥 ${FXREG[mode].label} — เรียกตอนอยากให้เอฟเฟกต์เล่น\n` +
+            `const p = ${JSON.stringify(fxVals[mode])};\n` +
+            `FX.${mode}.draw(ctx, cx, cy, s, p, t);  // t = เลขเฟรม (เพิ่มทีละ 1)`;
+          useHint.innerHTML = 'โหลด <code>&lt;script src="/games/fx_effects.js"&gt;</code> แล้วเรียก <code>FX.' + mode +
+            '.draw(...)</code> ตอนที่อยากให้เล่น (เช่น ตอนคริ/ร่ายท่า) — cx,cy = จุดกลาง, s = ขนาดพิกเซล';
+        }
+      }
+
+      // ── วาดสด ──
+      const cv = document.getElementById('fx'), ctx = cv.getContext('2d');
+      const S = 7, X = Math.round((cv.width - 16 * S) / 2), Y = 120;
+      const cxC = X + 8 * S, cyC = Y + 13 * S;            // จุดกลางเอฟเฟกต์ ≈ กลางลำตัว
+      function loop() {
+        T++;
+        ctx.clearRect(0, 0, cv.width, cv.height);
+        const cfg = { race: race.value, cls: cls.value, weapon: weapon.value, pose, fashion: {} };
+        if (mode === 'aura') { FASHION_AURA.__preview = aura; cfg.fashion = { aura: '__preview' }; }
+        if (showChar.checked) {
+          drawCharacter(ctx, X, Y, S, cfg);
+        } else if (mode === 'aura') {
+          FASHION_AURA.__preview = aura; drawAura(ctx, X, Y, S, '__preview', T);   // ไม่มีตัวละคร → วาดออร่าเดี่ยว
+        }
+        if (mode !== 'aura' && FXREG[mode]) FXREG[mode].draw(ctx, cxC, cyC, S, fxVals[mode], T);
+        requestAnimationFrame(loop);
+      }
+
+      // ── ต่อปุ่มหลัก ──
+      effect.onchange = () => { mode = effect.value; buildControls(); };
+      key.oninput = syncOut;
+      for (const b of poseSeg.children) b.onclick = () => { pose = b.dataset.pose;
+        for (const x of poseSeg.children) x.setAttribute('aria-pressed', x === b); };
+      copyBtn.onclick = async () => {
+        try { await navigator.clipboard.writeText(output.value); }
+        catch { output.select(); document.execCommand('copy'); }
+        copyBtn.textContent = '✓ คัดลอกแล้ว'; setTimeout(() => copyBtn.textContent = 'คัดลอก', 1400);
+      };
+
+      buildControls();
+      loop();
+    </script>
+  </body>
+</html>
