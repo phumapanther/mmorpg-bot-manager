@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import os
 from panel import config_store, routes_config, routes_discord, routes_bot, routes_images
@@ -10,6 +11,11 @@ app.include_router(routes_discord.router)
 app.include_router(routes_bot.router)
 app.include_router(routes_images.router)
 _static = os.path.join(os.path.dirname(__file__), "static")
+
+
+@app.get("/calendar", include_in_schema=False)
+def _calendar_page():
+    return FileResponse(os.path.join(_static, "calendar.html"))
 
 
 @app.middleware("http")

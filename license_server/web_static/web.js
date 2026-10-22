@@ -75,7 +75,7 @@ const CATEGORY_LABEL = { news: tr("📢 ข่าว"), patch: tr("🛠️ แ�
 // ── navbar + footer ใช้ร่วมทุกหน้า ──
 const NAV_ITEMS = [
   ["/", tr("หน้าแรก")], ["/news", tr("ข่าวสาร")], ["/game", tr("ข้อมูลเกม")],
-  ["/play", tr("🎮 เล่นเกม")], ["/wold", "🏰 WOLD Arture"], ["/topup", tr("เติมเกม")],
+  ["/play", tr("🎮 เล่นเกม")], ["/wold", "🏰 WOLD Arture"], ["/calendar", tr("📅 ปฏิทิน")], ["/topup", tr("เติมเกม")],
 ];
 
 async function renderChrome(active) {
@@ -109,7 +109,7 @@ async function renderChrome(active) {
     foot.innerHTML = `<div class="container">
       <div class="cols">
         <div><h4>${esc(SITE.name)}</h4><p>${esc(SITE.tagline)}</p></div>
-        <div><h4>${tr("เมนู")}</h4><a href="/">${tr("หน้าแรก")}</a><a href="/news">${tr("ข่าวสาร")}</a><a href="/game">${tr("ข้อมูลเกม")}</a><a href="/play">${tr("เล่นเกม")}</a><a href="/topup">${tr("เติมเกม")}</a></div>
+        <div><h4>${tr("เมนู")}</h4><a href="/">${tr("หน้าแรก")}</a><a href="/news">${tr("ข่าวสาร")}</a><a href="/game">${tr("ข้อมูลเกม")}</a><a href="/play">${tr("เล่นเกม")}</a><a href="/calendar">${tr("ปฏิทิน")}</a><a href="/topup">${tr("เติมเกม")}</a></div>
         <div><h4>${tr("ชุมชน")}</h4><a id="footDiscord" href="#" target="_blank" rel="noopener">${tr("💬 Discord เซิร์ฟหลัก")}</a><a href="/me">${tr("โปรไฟล์ของฉัน")}</a></div>
       </div>
       <p class="tiny">© ${new Date().getFullYear()} ${esc(SITE.name)} — ${tr("เล่นฟรีใน Discord")}</p>

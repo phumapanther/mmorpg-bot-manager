@@ -1,0 +1,3257 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PHUMAPANTHER — ตารางงาน & คอนเทนต์รายเดือน 🐾</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Mali:wght@500;600;700&family=Prompt:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/web.css" />
+<script src="/calendar_assets/mascots-data.js"></script>
+<script src="/calendar_assets/html2canvas.min.js"></script>
+<style>
+  :root {
+    --red: #d81f2a;
+    --red-dark: #a3121c;
+    --red-soft: #ffe4e6;
+    --ink: #231518;
+    --ink-muted: #7a4a50;
+    --bg: #fff7f5;
+    --card-bg: #ffffff;
+    --past-bg: #f4ebe9;
+    --past-border: #d6c2bf;
+    --today-bg: #fff0f1;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html, body {
+    width: 100%;
+    min-height: 100vh;
+    background: var(--bg);
+    font-family: 'Baloo 2', 'Mali', 'Prompt', sans-serif;
+    color: var(--ink);
+    overflow-x: hidden;
+  }
+
+  /* แถบเครื่องมือด้านบน (ไม่ถูกติดไปตอน Export PNG) */
+  .top-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(35, 21, 24, 0.96);
+    backdrop-filter: blur(10px);
+    border-bottom: 3.5px solid var(--red);
+    padding: 7px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(35, 21, 24, 0.22);
+  }
+
+  .toolbar-left, .toolbar-center, .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-wrap: wrap;
+  }
+
+  .brand-mini {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: 0.8px;
+    color: #fff;
+    background: var(--red);
+    padding: 4px 12px;
+    border-radius: 999px;
+    border: 2px solid #fff;
+    box-shadow: 0 3px 0 var(--red-dark);
+    white-space: nowrap;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    font-family: 'Baloo 2', 'Mali', 'Prompt', sans-serif;
+    font-weight: 700;
+    font-size: 13.5px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 2px solid var(--ink);
+    background: #fff;
+    color: var(--ink);
+    cursor: pointer;
+    box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.15s ease;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 0 rgba(0, 0, 0, 0.28);
+    background: #fff9f8;
+  }
+  .btn:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+  }
+
+  .btn-red {
+    background: var(--red);
+    color: #fff;
+    border-color: #fff;
+    box-shadow: 0 4px 0 var(--red-dark);
+  }
+  .btn-red:hover {
+    background: #eb2531;
+    box-shadow: 0 6px 0 var(--red-dark);
+  }
+
+  .btn-gold {
+    background: #fbbf24;
+    color: var(--ink);
+    border-color: #fff;
+    box-shadow: 0 4px 0 #b45309;
+  }
+  .btn-gold:hover {
+    background: #fcd34d;
+    box-shadow: 0 6px 0 #b45309;
+  }
+
+  .btn-dark {
+    background: #3a2328;
+    color: #fff;
+    border-color: #6e454d;
+    box-shadow: 0 4px 0 #140b0d;
+  }
+  .btn-dark:hover {
+    background: #4d2f36;
+  }
+
+  .month-nav-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1.5px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .month-Jump-select {
+    font-family: 'Mali', 'Prompt', sans-serif;
+    font-weight: 700;
+    font-size: 13.5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 2px solid #fff;
+    background: var(--ink);
+    color: #fff;
+    cursor: pointer;
+    outline: none;
+  }
+
+  /* =========================================================
+     พื้นที่บอร์ดตารางงานหลัก (ส่วนที่จะถูก Export เป็น PNG)
+     ========================================================= */
+  .board-wrapper {
+    width: 100%;
+    padding: 8px 14px 12px;
+    display: flex;
+    justify-content: center;
+  }
+
+  #schedule-board {
+    position: relative;
+    width: 100%;
+    max-width: 1892px;
+    min-height: calc(100vh - 68px);
+    background:
+      radial-gradient(circle at 12% 16%, #ffe9e6 0%, transparent 38%),
+      radial-gradient(circle at 88% 82%, #ffeceb 0%, transparent 38%),
+      radial-gradient(circle at 50% 50%, #fffcfb 0%, var(--bg) 100%);
+    border: 4.5px solid var(--ink);
+    border-radius: 28px;
+    box-shadow:
+      0 8px 0 rgba(216, 31, 42, 0.25),
+      0 14px 35px rgba(35, 21, 24, 0.16);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  /* จุดพื้นหลังนุ่มๆ สไตล์ PHUMAPANTHER */
+  #schedule-board::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(216, 31, 42, 0.075) 2.5px, transparent 2.5px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* เส้นวงจรเท่ๆ มุมจอ (จาก starting-soon / endscreen) */
+  .circuit {
+    position: absolute;
+    opacity: 0.42;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .circuit.tl { top: 12px; left: 14px; }
+  .circuit.tr { top: 12px; right: 14px; transform: scaleX(-1); }
+  .circuit.bl { bottom: 38px; left: 14px; transform: scaleY(-1); }
+  .circuit.br { bottom: 38px; right: 14px; transform: scale(-1, -1); }
+
+  /* ของตกแต่งลอยดุ๊กดิ๊ก */
+  .deco-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    overflow: hidden;
+  }
+  .float-item {
+    position: absolute;
+    user-select: none;
+    animation: floaty var(--dur, 6s) ease-in-out infinite alternate;
+    filter: drop-shadow(0 4px 6px rgba(216, 31, 42, 0.15));
+    opacity: 0.75;
+  }
+  @keyframes floaty {
+    from { transform: translateY(-8px) rotate(-8deg); }
+    to { transform: translateY(8px) rotate(8deg); }
+  }
+
+  /* =========================================================
+     ส่วนหัวตาราง (Header Banner + Mascots + Category Legend)
+     ========================================================= */
+  .board-header {
+    position: relative;
+    z-index: 3;
+    display: grid;
+    grid-template-columns: 230px 1fr 265px;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 22px 4px;
+  }
+
+  /* ฝั่งซ้าย: โลโก้มาสคอตจิบิ + สายฟ้า */
+  .mascot-card-left {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .mascot-logo-img {
+    width: 175px;
+    max-height: 128px;
+    object-fit: contain;
+    filter: drop-shadow(0 5px 0 rgba(216, 31, 42, 0.22));
+    animation: bob 3.2s ease-in-out infinite;
+  }
+
+  /* ฝั่งขวา: โมเดล 2D Vtuber + ป้ายสถานะวันนี้ */
+  .mascot-card-right {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .vtuber-avatar-wrap {
+    position: relative;
+    width: 118px;
+    height: 126px;
+    background: radial-gradient(circle at 50% 35%, #fff7f8 0%, #ffd2d7 100%);
+    border: 3.5px solid var(--ink);
+    border-radius: 22px;
+    box-shadow: 0 5px 0 rgba(216, 31, 42, 0.25);
+    overflow: hidden;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+  .vtuber-avatar-wrap:hover {
+    transform: scale(1.04) rotate(1.5deg);
+  }
+  .vtuber-avatar-wrap img {
+    width: 112px;
+    height: 122px;
+    object-fit: contain;
+    object-position: bottom center;
+    filter: drop-shadow(0 3px 6px rgba(35, 21, 24, 0.18));
+  }
+  .today-summary-box {
+    background: #fff;
+    border: 3px solid var(--ink);
+    border-radius: 18px;
+    padding: 7px 12px;
+    box-shadow: 0 5px 0 rgba(216, 31, 42, 0.2);
+    text-align: left;
+    min-width: 132px;
+  }
+  .today-summary-box .ts-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 800;
+    color: #fff;
+    background: var(--red);
+    padding: 1.5px 9px;
+    border-radius: 999px;
+    letter-spacing: 0.4px;
+    margin-bottom: 3px;
+  }
+  .today-summary-box .ts-date {
+    font-family: 'Mali', sans-serif;
+    font-weight: 700;
+    font-size: 13.5px;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+  .today-summary-box .ts-stats {
+    margin-top: 2px;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--ink-muted);
+  }
+
+  /* ตรงกลาง: ป้าย SCHEDULE + ชื่อเดือนขนาดใหญ่ + คำโปรย + แถบหมวดหมู่ */
+  .header-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 3px;
+  }
+
+  .top-pill-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #fff;
+    border: 2.5px solid var(--red);
+    border-radius: 999px;
+    padding: 2px 14px;
+    font-weight: 800;
+    font-size: 12.5px;
+    color: var(--red);
+    letter-spacing: 1.6px;
+    box-shadow: 0 3px 0 rgba(216, 31, 42, 0.16);
+  }
+  .live-badge .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--red);
+    animation: blink 1s infinite;
+  }
+
+  .month-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--ink);
+    color: #fff;
+    border: 2px solid #fff;
+    border-radius: 999px;
+    padding: 2px 12px;
+    font-family: 'Mali', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    box-shadow: 0 3px 0 rgba(216, 31, 42, 0.22);
+  }
+  .month-status-pill.is-current {
+    background: #10b981;
+  }
+  .month-status-pill.is-past-month {
+    background: #6b7280;
+  }
+  .month-status-pill.is-future-month {
+    background: #0284c7;
+  }
+
+  .month-title-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .month-title {
+    font-family: 'Baloo 2', 'Mali', sans-serif;
+    font-size: clamp(26px, 2.5vw, 38px);
+    font-weight: 800;
+    color: var(--red);
+    line-height: 1.05;
+    letter-spacing: 1px;
+    text-shadow:
+      0 3px 0 #fff,
+      0 6px 0 rgba(216, 31, 42, 0.2);
+    cursor: pointer;
+  }
+
+  .board-subtitle {
+    font-family: 'Mali', cursive;
+    font-weight: 700;
+    font-size: 13.5px;
+    color: var(--ink-muted);
+    background: rgba(255, 255, 255, 0.88);
+    border: 2px dashed var(--red);
+    border-radius: 999px;
+    padding: 1.5px 16px;
+    cursor: pointer;
+  }
+  .board-subtitle:hover {
+    background: #fff;
+  }
+
+  /* แถบหมวดหมู่ (Legend & Filter) */
+  .category-legend {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 2px;
+  }
+
+  .cat-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2.5px 10px;
+    border-radius: 999px;
+    border: 2px solid var(--ink);
+    background: #fff;
+    font-family: 'Mali', 'Prompt', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--ink);
+    box-shadow: 0 2.5px 0 rgba(35, 21, 24, 0.12);
+    cursor: pointer;
+    transition: transform 0.12s ease, opacity 0.15s ease;
+    user-select: none;
+  }
+  .cat-chip:hover {
+    transform: translateY(-2px);
+  }
+  .cat-chip.filtered-out {
+    opacity: 0.35;
+    filter: grayscale(0.8);
+  }
+  .cat-chip .cat-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid var(--ink);
+    flex-shrink: 0;
+  }
+  .cat-chip .cat-count {
+    background: rgba(35, 21, 24, 0.09);
+    border-radius: 999px;
+    padding: 0 6px;
+    font-size: 11px;
+    font-family: 'Baloo 2', sans-serif;
+    font-weight: 800;
+  }
+
+  /* สายฟ้าการ์ตูน SVG */
+  .bolt-svg {
+    width: 34px;
+    height: 34px;
+    overflow: visible;
+    flex-shrink: 0;
+  }
+  .bolt-svg .edge { fill: none; stroke: var(--ink); stroke-width: 16; stroke-linejoin: round; }
+  .bolt-svg .rim  { fill: none; stroke: #fff; stroke-width: 8; stroke-linejoin: round; }
+  .bolt-svg .fill { fill: var(--red); }
+
+  /* =========================================================
+     ตารางปฏิทินขนาดใหญ่เต็มหน้า (Full-Screen Calendar Grid)
+     ========================================================= */
+  .calendar-section {
+    position: relative;
+    z-index: 3;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 4px 18px 8px;
+  }
+
+  /* แถวชื่อวัน (อาทิตย์ - เสาร์) */
+  .weekday-header {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 7px;
+    margin-bottom: 6px;
+  }
+
+  .weekday-cell {
+    background: var(--ink);
+    color: #fff;
+    border: 2.5px solid var(--ink);
+    border-radius: 13px;
+    padding: 4px 8px;
+    text-align: center;
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: 0.5px;
+    box-shadow: 0 3px 0 rgba(216, 31, 42, 0.24);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+  }
+  .weekday-cell.sun {
+    background: var(--red);
+    border-color: var(--ink);
+  }
+  .weekday-cell.sat {
+    background: #5b21b6;
+    border-color: var(--ink);
+  }
+  .weekday-cell .wd-en {
+    font-size: 11px;
+    opacity: 0.85;
+    font-weight: 700;
+  }
+
+  /* กริดช่องวันที่ */
+  .calendar-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-auto-rows: minmax(126px, auto);
+    gap: 7px;
+  }
+
+  /* การ์ดแต่ละวัน */
+  .day-cell {
+    position: relative;
+    background: var(--card-bg);
+    border: 2.5px solid var(--ink);
+    border-radius: 16px;
+    padding: 5px 7px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    box-shadow: 0 4px 0 rgba(35, 21, 24, 0.12);
+    transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+    cursor: pointer;
+    overflow: hidden;
+  }
+  .day-cell:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 0 rgba(216, 31, 42, 0.25);
+    border-color: var(--red);
+  }
+  .day-cell.drag-over {
+    outline: 3.5px dashed var(--red);
+    background: #fff0f1 !important;
+  }
+
+  /* วันของเดือนอื่น (ช่องว่างก่อน/หลังเดือน) */
+  .day-cell.other-month {
+    background: rgba(244, 235, 233, 0.48);
+    border: 2px dashed #cbb5b2;
+    box-shadow: none;
+    opacity: 0.55;
+  }
+  .day-cell.other-month:hover {
+    opacity: 0.85;
+  }
+
+  /* 1. สถานะ: วันที่ผ่านมาแล้ว (PAST DAY) */
+  .day-cell.is-past {
+    background:
+      repeating-linear-gradient(
+        -45deg,
+        rgba(35, 21, 24, 0.025) 0px,
+        rgba(35, 21, 24, 0.025) 10px,
+        transparent 10px,
+        transparent 20px
+      ),
+      var(--past-bg);
+    border-color: #6e585b;
+    box-shadow: 0 3px 0 rgba(35, 21, 24, 0.08);
+  }
+  body.dim-past-days .day-cell.is-past {
+    opacity: 0.8;
+  }
+  body.dim-past-days .day-cell.is-past:hover {
+    opacity: 1;
+  }
+
+  /* 2. สถานะ: วันนี้ / วันปัจจุบัน (TODAY) */
+  .day-cell.is-today {
+    background:
+      radial-gradient(circle at 90% 10%, #ffd6da 0%, transparent 55%),
+      linear-gradient(180deg, #fff5f5 0%, #ffffff 100%);
+    border: 3.5px solid var(--red);
+    box-shadow:
+      0 5px 0 var(--red-dark),
+      0 0 0 3px rgba(216, 31, 42, 0.16),
+      0 8px 18px rgba(216, 31, 42, 0.2);
+    z-index: 2;
+  }
+
+  /* 3. สถานะ: วันที่ยังมาไม่ถึง (UPCOMING DAY) */
+  .day-cell.is-upcoming {
+    background: #ffffff;
+    border-color: var(--ink);
+  }
+  .day-cell.is-upcoming.has-events {
+    background:
+      radial-gradient(circle at 95% 5%, rgba(255, 230, 230, 0.45) 0%, transparent 55%),
+      #ffffff;
+  }
+
+  /* แถวบนสุดของช่องวันที่: เลขวันที่ + ป้ายสถานะ (ผ่านแล้ว / วันนี้ / เร็วๆ นี้) */
+  .day-top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+  }
+
+  .day-num-group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .day-number {
+    width: 26px;
+    height: 26px;
+    border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Baloo 2', sans-serif;
+    font-weight: 800;
+    font-size: 16px;
+    line-height: 1;
+    color: var(--ink);
+    background: #f8edeb;
+    border: 2px solid var(--ink);
+  }
+  .day-cell.sun-col .day-number {
+    color: var(--red);
+    background: #ffe8ea;
+  }
+  .day-cell.sat-col .day-number {
+    color: #5b21b6;
+    background: #f1e9fe;
+  }
+  .day-cell.is-past .day-number {
+    background: #e3d5d3;
+    color: #5c4346;
+    border-color: #7c6266;
+  }
+  .day-cell.is-today .day-number {
+    background: var(--red);
+    color: #fff;
+    border-color: #fff;
+    box-shadow: 0 2.5px 0 var(--red-dark);
+  }
+
+  /* ป้ายกำกับสถานะของวัน (แสดงชัดเจนว่า ผ่านแล้ว / วันนี้ / ยังไม่ถึง) */
+  .day-status-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-family: 'Mali', 'Prompt', sans-serif;
+    font-weight: 700;
+    font-size: 10px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .day-status-tag.tag-past {
+    background: #dfd0ce;
+    color: #573f42;
+    border: 1px solid #9e8488;
+  }
+  .day-status-tag.tag-today {
+    background: var(--red);
+    color: #fff;
+    border: 1.5px solid #fff;
+    box-shadow: 0 2px 0 var(--red-dark);
+    font-weight: 800;
+    font-size: 10.5px;
+    animation: pulse-today 1.8s ease-in-out infinite;
+  }
+  .day-status-tag.tag-upcoming {
+    background: #eef9ff;
+    color: #0369a1;
+    border: 1px solid #7dd3fc;
+  }
+  .day-status-tag.tag-tomorrow {
+    background: #fef3c7;
+    color: #b45309;
+    border: 1px solid #f59e0b;
+  }
+
+  @keyframes pulse-today {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.04); }
+  }
+
+  /* ปุ่ม + เพิ่มงานในช่องวัน และปุ่มวางงานที่คัดลอก (ซ่อนตอน Export PNG) */
+  .day-action-btns {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .add-event-mini {
+    width: 21px;
+    height: 21px;
+    border-radius: 7px;
+    border: 1.5px solid var(--ink);
+    background: #fff;
+    color: var(--red);
+    font-weight: 800;
+    font-size: 14px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s ease, transform 0.12s ease;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .day-cell:hover .add-event-mini {
+    opacity: 1;
+  }
+  .add-event-mini:hover {
+    background: var(--red);
+    color: #fff;
+    transform: scale(1.1);
+  }
+
+  /* ปุ่มวางงานที่คัดลอกไว้ในแต่ละช่องวัน */
+  .paste-event-mini {
+    height: 21px;
+    padding: 0 7px;
+    border-radius: 7px;
+    border: 1.5px solid var(--ink);
+    background: #fbbf24;
+    color: var(--ink);
+    font-family: 'Mali', 'Prompt', sans-serif;
+    font-weight: 800;
+    font-size: 10.5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    cursor: pointer;
+    box-shadow: 0 2px 0 #b45309;
+    transition: transform 0.12s ease, background 0.12s ease;
+    white-space: nowrap;
+  }
+  .paste-event-mini:hover {
+    background: #fde047;
+    transform: scale(1.06);
+  }
+
+  /* ปุ่มคัดลอกเล็กๆ บนการ์ดงานแต่ละใบ */
+  .ev-right-tools {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+  }
+  .ev-copy-mini {
+    border: 1px solid rgba(35, 21, 24, 0.25);
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--ink);
+    border-radius: 5px;
+    padding: 0 4px;
+    font-size: 10px;
+    line-height: 1.3;
+    cursor: pointer;
+    font-weight: 700;
+    transition: transform 0.12s ease, background 0.12s ease;
+  }
+  .ev-copy-mini:hover {
+    background: #fbbf24;
+    border-color: var(--ink);
+    transform: scale(1.1);
+  }
+
+  /* แถบปุ่มด่วนกลางหัวตาราง & แถบโหมดวางงาน */
+  .board-quick-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 3px;
+  }
+  .btn-export-hero {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: linear-gradient(180deg, #ff2a38 0%, #d81f2a 100%);
+    color: #fff;
+    font-family: 'Baloo 2', 'Mali', 'Prompt', sans-serif;
+    font-weight: 800;
+    font-size: 14px;
+    padding: 5px 18px;
+    border-radius: 999px;
+    border: 2.5px solid var(--ink);
+    box-shadow: 0 4px 0 var(--ink), 0 0 0 3px rgba(216, 31, 42, 0.2);
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+  .btn-export-hero:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 6px 0 var(--ink), 0 0 0 4px rgba(216, 31, 42, 0.3);
+  }
+  .copy-mode-banner {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    background: #fef3c7;
+    border: 2.5px solid var(--ink);
+    border-radius: 999px;
+    padding: 4px 14px;
+    font-family: 'Mali', 'Prompt', sans-serif;
+    font-weight: 700;
+    font-size: 12.5px;
+    color: var(--ink);
+    box-shadow: 0 3px 0 #b45309;
+    animation: pulse-today 1.6s ease-in-out infinite;
+  }
+  .copy-mode-banner.active {
+    display: inline-flex;
+  }
+
+  /* รายการงานข้างในช่องวัน */
+  .day-events-list {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3.5px;
+  }
+
+  .event-pill {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 3px 6px 4px 8px;
+    border-radius: 10px;
+    border: 1.8px solid var(--ink);
+    background: var(--ev-bg, #fff0f1);
+    border-left: 6px solid var(--ev-color, var(--red));
+    box-shadow: 0 2px 0 rgba(35, 21, 24, 0.1);
+    font-family: 'Prompt', 'Mali', sans-serif;
+    transition: transform 0.12s ease;
+    cursor: grab;
+  }
+  .event-pill:hover {
+    transform: scale(1.015);
+    z-index: 3;
+  }
+  .event-pill.is-done {
+    opacity: 0.68;
+    background: #f1eae9;
+  }
+  .event-pill.is-done .ev-title {
+    text-decoration: line-through;
+    color: #6b5356;
+  }
+  .event-pill.is-highlight {
+    box-shadow: 0 2px 0 var(--ev-color, var(--red)), 0 0 0 1.5px #fbbf24;
+  }
+
+  .ev-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 3px;
+  }
+  .ev-cat-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--ev-color, var(--red));
+    background: rgba(255, 255, 255, 0.88);
+    padding: 0.5px 5px;
+    border-radius: 999px;
+    border: 1px solid rgba(35, 21, 24, 0.14);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ev-time-badge {
+    font-family: 'Baloo 2', sans-serif;
+    font-weight: 800;
+    font-size: 10.5px;
+    color: var(--ink);
+    background: rgba(255, 255, 255, 0.92);
+    padding: 0 5px;
+    border-radius: 5px;
+    border: 1px solid rgba(35, 21, 24, 0.18);
+    white-space: nowrap;
+  }
+
+  .ev-title {
+    font-weight: 700;
+    font-size: 11.5px;
+    color: var(--ink);
+    line-height: 1.22;
+    word-break: break-word;
+  }
+  .ev-note {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--ink-muted);
+    line-height: 1.15;
+  }
+
+  /* ป้ายพักผ่อน / วันว่างเบาๆ */
+  .empty-day-hint {
+    margin: auto;
+    font-family: 'Mali', cursive;
+    font-size: 11px;
+    color: rgba(122, 74, 80, 0.32);
+    user-select: none;
+    pointer-events: none;
+  }
+
+  /* =========================================================
+     แถบด้านล่างของบอร์ด (Footer + Red Candy Stripe Band)
+     ========================================================= */
+  .board-footer {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 2px 22px 8px;
+  }
+
+  .footer-socials {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .social-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 800;
+    font-size: 13px;
+    color: var(--ink);
+    background: #fff;
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    padding: 3px 12px;
+    box-shadow: 0 3px 0 rgba(216, 31, 42, 0.18);
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+  }
+  .social-pill:hover {
+    transform: translateY(-2px);
+    border-color: var(--red);
+    background: #fff5f5;
+    box-shadow: 0 5px 0 rgba(216, 31, 42, 0.35);
+    color: var(--red);
+  }
+  .social-pill:active {
+    transform: translateY(1px);
+  }
+  .social-pill .s-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: var(--red);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+  }
+
+  .footer-legend-status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #fff;
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    padding: 3px 14px;
+    font-family: 'Mali', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    box-shadow: 0 3px 0 rgba(35, 21, 24, 0.1);
+  }
+  .status-indicator-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .st-box {
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+    border: 1.5px solid var(--ink);
+  }
+  .st-box.past { background: var(--past-bg); border-color: #7c6266; }
+  .st-box.today { background: var(--red); border-color: var(--ink); }
+  .st-box.upcoming { background: #fff; border-color: var(--ink); }
+
+  /* แถบลายแดงทแยงมุมด้านล่างสุด (เหมือนใน EndScreen & Starting Soon) */
+  .bottom-stripe-band {
+    width: 100%;
+    height: 20px;
+    border-top: 3.5px solid var(--ink);
+    background: repeating-linear-gradient(
+      45deg,
+      var(--red) 0 20px,
+      var(--red-dark) 20px 40px
+    );
+    background-size: 56px 100%;
+    animation: stripes 1.2s linear infinite;
+  }
+
+  @keyframes stripes {
+    to { background-position: 56px 0; }
+  }
+  @keyframes blink {
+    50% { opacity: 0.18; }
+  }
+  @keyframes bob {
+    0%, 100% { transform: translateY(0) rotate(-1.5deg); }
+    50% { transform: translateY(-6px) rotate(1.5deg); }
+  }
+
+  /* ไฮไลต์ตอนลากเมาส์คลุมเลือกหลายวัน (Drag-to-Select Date Range) */
+  .day-cell.range-selecting {
+    background: linear-gradient(180deg, #ffe4e6 0%, #fff1f2 100%) !important;
+    border-color: var(--red) !important;
+    box-shadow: 0 0 0 3px rgba(216, 31, 42, 0.28), 0 6px 0 var(--red-dark) !important;
+    transform: translateY(-2px);
+    z-index: 4;
+  }
+
+  /* การ์ดงานแบบลากยาวหลายวัน (Multi-Day Span Banner) */
+  .event-pill.is-multi-day {
+    border-top: 3.5px solid var(--ev-color, var(--red));
+    background: linear-gradient(90deg, var(--ev-bg, #fff0f1) 0%, #ffffff 100%);
+  }
+  .ev-range-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 1px;
+  }
+  .ev-range-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-family: 'Mali', 'Prompt', sans-serif;
+    font-size: 9.5px;
+    font-weight: 800;
+    color: #fff;
+    background: var(--ev-color, var(--red));
+    padding: 0.5px 7px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  /* =========================================================
+     โหมดกำลังถ่ายภาพ PNG สำหรับโพสต์โซเชียล (Clean Poster Mode)
+     ตัดปุ่ม/ตัวนับ/สถานะภายในของคนจัดตารางออกทั้งหมด ให้คนดูอ่านง่าย สะอาดตา!
+     ========================================================= */
+  .export-only-poster-badge {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(90deg, #fff0f1 0%, #ffffff 100%);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    padding: 4px 16px;
+    font-family: 'Mali', 'Prompt', sans-serif;
+    font-weight: 800;
+    font-size: 13px;
+    color: var(--red);
+    box-shadow: 0 3px 0 rgba(216, 31, 42, 0.16);
+  }
+  body.exporting-png .export-only-poster-badge {
+    display: inline-flex !important;
+  }
+
+  body.exporting-png .no-export,
+  body.exporting-png .add-event-mini,
+  body.exporting-png .paste-event-mini,
+  body.exporting-png .ev-copy-mini,
+  body.exporting-png .empty-day-hint,
+  body.exporting-png #monthStatusPill,
+  body.exporting-png .cat-chip .cat-count,
+  body.exporting-png .today-summary-box,
+  body.exporting-png .day-status-tag,
+  body.exporting-png .footer-legend-status {
+    display: none !important;
+  }
+  body.exporting-png .cat-chip.filtered-out {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  body.exporting-png #schedule-board {
+    width: 1920px !important;
+    max-width: 1920px !important;
+    min-height: 1080px !important;
+    box-shadow: none !important;
+  }
+  /* ในรูปที่เซฟไปโพสต์: วันที่มีงานจะกรอบเข้มเด่นชัด ส่วนวันว่างจะซอฟต์ลงให้คนดูกวาดตาเจองานทันที */
+  body.exporting-png .day-cell:not(.has-events):not(.other-month) {
+    opacity: 1 !important;
+    background: rgba(255, 251, 249, 0.72) !important;
+    border: 2px solid #d8c5c3 !important;
+    box-shadow: none !important;
+  }
+  body.exporting-png .day-cell.has-events:not(.other-month) {
+    opacity: 1 !important;
+    background:
+      radial-gradient(circle at 95% 5%, rgba(255, 224, 228, 0.55) 0%, transparent 60%),
+      #ffffff !important;
+    border: 2.5px solid var(--ink) !important;
+    box-shadow: 0 4px 0 rgba(35, 21, 24, 0.12) !important;
+  }
+  body.exporting-png .day-cell.other-month {
+    opacity: 0.25 !important;
+  }
+  body.exporting-png .day-cell.is-past .day-number,
+  body.exporting-png .day-cell.is-today .day-number {
+    background: #f8edeb !important;
+    color: var(--ink) !important;
+    border-color: var(--ink) !important;
+    box-shadow: none !important;
+  }
+  body.exporting-png .day-cell.sun-col .day-number {
+    color: var(--red) !important;
+    background: #ffe8ea !important;
+  }
+  body.exporting-png .day-cell.sat-col .day-number {
+    color: #5b21b6 !important;
+    background: #f1e9fe !important;
+  }
+  body.exporting-png .event-pill.is-done {
+    opacity: 1 !important;
+    background: var(--ev-bg, #fff0f1) !important;
+  }
+  body.exporting-png .event-pill.is-done .ev-title {
+    text-decoration: none !important;
+    color: var(--ink) !important;
+  }
+  /* ขยายตัวหนังสือการ์ดงานในรูป PNG ให้คมชัด อ่านง่ายบนมือถือ/โซเชียล */
+  body.exporting-png .ev-title {
+    font-size: 13px !important;
+    line-height: 1.25 !important;
+  }
+  body.exporting-png .ev-cat-badge {
+    font-size: 10.5px !important;
+  }
+  body.exporting-png .ev-time-badge {
+    font-size: 11px !important;
+  }
+  body.exporting-png .ev-range-badge {
+    font-size: 10px !important;
+  }
+  body.exporting-png .ev-note {
+    font-size: 10.5px !important;
+  }
+  body.exporting-png .day-number {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 17px !important;
+  }
+
+  /* =========================================================
+     หน้าต่างป๊อปอัป (Modal สำหรับเพิ่ม/แก้ไขตารางงาน & ตั้งค่าหมวดหมู่)
+     ========================================================= */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(35, 21, 24, 0.65);
+    backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .modal-backdrop.open {
+    display: flex;
+  }
+
+  .modal-card {
+    position: relative;
+    width: min(620px, 95vw);
+    max-height: 90vh;
+    overflow-y: auto;
+    background: var(--bg);
+    border: 4px solid var(--ink);
+    border-radius: 28px;
+    padding: 46px 28px 24px;
+    box-shadow:
+      0 10px 0 rgba(216, 31, 42, 0.3),
+      0 20px 45px rgba(35, 21, 24, 0.35);
+    animation: pop-modal 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes pop-modal {
+    from { transform: scale(0.85); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  .modal-ribbon {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--red);
+    color: #fff;
+    font-weight: 800;
+    font-size: 18px;
+    padding: 4px 24px;
+    border-radius: 999px;
+    border: 3px solid #fff;
+    box-shadow: 0 4px 0 var(--red-dark);
+    white-space: nowrap;
+  }
+
+  .form-group {
+    margin-top: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .form-label {
+    font-family: 'Mali', 'Prompt', sans-serif;
+    font-weight: 700;
+    font-size: 14.5px;
+    color: var(--ink);
+  }
+  .form-input, .form-select, .form-textarea {
+    width: 100%;
+    font-family: 'Prompt', 'Mali', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 10px 14px;
+    border-radius: 14px;
+    border: 2.5px solid var(--ink);
+    background: #fff;
+    color: var(--ink);
+    outline: none;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus {
+    border-color: var(--red);
+    box-shadow: 0 0 0 3px rgba(216, 31, 42, 0.15);
+  }
+
+  .form-row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .form-row-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    align-items: end;
+  }
+  @media (max-width: 640px) {
+    .form-row-3 { grid-template-columns: 1fr; }
+  }
+
+  /* แผงปุ่มลัดเลือกเวลา & ช่วงวันที่แบบจิ้มง่ายในคลิกเดียว */
+  .label-with-tools {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .date-span-quick-btns {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .span-mini-btn {
+    border: 1.5px solid var(--ink);
+    background: #fff;
+    color: var(--ink);
+    font-family: 'Mali', 'Prompt', sans-serif;
+    font-weight: 700;
+    font-size: 11px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.12s ease;
+  }
+  .span-mini-btn:hover, .span-mini-btn.active {
+    background: var(--red);
+    color: #fff;
+    border-color: var(--ink);
+  }
+
+  .time-picker-box {
+    background: #fff;
+    border: 2.5px solid var(--ink);
+    border-radius: 16px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    box-shadow: 0 3px 0 rgba(35, 21, 24, 0.08);
+  }
+  .time-preset-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .time-chip {
+    border: 2px solid var(--ink);
+    background: #fff7f5;
+    color: var(--ink);
+    font-family: 'Prompt', 'Mali', sans-serif;
+    font-weight: 700;
+    font-size: 12.5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.12s ease;
+    box-shadow: 0 2px 0 rgba(35, 21, 24, 0.12);
+  }
+  .time-chip:hover {
+    transform: translateY(-1px);
+    background: #ffe4e6;
+    border-color: var(--red);
+  }
+  .time-chip.active {
+    background: var(--red);
+    color: #fff;
+    border-color: var(--ink);
+    box-shadow: 0 3px 0 var(--red-dark);
+    transform: translateY(-1px);
+  }
+  .time-chip.clear-chip {
+    background: #f3f4f6;
+    color: #4b5563;
+  }
+  .time-custom-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1.2fr;
+    gap: 8px;
+    align-items: center;
+    padding-top: 7px;
+    border-top: 1.5px dashed #e5d5d3;
+  }
+  @media (max-width: 640px) {
+    .time-custom-grid { grid-template-columns: 1fr; }
+  }
+  .time-sub-label {
+    font-family: 'Mali', 'Prompt', sans-serif;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--ink-muted);
+    margin-bottom: 2px;
+    display: block;
+  }
+  .time-mini-select, .time-mini-input {
+    width: 100%;
+    font-family: 'Prompt', 'Mali', sans-serif;
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 6px 10px;
+    border-radius: 10px;
+    border: 2px solid var(--ink);
+    background: #fff;
+    color: var(--ink);
+    outline: none;
+  }
+  .time-mini-select:focus, .time-mini-input:focus {
+    border-color: var(--red);
+  }
+
+  .cat-selector-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .cat-option-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 14px;
+    border: 2.5px solid var(--ink);
+    background: #fff;
+    font-family: 'Prompt', 'Mali', sans-serif;
+    font-weight: 700;
+    font-size: 13.5px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.12s ease;
+  }
+  .cat-option-btn.selected {
+    background: var(--opt-bg, #ffe4e6);
+    border-color: var(--opt-color, var(--red));
+    box-shadow: 0 4px 0 var(--opt-color, var(--red));
+    transform: translateY(-1px);
+  }
+
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+  .checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-family: 'Mali', 'Prompt', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .checkbox-label input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--red);
+  }
+
+  .modal-actions {
+    margin-top: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  /* รายการตั้งค่าหมวดหมู่ใน Modal Settings */
+  .cat-manage-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+    max-height: 260px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .cat-manage-item {
+    display: grid;
+    grid-template-columns: 48px 1fr 44px 36px;
+    gap: 8px;
+    align-items: center;
+    background: #fff;
+    padding: 6px 10px;
+    border-radius: 14px;
+    border: 2px solid var(--ink);
+  }
+
+  /* แจ้งเตือน Toast มุมขวาล่าง */
+  .toast-msg {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 300;
+    background: var(--ink);
+    color: #fff;
+    border: 3px solid var(--red);
+    border-radius: 999px;
+    padding: 10px 22px;
+    font-family: 'Mali', 'Prompt', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none;
+  }
+  .toast-msg.show {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  @media (max-width: 1200px) {
+    .board-header {
+      grid-template-columns: 1fr;
+      justify-items: center;
+    }
+    .mascot-card-right {
+      justify-content: center;
+    }
+  }
+</style>
+</head>
+<body class="dim-past-days">
+<header class="navbar no-export" id="navbar" style="position:relative;z-index:110;"></header>
+
+<!-- =========================================================
+     แถบควบคุมด้านบน (ซ่อนอัตโนมัติเวลา Export PNG)
+     ========================================================= -->
+<header class="top-toolbar no-export">
+  <div class="toolbar-left">
+    <div class="brand-mini">🐾 PHUMAPANTHER SCHEDULE</div>
+    <div class="month-nav-group">
+      <button class="btn" onclick="changeMonth(-1)" title="ดูเดือนย้อนหลัง">◀ เดือนก่อน</button>
+      <select id="monthSelect" class="month-Jump-select" onchange="onJumpMonthYear()"></select>
+      <select id="yearSelect" class="month-Jump-select" onchange="onJumpMonthYear()"></select>
+      <button class="btn" onclick="changeMonth(1)" title="ดูเดือนถัดไป">เดือนถัดไป ▶</button>
+    </div>
+    <button class="btn btn-gold" onclick="jumpToCurrentMonth()" title="กลับมาเดือนและวันปัจจุบันทันที">
+      📍 เดือนปัจจุบัน (วันนี้)
+    </button>
+  </div>
+
+  <div class="toolbar-right">
+    <button class="btn" onclick="openAddModalForToday()">➕ เพิ่มงานใหม่</button>
+    <button class="btn" onclick="openSettingsModal()">⚙️ ตั้งค่าหมวดหมู่ & โมเดล</button>
+    <button class="btn btn-dark" onclick="toggleDimPastDays()" id="btnDimToggle" title="เปิด/ปิดการหรี่สีวันที่ผ่านมาแล้ว">
+      👁️ เน้นวันปัจจุบัน: เปิด
+    </button>
+    <button class="btn btn-red" onclick="exportSchedulePNG()" id="btnExportPNG">
+      📸 Export เป็นรูป PNG
+    </button>
+  </div>
+</header>
+
+<!-- =========================================================
+     บอร์ดปฏิทินตารางงานขนาดใหญ่เต็มหน้าจอ (ส่วนที่ Export PNG)
+     ========================================================= -->
+<main class="board-wrapper">
+  <section id="schedule-board">
+    <!-- เส้นวงจรเท่ๆ 4 มุม -->
+    <svg class="circuit tl" width="280" height="150" viewBox="0 0 360 200" fill="none">
+      <path d="M0 30 H120 L160 70 H300 M0 90 H90 L130 130 H240 M60 0 V50 L100 90 V160" stroke="#d81f2a" stroke-width="2.5"/>
+      <circle cx="300" cy="70" r="6" fill="#d81f2a"/>
+      <circle cx="240" cy="130" r="6" fill="none" stroke="#d81f2a" stroke-width="2.5"/>
+      <circle cx="100" cy="160" r="6" fill="#d81f2a"/>
+    </svg>
+    <svg class="circuit tr" width="280" height="150" viewBox="0 0 360 200" fill="none">
+      <path d="M0 30 H120 L160 70 H300 M0 90 H90 L130 130 H240 M60 0 V50 L100 90 V160" stroke="#d81f2a" stroke-width="2.5"/>
+      <circle cx="300" cy="70" r="6" fill="#d81f2a"/>
+      <circle cx="240" cy="130" r="6" fill="none" stroke="#d81f2a" stroke-width="2.5"/>
+      <circle cx="100" cy="160" r="6" fill="#d81f2a"/>
+    </svg>
+    <svg class="circuit bl" width="260" height="140" viewBox="0 0 360 200" fill="none">
+      <path d="M0 30 H120 L160 70 H300 M0 90 H90 L130 130 H240" stroke="#d81f2a" stroke-width="2.5"/>
+      <circle cx="300" cy="70" r="6" fill="#d81f2a"/>
+      <circle cx="240" cy="130" r="6" fill="none" stroke="#d81f2a" stroke-width="2.5"/>
+    </svg>
+    <svg class="circuit br" width="260" height="140" viewBox="0 0 360 200" fill="none">
+      <path d="M0 30 H120 L160 70 H300 M0 90 H90 L130 130 H240" stroke="#d81f2a" stroke-width="2.5"/>
+      <circle cx="300" cy="70" r="6" fill="#d81f2a"/>
+      <circle cx="240" cy="130" r="6" fill="none" stroke="#d81f2a" stroke-width="2.5"/>
+    </svg>
+
+    <!-- เลเยอร์ของตกแต่งลอยเบาๆ -->
+    <div class="deco-layer" id="decoLayer"></div>
+
+    <!-- ส่วนหัวบอร์ด (Header) -->
+    <div class="board-header">
+      <!-- ซ้าย: จิบิเสือฮู้ดถือป้าย PHUMAPANTHER -->
+      <div class="mascot-card-left">
+        <svg class="bolt-svg" style="transform: rotate(-14deg); margin-right: -12px;" viewBox="0 0 100 100">
+          <path class="edge" d="M58 4 L22 54 H46 L36 96 L78 40 H52 Z"/>
+          <path class="rim" d="M58 4 L22 54 H46 L36 96 L78 40 H52 Z"/>
+          <path class="fill" d="M58 4 L22 54 H46 L36 96 L78 40 H52 Z"/>
+        </svg>
+        <img id="leftMascotImg" class="mascot-logo-img" alt="PHUMAPANTHER">
+      </div>
+
+      <!-- กลาง: ชื่อเดือน + ซับไตเติล + หมวดหมู่ทั้งหมด -->
+      <div class="header-center">
+        <div class="top-pill-row">
+          <div class="live-badge"><span class="dot"></span> MONTHLY CONTENT SCHEDULE</div>
+          <div id="monthStatusPill" class="month-status-pill is-current">📍 เดือนปัจจุบัน</div>
+        </div>
+
+        <div class="month-title-wrap">
+          <svg class="bolt-svg" style="width:34px;height:34px;transform:rotate(-10deg)" viewBox="0 0 100 100">
+            <path class="edge" d="M58 4 L22 54 H46 L36 96 L78 40 H52 Z"/>
+            <path class="rim" d="M58 4 L22 54 H46 L36 96 L78 40 H52 Z"/>
+            <path class="fill" d="M58 4 L22 54 H46 L36 96 L78 40 H52 Z"/>
+          </svg>
+          <h1 class="month-title" id="boardMonthTitle" onclick="openSettingsModal()" title="คลิกเพื่อตั้งค่าหัวข้อตาราง">
+            ตารางงานเดือนตุลาคม 2026
+          </h1>
+          <svg class="bolt-svg" style="width:34px;height:34px;transform:rotate(12deg)" viewBox="0 0 100 100">
+            <path class="edge" d="M58 4 L22 54 H46 L36 96 L78 40 H52 Z"/>
+            <path class="rim" d="M58 4 L22 54 H46 L36 96 L78 40 H52 Z"/>
+            <path class="fill" d="M58 4 L22 54 H46 L36 96 L78 40 H52 Z"/>
+          </svg>
+        </div>
+
+        <div class="board-subtitle" id="boardSubtitle" onclick="openSettingsModal()" title="คลิกเพื่อแก้ไขข้อความซับไตเติล">
+          ตารางลงคลิป VDO · สตรีมเกมส์ · ลงช็อต · งานคอสเพลย์ & กิจกรรมประจำเดือน ♡
+        </div>
+
+        <!-- แถบหมวดหมู่พร้อมตัวนับจำนวนงานในเดือนนั้น -->
+        <div class="category-legend" id="categoryLegend"></div>
+
+        <!-- ปุ่มกดเซฟรูปตารางงาน PNG ขนาดใหญ่เห็นชัดเจนกลางหน้า (ซ่อนอัตโนมัติตอนถ่ายรูป PNG) -->
+        <div class="board-quick-bar no-export">
+          <button class="btn-export-hero" onclick="exportSchedulePNG()" id="btnExportPNGHero" title="บันทึกรูปตารางงานทั้งแผ่นเป็นไฟล์ PNG คมชัดสูงเพื่อนำไปโพสต์ลงโซเชียล">
+            📸 เซฟตารางงานเป็นรูปภาพ PNG (นำไปโพสต์โซเชียล)
+          </button>
+          <button class="btn btn-gold" style="padding:5px 14px;font-size:13px;border-color:var(--ink);" onclick="openAddModalForToday()">
+            ➕ เพิ่มงานใหม่
+          </button>
+          <div class="copy-mode-banner" id="copyModeBanner">
+            <span id="copyModeText">📋 กำลังคัดลอกงาน — จิ้มปุ่ม [📋 วาง] ในช่องวันที่ต้องการได้เลย!</span>
+            <button class="btn" style="padding:2px 9px;font-size:11.5px;background:#dc2626;color:#fff;border-color:#fff;" onclick="clearCopiedEvent()">✖ ปิดโหมดวาง</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ขวา: กล่องวันที่ปัจจุบัน + โมเดล 2D Vtuber -->
+      <div class="mascot-card-right">
+        <div class="today-summary-box">
+          <div class="ts-label">🐾 วันนี้ (TODAY)</div>
+          <div class="ts-date" id="todayDateText">-</div>
+          <div class="ts-stats" id="monthProgressText">ผ่านไปแล้ว 0/0 งาน</div>
+        </div>
+        <div class="vtuber-avatar-wrap" onclick="cycleRightMascot()" title="คลิกเพื่อสลับโมเดล 2D Vtuber!">
+          <img id="rightMascotImg" alt="2D Vtuber Model">
+        </div>
+      </div>
+    </div>
+
+    <!-- ส่วนตารางปฏิทินขนาดใหญ่ -->
+    <div class="calendar-section">
+      <div class="weekday-header" id="weekdayHeader"></div>
+      <div class="calendar-grid" id="calendarGrid"></div>
+    </div>
+
+    <!-- ส่วนท้ายบอร์ด (Footer + คำอธิบายสถานะวัน) -->
+    <div class="board-footer">
+      <div class="footer-socials">
+        <a class="social-pill" href="https://www.youtube.com/@phumapanther" target="_blank" rel="noopener noreferrer" title="ไปที่ช่อง YouTube: PHUMAPANTHER">
+          <span class="s-icon">▶</span> YouTube: PHUMAPANTHER
+        </a>
+        <a class="social-pill" href="https://www.tiktok.com/@phumapanther?lang=th-TH" target="_blank" rel="noopener noreferrer" title="ไปที่ช่อง TikTok: @phumapanther">
+          <span class="s-icon">♪</span> TikTok: @phumapanther
+        </a>
+        <a class="social-pill" href="https://discord.gg/7snE7rhTHa" target="_blank" rel="noopener noreferrer" title="เข้าร่วม Discord Community">
+          <span class="s-icon">💬</span> Discord Community
+        </a>
+      </div>
+
+      <div class="footer-legend-status">
+        <span class="status-indicator-item"><span class="st-box past"></span> ✓ วันที่ผ่านมาแล้ว</span>
+        <span class="status-indicator-item"><span class="st-box today"></span> 🐾 วันนี้ (ปัจจุบัน)</span>
+        <span class="status-indicator-item"><span class="st-box upcoming"></span> ⏳ วันที่กำลังจะมาถึง</span>
+      </div>
+
+      <!-- ป้ายสวยๆ ที่แสดงแทนสถานะภายใน เฉพาะตอนเซฟรูป PNG ไปโพสต์โซเชียล -->
+      <div class="export-only-poster-badge">
+        🐾 ติดตามไลฟ์สตรีมและคอนเทนต์ใหม่ๆ ได้ที่ช่อง PHUMAPANTHER ♡
+      </div>
+    </div>
+
+    <!-- แถบลายแดงทแยงมุมเอกลักษณ์ช่อง -->
+    <div class="bottom-stripe-band"></div>
+  </section>
+</main>
+
+<!-- =========================================================
+     MODAL 1: เพิ่ม / แก้ไข รายการงานในตาราง
+     ========================================================= -->
+<div class="modal-backdrop" id="eventModal" onclick="if(event.target===this)closeEventModal()">
+  <div class="modal-card">
+    <div class="modal-ribbon" id="eventModalRibbon">🐾 เพิ่มตารางงานใหม่</div>
+
+    <input type="hidden" id="evIdInput">
+
+    <div class="form-row-2">
+      <div class="form-group">
+        <label class="form-label">📅 เริ่มวันที่</label>
+        <input type="date" id="evDateInput" class="form-input" onchange="onStartDateChange()">
+      </div>
+      <div class="form-group">
+        <div class="label-with-tools">
+          <label class="form-label">🏁 สิ้นสุดวันที่</label>
+          <div class="date-span-quick-btns">
+            <button type="button" class="span-mini-btn" onclick="setQuickDateSpan(1)">วันเดียว</button>
+            <button type="button" class="span-mini-btn" onclick="setQuickDateSpan(2)">2 วัน</button>
+            <button type="button" class="span-mini-btn" onclick="setQuickDateSpan(3)">3 วัน</button>
+            <button type="button" class="span-mini-btn" onclick="setQuickDateSpan(5)">5 วัน</button>
+          </div>
+        </div>
+        <input type="date" id="evEndDateInput" class="form-input" onchange="updateSpanButtonsHighlight()">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">⏰ เลือกเวลา (จิ้มปุ่มเวลาด่วน หรือเลือกช่วงเวลาเริ่ม–จบได้เลย)</label>
+      <div class="time-picker-box">
+        <div class="time-preset-row" id="timePresetRow">
+          <button type="button" class="time-chip" data-time="ทั้งวัน" onclick="selectQuickTimePreset('ทั้งวัน')">☀️ ทั้งวัน</button>
+          <button type="button" class="time-chip" data-time="12:00 น." onclick="selectQuickTimePreset('12:00 น.')">🕛 12:00 น.</button>
+          <button type="button" class="time-chip" data-time="17:00 น." onclick="selectQuickTimePreset('17:00 น.')">🕔 17:00 น.</button>
+          <button type="button" class="time-chip" data-time="18:00 น." onclick="selectQuickTimePreset('18:00 น.')">🕕 18:00 น.</button>
+          <button type="button" class="time-chip" data-time="19:00 น." onclick="selectQuickTimePreset('19:00 น.')">🕖 19:00 น.</button>
+          <button type="button" class="time-chip" data-time="19:30 น." onclick="selectQuickTimePreset('19:30 น.')">🕢 19:30 น.</button>
+          <button type="button" class="time-chip" data-time="20:00 น." onclick="selectQuickTimePreset('20:00 น.')">🕗 20:00 น.</button>
+          <button type="button" class="time-chip" data-time="21:00 น." onclick="selectQuickTimePreset('21:00 น.')">🕘 21:00 น.</button>
+          <button type="button" class="time-chip" data-time="22:00 น." onclick="selectQuickTimePreset('22:00 น.')">🕙 22:00 น.</button>
+          <button type="button" class="time-chip" data-time="11:00 - 18:00" onclick="selectQuickTimePreset('11:00 - 18:00')">🎪 11:00 - 18:00</button>
+          <button type="button" class="time-chip" data-time="20:00 - 23:00" onclick="selectQuickTimePreset('20:00 - 23:00')">🌙 20:00 - 23:00</button>
+          <button type="button" class="time-chip clear-chip" data-time="" onclick="selectQuickTimePreset('')">✖ ไม่ระบุเวลา</button>
+        </div>
+
+        <div class="time-custom-grid">
+          <div>
+            <span class="time-sub-label">🕒 เลือกเวลาเริ่ม</span>
+            <select id="evStartTimeSelect" class="time-mini-select" onchange="onTimeDropdownChange()"></select>
+          </div>
+          <div>
+            <span class="time-sub-label">🏁 ถึงเวลา (ถ้ามี)</span>
+            <select id="evEndTimeSelect" class="time-mini-select" onchange="onTimeDropdownChange()"></select>
+          </div>
+          <div>
+            <span class="time-sub-label">✏️ ข้อความเวลาที่แสดง (พิมพ์แก้ได้)</span>
+            <input type="text" id="evTimeInput" class="time-mini-input" placeholder="เช่น 20:00 น. / ทั้งวัน" oninput="syncTimeControlsFromInput()">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">🏷️ เลือกหมวดหมู่งาน</label>
+      <div class="cat-selector-grid" id="modalCatSelector"></div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">✨ ชื่องาน / คอนเทนต์ / กิจกรรม</label>
+      <input type="text" id="evTitleInput" class="form-input" placeholder="เช่น ลงคลิป Maneater EP.4 / สตรีม Roblox WOLD...">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">📝 รายละเอียดเพิ่มเติม / แพลตฟอร์ม (ไม่บังคับ)</label>
+      <input type="text" id="evNoteInput" class="form-input" placeholder="เช่น YouTube & TikTok / เจอกันที่ฮอลล์ 5...">
+    </div>
+
+    <div class="checkbox-row">
+      <label class="checkbox-label">
+        <input type="checkbox" id="evHighlightInput"> ⭐ ไฮไลต์กรอบทองพิเศษ
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" id="evDoneInput"> ✅ ทำเสร็จแล้ว (ขีดฆ่า)
+      </label>
+      <label class="checkbox-label" id="repeatWeeklyWrap">
+        <input type="checkbox" id="evRepeatWeekly"> 🔁 ทำซ้ำทุกสัปดาห์ในเดือนนี้
+      </label>
+    </div>
+
+    <div class="modal-actions">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button class="btn btn-dark" id="btnDeleteEvent" style="display:none;background:#dc2626;border-color:#fff;" onclick="deleteCurrentEvent()">
+          🗑️ ลบงานนี้
+        </button>
+        <button class="btn btn-gold" id="btnCopyPasteMode" style="display:none;border-color:var(--ink);" onclick="copyEventFromModalToPasteMode()" title="คัดลอกงานนี้ไปคลิกวางในวันอื่นๆ ได้หลายวัน">
+          📋 คัดลอกไปวางวันอื่น
+        </button>
+        <button class="btn" id="btnDuplicateDate" style="display:none;background:#e0f2fe;border-color:#0284c7;color:#0369a1;" onclick="duplicateEventFromModal()" title="สร้างสำเนางานนี้ไปยังวันที่ที่เลือกด้านบน (โดยงานเดิมยังอยู่)">
+          📄 ทำสำเนาไปวันที่เลือก
+        </button>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" onclick="closeEventModal()">ยกเลิก</button>
+        <button class="btn btn-red" onclick="saveEventFromModal()">💾 บันทึกตารางงาน</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =========================================================
+     MODAL 2: ตั้งค่าหมวดหมู่, โมเดลมาสคอต, และสำรองข้อมูล
+     ========================================================= -->
+<div class="modal-backdrop" id="settingsModal" onclick="if(event.target===this)closeSettingsModal()">
+  <div class="modal-card" style="width:min(650px, 95vw);">
+    <div class="modal-ribbon">⚙️ ตั้งค่าตารางงาน & หมวดหมู่</div>
+
+    <div class="form-group">
+      <label class="form-label">💬 ข้อความโปรยใต้ชื่อเดือน (Subtitle)</label>
+      <input type="text" id="settingSubtitleInput" class="form-input">
+    </div>
+
+    <div class="form-row-2">
+      <div class="form-group">
+        <label class="form-label">🐯 โมเดลมาสคอตมุมขวาบน</label>
+        <select id="settingRightMascot" class="form-select">
+          <option value="car1">🐯 เสือฮู้ด (2D Vtuber car1)</option>
+          <option value="car6">🍡 จิบิเสือขาวแก้มแดง (2D Vtuber car6)</option>
+          <option value="car5">🥼 เสือขาวชุดสูท (2D Vtuber car5)</option>
+          <option value="logo_spark">⚡ โลโก้จิบิสายฟ้า (Starting Soon)</option>
+          <option value="emblem">🛡️ โลโก้ตราเสือขาว (Emblem)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">📆 วันเริ่มต้นสัปดาห์</label>
+        <select id="settingStartMonday" class="form-select">
+          <option value="0">วันอาทิตย์ (Sun - Sat)</option>
+          <option value="1">วันจันทร์ (Mon - Sun)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">🎨 จัดการหมวดหมู่งาน (แก้ไขไอคอน / ชื่อ / สี หรือเพิ่มหมวดหมู่ใหม่ได้อิสระ)</label>
+      <div class="cat-manage-list" id="catManageList"></div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <input type="text" id="newCatIcon" class="form-input" style="width:70px;text-align:center;" placeholder="🎉" value="🌟">
+        <input type="text" id="newCatName" class="form-input" style="flex:1;" placeholder="ชื่อหมวดหมู่ใหม่...">
+        <input type="color" id="newCatColor" class="form-input" style="width:60px;padding:4px;height:44px;cursor:pointer;" value="#e11d48">
+        <button class="btn btn-gold" onclick="addNewCategory()">➕ เพิ่มหมวด</button>
+      </div>
+    </div>
+
+    <div class="form-group" style="margin-top:16px;padding-top:12px;border-top:2px dashed #d6c2bf;">
+      <label class="form-label">💾 สำรองข้อมูล / นำเข้าข้อมูลตารางงาน (.json)</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn" onclick="exportDataJSON()">📤 ดาวน์โหลดไฟล์ Backup (.json)</button>
+        <label class="btn" style="cursor:pointer;">
+          📥 นำเข้าไฟล์ Backup (.json)
+          <input type="file" accept=".json" style="display:none;" onchange="importDataJSON(event)">
+        </label>
+        <button class="btn" style="color:#dc2626;" onclick="clearCurrentMonthEvents()">🧹 ล้างงานเฉพาะเดือนนี้</button>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="resetDefaultCategories()">🔄 คืนค่าหมวดหมู่เริ่มต้น</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-red" onclick="saveSettingsFromModal()">✅ บันทึกการตั้งค่า</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-msg" id="toastMsg">🐾 บันทึกเรียบร้อย!</div>
+
+<script>
+  // =========================================================
+  // 1. ค่าเริ่มต้นของหมวดหมู่ทั้ง 7 ประเภทตามที่ผู้ใช้ระบุ
+  // =========================================================
+  const DEFAULT_CATEGORIES = [
+    { id: 'vdo',        icon: '🎬', name: 'ลงคอนเทนต์ VDO',     color: '#d81f2a', bg: '#ffe8ea' },
+    { id: 'stream',     icon: '🔴', name: 'สตรีมเกมส์',         color: '#7c3aed', bg: '#f3e8ff' },
+    { id: 'shorts',     icon: '📱', name: 'ลงช็อต (Shorts)',    color: '#ea580c', bg: '#ffedd5' },
+    { id: 'cosplay',    icon: '✨', name: 'ไปงานคอสเพลย์',      color: '#db2777', bg: '#fce7f3' },
+    { id: 'patch',      icon: '🛠️', name: 'อัปเดตแพตช์เกมส์',   color: '#0284c7', bg: '#e0f2fe' },
+    { id: 'discord',    icon: '💬', name: 'กิจกรรมดิสคอร์ด',    color: '#4f46e5', bg: '#e0e7ff' },
+    { id: 'game_event', icon: '🎮', name: 'กิจกรรมเกมส์',       color: '#059669', bg: '#d1fae5' }
+  ];
+
+  const THAI_MONTHS = [
+    'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+    'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+  ];
+
+  const WEEKDAYS_SUN_START = [
+    { th: 'อาทิตย์', en: 'SUN', cls: 'sun' },
+    { th: 'จันทร์',  en: 'MON', cls: '' },
+    { th: 'อังคาร',  en: 'TUE', cls: '' },
+    { th: 'พุธ',     en: 'WED', cls: '' },
+    { th: 'พฤหัสบดี', en: 'THU', cls: '' },
+    { th: 'ศุกร์',   en: 'FRI', cls: '' },
+    { th: 'เสาร์',   en: 'SAT', cls: 'sat' }
+  ];
+
+  const WEEKDAYS_MON_START = [
+    { th: 'จันทร์',  en: 'MON', cls: '' },
+    { th: 'อังคาร',  en: 'TUE', cls: '' },
+    { th: 'พุธ',     en: 'WED', cls: '' },
+    { th: 'พฤหัสบดี', en: 'THU', cls: '' },
+    { th: 'ศุกร์',   en: 'FRI', cls: '' },
+    { th: 'เสาร์',   en: 'SAT', cls: 'sat' },
+    { th: 'อาทิตย์', en: 'SUN', cls: 'sun' }
+  ];
+
+  const STORAGE_KEY = 'PHUMAPANTHER_SCHEDULE_V1';
+
+  // สถานะปัจจุบัน (เวลาเปิดเว็บขึ้นมาจะยึดเดือนและปีปัจจุบันเสมอ!)
+  const nowReal = new Date();
+  let viewYear = nowReal.getFullYear();
+  let viewMonth = nowReal.getMonth(); // 0-11
+  let selectedCatInModal = 'vdo';
+  let activeCategoryFilter = null; // null = แสดงทุกหมวด
+  let draggedEventId = null;
+  let copiedEventTemplate = null; // เก็บข้อมูลงานที่กำลังคัดลอกเพื่อนำไปจิ้มวางวันอื่น
+
+  // สถานะสำหรับการคลิกค้างแล้วลากคลุมเลือกหลายวันบนปฏิทิน (Drag-to-Select Date Range)
+  let isSelectingDateRange = false;
+  let rangeSelectStartKey = null;
+  let rangeSelectCurrentKey = null;
+
+  const THAI_SHORT_MONTHS = [
+    'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+    'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+  ];
+
+  let appState = {
+    subtitle: 'ตารางลงคลิป VDO · สตรีมเกมส์ · ลงช็อต · งานคอสเพลย์ & กิจกรรมประจำเดือน ♡',
+    rightMascot: 'car1',
+    startMonday: 0,
+    dimPastDays: true,
+    categories: JSON.parse(JSON.stringify(DEFAULT_CATEGORIES)),
+    events: []
+  };
+
+  // แปลง Hex เป็นสีพื้นพาสเทลอ่อนๆ อัตโนมัติ
+  function hexToSoftBg(hex) {
+    try {
+      const clean = hex.replace('#', '');
+      const r = parseInt(clean.substring(0, 2), 16);
+      const g = parseInt(clean.substring(2, 4), 16);
+      const b = parseInt(clean.substring(4, 6), 16);
+      const mr = Math.round(r * 0.14 + 255 * 0.86);
+      const mg = Math.round(g * 0.14 + 255 * 0.86);
+      const mb = Math.round(b * 0.14 + 255 * 0.86);
+      return `rgb(${mr}, ${mg}, ${mb})`;
+    } catch (e) {
+      return '#ffe8ea';
+    }
+  }
+
+  function formatDateKey(y, m, d) {
+    return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+
+  function getTodayKey() {
+    const t = new Date();
+    return formatDateKey(t.getFullYear(), t.getMonth(), t.getDate());
+  }
+
+  function parseDateKeyUTC(dateKey) {
+    const [y, m, d] = String(dateKey).split('-').map(Number);
+    return Date.UTC(y, (m || 1) - 1, d || 1);
+  }
+
+  function diffDaysBetweenKeys(startKey, endKey) {
+    if (!startKey || !endKey) return 0;
+    return Math.round((parseDateKeyUTC(endKey) - parseDateKeyUTC(startKey)) / 86400000);
+  }
+
+  function addDaysToDateKey(dateKey, deltaDays) {
+    const ms = parseDateKeyUTC(dateKey) + deltaDays * 86400000;
+    const dt = new Date(ms);
+    return formatDateKey(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate());
+  }
+
+  function getEventEndDate(ev) {
+    return (ev.endDate && ev.endDate >= ev.date) ? ev.endDate : ev.date;
+  }
+
+  function isEventOnDate(ev, dateKey) {
+    if (!ev || !ev.date) return false;
+    const endKey = getEventEndDate(ev);
+    return dateKey >= ev.date && dateKey <= endKey;
+  }
+
+  function isEventInMonth(ev, year, month0) {
+    if (!ev || !ev.date) return false;
+    const mStart = formatDateKey(year, month0, 1);
+    const mEnd = formatDateKey(year, month0, new Date(year, month0 + 1, 0).getDate());
+    const endKey = getEventEndDate(ev);
+    return ev.date <= mEnd && endKey >= mStart;
+  }
+
+  function formatShortThaiRange(startKey, endKey) {
+    const [sy, sm, sd] = startKey.split('-').map(Number);
+    const [ey, em, ed] = endKey.split('-').map(Number);
+    if (sy === ey && sm === em) {
+      return `${sd}–${ed} ${THAI_SHORT_MONTHS[sm - 1]}`;
+    }
+    return `${sd} ${THAI_SHORT_MONTHS[sm - 1]} – ${ed} ${THAI_SHORT_MONTHS[em - 1]}`;
+  }
+
+  function highlightRangeCells() {
+    const cells = document.querySelectorAll('.day-cell[data-date]');
+    if (!isSelectingDateRange || !rangeSelectStartKey || !rangeSelectCurrentKey) {
+      cells.forEach(c => c.classList.remove('range-selecting'));
+      return;
+    }
+    const minKey = rangeSelectStartKey <= rangeSelectCurrentKey ? rangeSelectStartKey : rangeSelectCurrentKey;
+    const maxKey = rangeSelectStartKey <= rangeSelectCurrentKey ? rangeSelectCurrentKey : rangeSelectStartKey;
+    cells.forEach(c => {
+      const dk = c.dataset.date;
+      c.classList.toggle('range-selecting', dk >= minKey && dk <= maxKey);
+    });
+  }
+
+  // สร้างตัวอย่างตารางงานเริ่มต้นสำหรับเดือนปัจจุบัน (เฉพาะเมื่อเปิดครั้งแรกสุด)
+  function seedSampleEventsForCurrentMonth() {
+    const y = nowReal.getFullYear();
+    const m = nowReal.getMonth();
+    const dToday = nowReal.getDate();
+    const maxD = new Date(y, m + 1, 0).getDate();
+    const clampD = (d) => Math.max(1, Math.min(maxD, d));
+
+    return [
+      {
+        id: 'seed-1',
+        date: formatDateKey(y, m, clampD(dToday - 5)),
+        endDate: formatDateKey(y, m, clampD(dToday - 5)),
+        time: '18:00 น.',
+        catId: 'vdo',
+        title: 'ลงคลิปเกม Maneater ไฮไลต์บอส',
+        note: 'YouTube 16:9 เต็มคลิป',
+        highlight: false,
+        done: true
+      },
+      {
+        id: 'seed-2',
+        date: formatDateKey(y, m, clampD(dToday - 3)),
+        endDate: formatDateKey(y, m, clampD(dToday - 3)),
+        time: '20:00 น.',
+        catId: 'stream',
+        title: 'ไลฟ์สตรีมลุยด่านใหม่กับคนดู',
+        note: 'YouTube & TikTok Live',
+        highlight: false,
+        done: true
+      },
+      {
+        id: 'seed-3',
+        date: formatDateKey(y, m, clampD(dToday - 1)),
+        endDate: formatDateKey(y, m, clampD(dToday - 1)),
+        time: '19:30 น.',
+        catId: 'shorts',
+        title: 'ลงคลิปช็อต โคฟเวอร์เพลงเสือฮู้ด',
+        note: 'TikTok / Reels / Shorts',
+        highlight: false,
+        done: true
+      },
+      {
+        id: 'seed-4',
+        date: formatDateKey(y, m, dToday),
+        endDate: formatDateKey(y, m, dToday),
+        time: '20:00 น.',
+        catId: 'stream',
+        title: 'สตรีมเกมส์พิเศษประจำสัปดาห์ 🔥',
+        note: 'มาลุยกันสดๆ ห้ามพลาด!',
+        highlight: true,
+        done: false
+      },
+      {
+        id: 'seed-5',
+        date: formatDateKey(y, m, dToday),
+        endDate: formatDateKey(y, m, dToday),
+        time: '17:00 น.',
+        catId: 'patch',
+        title: 'อัปเดตแพตช์ระบบใหม่ WOLD Arture',
+        note: 'Roblox Studio Update',
+        highlight: false,
+        done: false
+      },
+      {
+        id: 'seed-6',
+        date: formatDateKey(y, m, clampD(dToday + 2)),
+        endDate: formatDateKey(y, m, clampD(dToday + 2)),
+        time: '18:00 น.',
+        catId: 'vdo',
+        title: 'ลงคอนเทนต์ VDO ตอนใหม่ล่าสุด',
+        note: 'YouTube ช่อง PHUMAPANTHER',
+        highlight: true,
+        done: false
+      },
+      {
+        id: 'seed-7',
+        date: formatDateKey(y, m, clampD(dToday + 3)),
+        endDate: formatDateKey(y, m, clampD(dToday + 3)),
+        time: '21:00 น.',
+        catId: 'discord',
+        title: 'กิจกรรมพูดคุย & เล่นเกมใน Discord',
+        note: 'ห้อง Voice หลักของดิสคอร์ด',
+        highlight: false,
+        done: false
+      },
+      {
+        id: 'seed-8',
+        date: formatDateKey(y, m, clampD(dToday + 5)),
+        endDate: formatDateKey(y, m, clampD(dToday + 6)),
+        time: '11:00 - 18:00',
+        catId: 'cosplay',
+        title: 'ไปงานคอสเพลย์ & มีตติ้งถ่ายรูป ✨',
+        note: 'เจอกันหน้างานทั้ง 2 วัน ทักทายได้น้า!',
+        highlight: true,
+        done: false
+      },
+      {
+        id: 'seed-9',
+        date: formatDateKey(y, m, clampD(dToday + 7)),
+        endDate: formatDateKey(y, m, clampD(dToday + 7)),
+        time: '20:00 น.',
+        catId: 'game_event',
+        title: 'กิจกรรมเกมส์แจกของรางวัลคนดู',
+        note: 'ร่วมสนุกในเซิร์ฟเวอร์หลัก',
+        highlight: false,
+        done: false
+      }
+    ];
+  }
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        appState = Object.assign(appState, parsed);
+        if (!Array.isArray(appState.categories) || appState.categories.length === 0) {
+          appState.categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+        }
+        // อัปเกรดข้อมูลตัวอย่างเดิมให้มี endDate ครบถ้วน และให้ seed-8 แสดงตัวอย่างลากยาว 2 วัน
+        if (Array.isArray(appState.events)) {
+          appState.events.forEach(ev => {
+            if (ev.id === 'seed-8' && (!ev.endDate || ev.endDate === ev.date)) {
+              ev.endDate = addDaysToDateKey(ev.date, 1);
+            } else if (!ev.endDate) {
+              ev.endDate = ev.date;
+            }
+          });
+        }
+      } else {
+        appState.events = seedSampleEventsForCurrentMonth();
+        saveState();
+      }
+    } catch (e) {
+      console.error('Failed to load schedule state:', e);
+    }
+  }
+
+  function saveState() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+    } catch (e) {
+      console.error('Failed to save schedule state:', e);
+    }
+  }
+
+  function showToast(text) {
+    const el = document.getElementById('toastMsg');
+    el.textContent = text;
+    el.classList.add('show');
+    clearTimeout(window.__toastTimer);
+    window.__toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
+  }
+
+  // =========================================================
+  // 2. ตั้งค่ารูปมาสคอตและของตกแต่งลอยรอบบอร์ด
+  // =========================================================
+  function renderMascots() {
+    const m = window.PHUMA_MASCOTS || {};
+    const leftImg = document.getElementById('leftMascotImg');
+    const rightImg = document.getElementById('rightMascotImg');
+
+    leftImg.src = m.logo_chibi || '/calendar_assets/logo_chibi.png';
+    const rightKey = appState.rightMascot || 'car1';
+    const fallbackMap = {
+      car1: '/calendar_assets/mascot_car1.png',
+      car6: '/calendar_assets/mascot_car6.png',
+      car5: '/calendar_assets/mascot_car5.png',
+      logo_spark: '/calendar_assets/logo_spark.png',
+      emblem: '/calendar_assets/logo_emblem.png'
+    };
+    rightImg.src = m[rightKey] || fallbackMap[rightKey] || '/calendar_assets/mascot_car1.png';
+  }
+
+  function cycleRightMascot() {
+    const order = ['car1', 'car6', 'car5', 'logo_spark', 'emblem'];
+    const names = {
+      car1: '🐯 เสือฮู้ด (2D Vtuber)',
+      car6: '🍡 จิบิเสือขาวแก้มแดง',
+      car5: '🥼 เสือขาวชุดสูท',
+      logo_spark: '⚡ โลโก้จิบิสายฟ้า',
+      emblem: '🛡️ โลโก้ตราเสือขาว'
+    };
+    const idx = order.indexOf(appState.rightMascot || 'car1');
+    appState.rightMascot = order[(idx + 1) % order.length];
+    saveState();
+    renderMascots();
+    showToast(`สลับโมเดลเป็น: ${names[appState.rightMascot]}`);
+  }
+
+  function initFloatingDeco() {
+    const layer = document.getElementById('decoLayer');
+    layer.innerHTML = '';
+    const spots = [
+      [1.2, 6], [97.5, 8], [0.8, 45], [98.2, 48],
+      [1.5, 85], [97.8, 86], [26, 2.5], [73, 2.5]
+    ];
+    const icons = ['🐾', '⭐', '⚡', '✨', '❤️', '🌸', '🐾', '⭐'];
+    spots.forEach(([lx, ty], i) => {
+      const d = document.createElement('div');
+      d.className = 'float-item';
+      d.textContent = icons[i % icons.length];
+      d.style.left = lx + '%';
+      d.style.top = ty + '%';
+      d.style.fontSize = (20 + (i % 3) * 4) + 'px';
+      d.style.setProperty('--dur', (4.5 + (i % 4)) + 's');
+      d.style.animationDelay = (i * 0.4) + 's';
+      layer.appendChild(d);
+    });
+  }
+
+  // =========================================================
+  // 3. ระบบเลือกเดือน/ปี และการแสดงสถานะวันปัจจุบัน/ผ่านแล้ว/ยังไม่ผ่าน
+  // =========================================================
+  function populateMonthYearSelectors() {
+    const mSel = document.getElementById('monthSelect');
+    const ySel = document.getElementById('yearSelect');
+    mSel.innerHTML = '';
+    THAI_MONTHS.forEach((mName, idx) => {
+      const opt = document.createElement('option');
+      opt.value = idx;
+      opt.textContent = `เดือน${mName}`;
+      if (idx === viewMonth) opt.selected = true;
+      mSel.appendChild(opt);
+    });
+
+    ySel.innerHTML = '';
+    const curY = nowReal.getFullYear();
+    for (let y = curY - 3; y <= curY + 3; y++) {
+      const opt = document.createElement('option');
+      opt.value = y;
+      opt.textContent = `ค.ศ. ${y} (พ.ศ. ${y + 543})`;
+      if (y === viewYear) opt.selected = true;
+      ySel.appendChild(opt);
+    }
+  }
+
+  function changeMonth(delta) {
+    viewMonth += delta;
+    if (viewMonth < 0) {
+      viewMonth = 11;
+      viewYear--;
+    } else if (viewMonth > 11) {
+      viewMonth = 0;
+      viewYear++;
+    }
+    populateMonthYearSelectors();
+    renderBoard();
+  }
+
+  function onJumpMonthYear() {
+    viewMonth = parseInt(document.getElementById('monthSelect').value, 10);
+    viewYear = parseInt(document.getElementById('yearSelect').value, 10);
+    renderBoard();
+  }
+
+  function jumpToCurrentMonth() {
+    const freshNow = new Date();
+    viewYear = freshNow.getFullYear();
+    viewMonth = freshNow.getMonth();
+    populateMonthYearSelectors();
+    renderBoard();
+    showToast('📍 กลับมาที่เดือนปัจจุบันเรียบร้อย!');
+  }
+
+  function toggleDimPastDays() {
+    appState.dimPastDays = !appState.dimPastDays;
+    document.body.classList.toggle('dim-past-days', appState.dimPastDays);
+    document.getElementById('btnDimToggle').textContent =
+      `👁️ เน้นวันปัจจุบัน: ${appState.dimPastDays ? 'เปิด' : 'ปิด'}`;
+    saveState();
+  }
+
+  // =========================================================
+  // 4. เรนเดอร์ตารางงานทั้งหมด (Header + Legend + Calendar Grid)
+  // =========================================================
+  function getCategoryById(catId) {
+    return appState.categories.find(c => c.id === catId) || {
+      id: 'other',
+      icon: '📌',
+      name: 'อื่นๆ',
+      color: '#d81f2a',
+      bg: '#ffe8ea'
+    };
+  }
+
+  function renderBoard() {
+    const today = new Date();
+    const todayY = today.getFullYear();
+    const todayM = today.getMonth();
+    const todayD = today.getDate();
+    const todayKey = formatDateKey(todayY, todayM, todayD);
+
+    // อัปเดตชื่อเดือนและคำโปรย
+    const monthName = THAI_MONTHS[viewMonth];
+    const buddhistYear = viewYear + 543;
+    document.getElementById('boardMonthTitle').textContent =
+      `ตารางงานเดือน${monthName} ${viewYear} (พ.ศ. ${buddhistYear})`;
+    document.getElementById('boardSubtitle').textContent = appState.subtitle;
+
+    // อัปเดตป้ายสถานะเดือน (เดือนปัจจุบัน / เดือนที่ผ่านมาแล้ว / เดือนล่วงหน้า)
+    const statusPill = document.getElementById('monthStatusPill');
+    statusPill.className = 'month-status-pill';
+    if (viewYear === todayY && viewMonth === todayM) {
+      statusPill.classList.add('is-current');
+      statusPill.textContent = '📍 เดือนปัจจุบัน (Current Month)';
+    } else if (viewYear < todayY || (viewYear === todayY && viewMonth < todayM)) {
+      statusPill.classList.add('is-past-month');
+      statusPill.textContent = '⏪ เดือนที่ผ่านมาแล้ว (ย้อนหลัง)';
+    } else {
+      statusPill.classList.add('is-future-month');
+      statusPill.textContent = '⏩ เดือนล่วงหน้า (Upcoming Month)';
+    }
+
+    // อัปเดตกล่องวันที่ปัจจุบันมุมขวาบน
+    document.getElementById('todayDateText').textContent =
+      `${todayD} ${THAI_MONTHS[todayM]} ${todayY}`;
+
+    // ดึงงานทั้งหมดของเดือนที่กำลังเปิดดู (รวมงานที่ลากยาวข้ามวันด้วย)
+    const monthEvents = appState.events.filter(ev => isEventInMonth(ev, viewYear, viewMonth));
+
+    // คำนวณงานที่ผ่านแล้ว/เสร็จแล้วในเดือนนี้
+    const passedOrDoneCount = monthEvents.filter(ev => ev.done || getEventEndDate(ev) < todayKey).length;
+    document.getElementById('monthProgressText').textContent =
+      `เดือนนี้มี ${monthEvents.length} งาน (ผ่านแล้ว ${passedOrDoneCount} งาน)`;
+
+    // เรนเดอร์แถบหมวดหมู่ (Category Legend)
+    const legendEl = document.getElementById('categoryLegend');
+    legendEl.innerHTML = '';
+    appState.categories.forEach(cat => {
+      const count = monthEvents.filter(ev => ev.catId === cat.id).length;
+      const chip = document.createElement('div');
+      chip.className = 'cat-chip' + (activeCategoryFilter && activeCategoryFilter !== cat.id ? ' filtered-out' : '');
+      chip.style.background = cat.bg || hexToSoftBg(cat.color);
+      chip.style.borderColor = cat.color;
+      chip.title = 'คลิกเพื่อกรองดูเฉพาะหมวดหมู่นี้ (คลิกซ้ำเพื่อแสดงทั้งหมด)';
+      chip.innerHTML = `
+        <span class="cat-dot" style="background:${cat.color}"></span>
+        <span>${cat.icon} ${cat.name}</span>
+        <span class="cat-count">${count}</span>
+      `;
+      chip.onclick = () => {
+        activeCategoryFilter = (activeCategoryFilter === cat.id) ? null : cat.id;
+        renderBoard();
+      };
+      legendEl.appendChild(chip);
+    });
+
+    // เรนเดอร์หัวตารางวันในสัปดาห์
+    const wdHeader = document.getElementById('weekdayHeader');
+    wdHeader.innerHTML = '';
+    const weekdays = Number(appState.startMonday) === 1 ? WEEKDAYS_MON_START : WEEKDAYS_SUN_START;
+    weekdays.forEach(wd => {
+      const cell = document.createElement('div');
+      cell.className = `weekday-cell ${wd.cls}`;
+      cell.innerHTML = `<span>วัน${wd.th}</span> <span class="wd-en">(${wd.en})</span>`;
+      wdHeader.appendChild(cell);
+    });
+
+    // คำนวณช่องวันที่ในปฏิทิน
+    const grid = document.getElementById('calendarGrid');
+    grid.innerHTML = '';
+
+    const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay(); // 0=Sun..6=Sat
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const prevMonthDays = new Date(viewYear, viewMonth, 0).getDate();
+
+    const leadingSlots = Number(appState.startMonday) === 1
+      ? (firstDayOfWeek + 6) % 7
+      : firstDayOfWeek;
+
+    const totalOccupied = leadingSlots + daysInMonth;
+    const totalCells = totalOccupied <= 35 ? 35 : 42;
+
+    for (let i = 0; i < totalCells; i++) {
+      const dayOffset = i - leadingSlots + 1;
+      let cellY = viewYear;
+      let cellM = viewMonth;
+      let cellD = dayOffset;
+      let isCurrentMonth = true;
+
+      if (dayOffset <= 0) {
+        isCurrentMonth = false;
+        cellM = viewMonth - 1;
+        if (cellM < 0) { cellM = 11; cellY--; }
+        cellD = prevMonthDays + dayOffset;
+      } else if (dayOffset > daysInMonth) {
+        isCurrentMonth = false;
+        cellM = viewMonth + 1;
+        if (cellM > 11) { cellM = 0; cellY++; }
+        cellD = dayOffset - daysInMonth;
+      }
+
+      const dateKey = formatDateKey(cellY, cellM, cellD);
+      const dayOfWeek = new Date(cellY, cellM, cellD).getDay();
+
+      // ดึงรายการงานของวันนี้ (รวมงานที่ลากยาวครอบคลุมวันนี้ด้วย เรียงตามงานหลายวันขึ้นก่อนแล้วตามด้วยเวลา)
+      let dayEvents = appState.events
+        .filter(ev => isEventOnDate(ev, dateKey))
+        .filter(ev => !activeCategoryFilter || ev.catId === activeCategoryFilter)
+        .sort((a, b) => {
+          const aMulti = getEventEndDate(a) > a.date ? 0 : 1;
+          const bMulti = getEventEndDate(b) > b.date ? 0 : 1;
+          if (aMulti !== bMulti) return aMulti - bMulti;
+          return (a.time || '99:99').localeCompare(b.time || '99:99');
+        });
+
+      const cell = document.createElement('div');
+      let cellClasses = ['day-cell'];
+      if (!isCurrentMonth) cellClasses.push('other-month');
+      if (dayOfWeek === 0) cellClasses.push('sun-col');
+      if (dayOfWeek === 6) cellClasses.push('sat-col');
+      if (dayEvents.length > 0) cellClasses.push('has-events');
+
+      // ตรวจสอบสถานะวัน: ผ่านแล้ว (is-past), วันนี้ (is-today), หรือยังไม่ถึง (is-upcoming)
+      let statusBadgeHTML = '';
+      if (dateKey === todayKey) {
+        cellClasses.push('is-today');
+        statusBadgeHTML = `<span class="day-status-tag tag-today">🐾 วันนี้!</span>`;
+      } else if (dateKey < todayKey) {
+        cellClasses.push('is-past');
+        if (isCurrentMonth) {
+          statusBadgeHTML = `<span class="day-status-tag tag-past">✓ ผ่านแล้ว</span>`;
+        }
+      } else {
+        cellClasses.push('is-upcoming');
+        if (isCurrentMonth && dayEvents.length > 0) {
+          // เช็กว่าห่างจากวันนี้กี่วัน
+          const diffDays = Math.round((new Date(cellY, cellM, cellD) - new Date(todayY, todayM, todayD)) / 86400000);
+          if (diffDays === 1) {
+            statusBadgeHTML = `<span class="day-status-tag tag-tomorrow">🔥 พรุ่งนี้!</span>`;
+          } else if (diffDays <= 7) {
+            statusBadgeHTML = `<span class="day-status-tag tag-upcoming">⏳ อีก ${diffDays} วัน</span>`;
+          } else {
+            statusBadgeHTML = `<span class="day-status-tag tag-upcoming">⏳ เร็วๆ นี้</span>`;
+          }
+        }
+      }
+
+      cell.className = cellClasses.join(' ');
+      cell.dataset.date = dateKey;
+
+      // รองรับการลากวางงาน (Drag & Drop) ข้ามวัน (กด Ctrl หรือ Alt ค้างไว้ตอนปล่อย = คัดลอกงาน!)
+      cell.ondragover = (e) => {
+        e.preventDefault();
+        cell.classList.add('drag-over');
+      };
+      cell.ondragleave = () => cell.classList.remove('drag-over');
+      cell.ondrop = (e) => {
+        e.preventDefault();
+        cell.classList.remove('drag-over');
+        if (draggedEventId) {
+          const evObj = appState.events.find(x => x.id === draggedEventId);
+          if (evObj) {
+            const spanDays = Math.max(0, diffDaysBetweenKeys(evObj.date, getEventEndDate(evObj)));
+            const newEndDate = addDaysToDateKey(dateKey, spanDays);
+            if (e.ctrlKey || e.altKey || e.metaKey) {
+              // คัดลอกเป็นงานใหม่ในวันที่ปล่อย (รักษาระยะเวลาลากยาวเท่าเดิม)
+              appState.events.push({
+                id: 'ev-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+                date: dateKey,
+                endDate: newEndDate,
+                time: evObj.time || '',
+                catId: evObj.catId,
+                title: evObj.title,
+                note: evObj.note || '',
+                highlight: Boolean(evObj.highlight),
+                done: false
+              });
+              saveState();
+              renderBoard();
+              showToast(`📋 คัดลอก "${evObj.title}" ไปวันที่ ${cellD} ${THAI_MONTHS[cellM]} แล้ว!`);
+            } else if (evObj.date !== dateKey) {
+              evObj.date = dateKey;
+              evObj.endDate = newEndDate;
+              saveState();
+              renderBoard();
+              showToast(`ย้าย "${evObj.title}" ไปวันที่ ${cellD} ${THAI_MONTHS[cellM]} แล้ว!`);
+            }
+          }
+          draggedEventId = null;
+        }
+      };
+
+      // รองรับทั้งการคลิกวันเดียว และการคลิกค้างลากคลุมหลายวัน (Drag-to-Select Date Range)
+      cell.onmousedown = (e) => {
+        if (e.button !== 0) return;
+        if (e.target.closest('.event-pill') || e.target.closest('.paste-event-mini')) return;
+        isSelectingDateRange = true;
+        rangeSelectStartKey = dateKey;
+        rangeSelectCurrentKey = dateKey;
+        highlightRangeCells();
+      };
+      cell.onmouseenter = () => {
+        if (!isSelectingDateRange) return;
+        rangeSelectCurrentKey = dateKey;
+        highlightRangeCells();
+      };
+
+      // แถบบนของช่องวัน (มีปุ่ม 📋 วาง เมื่ออยู่ในโหมดคัดลอกงาน)
+      const topBar = document.createElement('div');
+      topBar.className = 'day-top-bar';
+      topBar.innerHTML = `
+        <div class="day-num-group">
+          <span class="day-number">${cellD}</span>
+          ${statusBadgeHTML}
+        </div>
+        <div class="day-action-btns no-export">
+          ${copiedEventTemplate ? `<button class="paste-event-mini" title="วางงานที่คัดลอกไว้ลงในวันนี้">📋 วาง</button>` : ''}
+          <button class="add-event-mini" title="คลิกเพื่อเพิ่มงาน หรือคลิกค้างลากคลุมหลายวัน">+</button>
+        </div>
+      `;
+      const pasteBtn = topBar.querySelector('.paste-event-mini');
+      if (pasteBtn) {
+        pasteBtn.onclick = (e) => {
+          e.stopPropagation();
+          pasteCopiedEventToDate(dateKey, cellD, cellM);
+        };
+      }
+      cell.appendChild(topBar);
+
+      // รายการงานในวันนั้น
+      const evList = document.createElement('div');
+      evList.className = 'day-events-list';
+
+      if (dayEvents.length === 0 && isCurrentMonth) {
+        const emptyHint = document.createElement('div');
+        emptyHint.className = 'empty-day-hint no-export';
+        emptyHint.textContent = copiedEventTemplate ? '📋 คลิกปุ่ม [วาง] ด้านบนได้เลย' : '+ คลิกหรือลากคลุมหลายวัน';
+        evList.appendChild(emptyHint);
+      } else {
+        dayEvents.forEach(ev => {
+          const cat = getCategoryById(ev.catId);
+          const pill = document.createElement('div');
+          const isPastAutoDone = ev.done;
+          const endKey = getEventEndDate(ev);
+          const isMultiDay = endKey > ev.date;
+          pill.className = 'event-pill' +
+            (isPastAutoDone ? ' is-done' : '') +
+            (ev.highlight ? ' is-highlight' : '') +
+            (isMultiDay ? ' is-multi-day' : '');
+          pill.style.setProperty('--ev-color', cat.color);
+          pill.style.setProperty('--ev-bg', cat.bg || hexToSoftBg(cat.color));
+          pill.draggable = true;
+
+          pill.ondragstart = (e) => {
+            isSelectingDateRange = false;
+            highlightRangeCells();
+            draggedEventId = ev.id;
+            e.dataTransfer.effectAllowed = 'copyMove';
+          };
+
+          pill.onclick = (e) => {
+            e.stopPropagation();
+            if (e.target.closest('.ev-copy-mini')) return;
+            openEventModal(ev);
+          };
+
+          const totalSpanDays = diffDaysBetweenKeys(ev.date, endKey) + 1;
+          const currentDayIdx = diffDaysBetweenKeys(ev.date, dateKey) + 1;
+          const rangeRowHTML = isMultiDay
+            ? `<div class="ev-range-row"><span class="ev-range-badge" title="กิจกรรมต่อเนื่องหลายวัน">🗓️ ${formatShortThaiRange(ev.date, endKey)} (วันที่ ${currentDayIdx}/${totalSpanDays})</span></div>`
+            : '';
+
+          pill.innerHTML = `
+            <div class="ev-header-row">
+              <span class="ev-cat-badge">${cat.icon} ${cat.name}</span>
+              <span class="ev-right-tools">
+                ${ev.time ? `<span class="ev-time-badge">${ev.time}</span>` : ''}
+                <button type="button" class="ev-copy-mini no-export" title="คัดลอกงานนี้ไปวางวันอื่น">📋</button>
+              </span>
+            </div>
+            ${rangeRowHTML}
+            <div class="ev-title">${ev.highlight ? '⭐ ' : ''}${escapeHtml(ev.title)}</div>
+            ${ev.note ? `<div class="ev-note">${escapeHtml(ev.note)}</div>` : ''}
+          `;
+          const copyBtn = pill.querySelector('.ev-copy-mini');
+          if (copyBtn) {
+            copyBtn.onclick = (e) => {
+              e.stopPropagation();
+              startCopyEvent(ev);
+            };
+          }
+          evList.appendChild(pill);
+        });
+      }
+
+      cell.appendChild(evList);
+      grid.appendChild(cell);
+    }
+  }
+
+  function escapeHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // =========================================================
+  // 5. การจัดการ Modal เพิ่ม/แก้ไข/ลบ รายการงาน
+  // =========================================================
+  function renderCategorySelectorInModal() {
+    const container = document.getElementById('modalCatSelector');
+    container.innerHTML = '';
+    appState.categories.forEach(cat => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'cat-option-btn' + (selectedCatInModal === cat.id ? ' selected' : '');
+      btn.style.setProperty('--opt-color', cat.color);
+      btn.style.setProperty('--opt-bg', cat.bg || hexToSoftBg(cat.color));
+      btn.innerHTML = `<span style="font-size:18px">${cat.icon}</span> <span>${cat.name}</span>`;
+      btn.onclick = () => {
+        selectedCatInModal = cat.id;
+        renderCategorySelectorInModal();
+      };
+      container.appendChild(btn);
+    });
+  }
+
+  function openAddModalForToday() {
+    const todayKey = getTodayKey();
+    openEventModal({ date: todayKey, endDate: todayKey });
+  }
+
+  function onStartDateChange() {
+    const startVal = document.getElementById('evDateInput').value;
+    const endInput = document.getElementById('evEndDateInput');
+    if (!startVal || !endInput) return;
+    endInput.min = startVal;
+    if (!endInput.value || endInput.value < startVal) {
+      endInput.value = startVal;
+    }
+    updateSpanButtonsHighlight();
+  }
+
+  function setQuickDateSpan(days) {
+    const startVal = document.getElementById('evDateInput').value || getTodayKey();
+    document.getElementById('evDateInput').value = startVal;
+    const endInput = document.getElementById('evEndDateInput');
+    endInput.min = startVal;
+    endInput.value = addDaysToDateKey(startVal, Math.max(0, days - 1));
+    updateSpanButtonsHighlight();
+  }
+
+  function updateSpanButtonsHighlight() {
+    const startVal = document.getElementById('evDateInput').value;
+    const endVal = document.getElementById('evEndDateInput').value || startVal;
+    const span = diffDaysBetweenKeys(startVal, endVal) + 1;
+    const btns = document.querySelectorAll('.span-mini-btn');
+    const mapDays = [1, 2, 3, 5];
+    btns.forEach((b, idx) => {
+      b.classList.toggle('active', mapDays[idx] === span);
+    });
+  }
+
+  function populateTimePickerSelects() {
+    const startSel = document.getElementById('evStartTimeSelect');
+    const endSel = document.getElementById('evEndTimeSelect');
+    if (!startSel || !endSel) return;
+
+    startSel.innerHTML = `<option value="">-- ไม่ระบุ / เลือกเวลาเริ่ม --</option><option value="ทั้งวัน">☀️ ทั้งวัน (All Day)</option>`;
+    endSel.innerHTML = `<option value="">-- ไม่ระบุเวลาจบ --</option>`;
+
+    // เรียงช่วงเวลาตั้งแต่ 06:00 ถึง 23:30 ก่อน แล้วตามด้วย 00:00 ถึง 05:30 เพื่อให้หาช่วงกลางวัน-ค่ำง่ายที่สุด
+    const hoursOrder = [];
+    for (let h = 6; h < 24; h++) hoursOrder.push(h);
+    for (let h = 0; h < 6; h++) hoursOrder.push(h);
+
+    hoursOrder.forEach(h => {
+      ['00', '30'].forEach(m => {
+        const t = `${String(h).padStart(2, '0')}:${m}`;
+        const opt1 = document.createElement('option');
+        opt1.value = t;
+        opt1.textContent = `${t} น.`;
+        startSel.appendChild(opt1);
+
+        const opt2 = document.createElement('option');
+        opt2.value = t;
+        opt2.textContent = `${t} น.`;
+        endSel.appendChild(opt2);
+      });
+    });
+  }
+
+  function selectQuickTimePreset(val) {
+    const input = document.getElementById('evTimeInput');
+    if (!input) return;
+    input.value = val;
+    syncTimeControlsFromInput();
+  }
+
+  function onTimeDropdownChange() {
+    const startSel = document.getElementById('evStartTimeSelect');
+    const endSel = document.getElementById('evEndTimeSelect');
+    const input = document.getElementById('evTimeInput');
+    if (!startSel || !endSel || !input) return;
+
+    const sVal = startSel.value;
+    const eVal = endSel.value;
+
+    if (!sVal) {
+      input.value = '';
+    } else if (sVal === 'ทั้งวัน') {
+      endSel.value = '';
+      input.value = 'ทั้งวัน';
+    } else if (eVal) {
+      input.value = `${sVal} - ${eVal}`;
+    } else {
+      input.value = `${sVal} น.`;
+    }
+    highlightTimePresetChips(input.value.trim());
+  }
+
+  function highlightTimePresetChips(currentVal) {
+    const chips = document.querySelectorAll('#timePresetRow .time-chip');
+    chips.forEach(chip => {
+      chip.classList.toggle('active', (chip.dataset.time || '') === currentVal);
+    });
+  }
+
+  function syncTimeControlsFromInput() {
+    const input = document.getElementById('evTimeInput');
+    const startSel = document.getElementById('evStartTimeSelect');
+    const endSel = document.getElementById('evEndTimeSelect');
+    if (!input || !startSel || !endSel) return;
+
+    const val = input.value.trim();
+    highlightTimePresetChips(val);
+
+    if (!val) {
+      startSel.value = '';
+      endSel.value = '';
+      return;
+    }
+    if (val === 'ทั้งวัน') {
+      startSel.value = 'ทั้งวัน';
+      endSel.value = '';
+      return;
+    }
+
+    // ตรวจจับรูปแบบเช่น "11:00 - 18:00" หรือ "20:00 น."
+    const rangeMatch = val.match(/^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})/);
+    if (rangeMatch) {
+      startSel.value = rangeMatch[1];
+      endSel.value = rangeMatch[2];
+      return;
+    }
+    const singleMatch = val.match(/^(\d{2}:\d{2})/);
+    if (singleMatch) {
+      startSel.value = singleMatch[1];
+      endSel.value = '';
+    }
+  }
+
+  function openEventModal(evOrDefault) {
+    const isEdit = Boolean(evOrDefault && evOrDefault.id);
+    const startDate = (evOrDefault && evOrDefault.date) || getTodayKey();
+    const endDate = (evOrDefault && evOrDefault.endDate && evOrDefault.endDate >= startDate)
+      ? evOrDefault.endDate
+      : startDate;
+    const isMultiSpan = endDate > startDate;
+
+    document.getElementById('eventModalRibbon').textContent =
+      isEdit
+        ? '✏️ แก้ไขตารางงาน'
+        : (isMultiSpan ? `🗓️ เพิ่มงานแบบลากยาว (${formatShortThaiRange(startDate, endDate)})` : '🐾 เพิ่มตารางงานใหม่');
+
+    document.getElementById('evIdInput').value = isEdit ? evOrDefault.id : '';
+    document.getElementById('evDateInput').value = startDate;
+    const endInput = document.getElementById('evEndDateInput');
+    endInput.min = startDate;
+    endInput.value = endDate;
+    updateSpanButtonsHighlight();
+
+    document.getElementById('evTimeInput').value = evOrDefault.time || '';
+    syncTimeControlsFromInput();
+
+    document.getElementById('evTitleInput').value = evOrDefault.title || '';
+    document.getElementById('evNoteInput').value = evOrDefault.note || '';
+    document.getElementById('evHighlightInput').checked = Boolean(evOrDefault.highlight);
+    document.getElementById('evDoneInput').checked = Boolean(evOrDefault.done);
+    document.getElementById('evRepeatWeekly').checked = false;
+    document.getElementById('repeatWeeklyWrap').style.display = isEdit ? 'none' : 'inline-flex';
+    document.getElementById('btnDeleteEvent').style.display = isEdit ? 'inline-flex' : 'none';
+    document.getElementById('btnCopyPasteMode').style.display = isEdit ? 'inline-flex' : 'none';
+    document.getElementById('btnDuplicateDate').style.display = isEdit ? 'inline-flex' : 'none';
+
+    selectedCatInModal = evOrDefault.catId || (appState.categories[0] && appState.categories[0].id) || 'vdo';
+    renderCategorySelectorInModal();
+
+    document.getElementById('eventModal').classList.add('open');
+    setTimeout(() => document.getElementById('evTitleInput').focus(), 80);
+  }
+
+  function closeEventModal() {
+    document.getElementById('eventModal').classList.remove('open');
+  }
+
+  function saveEventFromModal() {
+    const id = document.getElementById('evIdInput').value;
+    const rawStart = document.getElementById('evDateInput').value;
+    const rawEnd = document.getElementById('evEndDateInput').value || rawStart;
+    const date = rawStart <= rawEnd ? rawStart : rawEnd;
+    const endDate = rawStart <= rawEnd ? rawEnd : rawStart;
+    const time = document.getElementById('evTimeInput').value.trim();
+    const title = document.getElementById('evTitleInput').value.trim();
+    const note = document.getElementById('evNoteInput').value.trim();
+    const highlight = document.getElementById('evHighlightInput').checked;
+    const done = document.getElementById('evDoneInput').checked;
+    const repeatWeekly = document.getElementById('evRepeatWeekly').checked;
+
+    if (!date) {
+      alert('กรุณาเลือกวันที่เริ่มงานครับ');
+      return;
+    }
+    if (!title) {
+      alert('กรุณาใส่ชื่องานหรือคอนเทนต์ครับ');
+      document.getElementById('evTitleInput').focus();
+      return;
+    }
+
+    if (id) {
+      // แก้ไขรายการเดิม
+      const idx = appState.events.findIndex(x => x.id === id);
+      if (idx !== -1) {
+        appState.events[idx] = {
+          id, date, endDate, time, catId: selectedCatInModal, title, note, highlight, done
+        };
+      }
+    } else {
+      // เพิ่มรายการใหม่
+      const baseId = 'ev-' + Date.now();
+      const spanDays = Math.max(0, diffDaysBetweenKeys(date, endDate));
+      appState.events.push({
+        id: baseId, date, endDate, time, catId: selectedCatInModal, title, note, highlight, done
+      });
+
+      // ถ้าติ๊กทำซ้ำทุกสัปดาห์ในเดือนเดียวกัน
+      if (repeatWeekly) {
+        const [yy, mm, dd] = date.split('-').map(Number);
+        const daysInM = new Date(yy, mm, 0).getDate();
+        let nextD = dd + 7;
+        let step = 1;
+        while (nextD <= daysInM) {
+          const nextStartKey = formatDateKey(yy, mm - 1, nextD);
+          const nextEndKey = addDaysToDateKey(nextStartKey, spanDays);
+          appState.events.push({
+            id: `${baseId}-w${step}`,
+            date: nextStartKey,
+            endDate: nextEndKey,
+            time,
+            catId: selectedCatInModal,
+            title,
+            note,
+            highlight,
+            done: false
+          });
+          nextD += 7;
+          step++;
+        }
+      }
+    }
+
+    // ถ้าวันที่เพิ่มอยู่ในเดือนอื่น ให้กระโดดไปเดือนนั้นอัตโนมัติ
+    const [ey, em] = date.split('-').map(Number);
+    viewYear = ey;
+    viewMonth = em - 1;
+    populateMonthYearSelectors();
+
+    saveState();
+    renderBoard();
+    closeEventModal();
+    showToast(endDate > date
+      ? `🗓️ บันทึกงานช่วงวันที่ ${formatShortThaiRange(date, endDate)} เรียบร้อย!`
+      : '🐾 บันทึกตารางงานเรียบร้อยแล้ว!');
+  }
+
+  function deleteCurrentEvent() {
+    const id = document.getElementById('evIdInput').value;
+    if (!id) return;
+    appState.events = appState.events.filter(x => x.id !== id);
+    saveState();
+    renderBoard();
+    closeEventModal();
+    showToast('🗑️ ลบรายการงานเรียบร้อยแล้ว');
+  }
+
+  // ระบบคัดลอกงานไปวางวันอื่น (Copy & Paste ได้หลายวันรวด!)
+  function startCopyEvent(ev) {
+    const spanDays = Math.max(0, diffDaysBetweenKeys(ev.date, getEventEndDate(ev)));
+    copiedEventTemplate = {
+      time: ev.time || '',
+      catId: ev.catId,
+      title: ev.title,
+      note: ev.note || '',
+      highlight: Boolean(ev.highlight),
+      spanDays
+    };
+    const banner = document.getElementById('copyModeBanner');
+    const textEl = document.getElementById('copyModeText');
+    if (banner && textEl) {
+      textEl.textContent = `📋 กำลังคัดลอก "${ev.title}" — คลิกปุ่ม [📋 วาง] ในช่องวันที่ต้องการได้เลย!`;
+      banner.classList.add('active');
+    }
+    renderBoard();
+    showToast(`📋 คัดลอก "${ev.title}" แล้ว! คลิกปุ่ม [📋 วาง] ในช่องวันที่ต้องการได้เลย`);
+  }
+
+  function pasteCopiedEventToDate(dateKey, cellD, cellM) {
+    if (!copiedEventTemplate) return;
+    const spanDays = copiedEventTemplate.spanDays || 0;
+    const endDate = addDaysToDateKey(dateKey, spanDays);
+    appState.events.push({
+      id: 'ev-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      date: dateKey,
+      endDate,
+      time: copiedEventTemplate.time,
+      catId: copiedEventTemplate.catId,
+      title: copiedEventTemplate.title,
+      note: copiedEventTemplate.note,
+      highlight: copiedEventTemplate.highlight,
+      done: false
+    });
+    saveState();
+    renderBoard();
+    showToast(`✅ วางงาน "${copiedEventTemplate.title}" ลงวันที่ ${cellD} ${THAI_MONTHS[cellM]} เรียบร้อย! (จิ้มวางวันอื่นต่อได้ หรือกดปิดโหมดวาง)`);
+  }
+
+  function clearCopiedEvent() {
+    copiedEventTemplate = null;
+    const banner = document.getElementById('copyModeBanner');
+    if (banner) banner.classList.remove('active');
+    renderBoard();
+    showToast('✖ ปิดโหมดวางงานแล้ว');
+  }
+
+  function copyEventFromModalToPasteMode() {
+    const title = document.getElementById('evTitleInput').value.trim();
+    if (!title) {
+      alert('กรุณาใส่ชื่องานก่อนคัดลอกครับ');
+      return;
+    }
+    const rawStart = document.getElementById('evDateInput').value;
+    const rawEnd = document.getElementById('evEndDateInput').value || rawStart;
+    closeEventModal();
+    startCopyEvent({
+      date: rawStart,
+      endDate: rawEnd >= rawStart ? rawEnd : rawStart,
+      time: document.getElementById('evTimeInput').value.trim(),
+      catId: selectedCatInModal,
+      title,
+      note: document.getElementById('evNoteInput').value.trim(),
+      highlight: document.getElementById('evHighlightInput').checked
+    });
+  }
+
+  function duplicateEventFromModal() {
+    const rawStart = document.getElementById('evDateInput').value;
+    const rawEnd = document.getElementById('evEndDateInput').value || rawStart;
+    const date = rawStart <= rawEnd ? rawStart : rawEnd;
+    const endDate = rawStart <= rawEnd ? rawEnd : rawStart;
+    const time = document.getElementById('evTimeInput').value.trim();
+    const title = document.getElementById('evTitleInput').value.trim();
+    const note = document.getElementById('evNoteInput').value.trim();
+    const highlight = document.getElementById('evHighlightInput').checked;
+    if (!date || !title) {
+      alert('กรุณาเลือกวันที่และใส่ชื่องานครับ');
+      return;
+    }
+    appState.events.push({
+      id: 'ev-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      date,
+      endDate,
+      time,
+      catId: selectedCatInModal,
+      title,
+      note,
+      highlight,
+      done: false
+    });
+    const [ey, em] = date.split('-').map(Number);
+    viewYear = ey;
+    viewMonth = em - 1;
+    populateMonthYearSelectors();
+    saveState();
+    renderBoard();
+    closeEventModal();
+    showToast(`📄 ทำสำเนางาน "${title}" ไปวันที่ ${date} เรียบร้อย!`);
+  }
+
+  // =========================================================
+  // 6. การตั้งค่าหมวดหมู่, โมเดลมาสคอต, และ Backup JSON
+  // =========================================================
+  function openSettingsModal() {
+    document.getElementById('settingSubtitleInput').value = appState.subtitle || '';
+    document.getElementById('settingRightMascot').value = appState.rightMascot || 'car1';
+    document.getElementById('settingStartMonday').value = String(appState.startMonday || 0);
+    renderCatManageList();
+    document.getElementById('settingsModal').classList.add('open');
+  }
+
+  function closeSettingsModal() {
+    document.getElementById('settingsModal').classList.remove('open');
+  }
+
+  function renderCatManageList() {
+    const list = document.getElementById('catManageList');
+    list.innerHTML = '';
+    appState.categories.forEach((cat, idx) => {
+      const row = document.createElement('div');
+      row.className = 'cat-manage-item';
+      row.innerHTML = `
+        <input type="text" class="form-input" style="padding:6px;text-align:center;" value="${escapeHtml(cat.icon)}"
+               onchange="updateCatField(${idx}, 'icon', this.value)">
+        <input type="text" class="form-input" style="padding:6px 10px;" value="${escapeHtml(cat.name)}"
+               onchange="updateCatField(${idx}, 'name', this.value)">
+        <input type="color" class="form-input" style="padding:2px;height:38px;cursor:pointer;" value="${cat.color}"
+               onchange="updateCatField(${idx}, 'color', this.value)">
+        <button class="btn" style="padding:4px 8px;color:#dc2626;" onclick="removeCategory(${idx})" title="ลบหมวดหมู่นี้">✕</button>
+      `;
+      list.appendChild(row);
+    });
+  }
+
+  function updateCatField(idx, field, val) {
+    if (!appState.categories[idx]) return;
+    appState.categories[idx][field] = val;
+    if (field === 'color') {
+      appState.categories[idx].bg = hexToSoftBg(val);
+    }
+  }
+
+  function addNewCategory() {
+    const icon = document.getElementById('newCatIcon').value.trim() || '🌟';
+    const name = document.getElementById('newCatName').value.trim();
+    const color = document.getElementById('newCatColor').value || '#e11d48';
+    if (!name) {
+      alert('กรุณาใส่ชื่อหมวดหมู่ใหม่ครับ');
+      return;
+    }
+    appState.categories.push({
+      id: 'cat-' + Date.now(),
+      icon,
+      name,
+      color,
+      bg: hexToSoftBg(color)
+    });
+    document.getElementById('newCatName').value = '';
+    renderCatManageList();
+    showToast(`เพิ่มหมวดหมู่ "${icon} ${name}" แล้ว!`);
+  }
+
+  function removeCategory(idx) {
+    if (appState.categories.length <= 1) {
+      alert('ต้องมีอย่างน้อย 1 หมวดหมู่ครับ');
+      return;
+    }
+    appState.categories.splice(idx, 1);
+    renderCatManageList();
+  }
+
+  function resetDefaultCategories() {
+    if (!confirm('ต้องการคืนค่าหมวดหมู่เริ่มต้นทั้ง 7 หมวดหมู่ใช่ไหมครับ?')) return;
+    appState.categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+    renderCatManageList();
+    saveState();
+    renderBoard();
+    showToast('🔄 คืนค่าหมวดหมู่เริ่มต้นเรียบร้อย!');
+  }
+
+  function saveSettingsFromModal() {
+    appState.subtitle = document.getElementById('settingSubtitleInput').value.trim() || appState.subtitle;
+    appState.rightMascot = document.getElementById('settingRightMascot').value;
+    appState.startMonday = parseInt(document.getElementById('settingStartMonday').value, 10) || 0;
+    saveState();
+    renderMascots();
+    renderBoard();
+    closeSettingsModal();
+    showToast('✅ บันทึกการตั้งค่าเรียบร้อย!');
+  }
+
+  function clearCurrentMonthEvents() {
+    if (!confirm(`ต้องการลบรายการงานทั้งหมดในเดือน${THAI_MONTHS[viewMonth]} ${viewYear} ใช่ไหมครับ?`)) return;
+    appState.events = appState.events.filter(ev => !isEventInMonth(ev, viewYear, viewMonth));
+    saveState();
+    renderBoard();
+    closeSettingsModal();
+    showToast('🧹 ล้างงานในเดือนนี้เรียบร้อยแล้ว');
+  }
+
+  function exportDataJSON() {
+    const blob = new Blob([JSON.stringify(appState, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `PHUMAPANTHER_Schedule_Backup_${getTodayKey()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('📤 ดาวน์โหลดไฟล์ Backup เรียบร้อย!');
+  }
+
+  function importDataJSON(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        if (data && Array.isArray(data.events)) {
+          appState = Object.assign(appState, data);
+          saveState();
+          renderMascots();
+          renderBoard();
+          closeSettingsModal();
+          showToast('📥 นำเข้าข้อมูลตารางงานสำเร็จ!');
+        } else {
+          alert('รูปแบบไฟล์ JSON ไม่ถูกต้องครับ');
+        }
+      } catch (err) {
+        alert('ไม่สามารถอ่านไฟล์ JSON ได้ครับ');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // =========================================================
+  // 7. ระบบ Export ตารางงานเป็นรูปภาพ PNG คมชัดสูง (2x Retina)
+  // =========================================================
+  async function exportSchedulePNG() {
+    const btn = document.getElementById('btnExportPNG');
+    const btnHero = document.getElementById('btnExportPNGHero');
+    const origText = btn ? btn.innerHTML : '';
+    const origHeroText = btnHero ? btnHero.innerHTML : '';
+    if (btn) { btn.innerHTML = '⏳ กำลังสร้างรูป PNG...'; btn.disabled = true; }
+    if (btnHero) { btnHero.innerHTML = '⏳ กำลังสร้างรูปตารางงาน PNG...'; btnHero.disabled = true; }
+
+    try {
+      document.body.classList.add('exporting-png');
+      await new Promise(r => setTimeout(r, 150));
+
+      const board = document.getElementById('schedule-board');
+      const canvas = await html2canvas(board, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#fff7f5',
+        logging: false,
+        windowWidth: 1960
+      });
+
+      const dataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      const mStr = String(viewMonth + 1).padStart(2, '0');
+      link.download = `PHUMAPANTHER_Schedule_${viewYear}-${mStr}_${THAI_MONTHS[viewMonth]}.png`;
+      link.href = dataUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      showToast('📸 บันทึกรูปตารางงาน PNG ลงเครื่องเรียบร้อยแล้ว!');
+    } catch (err) {
+      console.error('Export PNG error:', err);
+      alert('เกิดข้อผิดพลาดในการสร้างรูป PNG: ' + err.message);
+    } finally {
+      document.body.classList.remove('exporting-png');
+      if (btn) { btn.innerHTML = origText; btn.disabled = false; }
+      if (btnHero) { btnHero.innerHTML = origHeroText; btnHero.disabled = false; }
+    }
+  }
+
+  // เมื่อปล่อยเมาส์จากการคลิกหรือลากคลุมหลายวันบนปฏิทิน ให้เปิดหน้าต่างเพิ่มงานตามช่วงวันที่ที่เลือกทันที
+  document.addEventListener('mouseup', () => {
+    if (!isSelectingDateRange) return;
+    isSelectingDateRange = false;
+    const startKey = rangeSelectStartKey;
+    const endKey = rangeSelectCurrentKey || startKey;
+    rangeSelectStartKey = null;
+    rangeSelectCurrentKey = null;
+    highlightRangeCells();
+    if (startKey) {
+      const minDate = startKey <= endKey ? startKey : endKey;
+      const maxDate = startKey <= endKey ? endKey : startKey;
+      openEventModal({ date: minDate, endDate: maxDate });
+    }
+  });
+
+  // ปุ่มลัดคีย์บอร์ด (Esc ปิดหน้าต่างป๊อปอัป หรือปิดโหมดวางงาน)
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      isSelectingDateRange = false;
+      highlightRangeCells();
+      closeEventModal();
+      closeSettingsModal();
+      if (copiedEventTemplate) clearCopiedEvent();
+    }
+  });
+
+  // =========================================================
+  // เริ่มต้นทำงานเมื่อเปิดหน้าเว็บ (แสดงเดือนปัจจุบันเสมอ)
+  // =========================================================
+  function init() {
+    loadState();
+    const currentNow = new Date();
+    viewYear = currentNow.getFullYear();
+    viewMonth = currentNow.getMonth();
+
+    document.body.classList.toggle('dim-past-days', Boolean(appState.dimPastDays));
+    document.getElementById('btnDimToggle').textContent =
+      `👁️ เน้นวันปัจจุบัน: ${appState.dimPastDays ? 'เปิด' : 'ปิด'}`;
+
+    initFloatingDeco();
+    renderMascots();
+    populateMonthYearSelectors();
+    populateTimePickerSelects();
+    renderBoard();
+    if (new URLSearchParams(window.location.search).get('exportPreview') === '1') {
+      document.body.classList.add('exporting-png');
+    }
+  }
+
+  window.addEventListener('DOMContentLoaded', init);
+</script>
+<footer class="footer no-export" id="footer"></footer>
+<script src="/i18n.js"></script>
+<script src="/web.js"></script>
+</body>
+</html>

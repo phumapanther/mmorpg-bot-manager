@@ -22,7 +22,7 @@ WEB = ROOT / "license_server" / "web_static"
 LOCALES = WEB / "locales"
 LANGS = ("en", "zh", "ja")
 PY_DIRS = ("bot", "core", "license_server")
-ADMIN_PAGES = {"admin.html"}                       # หน้าแอดมินไม่แปล (สเปกข้อ 5)
+ADMIN_PAGES = {"admin.html", "fxlab.html", "calendar.html"}  # หน้าแอดมิน/เครื่องมือไม่แปล (สเปกข้อ 5)
 I18N_ATTRS = {"title", "placeholder", "alt", "aria-label", "content"}
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input",
         "link", "meta", "source", "track", "wbr"}
